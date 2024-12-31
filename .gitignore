@@ -4,3 +4,4 @@
 /blob-report/
 /playwright/.cache/
 *.js
+!**/flights.js
