@@ -2,17 +2,18 @@
 <head>
     <meta charset="utf-8">
     <title>Ripple • TodoMVC</title>
-    <link rel="stylesheet" href="/examples/todo/base.css">
-    <link rel="stylesheet" href="/examples/todo/index.css">
+    <link rel="stylesheet" href="./base.css">
+    <link rel="stylesheet" href="./index.css">
 </head>
 </html>
 <script type="module">
-    import { $, value, render, HTML } from '/index.js'
+    import { $, value, render, HTML } from '../../index.js'
     const { section, div, header, input, h1, label, ul, footer, span, button, li, a, body } = HTML
     const items = window.items = $({
         0: { completed: false, title: 'foo' },
         1: { completed: true, title: 'boo' },
     })
+    window.value = value
     const ESC = 27
     const ENTER = 13
     const filters = window.filters = {
@@ -72,7 +73,7 @@
 
     const add_todo = ev => {
         if (ev.which === ENTER)
-            items.insert({ title: ev.target.value })
+            items.insert({ title: ev.target.value, completed: false })
     }
 
     const head = header.header(
