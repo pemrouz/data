@@ -187,19 +187,11 @@ window.v = value
               ),
               g.brush
                 (node => background(node, filter, rx, width, height))(
-                // (extent)(
-                // )                
-                // ...background(node, filter, rx, width, height),
-                // ...extent(filter)
-                // ...resizeHandles()
+                rect.background.attr({ width, height }),
                 rect.extent
                   .attr('x', start)
                   .attr('height', height)
-                  .attr('width', filter.to(d => {
-
-                    // console.log({ d, ex: extent[value] })
-                    return  d.length ? extent[value] : 0
-                  })),
+                  .attr('width', filter.to(d => d.length ? extent[value] : 0)),
                 ...[0, 1].map(resizeHandle(filter, domain, x, rx))
               )
             )
@@ -247,18 +239,16 @@ window.v = value
         write?.flush()
         if (filter[0][value] === filter[1][value])
           filter[value] = []
-      })(
-        rect.background.attr({ width, height }),
-      )
+      })
   }
 
-  function resizeHandle(filters, initial, x, rx) {
+  function resizeHandle(filtersArr, initial, x, rx) {
     return function (i) {
       let down = false
       let write
+      let leftRef = 0
       const translate = (d = initial[i]) => `translate(${x(d)}, 0)`
-      const c = (el, { x }) => rx(x - el.getBoundingClientRect().left)
-      const filter = filters[i]
+      const filter = filtersArr[i]
       const height = 100
       const classes = ['w', 'e']
       const d = i ? 1 : -1
@@ -279,14 +269,21 @@ window.v = value
         .style('display', filter.to(d => d ? '' : 'none'))
         .on('pointerdown', function(d) {
           down = true
-          write = rafWriter(filter, i)
+          this.setPointerCapture(d.pointerId)
+          leftRef = this.parentNode.getBoundingClientRect().left
+          write = rafWriter(filtersArr, value)
+          d.stopPropagation()
         })
         .on('pointermove', function(e){
           if (!down) return
-          write(c(this, e))
+          const cur = rx(e.x - leftRef)
+          const next = [filtersArr[0][value], filtersArr[1][value]]
+          next[i] = cur
+          write(next)
         })
-        .on('pointerup', d => {
+        .on('pointerup', function (d) {
           down = false
+          this.releasePointerCapture?.(d.pointerId)
           write?.flush()
         })(
           rect
