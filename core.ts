@@ -443,18 +443,10 @@ class LinkedView extends View {
     this.src.disconnect(this)
     this.src = value
     this.src.connect(this)
-    this.XU0(this.src.value)
+    this.XU0()
   }
   insert(...args){ return this.src.res.insert(...args) }
   remove(...args){ return this.src.res.remove(...args) }
-  XU0(U0){ this.sink(sink => sink.XU0(U0, this)) }
-  BU1(U1){ this.sink(sink => sink.BU1(U1, this)) }
-  BU2(U2){ this.sink(sink => sink.BU2(U2, this)) }
-  XR0(R0){ this.sink(sink => sink.XR0(R0, this)) }
-  BR1(R1){ this.sink(sink => sink.BR1(R1, this)) }
-  BR2(R2){ this.sink(sink => sink.BR2(R2, this)) }
-  BI0(I0){ this.sink(sink => sink.BI0(I0, this)) }
-  BI2(I2){ this.sink(sink => sink.BI2(I2, this)) }
   get value(){ return this.src.value }
   get res(){ return this }
   set res(v){ }
