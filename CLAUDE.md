@@ -80,7 +80,7 @@ Both are runnable via `npm run serve` then opening `http://127.0.0.1:3000/exampl
 
 - Use `proxy[value]` (the `value` symbol), **not** `proxy.value`, to read the raw underlying data. `proxy.value` would create a child view named `"value"`.
 - Setting one proxy to another (`a[value] = b`) creates a `LinkedView` ([core.ts:427](core.ts#L427)) — `a` now forwards to `b`'s underlying data. See the `proxy/link` test at [core.test.ts:83-132](core.test.ts#L83-L132) for the full semantics.
-- Operators dedup via `matches()` — calling `.filter(fn)` twice with the same `fn` returns the cached view. That's intentional, not a bug.
+- Operator dedup is opt-in via a `matches()` method. Currently only `between` ([between.ts:6](between.ts#L6)) and `sort`/`za`/`az`/`top` ([sort.ts:6](sort.ts#L6)) implement it; calling those twice with equivalent args returns the cached view. `filter`, `map`, `length`, `intersect`, `group`, `to`, `debounce` create a fresh operator on every call.
 - Sinks are held via `WeakRef` ([core.ts:421](core.ts#L421)). Dropping the only strong reference unsubscribes silently. Tests keep `connect([])`'s return alive in a local for this reason.
 - `between()` and similar range operators with reactive bounds (`ViewProxy` args) track their inputs reactively; with plain values they don't.
 - Mutations on nested data work transparently: `res.a.b.c = 1` triggers the right notification cascade. No need for immutable updates.
