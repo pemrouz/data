@@ -3,7 +3,8 @@
     "allow": [
       "Bash(wsl -- *)",
       "PowerShell(Copy-Item \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\data.test.ts\" \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\index.test.ts\")",
-      "PowerShell(Copy-Item \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\data.perf.ts\" \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\index.perf.ts\")"
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\data.perf.ts\" \"c:\\\\Users\\\\pemrouz\\\\cloud\\\\data\\\\index.perf.ts\")",
+      "Bash(npx playwright *)"
     ]
   }
 }
