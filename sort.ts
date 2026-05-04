@@ -153,6 +153,19 @@ export class ZANumberValue extends ZAValue {
   }
 }
 
+// LimitValue keeps the first `n` non-undefined entries of an upstream collection
+// in source iteration order. The array branch is incremental: BR1/BI0/BU1
+// produce position-keyed deltas instead of triggering a full rescan, so
+// downstream `group`/DOM doesn't tear down the window every time a brush
+// removes a row that happened to fall inside it.
+//
+// State:
+//   keys  — source keys currently inside the window, sorted ascending (numeric
+//           comparison works for sparse arrays whose keys are numeric strings)
+//   last  — largest key in the window; refill scans source[last+1..]
+//
+// The object branch falls back to full XU0 because for-in insertion order is
+// not numerically comparable.
 export class LimitValue extends Operator {
   constructor(p, n) {
     super()
@@ -162,19 +175,17 @@ export class LimitValue extends Operator {
   }
 
   XR0(){ this.XU0(this.p.value) }
-  BU1(U1){ if (U1[0] < this.last) this.XU0(this.p.value) }
-  BI0(I0){ if (I0[0] < this.last || this.view.value.length < this.n) this.XU0(this.p.value) }
-  BR1(R1){ if (R1[0] < this.last || this.view.value.length < this.n) this.XU0(this.p.value) }
+
   XU0(value) {
     this.view.value = []
-    this.index = []
-    if (typeof value === 'object') {
-      if (isArray(value)) {
-        let i = -1
-        while (i < value.length) {
-          if (value[++i] !== undefined) {
+    this.keys = []
+    this.isArr = isArray(value)
+    if (typeof value === 'object' && value !== null) {
+      if (this.isArr) {
+        for (let i = 0; i < value.length; i++) {
+          if (value[i] !== undefined) {
             this.view.value.push(value[i])
-            this.index.push(i)
+            this.keys.push(i)
             if (this.view.value.length === this.n) break
           }
         }
@@ -182,16 +193,109 @@ export class LimitValue extends Operator {
         for (const i in value) {
           if (value[i] !== undefined) {
             this.view.value.push(value[i])
-            this.index.push(i)
+            this.keys.push(+i)
             if (this.view.value.length === this.n) break
           }
         }
       }
     }
-
-    this.last = this.index.at(-1)
+    this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
     this.view.XU0(this.view.value)
   }
+
+  findPos(numKey) {
+    let lo = 0, hi = this.keys.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      const m = this.keys[mid]
+      if (m < numKey) lo = mid + 1
+      else if (m > numKey) hi = mid
+      else return mid
+    }
+    return -1
+  }
+
+  insertPos(numKey) {
+    let lo = 0, hi = this.keys.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (this.keys[mid] < numKey) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+
+  nextAfter(numKey) {
+    const src = this.p.value
+    if (!src) return undefined
+    for (let i = numKey + 1; i < src.length; i++) {
+      if (src[i] !== undefined) return i
+    }
+    return undefined
+  }
+
+  BU1(U1) {
+    if (!this.isArr) { this.XU0(this.p.value); return }
+    const NU1 = []
+    for (let i = 0; i < U1.length; i++) {
+      const key = U1[i++]
+      const val = U1[i]
+      const pos = this.findPos(+key)
+      if (pos === -1) continue
+      this.view.value[pos] = val
+      NU1.push(''+pos, val)
+    }
+    if (NU1.length) this.view.BU1(NU1)
+  }
+
+  BR1(R1) {
+    if (!this.isArr) { this.XU0(this.p.value); return }
+    // Large batches: each refill may scan far into a sparse source, so a
+    // single XU0 walk is cheaper than n × (scan to end). Threshold matches
+    // the scale where the refill cost dominates the per-item bookkeeping.
+    if (R1.length > this.n * 2) { this.XU0(this.p.value); return }
+    for (let i = 0; i < R1.length; i += 2) {
+      const numKey = +R1[i]
+      const pos = this.findPos(numKey)
+      if (pos === -1) continue
+      this.keys.splice(pos, 1)
+      super.BR1A([pos])
+      const next = this.nextAfter(this.last ?? -1)
+      if (next !== undefined) {
+        this.keys.push(next)
+        this.last = next
+        super.BI0A([this.view.value.length, this.p.value[next]])
+      } else {
+        this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
+      }
+    }
+  }
+
+  BI0(I0) {
+    if (!this.isArr) { this.XU0(this.p.value); return }
+    if (I0.length > this.n * 2) { this.XU0(this.p.value); return }
+    for (let i = 0; i < I0.length; i += 2) {
+      const numKey = +I0[i]
+      const val = I0[i + 1]
+      if (this.keys.length < this.n) {
+        const pos = this.insertPos(numKey)
+        this.keys.splice(pos, 0, numKey)
+        if (this.last === undefined || numKey > this.last) this.last = numKey
+        super.BI0A([pos, val])
+      } else if (numKey < this.last) {
+        const pos = this.insertPos(numKey)
+        this.keys.pop()
+        super.BR1A([this.n - 1])
+        this.keys.splice(pos, 0, numKey)
+        this.last = this.keys[this.keys.length - 1]
+        super.BI0A([pos, val])
+      }
+    }
+  }
+
+  BR2(){}
+  BU2(){}
+  BI2(){}
 }
 
 export const sort = (source, a, b) => {
