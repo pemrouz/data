@@ -151,7 +151,7 @@ window.v = value
       div.title(
         title,
         a.reset('reset')
-          // style('display', dirty.to(d => d ? 'none' : ''))
+          .style('display', filter.to(f => f?.length ? '' : 'none'))
           .on('click', reset),
       ),
       svg
