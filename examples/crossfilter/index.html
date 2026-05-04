@@ -5,7 +5,7 @@
 //   import { data } from '/examples/crossfilter/flights500.js'
   import { data } from './flights.js'
   const { svg, g, path, rect, clipPath } = SVG
-  const { div, body, span, a } = HTML
+  const { div, body, span, a, h1, h2, p, aside, footer } = HTML
   const { min, max, floor } = Math
   const { keys } = Object
 
@@ -91,13 +91,18 @@ window.v = value
 
   // render everything
   render(document.body, body(
-    div.charts(
+    h1('Crossfilter'),
+    h2('Fast Multidimensional Filtering for Coordinated Views.'),
+    p('Crossfilter is a JavaScript library for exploring large multivariate datasets in the browser. Each chart provides a graphical summary of one variable; using these charts you can interactively filter the records to focus on the subset that interests you. Try clicking and dragging on any chart below.'),
+    aside(
+      span.text(active.length()),
+      span(' of '),
+      span.text(flights.length()),
+      span(' flights selected.'),
+    ),
+    div['#charts'](
       div.chart(charts, chart)
     ),
-    span.text(active.length()),
-    span(' of '),
-    span.text(flights.length()),
-    span(' flights selected'),
     div.list(
       div.date(flightsByDate, (node, flights, day) => node(
         div.day.text(day),
@@ -110,7 +115,12 @@ window.v = value
             .class('early', flight.delay.to(d => d < 0)),
         ))
       ))
-    )
+    ),
+    footer(
+      'Sample data: ',
+      a['href=http://stat-computing.org/dataexpo/2009/']('ASA Data Expo'),
+      ' (US domestic flights, January 2001).',
+    ),
   ))
 
   // render function for a chart
