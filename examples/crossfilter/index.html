@@ -134,26 +134,20 @@ window.v = value
 
   // render function for a chart
   function chart(node, { data, title, domain, width, ticks, format, round }, name) {
-    // console.log({ name, max })
     const clip_name = `#clip-${name}`
     const clip_path = `url(${clip_name})`
     const margin = { top: 10, right: 10, bottom: 20, left: 10 }
     const height = 100
-    const x = scale(domain, [0, width]) // TODO fn in res
-    const rx = scale([0, width], domain) // TODO fn in res
-    const [{ value: max }]  = data.za('value', 1) // [0].len // TODO
+    const x = scale(domain, [0, width])
+    const rx = scale([0, width], domain)
+    const [{ value: max }]  = data.za('value', 1)
     const filter = filters[name]
     const range = filter
       .to(([lo = domain[0], hi = domain[1]] = []) => [lo, hi])
     const extent = range.to(([lo, hi]) => x(hi) - x(lo))
-    const start = range[0].to(d => { /*console.log("start", d, x(d));*/
-      // cZ
-      return x(d)
-    })
-    const xhw = { x: start, height, width: extent }
-    // const ngroups = groups.length()
+    const start = range[0].to(d => x(d))
     const barPath = data
-      .to(bars(max, domain, width, name/*, ngroups*/))
+      .to(bars(max, domain, width, name))
     const reset = () => (filters[name] = [])
 
     let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite
