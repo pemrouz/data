@@ -131,6 +131,57 @@ test('crossfilter filter update - 50000 flights', () => {
 
 // ── multi-filter update benchmark ────────────────────────────────────────────
 
+// ── brush drag simulation ────────────────────────────────────────────────────
+// Mimics 60 sequential pointermove events on the date brush — the real
+// interactive workload that LimitValue rebuilds and intersect cascades hit.
+
+test('crossfilter brush drag - 500 flights, 60 frames', () => {
+  const graph = buildGraph(flights500)
+  const start = +new Date(2001, 0, 5)
+  const end = +new Date(2001, 1, 25)
+  const elapsed = measure(() => {
+    for (let i = 0; i < 60; i++) {
+      const t = i / 59
+      graph.filters.date[value] = [start, start + (end - start) * t]
+      readViews(graph)
+    }
+  }, 3)
+  console.log(`  brush drag 500 (60 frames): ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 500, `brush drag took ${elapsed.toFixed(2)}ms, threshold 500ms`)
+})
+
+// Slow-drag: 200 small filter increments. Each frame's batch is below the
+// LimitValue large-batch threshold so the incremental path is exercised.
+test('crossfilter slow brush - 50000 flights, 200 frames small deltas', () => {
+  const graph = buildGraph(flights50000)
+  // start narrow and widen by ~3 hours per frame
+  const anchor = +new Date(2001, 0, 15)
+  const elapsed = measure(() => {
+    for (let i = 0; i < 200; i++) {
+      const halfHours = i * 3
+      graph.filters.date[value] = [anchor - halfHours * 3600 * 1000, anchor + halfHours * 3600 * 1000]
+      readViews(graph)
+    }
+  }, 3)
+  console.log(`  slow brush 50000 (200 frames): ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 5000, `slow brush took ${elapsed.toFixed(2)}ms, threshold 5000ms`)
+})
+
+test('crossfilter brush drag - 50000 flights, 60 frames', () => {
+  const graph = buildGraph(flights50000)
+  const start = +new Date(2001, 0, 5)
+  const end = +new Date(2001, 1, 25)
+  const elapsed = measure(() => {
+    for (let i = 0; i < 60; i++) {
+      const t = i / 59
+      graph.filters.date[value] = [start, start + (end - start) * t]
+      readViews(graph)
+    }
+  }, 3)
+  console.log(`  brush drag 50000 (60 frames): ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 5000, `brush drag took ${elapsed.toFixed(2)}ms, threshold 5000ms`)
+})
+
 test('crossfilter multi-filter update - 500 flights', () => {
   const graph = buildGraph(flights500)
   let toggle = false
