@@ -22,10 +22,22 @@
         all: items,
     }
 
+    const active_count = filters.active.length()
+    const completed_count = filters.completed.length()
+    const total_count = items.length()
+    const all_complete = items.to(v => {
+        let n = 0, c = 0
+        for (const i in v) { n++; if (v[i].completed) c++ }
+        return n > 0 && n === c
+    })
+
     const selected = window.selected = $(filters.all)
+    const route = window.route = $('all')
+
     const change_view = () => {
-        const route = document.location.hash.split('/').pop()
-        selected[value] = filters[route] ?? filters.all
+        const r = document.location.hash.split('/').pop() || 'all'
+        route[value] = r
+        selected[value] = filters[r] ?? filters.all
     }
 
     addEventListener('hashchange', change_view)
@@ -90,6 +102,13 @@
         ev.target.value = ''
     }
 
+    const toggle_all = ev => {
+        const checked = ev.target.checked
+        for (const id in items[value]) {
+            items[id].completed = checked
+        }
+    }
+
     const head = header.header(
         h1('todos'),
         input.new_todo
@@ -98,45 +117,52 @@
             .on('keydown', add_todo)
     )
 
-    const main = section.main(
-        input.toggle_all['#toggle-all']['type=checkbox'],
-        label['for=toggle-all']('Mark all as complete'),
-        ul.todo_list(
-            li(selected, (li, item, id) => li
-                .class('completed', item.completed)
-                .class('editing', item.editing)
-                .nodes(
-                    div.view(
-                        input.toggle['type=checkbox']
-                            .attr('checked', item.completed)
-                            .on('change', toggle(item)),
-                        label
-                            .on('dblclick', edit(item))
-                            .text(item.title),
-                        button.destroy
-                            .on('click', destroy(id))
-                    ),
-                    input.edit
-                        .attr('value', item.text)
-                        .on('blur', submit(item, id))
-                        .on('change', change(item))
-                        .on('keydown', keydown(item))
+    const main = section.main
+        .class('hidden', total_count.to(n => n === 0))
+        .nodes(
+            input.toggle_all['#toggle-all']['type=checkbox']
+                .attr('checked', all_complete)
+                .on('change', toggle_all),
+            label['for=toggle-all']('Mark all as complete'),
+            ul.todo_list(
+                li(selected, (li, item, id) => li
+                    .class('completed', item.completed)
+                    .class('editing', item.editing)
+                    .nodes(
+                        div.view(
+                            input.toggle['type=checkbox']
+                                .attr('checked', item.completed)
+                                .on('change', toggle(item)),
+                            label
+                                .on('dblclick', edit(item))
+                                .text(item.title),
+                            button.destroy
+                                .on('click', destroy(id))
+                        ),
+                        input.edit
+                            .attr('value', item.text)
+                            .on('blur', submit(item, id))
+                            .on('change', change(item))
+                            .on('keydown', keydown(item))
+                    )
                 )
             )
         )
-    )
 
-    const foot = footer.footer(
-        span.todo_count,
-        ul.filters(
-            li(a.selected['href=#/']('All')),
-            li(a['href=#/active']('Active')),
-            li(a['href=#/completed']('Completed')),
-        ),
-        button
-            .clear_completed('Clear completed')
-            .on('click', clear)
-    )
+    const foot = footer.footer
+        .class('hidden', total_count.to(n => n === 0))
+        .nodes(
+            span.todo_count.text(active_count.to(n => `${n} item${n === 1 ? '' : 's'} left`)),
+            ul.filters(
+                li(a['href=#/'].class('selected', route.to(r => r === 'all'))('All')),
+                li(a['href=#/active'].class('selected', route.to(r => r === 'active'))('Active')),
+                li(a['href=#/completed'].class('selected', route.to(r => r === 'completed'))('Completed')),
+            ),
+            button
+                .clear_completed('Clear completed')
+                .class('hidden', completed_count.to(n => n === 0))
+                .on('click', clear)
+        )
 
     render(document.body, body(
         section.todoapp(
