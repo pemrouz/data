@@ -86,7 +86,7 @@ window.v = value
 
   // data for list 
   const flightsByDate = window.ac = (window.limit = active
-    .limit(40))
+    .limit(80))
     .group(formatDate)
 
   // render everything
@@ -106,7 +106,8 @@ window.v = value
           div.origin.text(flight.origin),
           div.destination.text(flight.destination),
           div.distance.text(flight.distance.to(formatDistance)),
-          div.delay.text(flight.delay.to(formatChange)),
+          div.delay.text(flight.delay.to(formatChange))
+            .class('early', flight.delay.to(d => d < 0)),
         ))
       ))
     )
