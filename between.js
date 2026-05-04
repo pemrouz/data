@@ -94,8 +94,10 @@ export class BetweenValue extends Operator {
         }
         this.lo_val = new_lo;
         this.hi_val = new_hi;
-        this.view.BI0(I0);
-        this.view.BR1(R1);
+        if (I0.length)
+            this.view.BI0(I0);
+        if (R1.length)
+            this.view.BR1(R1);
     }
     XU0(value) {
         const { col } = this;

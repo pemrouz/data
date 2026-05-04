@@ -23,10 +23,12 @@ export class LengthValue extends Operator {
     }
   }
   BR1(R1){
+    if (!R1.length) return
     this.view.XU0(this.view.value -= R1.length/2)
   }
   BU1(U1){}
   BI0(I0){
+    if (!I0.length) return
     this.view.XU0(this.view.value += I0.length/2)
   }
   BR2(){}
@@ -58,6 +60,7 @@ export class LengthFnValue extends Operator {
   }
 
   BR1(R1){
+    if (!R1.length) return
     const { mapping } = this
     for (let i = 0; i < R1.length; i++) {
       const n = R1[i++]
@@ -70,6 +73,7 @@ export class LengthFnValue extends Operator {
   }
 
   BU1(U1){
+    if (!U1.length) return
     const { mapping, view, fn } = this
     for (let i = 0; i < U1.length; i++) {
       const n = U1[i++]
@@ -86,6 +90,7 @@ export class LengthFnValue extends Operator {
   }
 
   BI0(I0){
+    if (!I0.length) return
     const { mapping, view, fn } = this
     for (let i = 0; i < I0.length; i++) {
       const n = I0[i++]

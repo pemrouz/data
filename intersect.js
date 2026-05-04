@@ -50,6 +50,8 @@ export class IntersectValue extends Operator {
         this.view.XU0(this.view.value = new_value);
     }
     BR1(R1, v) {
+        if (!R1.length)
+            return;
         const { off } = this.sources.get(v);
         const NR1 = [];
         const zero = this.all & off;
@@ -61,9 +63,12 @@ export class IntersectValue extends Operator {
                 this.view.value[name] = undefined;
             }
         }
-        this.view.BR1(NR1);
+        if (NR1.length)
+            this.view.BR1(NR1);
     }
     BU1(U1) {
+        if (!U1.length)
+            return;
         const { all, filters } = this;
         const NU1 = [];
         for (let i = 0; i < U1.length; i++) {
@@ -76,9 +81,12 @@ export class IntersectValue extends Operator {
                 NU1.push(name, value);
             }
         }
-        this.view.BU1(NU1);
+        if (NU1.length)
+            this.view.BU1(NU1);
     }
     BI0(I0, v) {
+        if (!I0.length)
+            return;
         const { all, sources, filters } = this;
         const { one } = sources.get(v);
         const me = this.view.value ??= isArray(this.p.value) ? [] : {};
@@ -89,7 +97,8 @@ export class IntersectValue extends Operator {
                 NI0.push(name, me[name] = this.p.value[name]);
             }
         }
-        this.view.BI0(NI0);
+        if (NI0.length)
+            this.view.BI0(NI0);
     }
     R2() { }
     U2() { }
