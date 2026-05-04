@@ -63,28 +63,24 @@ window.v = value
       data: delay.intersect(distance, date).length(byHour),
       domain: [0, 24],
       width: 240,
-    //   max: flights.length(byHour).za('value', 1)[value][0].value
     },
     delay: {
       title: 'Arrival Delay (min.)',
       data: distance.intersect(date, time).length(byTenMins),
       domain: [-60, 150],
       width: 210,
-    //   max: flights.length(byTenMins).za('value', 1)[value][0].value
     },
     distance: {
       title: 'Distance (mi.)',
       data: delay.intersect(date, time).length(byFiftyMiles),
       domain: [0, 2000],
       width: 400,
-    //   max: flights.length(byFiftyMiles).za('value', 1)[value][0].value
     },
     date: {
       title: 'Date',
       data: delay.intersect(distance, time).length(byDay),
       domain: [+new Date(2001, 0, 1), +new Date(2001, 3, 1)],
       width: 900,
-    //   max: flights.length(byDay).za('value', 1)[value][0].value
     },
   }
 
@@ -182,27 +178,44 @@ window.v = value
     )
   }
 
+  // coalesce a stream of writes onto requestAnimationFrame: only the latest
+  // pending value is committed per frame. flush() commits immediately.
+  function rafWriter(target, key) {
+    let pending, scheduled = false
+    const writer = v => {
+      pending = v
+      if (scheduled) return
+      scheduled = true
+      requestAnimationFrame(() => { scheduled = false; target[key] = pending })
+    }
+    writer.flush = () => { if (scheduled) { scheduled = false; target[key] = pending } }
+    return writer
+  }
+
   function background(node, filter, rx, width, height) {
     let down = false
     let initial
+    let write
     const c = (el, { x }) => rx(x - el.getBoundingClientRect().left)
 
     return node
       .on('pointerdown', function (d) {
         down = true
         initial = (c(this, d))
+        write = rafWriter(filter, value)
         filter[value] = [initial, initial]
       })
       .on('pointermove', function (d) {
         if (down) {
           const new_val = (c(this, d))
-          filter[value] = new_val > initial
+          write(new_val > initial
             ? [initial, new_val]
-            : [new_val, initial]
+            : [new_val, initial])
         }
       })
       .on('pointerup', d => {
         down = false
+        write?.flush()
         if (filter[0][value] === filter[1][value])
           filter[value] = []
       })(
@@ -213,6 +226,7 @@ window.v = value
   function resizeHandle(filters, initial, x, rx) {
     return function (i) {
       let down = false
+      let write
       const translate = (d = initial[i]) => `translate(${x(d)}, 0)`
       const c = (el, { x }) => rx(x - el.getBoundingClientRect().left)
       const filter = filters[i]
@@ -234,15 +248,17 @@ window.v = value
         .class(classes[i])
         .attr('transform', filter.to(translate))
         .style('display', filter.to(d => d ? '' : 'none'))
-        .on('pointerdown', function(d) { 
-          down = true 
+        .on('pointerdown', function(d) {
+          down = true
+          write = rafWriter(filter, i)
         })
         .on('pointermove', function(e){
           if (!down) return
-          filter[i] = c(this, e)
+          write(c(this, e))
         })
-        .on('pointerup', d => { 
-          down = false 
+        .on('pointerup', d => {
+          down = false
+          write?.flush()
         })(
           rect
             .attr({ x: -3, width: 6, height })
