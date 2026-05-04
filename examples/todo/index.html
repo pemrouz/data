@@ -8,7 +8,7 @@
 </html>
 <script type="module">
     import { $, value, render, HTML } from '../../index.js'
-    const { section, div, header, input, h1, label, ul, footer, span, button, li, a, body } = HTML
+    const { section, div, header, input, h1, label, ul, footer, span, strong, button, li, a, body } = HTML
     const items = window.items = $({
         0: { completed: false, title: 'foo' },
         1: { completed: true, title: 'boo' },
@@ -152,7 +152,10 @@
     const foot = footer.footer
         .class('hidden', total_count.to(n => n === 0))
         .nodes(
-            span.todo_count.text(active_count.to(n => `${n} item${n === 1 ? '' : 's'} left`)),
+            span.todo_count(
+                strong.text(active_count),
+                span.text(active_count.to(n => ` item${n === 1 ? '' : 's'} left`)),
+            ),
             ul.filters(
                 li(a['href=#/'].class('selected', route.to(r => r === 'all'))('All')),
                 li(a['href=#/active'].class('selected', route.to(r => r === 'active'))('Active')),
