@@ -53,8 +53,19 @@
         delete items[id]
     }
 
-    const submit = item => ev => {
-        item.title = item.text[value]
+    const submit = (item, id) => ev => {
+        if (item.cancelling[value]) {
+            delete item.editing
+            delete item.text
+            delete item.cancelling
+            return
+        }
+        const text = (item.text[value] ?? '').trim()
+        if (text === '') {
+            delete items[id]
+            return
+        }
+        item.title = text
         delete item.editing
         delete item.text
     }
@@ -66,14 +77,17 @@
     const keydown = item => ev => {
         if (ev.which === ENTER) ev.target.blur()
         if (ev.which === ESC) {
-            ev.target.value = item.title[value]
+            item.cancelling = true
             ev.target.blur()
         }
     }
 
     const add_todo = ev => {
-        if (ev.which === ENTER)
-            items.insert({ title: ev.target.value, completed: false })
+        if (ev.which !== ENTER) return
+        const title = ev.target.value.trim()
+        if (title === '') return
+        items.insert({ title, completed: false })
+        ev.target.value = ''
     }
 
     const head = header.header(
@@ -104,7 +118,7 @@
                     ),
                     input.edit
                         .attr('value', item.text)
-                        .on('blur', submit(item))
+                        .on('blur', submit(item, id))
                         .on('change', change(item))
                         .on('keydown', keydown(item))
                 )
