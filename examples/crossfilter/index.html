@@ -4,7 +4,7 @@
   import { $, render, HTML, SVG, value } from '../../index.js'
 //   import { data } from '/examples/crossfilter/flights500.js'
   import { data } from './flights.js'
-  const { svg, g, path, rect, clipPath } = SVG
+  const { svg, g, path, rect, clipPath, line, text } = SVG
   const { div, body, span, a, h1, h2, p, aside, footer } = HTML
   const { min, max, floor } = Math
   const { keys } = Object
@@ -63,24 +63,32 @@ window.v = value
       data: delay.intersect(distance, date).length(byHour),
       domain: [0, 24],
       width: 240,
+      ticks: [0, 5, 10, 15, 20],
+      format: String,
     },
     delay: {
       title: 'Arrival Delay (min.)',
       data: distance.intersect(date, time).length(byTenMins),
       domain: [-60, 150],
       width: 210,
+      ticks: [-60, -30, 0, 30, 60, 90, 120, 150],
+      format: String,
     },
     distance: {
       title: 'Distance (mi.)',
       data: delay.intersect(date, time).length(byFiftyMiles),
       domain: [0, 2000],
       width: 400,
+      ticks: [0, 500, 1000, 1500, 2000],
+      format: String,
     },
     date: {
       title: 'Date',
       data: delay.intersect(distance, time).length(byDay),
       domain: [+new Date(2001, 0, 1), +new Date(2001, 3, 1)],
       width: 900,
+      ticks: [+new Date(2001, 0, 1), +new Date(2001, 1, 1), +new Date(2001, 2, 1), +new Date(2001, 3, 1)],
+      format: t => months[new Date(t).getMonth()],
     },
   }
 
@@ -124,7 +132,7 @@ window.v = value
   ))
 
   // render function for a chart
-  function chart(node, { data, title, domain, width }, name) {
+  function chart(node, { data, title, domain, width, ticks, format }, name) {
     // console.log({ name, max })
     const clip_name = `#clip-${name}`
     const clip_path = `url(${clip_name})`
@@ -166,7 +174,17 @@ window.v = value
               path.foreground.bar
                 .attr('d', barPath)
                 .attr('clip-path', clip_path),
-              g.axis,
+              g.axis.attr('transform', `translate(0, ${height})`)(
+                path.domain.attr('d', `M0.5,6V0.5H${width - 0.5}V6`),
+                ...ticks.map(t => g.tick.attr('transform', `translate(${x(t)}, 0)`)(
+                  line.attr('y2', 6),
+                  text
+                    .attr('y', 9)
+                    .attr('dy', '.71em')
+                    .attr('text-anchor', 'middle')
+                    .text(format(t)),
+                )),
+              ),
               g.brush
                 (node => background(node, filter, rx, width, height))(
                 // (extent)(
