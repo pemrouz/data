@@ -89,6 +89,7 @@ window.v = value
       width: 900,
       ticks: [+new Date(2001, 0, 1), +new Date(2001, 1, 1), +new Date(2001, 2, 1), +new Date(2001, 3, 1)],
       format: t => months[new Date(t).getMonth()],
+      round: t => Math.round(t / 86400000) * 86400000,
     },
   }
 
@@ -132,7 +133,7 @@ window.v = value
   ))
 
   // render function for a chart
-  function chart(node, { data, title, domain, width, ticks, format }, name) {
+  function chart(node, { data, title, domain, width, ticks, format, round }, name) {
     // console.log({ name, max })
     const clip_name = `#clip-${name}`
     const clip_path = `url(${clip_name})`
@@ -188,7 +189,7 @@ window.v = value
                 )),
               ),
               g.brush
-                (node => background(node, filter, rx, width, height))(
+                (node => background(node, filter, rx, width, height, round))(
                 rect.background.attr({ width, height }),
                 rect.extent
                   .attr('x', start)
@@ -213,6 +214,7 @@ window.v = value
                     let hi = exBase[1] + delta
                     if (lo < domain[0]) { lo = domain[0]; hi = lo + span }
                     else if (hi > domain[1]) { hi = domain[1]; lo = hi - span }
+                    if (round) { lo = round(lo); hi = round(hi) }
                     exWrite([lo, hi])
                   })
                   .on('pointerup', function (d) {
@@ -220,7 +222,7 @@ window.v = value
                     this.releasePointerCapture?.(d.pointerId)
                     exWrite?.flush()
                   }),
-                ...[0, 1].map(resizeHandle(filter, domain, x, rx))
+                ...[0, 1].map(resizeHandle(filter, domain, x, rx, round))
               )
             )
         )
@@ -241,22 +243,23 @@ window.v = value
     return writer
   }
 
-  function background(node, filter, rx, width, height) {
+  function background(node, filter, rx, width, height, round) {
     let down = false
     let initial
     let write
     const c = (el, { x }) => rx(x - el.getBoundingClientRect().left)
+    const apply = round || (v => v)
 
     return node
       .on('pointerdown', function (d) {
         down = true
-        initial = (c(this, d))
+        initial = apply(c(this, d))
         write = rafWriter(filter, value)
         filter[value] = [initial, initial]
       })
       .on('pointermove', function (d) {
         if (down) {
-          const new_val = (c(this, d))
+          const new_val = apply(c(this, d))
           write(new_val > initial
             ? [initial, new_val]
             : [new_val, initial])
@@ -270,13 +273,14 @@ window.v = value
       })
   }
 
-  function resizeHandle(filtersArr, initial, x, rx) {
+  function resizeHandle(filtersArr, initial, x, rx, round) {
     return function (i) {
       let down = false
       let write
       let leftRef = 0
       const translate = (d = initial[i]) => `translate(${x(d)}, 0)`
       const filter = filtersArr[i]
+      const apply = round || (v => v)
       const height = 100
       const classes = ['w', 'e']
       const d = i ? 1 : -1
@@ -306,7 +310,7 @@ window.v = value
           if (!down) return
           const cur = rx(e.x - leftRef)
           const next = [filtersArr[0][value], filtersArr[1][value]]
-          next[i] = cur
+          next[i] = apply(cur)
           write(next)
         })
         .on('pointerup', function (d) {
