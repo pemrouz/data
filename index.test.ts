@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { $, value } from './data.ts'
+import { $, value } from './index.ts'
 import { test } from 'node:test'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object
@@ -605,6 +605,46 @@ test('update (dir, dir)', () => {
     same(res.a.b[value], undefined)
   })
   
+  test('todos', () => {
+    const states = []
+    const states2 = []
+    const items = $({
+        0: { completed: false, title: 'foo' },
+        1: { completed: true, title: 'boo' },
+    })
+    const item = items[0]
+
+    item.completed.connect(states2)
+    item.completed.to(() => {
+      console.log('item.completed changed')
+      states.push(item.completed[value])
+    })
+
+    item.completed = !item.completed[value]
+
+    // item.completed = true
+    console.log({ states, states2 })
+    console.log({ result: item.completed[value], result2: item[value]?.completed })
+    // const changes1 = res.connect([])
+    // const changes2 = res.a.connect([])
+    // res.a = 10
+    // // console.log("changes1", changes1)
+    // // console.log("changes2", changes2)
+    // // console.log("res[value]", res[value])
+    // // console.log("res.a[value]", res.a[value])
+    // // process.exit()
+    // same(changes1, [
+    //   { type: 'update', key: [], value: {} }
+    // , { type: 'insert', key: [], value: 10, at: 'a' }
+    // ])
+    // same(changes2, [
+    //   { type: 'update', key: [], value: undefined }
+    // , { type: 'update', key: [], value: 10 }
+    // ])
+    // same(res[value], { a: 10 })
+    // same(res.a[value], 10)
+  })
+
   test('array indexing', () => {
     const res = $({ a: [1] })
     const changes1 = res.connect([])
@@ -1469,7 +1509,7 @@ test('update (dir, dir)', () => {
 
   // --------------------------------------
   // iterator
-  test.only('iterator', async () => {
+  test('iterator', async () => {
     const res = $([1, 2])
     const [one, two, three] = res
     const changes1 = one.connect([])

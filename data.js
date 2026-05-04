@@ -611,6 +611,9 @@ class BetweenValue extends Operator {
             [this.lo_val, this.hi_val] = [new_lo, new_hi];
             return this.view.XU0(this.view.value = isArray(this.p.value) ? [] : {});
         }
+        if (this.view.value === this.p.value) {
+            this.view.value = isArray(this.p.value) ? [...this.p.value] : { ...this.p.value };
+        }
         const I0 = [], R1 = [];
         this.lo_index ??= this.find(this.sorted, this.lo_val);
         this.hi_index ??= this.find(this.sorted, this.hi_val);

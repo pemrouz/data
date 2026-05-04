@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert';
-import { $, value } from "./data.js";
+import { $, value } from "./index.js";
 import { test } from 'node:test';
 const max = (a, b) => a > b ? a : b;
 $.random = o => 1 + Object
@@ -1413,7 +1413,7 @@ test('group (obj)', () => {
 // })
 // --------------------------------------
 // iterator
-test.only('iterator', async () => {
+test('iterator', async () => {
     const res = $([1, 2]);
     const [one, two, three] = res;
     const changes1 = one.connect([]);

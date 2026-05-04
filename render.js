@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { view } from "./data.js";
+import { view } from "./core.js";
 import { iter, isArray, noop } from "./utils.js";
 const NS = 'http://www.w3.org/2000/svg';
 const NODE = Symbol('Node');

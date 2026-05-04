@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { view } from './data.ts'
+import { view } from './core.ts'
 import { iter, isArray, noop } from './utils.ts'
 const NS = 'http://www.w3.org/2000/svg'
 const NODE = Symbol('Node')
