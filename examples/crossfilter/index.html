@@ -155,6 +155,8 @@ window.v = value
       .to(bars(max, domain, width, name/*, ngroups*/))
     const reset = () => (filters[name] = [])
 
+    let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite
+
     return node(
       div.title(
         title,
@@ -191,7 +193,33 @@ window.v = value
                 rect.extent
                   .attr('x', start)
                   .attr('height', height)
-                  .attr('width', filter.to(d => d.length ? extent[value] : 0)),
+                  .attr('width', filter.to(d => d.length ? extent[value] : 0))
+                  .on('pointerdown', function (d) {
+                    if (!filter[value]?.length) return
+                    exDown = true
+                    this.setPointerCapture(d.pointerId)
+                    exLeftRef = this.parentNode.getBoundingClientRect().left
+                    exInitial = rx(d.x - exLeftRef)
+                    exBase = [filter[0][value], filter[1][value]]
+                    exWrite = rafWriter(filter, value)
+                    d.stopPropagation()
+                  })
+                  .on('pointermove', function (d) {
+                    if (!exDown) return
+                    const cur = rx(d.x - exLeftRef)
+                    const delta = cur - exInitial
+                    const span = exBase[1] - exBase[0]
+                    let lo = exBase[0] + delta
+                    let hi = exBase[1] + delta
+                    if (lo < domain[0]) { lo = domain[0]; hi = lo + span }
+                    else if (hi > domain[1]) { hi = domain[1]; lo = hi - span }
+                    exWrite([lo, hi])
+                  })
+                  .on('pointerup', function (d) {
+                    exDown = false
+                    this.releasePointerCapture?.(d.pointerId)
+                    exWrite?.flush()
+                  }),
                 ...[0, 1].map(resizeHandle(filter, domain, x, rx))
               )
             )
