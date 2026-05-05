@@ -5,7 +5,7 @@
 //   import { data } from '/examples/crossfilter/flights500.js'
   import { data } from './flights.js'
   const { svg, g, path, rect, clipPath, line, text } = SVG
-  const { div, body, span, a, h1, h2, p, aside, footer } = HTML
+  const { div, body, span, a, h1, h2, p, aside, footer, code } = HTML
   const { min, max, floor } = Math
   const { keys } = Object
 
@@ -102,7 +102,11 @@ window.v = value
   render(document.body, body(
     h1('Crossfilter'),
     h2('Fast Multidimensional Filtering for Coordinated Views.'),
-    p('Crossfilter is a JavaScript library for exploring large multivariate datasets in the browser. Each chart provides a graphical summary of one variable; using these charts you can interactively filter the records to focus on the subset that interests you. Try clicking and dragging on any chart below.'),
+    p(
+      'This page recreates Square\'s classic Crossfilter demo, but where the original ships a purpose-built multidimensional filter, here every chart, the data table, and the totals counter is a reactive view derived from the same flights source — ',
+      code('flights.between(\'delay\', filters.delay).intersect(date, time).length(byHour)'),
+      ' and so on. Brushing a chart mutates a filter range; dependent views recompute incrementally and the DOM bindings catch up on their own, with no scheduler or manual invalidation. Click and drag on any chart below.',
+    ),
     aside(
       span.text(active.length()),
       span(' of '),
