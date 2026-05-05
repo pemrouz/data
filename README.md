@@ -88,34 +88,66 @@ See [render/README.md](render/README.md) for the full template syntax.
 
 ## Why incremental?
 
-The thing this library does that almost nothing else does cleanly: **a change to one row only does work proportional to that one row, all the way through the operator chain to the DOM.**
+**Work is proportional to the *path* that changed, not the row, not the dataset, not anything broader.** Almost nothing else in the JS state-management space does this cleanly.
 
-Consider a trading blotter — say 5 000 trades, filtered by tenor, sorted by P&L, rendered as a list:
-
-```js
-const trades   = $([...])
-const visible  = trades.filter('tenor', '5Y').between('pnl', [-1e6, 1e6]).za('pnl', 50)
-render(document.body, ul(visible, (node, t) => node.text(t.id)))
-```
-
-A market-data tick updates the bid/ask on one row:
+When you mutate a deeply-nested property:
 
 ```js
 trades[1234].bid = 99.85
 ```
 
-What happens:
+…the underlying notification carries the exact path `['1234', 'bid']` and the new value. Each layer in the pipeline only does work scoped to that path:
 
-1. The row's bid changes → `filter` re-evaluates the predicate **for that one row only**.
-2. `between` checks whether the new pnl crosses a boundary — incremental, not a full rescan.
-3. `za`'s sorted index inserts/repositions one entry; if the row was already in the top-50 and stayed, only that entry updates.
-4. The `<li>` for trade 1234 has its text/attribute updated. No DOM diff, no list re-render, no key reconciliation pass.
+- **Direct subscriptions are property-granular.** A sink bound to `trades[1234].bid` fires; a sink bound to `trades[1234].ask` is never even visited. The view graph routes notifications down by path; siblings are skipped, not deferred or re-checked. (Try [the snippet at the bottom of this section](#try-it).)
+- **`filter` reruns its predicate for that one row.** Not the other 4,999. `RowOperator` is structured so each row is processed independently — the predicate sees one row, decides keep / drop, and that's the work.
+- **`between` does a binary-search step against its sorted index.** Not a rescan. If the new value stays inside the range, no boundary crossing — done.
+- **`intersect` flips one bitmask entry per source.** Membership for the other rows is cached as a per-row bitmask; only the changed row's bit toggles.
+- **`za` repositions one entry in its sorted index.** If the row was in the top-50 and stayed, the same `<li>` re-emits; if it moves out, one remove + one insert.
+- **The DOM updates the single binding tied to the changed path.** `span.bid.text(t.bid)` rewrites that one text node's `textContent`. No diff pass, no list re-render, no key reconciliation, no re-creating the row's `<li>` or its sibling spans.
 
-In a typical Redux-style setup, the same tick would re-run the entire selector chain over all 5 000 trades, produce a new array reference, and trigger a full virtual-DOM diff against the previous render. With one tick per second across hundreds of rows, that scales badly. With one tick per millisecond, it doesn't scale at all.
+Concretely, picture the blotter:
 
-Operators here are written to do this minimum-work propagation by construction — `filter` is row-by-row, `between` keeps a sorted index, `intersect` uses bitmasks, `length` increments a counter, etc. See [operators/README.md](operators/README.md) for the per-operator strategy.
+```js
+const visible = trades.filter('tenor', '5Y').between('pnl', [-1e6, 1e6]).za('pnl', 50)
+render(document.body, ul(visible, (node, t) =>
+  node.nodes(
+    span.id.text(t.id),
+    span.bid.text(t.bid),
+    span.pnl.text(t.pnl),
+  )
+))
 
-The crossfilter demo at the top of this README is the proof: dragging a brush across a 50 000-row dataset stays interactive at 60 fps because every brush delta turns into the smallest possible diff that flows through `between → intersect → length(group) → za → limit` to the DOM. That kind of responsiveness is hard to replicate with a `useState` + virtual-DOM stack — and you don't need a special-purpose library like `crossfilter.js` for it. The primitives here are general.
+trades[1234].bid = 99.85
+```
+
+5,000 rows in the source, 50 visible. The bid tick exercises one predicate evaluation, one bisect, one bitmask flip, one sorted-index update, and one `textContent =` assignment. No frame-coupling, no batching, no scheduler — propagation is synchronous and purely incremental.
+
+The one honest caveat: row-level operators (`filter`, `map`) flatten nested updates to row-level when they re-emit (architectural choice — see [.claude/architecture.md](.claude/architecture.md)). So a sink subscribed *downstream* of a `filter` to `t.id` will get a redundant notification when `t.bid` changes — but it's a `setProperty(sameValue)` call on one element, not a tree diff. The work stays bounded by the affected row.
+
+Compare to a typical Redux + virtual-DOM stack: the same tick re-runs the entire selector chain over all 5,000 trades, produces a new array reference, triggers a top-down diff against the previous render, and reconciles every list item. With one tick per second across hundreds of rows, that scales badly. With one tick per millisecond, it doesn't scale at all.
+
+Operators here are written for minimum-work propagation by construction. See [operators/README.md](operators/README.md) for each one's strategy.
+
+The crossfilter demo at the top of this README is the proof: dragging a brush across a 50,000-row dataset stays interactive at 60 fps because every brush delta turns into the smallest possible diff that flows through `between → intersect → length(group) → za → limit` to the DOM. The kind of responsiveness usually reserved for special-purpose libraries like crossfilter.js, here from general primitives.
+
+### Try it
+
+```js
+const trades = $([
+  { id: 'A', bid: 100, ask: 101 },
+  { id: 'B', bid:  50, ask:  51 },
+])
+
+const idEvents  = trades[0].id.connect([])
+const bidEvents = trades[0].bid.connect([])
+const askEvents = trades[0].ask.connect([])
+
+trades[0].bid = 99.85
+
+bidEvents.length   // 2  (initial + the change)
+askEvents.length   // 1  (just the initial — never visited)
+idEvents.length    // 1
+```
 
 ## Core concepts
 
