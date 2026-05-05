@@ -302,10 +302,9 @@ window.v = value
         })
         .on('pointermove', function(e){
           if (!down) return
-          const cur = rx(e.x - leftRef)
-          const next = [filtersArr[0][value], filtersArr[1][value]]
-          next[i] = apply(cur)
-          write(next)
+          const cur = apply(rx(e.x - leftRef))
+          const other = filtersArr[1 - i][value]
+          write(cur < other ? [cur, other] : [other, cur])
         })
         .on('pointerup', function (d) {
           down = false
