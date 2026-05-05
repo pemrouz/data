@@ -78,7 +78,7 @@ Sinks live on `View.sinks` as `WeakRef<Sink>`. They must implement the notificat
 | `FunctionSink` | Calls `fn(change)` per event | `proxy.connect(obj, fn)` |
 | `LinkedView` | Forwards updates to a different `View` | Created when you assign one proxy to another (`a[value] = b`) — see [core.ts:427-453](../core.ts#L427-L453) |
 
-External sinks (e.g. `DOMSink` from [render.ts:11](../render.ts#L11)) follow the same contract — they only need the methods they care about.
+External sinks (e.g. `DOMSink` from [render/index.ts:11](../render/index.ts#L11)) follow the same contract — they only need the methods they care about.
 
 ## RowOperator contract
 
@@ -97,8 +97,8 @@ Note that `RowOperator` always emits at the `BU1`/`BI0`/`BR1` level — it flatt
 
 Dedup is opt-in: an operator only participates if it defines `matches`. Currently:
 
-- [between.ts:6](../between.ts#L6) — matches on column + range.
-- [sort.ts:6](../sort.ts#L6) — `matches(col, n) { return this.col_name == col && this.n == n }`.
+- [operators/between/index.ts:6](../operators/between/index.ts#L6) — matches on column + range.
+- [operators/sort/index.ts:6](../operators/sort/index.ts#L6) — `matches(col, n) { return this.col_name == col && this.n == n }`.
 - All others (`filter`, `map`, `length`, `intersect`, `group`, `to`, `debounce`) currently have no `matches`, so they create a fresh operator on every call. If you add `matches` to one, also confirm it doesn't break tests that rely on per-call freshness.
 
 An operator's lifetime is tied to *some* downstream `WeakRef` keeping it alive; if all downstream proxies are dropped, the operator gets GC'd and a fresh one is built next time.
@@ -118,19 +118,19 @@ Practical implications:
 
 ## Render layer
 
-[render.ts](../render.ts) attaches reactive data to the DOM:
+[render/index.ts](../render/index.ts) attaches reactive data to the DOM:
 
-- `render(parent, nodeProxy)` ([render.ts:8-9](../render.ts#L8-L9)) entry point.
-- `DOMSink` ([render.ts:11](../render.ts#L11)) is a regular sink — implements `XU0` / `BU1` / etc. to create/remove/reorder DOM nodes.
-- `Node` and friends ([render.ts:136+](../render.ts#L136)) describe the template tree.
-- `HTML` and `SVG` ([render.ts:350-354](../render.ts#L350-L354)) are Proxies that produce builder functions for any tag name (`HTML.div(...)`, `SVG.path(...)`).
-- A private `NODE` Symbol ([render.ts:5](../render.ts#L5)) tags template nodes inside data structures.
+- `render(parent, nodeProxy)` ([render/index.ts:8-9](../render/index.ts#L8-L9)) entry point.
+- `DOMSink` ([render/index.ts:11](../render/index.ts#L11)) is a regular sink — implements `XU0` / `BU1` / etc. to create/remove/reorder DOM nodes.
+- `Node` and friends ([render/index.ts:136+](../render/index.ts#L136)) describe the template tree.
+- `HTML` and `SVG` ([render/index.ts:350-354](../render/index.ts#L350-L354)) are Proxies that produce builder functions for any tag name (`HTML.div(...)`, `SVG.path(...)`).
+- A private `NODE` Symbol ([render/index.ts:5](../render/index.ts#L5)) tags template nodes inside data structures.
 
 ## Recent perf-sensitive areas (don't undo silently)
 
 Recent commits in `git log`:
 
-- `perf: incremental LimitValue with large-batch fallback` ([sort.ts:169](../sort.ts#L169)) — `LimitValue` has both an incremental path and a batch fallback. Touch with care.
+- `perf: incremental LimitValue with large-batch fallback` ([operators/sort/index.ts:169](../operators/sort/index.ts#L169)) — `LimitValue` has both an incremental path and a batch fallback. Touch with care.
 - `perf: rAF-coalesce brush input in crossfilter example` — `examples/crossfilter/` coalesces brush events via `requestAnimationFrame`. Don't re-introduce a synchronous path.
 - `fix(core): propagate path-updates through LinkedView child views` — `LinkedView` (extends `View`, [core.ts:427](../core.ts#L427)) had a propagation bug; check `proxy/link` ([core.test.ts:83-132](../core.test.ts#L83-L132)) before changing it.
 - `perf: skip empty-batch notifications in intersect/between/length` — multiple operators short-circuit on empty `U1`/`I0`/`R1` arrays. Preserve those guards.
