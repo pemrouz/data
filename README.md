@@ -122,8 +122,6 @@ trades[1234].bid = 99.85
 
 5,000 rows in the source, 50 visible. The bid tick exercises one predicate evaluation, one bisect, one bitmask flip, one sorted-index update, and one `textContent =` assignment. No frame-coupling, no batching, no scheduler — propagation is synchronous and purely incremental.
 
-The one honest caveat: row-level operators (`filter`, `map`) flatten nested updates to row-level when they re-emit (architectural choice — see [.claude/architecture.md](.claude/architecture.md)). So a sink subscribed *downstream* of a `filter` to `t.id` will get a redundant notification when `t.bid` changes — but it's a `setProperty(sameValue)` call on one element, not a tree diff. The work stays bounded by the affected row.
-
 Compare to a typical Redux + virtual-DOM stack: the same tick re-runs the entire selector chain over all 5,000 trades, produces a new array reference, triggers a top-down diff against the previous render, and reconciles every list item. With one tick per second across hundreds of rows, that scales badly. With one tick per millisecond, it doesn't scale at all.
 
 Operators here are written for minimum-work propagation by construction. See [operators/README.md](operators/README.md) for each one's strategy.
