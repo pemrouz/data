@@ -1,19 +1,19 @@
 ﻿// @ts-nocheck
 export { $, value, reactive, view, Sink, Operators, createOperator } from './core.ts'
 export { default } from './core.ts'
-export { render, HTML, SVG } from './render.ts'
+export { render, HTML, SVG } from './render/index.ts'
 
 import { isArray } from './utils.ts'
 import { Operators } from './core.ts'
-import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } from './filter.ts'
-import { BetweenValue } from './between.ts'
-import { ZAColumnValue, ZANumberValue, LimitValue } from './sort.ts'
-import { ToValue } from './to.ts'
-import { DebounceValue } from './debounce.ts'
-import { MapValue } from './map.ts'
-import { GroupValue } from './group.ts'
-import { LengthValue, LengthFnValue } from './length.ts'
-import { IntersectValue } from './intersect.ts'
+import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } from './operators/filter/index.ts'
+import { BetweenValue } from './operators/between/index.ts'
+import { ZAColumnValue, ZANumberValue, LimitValue } from './operators/sort/index.ts'
+import { ToValue } from './operators/to/index.ts'
+import { DebounceValue } from './operators/debounce/index.ts'
+import { MapValue } from './operators/map/index.ts'
+import { GroupValue } from './operators/group/index.ts'
+import { LengthValue, LengthFnValue } from './operators/length/index.ts'
+import { IntersectValue } from './operators/intersect/index.ts'
 
 Operators['filter']    = (a, b) => typeof a === 'function' ? FilterValue
                                  : typeof a === 'string'   ? FilterStringValue
