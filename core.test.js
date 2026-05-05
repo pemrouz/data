@@ -158,6 +158,66 @@ test('array indexing', () => {
     ]);
     same(res[value], { a: [3, 1] });
 });
+test('proxy/link - child propagation', () => {
+    // regression: LinkedView.BU1/BU2/BI0/BR1 etc. used to override View's
+    // implementations and only forward to their own sinks, skipping the
+    // child-traversal step. Path-keyed updates on the source therefore never
+    // reached descendants of the LinkedView. Each assertion below is a path
+    // that was silently broken before the fix.
+    const src = $({ a: { x: 1 }, b: 2 });
+    const linked = $(src);
+    const cLinkedRoot = linked.connect([]);
+    const cLinkedA = linked.a.connect([]);
+    const cLinkedAX = linked.a.x.connect([]);
+    const cLinkedB = linked.b.connect([]);
+    // BU2 on source reaches the grandchild sink of the LinkedView.
+    src.a.x = 5;
+    same(linked[value], { a: { x: 5 }, b: 2 });
+    // BU1 on source reaches a child sink of the LinkedView.
+    src.b = 3;
+    // Late-attached child sink: BI0 on source reaches the new child.
+    const cLinkedC = linked.c.connect([]);
+    src.c = 7;
+    same(linked.c[value], 7);
+    // BR1 on source reaches the child sink as a remove.
+    delete src.b;
+    same(linked.b[value], undefined);
+    // Switching the source: children that exist in the new src get an
+    // update, ones that don't get an XR0 (and skip if their value was
+    // already undefined).
+    const other = $({ a: { x: 9 } });
+    linked[value] = other;
+    same(linked.a.x[value], 9);
+    same(linked.c[value], undefined);
+    same(cLinkedAX, [
+        { type: 'update', key: [], value: 1 },
+        { type: 'update', key: [], value: 5 },
+        { type: 'update', key: [], value: 9 },
+    ]);
+    same(cLinkedA, [
+        { type: 'update', key: [], value: { x: 1 } },
+        { type: 'update', key: ['x'], value: 5 },
+        { type: 'update', key: [], value: { x: 9 } },
+    ]);
+    same(cLinkedB, [
+        { type: 'update', key: [], value: 2 },
+        { type: 'update', key: [], value: 3 },
+        { type: 'remove', key: [], value: 3 },
+    ]);
+    same(cLinkedC, [
+        { type: 'update', key: [], value: undefined },
+        { type: 'update', key: [], value: 7 },
+        { type: 'remove', key: [], value: 7 },
+    ]);
+    same(cLinkedRoot, [
+        { type: 'update', key: [], value: { a: { x: 1 }, b: 2 } },
+        { type: 'update', key: ['a', 'x'], value: 5 },
+        { type: 'update', key: ['b'], value: 3 },
+        { type: 'insert', key: [], value: 7, at: 'c' },
+        { type: 'remove', key: ['b'], value: 3 },
+        { type: 'update', key: [], value: { a: { x: 9 } } },
+    ]);
+});
 test('iterator', async () => {
     const res = $([1, 2]);
     const [one, two, three] = res;
