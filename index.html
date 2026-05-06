@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data — reactive data for TypeScript</title>
+  <meta name="description" content="A small reactive data library. $() wraps values; chainable operators derive views; render binds to the DOM. No virtual DOM, no diffing — work proportional to the path that changed.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <meta property="og:title" content="data — reactive data for TypeScript">
+  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. No virtual DOM, no diffing — work proportional to the path that changed.">
+  <link rel="stylesheet" href="./assets/landing.css">
+</head>
+<body>
+<main>
+
+  <!-- 1. hero -->
+  <section class="hero">
+    <h1>data</h1>
+    <p class="lede">
+      reactive data for typescript.
+      <span class="ticker" data-demo="ticker">0</span>
+      seconds since this page loaded.
+    </p>
+    <p class="sub">
+      that number is a <b>$(0)</b> · the &lt;span&gt; is bound via <b>tick.connect(el, 'textContent')</b> · this whole page is the library running on itself
+    </p>
+  </section>
+
+  <!-- 2. blotter / path propagation -->
+  <section class="blotter-section">
+    <h2>watch one path propagate</h2>
+    <p class="muted" style="max-width:62ch">
+      A live blotter, ticking. Each update mutates exactly one path —
+      <code class="inline">trades[i].field = value</code> — and only the affected
+      cell flashes. Sibling fields are never visited; work is proportional to the
+      path that changed, not the row.
+    </p>
+    <div class="blotter">
+      <div class="blotter-status">
+        <span class="dim">last:</span>
+        <code class="inline" id="last-tick" data-hl="off">—</code>
+        <span class="spacer"></span>
+        <button id="stream-toggle" type="button">⏸ pause</button>
+      </div>
+      <div class="blotter-head">
+        <span>id</span><span>tenor</span><span>bid</span><span>ask</span><span>last</span><span>pnl</span>
+      </div>
+      <div class="blotter-body" id="blotter-body"></div>
+    </div>
+  </section>
+
+  <!-- 3. why incremental -->
+  <section class="why stack" style="--gap:1rem">
+    <h2>why incremental?</h2>
+    <p>
+      Work is proportional to the <em>path</em> that changed — not the row, not the dataset, not anything broader. When you mutate a deeply-nested property:
+    </p>
+    <pre class="code">trades[1234].bid = 99.85</pre>
+    <p>
+      …the underlying notification carries the exact path <code class="inline">['1234', 'bid']</code> and the new value. Each layer in the pipeline does work scoped only to that path:
+      <code class="inline">filter</code> reruns its predicate for one row,
+      <code class="inline">between</code> does a single bisect step,
+      <code class="inline">intersect</code> flips one bitmask entry per source,
+      <code class="inline">za</code> repositions one entry in its sorted index,
+      and the DOM updates the single binding tied to the changed path.
+      No diff pass, no list re-render, no key reconciliation.
+    </p>
+    <p class="muted" style="font-size:0.875rem">
+      A typical Redux + virtual-DOM stack re-runs the entire selector chain over all 5,000 trades on every tick. With one tick per millisecond, that doesn't scale at all. Operators here are written for minimum-work propagation by construction.
+    </p>
+  </section>
+
+  <!-- 4. operators -->
+  <section class="operators">
+    <h2>operators</h2>
+    <p class="muted" style="max-width:62ch;margin-bottom:2rem">
+      Every operator below is a view derived from the same
+      <code class="inline">trades</code> proxy backing the blotter above.
+      Streaming bid/ask/pnl mutations propagate through each chain
+      incrementally — no recomputation outside the changed path.
+    </p>
+
+    <div class="op-section" id="op-filter">
+      <h3>filter <span class="dim">— pick a tenor</span></h3>
+      <p class="desc">Rows matching a predicate. Click a chip to switch.</p>
+      <pre class="code" data-hl="off"></pre>
+      <div class="op-controls" id="filter-chips"></div>
+      <div class="live-panel" id="filter-result"></div>
+    </div>
+
+    <div class="op-section" id="op-between">
+      <h3>between <span class="dim">— brush by pnl</span></h3>
+      <p class="desc">Rows where a column falls in a range. Each dot is one
+        trade at its current pnl; the orange band is the active range.</p>
+      <pre class="code" data-hl="off"></pre>
+      <div class="live-panel" id="between-result"></div>
+      <div class="op-controls">
+        <label>lo<input type="number" class="lo" step="100"></label>
+        <label>hi<input type="number" class="hi" step="100"></label>
+      </div>
+    </div>
+
+    <div class="op-section" id="op-za">
+      <h3>za <span class="dim">— top by pnl</span></h3>
+      <p class="desc">Sort descending, optionally limited. Top 5 winners,
+        re-ranking live as pnl ticks.</p>
+      <pre class="code">trades.za('pnl', 5)</pre>
+      <div class="live-panel" id="za-result"></div>
+    </div>
+
+    <div class="op-section" id="op-length">
+      <h3>length <span class="dim">— count, total or grouped</span></h3>
+      <p class="desc">Total row count, or counts under a key.</p>
+      <pre class="code">trades.length()
+trades.length(d =&gt; d.tenor)</pre>
+      <div class="live-panel" id="length-result"></div>
+    </div>
+
+    <div class="op-section" id="op-intersect">
+      <h3>intersect <span class="dim">— filter ∩ filter</span></h3>
+      <p class="desc">Rows present in every source view. Profitable trades at
+        the chosen tenor.</p>
+      <pre class="code" data-hl="off"></pre>
+      <div class="op-controls" id="intersect-chips"></div>
+      <div class="live-panel" id="intersect-result"></div>
+    </div>
+
+    <div class="op-section" id="op-group">
+      <h3>group <span class="dim">— nest by tenor</span></h3>
+      <p class="desc">Rows nested under a computed key. Each tenor becomes its
+        own bucket, with its trades indented underneath.</p>
+      <pre class="code">trades.group(d =&gt; d.tenor)</pre>
+      <div class="live-panel" id="group-result"></div>
+    </div>
+
+    <div class="op-section" id="op-map">
+      <h3>map <span class="dim">— derive bid-ask spread</span></h3>
+      <p class="desc">Per-row transform. The new <code class="inline">spread</code>
+        column is computed from each row's bid &amp; ask; it updates whenever
+        either field ticks.</p>
+      <pre class="code">trades.map(d =&gt; ({ ...d, spread: d.ask - d.bid }))</pre>
+      <div class="live-panel" id="map-result"></div>
+    </div>
+
+    <div class="op-section" id="op-to">
+      <h3>to <span class="dim">— aggregate pnl</span></h3>
+      <p class="desc">Whole-value transform. One number derived from all rows;
+        recomputes on every tick.</p>
+      <pre class="code">trades.to(arr =&gt; arr.reduce((s, t) =&gt; s + t.pnl, 0))</pre>
+      <div class="live-panel" id="to-result"></div>
+    </div>
+  </section>
+
+  <!-- 5. crossfilter -->
+  <section class="crossfilter">
+    <h2>live: crossfilter over 50,000 flight records</h2>
+    <p class="muted" style="max-width:60ch">
+      Brushable histograms across four dimensions. Every chart, the table, and the totals counter are reactive views derived from the same source via
+      <code class="inline">between → intersect → length(group) → za → limit</code>.
+      Brushing mutates a filter range; views recompute incrementally and the DOM catches up on its own.
+    </p>
+    <div class="frame-wrap">
+      <iframe class="cf" src="./examples/crossfilter/" loading="lazy" title="Brushable crossfilter over flight records"></iframe>
+    </div>
+    <div class="meta">
+      <span><a href="./examples/crossfilter/">open in own tab →</a></span>
+      <span class="dim">first load is slow — full 50,000-row dataset</span>
+    </div>
+    <noscript><p class="muted">JavaScript is required to render the demo. Source: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
+  </section>
+
+  <!-- 6. install -->
+  <section class="install stack" style="--gap:1rem">
+    <h2>install</h2>
+    <div class="install-cmd">npm install data</div>
+    <h2 style="margin-top:1rem">a reactive scalar</h2>
+<pre class="code">import { $, value } from 'data'
+
+const count = $(0)
+const doubled = count.to(n =&gt; n * 2)
+
+const events = doubled.connect([])
+
+count[value] = 5
+count[value] = 7
+
+// events:
+// [ { type: 'update', key: [], value: 0  },
+//   { type: 'update', key: [], value: 10 },
+//   { type: 'update', key: [], value: 14 } ]
+</pre>
+    <h2 style="margin-top:1rem">rendering to the dom</h2>
+<pre class="code">import { $, render, HTML } from 'data'
+const { ul, li } = HTML
+
+const todos = $([{ task: 'foo' }, { task: 'bar' }])
+
+render(document.body,
+  ul(todos, (node, item) =&gt; node.text(item.task))
+)
+
+todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
+</pre>
+  </section>
+
+</main>
+
+<footer>
+  <span><a href="https://github.com/pemrouz/data">github</a></span>
+  <span><a href="https://www.npmjs.com/package/data">npm</a></span>
+  <span><a href="./examples/crossfilter/">crossfilter</a></span>
+  <span><a href="./examples/todo/">todo</a></span>
+  <span><a href="./operators/README.md">operators</a></span>
+  <span><a href="./README.md">readme</a></span>
+  <span class="spacer"></span>
+  <span class="lic">MIT</span>
+</footer>
+
+<script type="module" src="./assets/landing.js"></script>
+</body>
+</html>
