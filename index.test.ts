@@ -1026,7 +1026,7 @@ test('update (dir, dir)', () => {
       { type: 'update', key: [], value: ['a', 'b'] },
       { type: 'insert', key: [], value: 'c', at: '2' },
       { type: 'update', key: ['1'], value: 'e' },
-      { type: 'update', key: [], value: ['a', 'e', 'c'] },
+      { type: 'update', key: [], value: [, 'e', 'c'] },
       { type: 'remove', key: ['1'], value: 'e' },
       { type: 'update', key: [], value: [] }
     ])
