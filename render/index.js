@@ -23,32 +23,33 @@ class DOMSink {
             this.nodes[k] = node.create(this.parent);
         }
     }
-    // Idempotent: tolerate keys we never tracked. Operators upstream can
-    // legitimately emit a remove for a key the sink doesn't have — most
-    // notably when LimitValue's array splices shift a row's position without
-    // notifying GroupValue, so a later BR1/BR2 from group references a
-    // position that group never inserted into the per-group child view.
-    // The proper fix is to make the limit→group composition track stable
-    // source keys; until then, swallow stale removes here.
     remove_node(k) {
         if (isArray(this.nodes)) {
-            this.nodes.pop()?.remove();
+            this.nodes.pop().remove();
         }
         else {
-            this.nodes[k]?.remove();
+            this.nodes[k].remove();
             delete this.nodes[k];
         }
     }
+    // Once the parent DOM is detached from the document the binding can never
+    // produce a visible mutation again. We could keep applying changes to the
+    // detached subtree but it just wastes work and corrupts our nodes/buckets
+    // counts (per-group sinks under a removed group container kept getting
+    // BR1/BI0 events while their parent was orphaned, eventually popping past
+    // the end of nodes). Bail out early instead.
+    _detached() {
+        return this.parent?.isConnected === false;
+    }
     XR0() {
-        // console.log('DR0 :>> ', { this: this })
+        if (this._detached())
+            return;
         for (const i in this.nodes)
             this.remove_node(i);
     }
     XU0(value) {
-        // console.log('DU0 :>> ', { this: this, value })
-        if (!this.parent.parentNode) {
+        if (this._detached())
             return;
-        } // TODO: teardown?
         const prev_nodes = this.nodes ?? {};
         if (typeof value === 'undefined') {
             this.nodes = {};
@@ -72,54 +73,48 @@ class DOMSink {
                 this.remove_node(i);
     }
     BR1(R1) {
-        // console.log('DR1 :>> ', { this: this, R1 })
+        if (this._detached())
+            return;
         for (let i = 0; i < R1.length; i++)
             this.remove_node(R1[i++]);
     }
     BU1(U1) {
-        // console.log('DU1 :>> ', { this: this, U1 })
+        if (this._detached())
+            return;
         for (let i = 0; i < U1.length; i++) {
             const name = U1[i++];
             const value = U1[i];
             if (!this.nodes[name])
-                this.create_node(name /*, value*/);
+                this.create_node(name);
         }
     }
     BI0(I0) {
-        // console.log('DI0 :>> ', { this: this, I0 })
+        if (this._detached())
+            return;
         for (let i = 0; i < I0.length; i++) {
             const name = I0[i++];
             const value = I0[i];
-            // if (!this.nodes[name]) 
-            this.create_node(name /*, value */);
+            this.create_node(name);
         }
-        // if (isArray(this.p.value)) // TODO: why only arr?
-        // this.create_node(name, value)  
     }
-    BR2(BR2) {
-        // console.log('DR2 :>> ', { this: this, BR2 })
-    }
+    BR2(BR2) { }
     BU2(U2) {
-        // console.log('DU2 :>> ', { this: this, U2  })
+        if (this._detached())
+            return;
         for (let i = 0; i < U2.length; i++) {
             const [name] = U2[i++];
             const value = U2[i];
-            // console.log({ name, value })
             if (!this.nodes[name])
-                this.create_node(name /*, value*/);
+                this.create_node(name);
         }
-        // console.log('DU2 :>> ', { this: this, args })
-        // if (!this.nodes[name])
-        //   this.create_node(name, this.p.value[name]) 
     }
     BI2(I2) {
-        // console.log('DI2 :>> ', { this: this, I2 })
-        // console.log("dom I2", name)
-        // console.log('DI0 :>> ', { this: this, I2 })
+        if (this._detached())
+            return;
         for (let i = 0; i < I2.length; i += 3) {
             const [name] = I2[i];
             if (!this.nodes[name])
-                this.create_node(name /*, value */);
+                this.create_node(name);
         }
     }
 }
