@@ -27,13 +27,20 @@ class DOMSink {
     }
   }
   
+  // Idempotent: tolerate keys we never tracked. Operators upstream can
+  // legitimately emit a remove for a key the sink doesn't have — most
+  // notably when LimitValue's array splices shift a row's position without
+  // notifying GroupValue, so a later BR1/BR2 from group references a
+  // position that group never inserted into the per-group child view.
+  // The proper fix is to make the limit→group composition track stable
+  // source keys; until then, swallow stale removes here.
   remove_node(k){
     if (isArray(this.nodes)) {
-      this.nodes.pop().remove()
+      this.nodes.pop()?.remove()
     } else {
-      this.nodes[k].remove()
+      this.nodes[k]?.remove()
       delete this.nodes[k]
-    }    
+    }
   }
 
   XR0() {
