@@ -270,7 +270,8 @@ export class View {
 
   BR1(R1) {
     if (!R1.length) return
-    if (!isArray(this.value)) {
+    const arr = isArray(this.value)
+    if (!arr) {
       for (let i = 0; i < R1.length; i+=2)
         this.get_named(R1[i])?.XR0(R1[i+1])
     } else if (this.views.size) {
@@ -284,7 +285,9 @@ export class View {
     for (const x of this.sinks) {
       const sink = x.deref()
       if (!sink) { this.sinks.delete(sink); continue }
-      sink.BR1(R1, this)
+      arr && sink.BR1A && sink.BR1A !== Value.prototype.BR1A
+        ? sink.BR1A(R1, this)
+        : sink.BR1(R1, this)
     }
   }
 
@@ -347,7 +350,9 @@ export class View {
       }
       this.V1(offset)
     }
-    this.sink(sink => sink.BI0(I0, this))
+    this.sink(sink => (sink.BI0A && sink.BI0A !== Value.prototype.BI0A)
+      ? sink.BI0A(I0, this)
+      : sink.BI0(I0, this))
   }
 
   BI2(I2){
