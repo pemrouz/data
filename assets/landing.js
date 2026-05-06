@@ -74,14 +74,16 @@ const NUM_FIELDS = ['bid', 'ask', 'last', 'pnl']
 let streaming = true
 let streamId = null
 
-function flashOperatorRow (tradeId, field) {
-  document.querySelectorAll(`[data-trade-id="${tradeId}"]`).forEach(row => {
-    const panel = row.closest('[data-fields]')
-    if (!panel) return
-    if (!panel.dataset.fields.split(',').includes(field)) return
-    row.classList.remove('row-flash')
-    void row.offsetWidth
-    row.classList.add('row-flash')
+// Flash only the cell(s) whose displayed value depends on the changed field.
+// A cell tagged data-fields="bid" flashes on bid ticks; data-fields="bid ask"
+// (e.g. map's spread column) flashes on either. No cell with the field → no
+// flash, so panels that don't show the field stay quiet automatically.
+function flashOperatorCell (tradeId, field) {
+  const sel = `[data-trade-id="${tradeId}"] [data-fields~="${field}"]`
+  document.querySelectorAll(sel).forEach(cell => {
+    cell.classList.remove('flash')
+    void cell.offsetWidth
+    cell.classList.add('flash')
   })
 }
 
@@ -106,7 +108,7 @@ function mutateOnce () {
   row[f] = next
   lastTick[value] = `trades[${i}].${f} = ${fmt(next)}`
   flashCell(i, f)
-  flashOperatorRow(row.id[value], f)
+  flashOperatorCell(row.id[value], f)
 }
 
 function streamTick () {
@@ -153,10 +155,10 @@ function syncFilter () {
     div.mblot_row(filtered, (node, t) => node.attr('data-trade-id', t.id)(
       span.text(t.id),
       span.attr('data-tenor', t.tenor).text(t.tenor),
-      span.text(t.bid.to(fmt2)),
-      span.text(t.ask.to(fmt2)),
-      span.text(t.last.to(fmt2)),
-      span.pnl.class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
+      span.attr('data-fields', 'bid').text(t.bid.to(fmt2)),
+      span.attr('data-fields', 'ask').text(t.ask.to(fmt2)),
+      span.attr('data-fields', 'last').text(t.last.to(fmt2)),
+      span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
     ))
   ))
 }
@@ -238,7 +240,7 @@ render($$('#za-result'), div(
     span.rank_cell.text(''),
     span.text(t.id),
     span.attr('data-tenor', t.tenor).text(t.tenor),
-    span.pnl.class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
+    span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
   ))
 ))
 
@@ -305,8 +307,8 @@ function syncIntersect () {
     div.mblot_row(denseRows, (node, t) => node.attr('data-trade-id', t.id)(
       span.text(t.id),
       span.attr('data-tenor', t.tenor).text(t.tenor),
-      span.text(t.last.to(fmt2)),
-      span.pnl.class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
+      span.attr('data-fields', 'last').text(t.last.to(fmt2)),
+      span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
     )),
   ))
 }
@@ -335,9 +337,9 @@ render($$('#group-result'), div.group_panel(
     div.tgroup_body.attr('data-tenor', tenor)(
       div.tgroup_row(rows, (n, t) => n.attr('data-trade-id', t.id)(
         span.text(t.id),
-        span.text(t.bid.to(fmt2)),
-        span.text(t.ask.to(fmt2)),
-        span.pnl.class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
+        span.attr('data-fields', 'bid').text(t.bid.to(fmt2)),
+        span.attr('data-fields', 'ask').text(t.ask.to(fmt2)),
+        span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
       ))
     ),
   ))
@@ -357,9 +359,9 @@ render($$('#map-result'), div(
   div.mblot_row(spreaded, (node, t) => node.attr('data-trade-id', t.id)(
     span.text(t.id),
     span.attr('data-tenor', t.tenor).text(t.tenor),
-    span.text(t.bid.to(fmt2)),
-    span.text(t.ask.to(fmt2)),
-    span.spread.text(t.spread.to(fmt2)),
+    span.attr('data-fields', 'bid').text(t.bid.to(fmt2)),
+    span.attr('data-fields', 'ask').text(t.ask.to(fmt2)),
+    span.spread.attr('data-fields', 'bid ask').text(t.spread.to(fmt2)),
   ))
 ))
 

@@ -242,12 +242,12 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   to   { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes row-flash {
-  0%   { background: rgba(255, 94, 58, 0.16); }
-  100% { background: transparent; }
-}
-.mblot-row.row-flash, .tgroup-row.row-flash {
-  animation: row-flash 600ms ease-out;
+/* Operator panels flash the SPECIFIC cell whose displayed value changed,
+   not the whole row — so the eye is drawn directly to the change. */
+.mblot-row span.flash,
+.tgroup-row span.flash {
+  animation: cell-flash 600ms ease-out;
+  border-radius: 2px;
 }
 
 .op-section {
