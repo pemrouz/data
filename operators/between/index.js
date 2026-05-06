@@ -1,7 +1,15 @@
 // @ts-nocheck
 import { isArray, iter, left } from "../../utils.js";
 import { Operator, ViewProxy, createOperator } from "../../core.js";
+// BetweenValue is the range filter. The user calls `data.between('col', [lo,
+// hi])` typically with reactive bounds (a brush rectangle on a chart) — the
+// operator sorts the source by `col` once at construction, then on every
+// bound change walks only the rows whose `col` value crossed the new
+// boundary, emitting per-row BI0/BR1 rather than a full XU0. That keeps the
+// crossfilter example responsive at >1M rows even when the user is dragging.
 export class BetweenValue extends Operator {
+    // Dedup helper — when two charts brush over the same column with the same
+    // bounds, share a single Between sink.
     matches(col, [lo, hi]) {
         return this.col === col && this.plo === lo && this.phi === hi;
     }
@@ -12,7 +20,11 @@ export class BetweenValue extends Operator {
         this.plo = arg[0];
         this.phi = arg[1];
         this.sorted = [];
+        // `sorted` holds source keys ordered by col-value. `find` does the
+        // O(log n) bisect that lets us advance lo_index/hi_index incrementally.
         this.find = left(d => { return this.p.value[d][col]; });
+        // Two flavours of reactive arg: a single ViewProxy that yields
+        // `[lo, hi]` snapshots, or a tuple of two separately-reactive bounds.
         if (arg instanceof ViewProxy) {
             arg.connect(this, 'extent');
         }
@@ -22,6 +34,8 @@ export class BetweenValue extends Operator {
         }
         this.XU0(p.value);
     }
+    // Single-bound setters auto-sort so lo always ends up ≤ hi. This is what
+    // keeps the resize handles working when the user drags one past the other.
     set lo(v) {
         this.extent = v > this.hi_val
             ? [this.hi_val, v]
@@ -32,6 +46,15 @@ export class BetweenValue extends Operator {
             ? [v, this.lo_val]
             : [this.lo_val, v];
     }
+    // Whole-extent setter — the hot path. Each branch handles one of the
+    // common bound transitions:
+    //   • full domain (-∞, ∞) → unfiltered, share the source array directly
+    //   • collapsed (lo === hi) → empty result
+    //   • shrink/expand → walk sorted from the old boundary to the new one and
+    //     emit incremental BI0/BR1 events instead of resnapshotting.
+    // The `value === p.value` check is the unfilter fast path: when we
+    // previously aliased the source we have to fork it before mutating, or our
+    // `value[ti] = undefined` writes would hit the user's data.
     set extent([a = -Infinity, b = Infinity]) {
         a = +a;
         b = +b;
@@ -53,8 +76,14 @@ export class BetweenValue extends Operator {
             this.view.value = isArray(this.p.value) ? [...this.p.value] : { ...this.p.value };
         }
         const I0 = [], R1 = [];
+        // lo/hi_index are the bisect positions of the current bounds in `sorted`.
+        // First-pass after a fast-path reset they're undefined; recompute lazily.
         this.lo_index ??= this.find(this.sorted, this.lo_val);
         this.hi_index ??= this.find(this.sorted, this.hi_val);
+        // The four directions of bound motion. Each loop walks `sorted` from
+        // the current boundary index toward the new one, emitting one event
+        // per row crossed. `tv = p.value[ti]` is the row at that sorted slot;
+        // we test its `col` against the new bound to know when to stop.
         let ti, tv;
         if (new_hi < this.hi_val) {
             while ((tv = this.p.value[ti = this.sorted[this.hi_index - 1]]) &&
@@ -99,6 +128,10 @@ export class BetweenValue extends Operator {
         if (R1.length)
             this.view.BR1(R1);
     }
+    // Whole-source replacement: rebuild `sorted` and seed `new_value` with
+    // rows already inside the bounds. The bound indexes are wiped so the next
+    // `extent` setter recomputes them from scratch (cheaper than tracking
+    // them through this rebuild).
     XU0(value) {
         const { col } = this;
         this.lo_index = undefined;

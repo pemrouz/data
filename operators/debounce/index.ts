@@ -1,6 +1,12 @@
 // @ts-nocheck
 import { Operator, createOperator } from '../../core.ts'
 
+// Debounce coalesces rapid upstream changes into one downstream emit per
+// `ms` window. Rate-limit applies to the *output*, not the input: every
+// upstream event arms a single trailing timer if one isn't already pending,
+// and only the *latest* `fn(source, prev)` result lands when the timer
+// fires. Default 1s suits user-input bounded sources (search boxes, brush
+// drags); pass a smaller `ms` for animation-paced flushes.
 export class DebounceValue extends Operator {
   constructor(p, fn, ms = 1000) {
     super()

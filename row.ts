@@ -2,9 +2,24 @@
 import { isArray } from './utils.ts'
 import { Operator } from './core.ts'
 
+// RowOperator is the base for any operator that processes rows independently
+// — `filter`, `map`, and similar. Subclasses implement `process(value, name,
+// old_val)` and the base handles all the bookkeeping: deciding whether each
+// upstream event becomes a downstream BU1 (still in), BI0 (newly entering),
+// or BR1 (leaving), and keeping `this.view.value` in sync as it goes.
+//
+// `process` returns the row's transformed value, or undefined to exclude it.
+// That single return value drives the in/out classification — RowOperator
+// users never have to emit verbs themselves.
 export class RowOperator extends Operator {
   process() { throw new Error('not implemented, process:', this.name) }
 
+  // Generic loop body shared by every BU1/BU2/BI0/BI2/BR2 entrypoint. `inc`
+  // is the stride (2 for flat name/value, 3 for keyed insert with `at`);
+  // `inner` distinguishes nested-key arrays (BU2/BI2/BR2 carry [key, ...] as
+  // the first slot) from flat ones. We classify each row as upsert/insert/
+  // remove based on whether `process` returned a value before *and* now, then
+  // batch the resulting deltas into a single set of downstream events.
   loop(C, inc, inner) {
     const NU1 = [], NI0 = [], NR1 = []
     for (let i = 0; i < C.length; i += inc) {
@@ -22,6 +37,10 @@ export class RowOperator extends Operator {
     this.view.BR1(NR1)
   }
 
+  // Whole-value reset: rebuild the snapshot from scratch. Non-object values
+  // collapse the operator to undefined since per-row semantics don't apply
+  // (e.g. setting the source to a primitive). Array-vs-object shape is
+  // mirrored from the source so `for...in` iteration stays consistent.
   XU0(value){
     if (typeof value !== 'object') return this.view.XU0(this.view.value = undefined)
     const n = isArray(value) ? [] : {}
@@ -37,6 +56,9 @@ export class RowOperator extends Operator {
   BI2(I2) { this.loop(I2, 3, true) }
   BR2(R2) { this.loop(R2, 2, true) }
   XR0(){ super.XR0() }
+  // Removes can't be derived from `process` (the row is already gone
+  // upstream), so this branch is a straight propagation: drop from our
+  // snapshot and forward the delta if the row was actually held.
   BR1(R1) {
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {

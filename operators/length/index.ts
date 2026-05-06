@@ -2,6 +2,11 @@
 import { isArray, iter } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
+// Two flavours of length: a scalar count of rows (LengthValue) and a
+// histogram-by-fn (LengthFnValue). The scalar form just adds/subtracts
+// payload sizes on insert/remove — `length/2` because the protocol arrays
+// pack [name, value, name, value, ...]. BU1 is a no-op because updating a
+// row's value doesn't change the count.
 export class LengthValue extends Operator {
   constructor(p) {
     super()
@@ -36,6 +41,12 @@ export class LengthValue extends Operator {
   BI2(){}
 }
 
+// Histogram-by-fn: each output bucket is `{ value: count }` — a tiny
+// reactive object so downstream views (e.g. histogram bars in crossfilter)
+// can subscribe to a single counter without re-rendering all bars on every
+// change. `mapping[name]` is the bucket each upstream row currently belongs
+// to, so cross-bucket moves are decremented from old / incremented into new
+// without re-iterating the source.
 export class LengthFnValue extends Operator {
   constructor(p, fn) {
     super()

@@ -50,6 +50,11 @@ export class GroupValue extends Operator {
         this.view.XU0(this.view.value = new_value);
     }
     // ─── Object-source paths ──────────────────────────────────────────────────
+    // For each removed name we drop the row from its bucket and stash the old
+    // value in `leaving` so we can choose later whether to emit BR1 (bucket
+    // emptied — group disappears) or BR2 (bucket non-empty — only this row left).
+    // Routed to BR1A when the source is an array because position-shift
+    // semantics differ.
     BR1(R1) {
         if (this.isArr)
             return this.BR1A(R1);
@@ -71,6 +76,11 @@ export class GroupValue extends Operator {
         }
         this._emitObjectLeavers(leaving);
     }
+    // BU1 has to handle two shapes of update: in-group (just refresh the value
+    // under the existing bucket) and cross-group (remove from old bucket,
+    // insert into new). The latter may also empty the old bucket entirely, in
+    // which case we collapse the per-row BR2 events into a single BR1 for the
+    // disappearing group — that's why we accumulate `leaving` and post-process.
     BU1(U1) {
         if (this.isArr)
             return this.BU1A(U1);
@@ -315,7 +325,10 @@ export class GroupValue extends Operator {
         if (NI2.length)
             this.view.BI2(NI2);
     }
-    // count entries already in `group` whose upstream pos is < `pos`
+    // Find the bucket index for a row whose upstream position is `pos`, by
+    // counting siblings in the same group that come before it. O(posMap.size)
+    // per insert — fine because group only sees the small upstream batches
+    // that LimitValue forwards, never a full source.
     _insertIdx(group, pos) {
         let idx = 0;
         for (const [otherPos, other] of this.posMap) {

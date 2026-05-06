@@ -1,4 +1,8 @@
 // @ts-nocheck
+// Shape-aware iterator: numeric for-loop over arrays (preserves index type
+// and visits every slot, including holes), for-in over plain objects (skips
+// non-enumerable keys, respects insertion order). Operators reach for this
+// instead of branching at every call site.
 export function iter(o, fn) {
     if (isArray(o)) {
         for (let i = 0; i < o.length; i++)
@@ -13,6 +17,9 @@ export const { isArray } = Array;
 export const identity = d => d;
 export const noop = () => { };
 export const U = undefined;
+// `left(prop)` returns a bisector keyed by `prop(row)`. Used by between to
+// find where a brushed bound falls in its sorted source array — O(log n)
+// instead of rescanning all rows on every drag tick.
 export const left = prop => function bisect(a, v, lo = 0, hi = a.length) {
     while (lo < hi) {
         const mid = lo + hi >>> 1;
@@ -23,6 +30,9 @@ export const left = prop => function bisect(a, v, lo = 0, hi = a.length) {
     }
     return lo;
 };
+// Right-bisect for descending-sorted arrays, bound to the operator instance
+// so it can dereference `this.col(this.p.value[this.sorted[mid]])` inline.
+// Read on ZAValue.prototype.find and called from sort/index.ts.
 export function bisect_right(v, lo = 0, hi = this.sorted.length) {
     while (lo < hi) {
         const mid = lo + hi >>> 1;
@@ -43,6 +53,9 @@ export function find(a, v, lo = 0, hi = a.length) {
     }
     return lo;
 }
+// Cheaper than Object.keys(obj).length === 0 — returns on first iteration.
+// Hot in group's bucket-cleanup path where every batch may inspect dozens of
+// per-group buckets to decide which became empty.
 export function isEmpty(obj) {
     for (const i in obj)
         return false;

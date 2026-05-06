@@ -1,6 +1,14 @@
 // @ts-nocheck
 import { Operator, createOperator } from '../../core.ts'
 
+// `.to(fn)` is the whole-value projection: every upstream change collapses
+// to a single XU0 of `fn(source, prev)`. Useful for derived scalars (e.g.
+// "is the array empty", "format this date as a string") where granular
+// events would just be more code for the same observable answer. The
+// reference-equality short-circuit means a `to` whose fn returns the same
+// instance every time becomes a no-op subscription rather than a render
+// storm — this is the contract that makes things like
+// `filter.to(d => d?.length ? '' : 'none')` cheap.
 export class ToValue extends Operator {
   constructor(p, fn) {
     super()

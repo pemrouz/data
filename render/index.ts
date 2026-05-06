@@ -2,12 +2,23 @@
 import { view } from '../core.ts'
 import { iter, isArray, noop } from '../utils.ts'
 const NS = 'http://www.w3.org/2000/svg'
+// NODE is a sentinel used as the key for the root-level slot when a sink
+// represents a single primitive child rather than a keyed list — DOMSink can
+// then treat "scalar" and "one-element list" uniformly through nodes[NODE].
 const NODE = Symbol('Node')
 const { keys } = Object
 
+// Top-level entry point: turn a NodeProxy template into actual DOM children
+// of `p`. Returns `p` so `render(parent, …).whatever` chaining works.
 export const render = (p, np) =>
   Node.render(p, np[NODE])
 
+// DOMSink is the bridge between the reactive protocol and live DOM. One
+// sink per data-bound region in the template; it holds the parent element,
+// the per-key DOM nodes (`this.nodes`), and translates BU1/BR1/BI0/BMV1
+// events into createElement/insertBefore/remove calls. Array sources keep
+// `nodes` as an array so order matches the source; object sources use a
+// keyed object.
 class DOMSink {
   constructor(parent, node) {
     this.parent = parent
@@ -17,6 +28,10 @@ class DOMSink {
     this.XU0(this.p.value)
   }
 
+  // Array branch passes `nodes[k + 1]` as the insertBefore anchor so the new
+  // element lands at position k; object branch is positional-agnostic and
+  // appends. `node.generate(k, ...)` builds the per-row template with the
+  // user's data passed in — this is what materializes the row's content.
   create_node(k) {
     const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k])
     if (isArray(this.nodes)) {
@@ -26,7 +41,11 @@ class DOMSink {
       this.nodes[k] = node.create(this.parent)
     }
   }
-  
+
+  // Array remove always pops the tail because the upstream BR1A protocol
+  // already shifted the data array, so the live DOM array's last slot is
+  // the one that should disappear (the V1 propagation will rewrite the
+  // others' content). Object remove just deletes the named node directly.
   remove_node(k){
     if (isArray(this.nodes)) {
       this.nodes.pop().remove()
@@ -145,13 +164,17 @@ class DOMSink {
 
 class Child {}
 
+// Node is the template AST built up by HTML.div(...).foo(...) chains. It
+// stays declarative until create() runs against a real parent — that's when
+// it becomes a live element. `_` → `-` lets `HTML.foo_bar()` produce the
+// hyphenated `<foo-bar>` custom-element tag without escaping.
 class Node extends Child {
-  constructor(tag, ns, children = []) { 
+  constructor(tag, ns, children = []) {
     super()
-    this.ns = ns; 
+    this.ns = ns;
     this.tag = tag.replaceAll('_', '-');
     this.children = children;
-  }  
+  }
 
   static render(dom, node) {
     for (const child of node.children) {
@@ -176,11 +199,17 @@ class Node extends Child {
     return this.data !== undefined || this.static !== undefined
   }
 
+  // The grand dispatch on what `HTML.div(...)` was called with. The same
+  // method handles every shape because the proxy can't know in advance:
+  //   string/number/true   → text content
+  //   NodeProxy            → child template
+  //   undefined/false      → empty (often used by ternaries)
+  //   reactive (has [view]) → bind data to this node's children
+  //   function             → row generator (composes with prior fn)
+  //   object               → static attribute bag
   static add(node, ...args) {
-    // console.log({ args })
     for (const arg of args) {
       if (typeof arg === 'string' || typeof arg === 'number' || arg === true) {
-        // Text.add(node, arg)
         node.static = [arg]
       } else if (arg instanceof NodeProxy) {
         const child = arg[NODE]
@@ -328,18 +357,28 @@ const props = {
   nodes: Node,
 }
 
+// NodeProxy is the chainable template handle the user sees. Property reads
+// dispatch on the name:
+//   `prop` (attr/class/on/style/id/text/nodes) → switch into prop-builder mode
+//   `'#foo'`   → shorthand for id="foo"
+//   `'.foo'`   → shorthand for class="foo"
+//   `'k=v'`    → shorthand for attr k="v"
+//   anything else → class shorthand (so `HTML.div.active(...)` adds class
+//                  "active"). Underscores become hyphens.
+// The Proxy wraps `noop` so the result is callable, which is what makes
+// `HTML.div(child1, child2)` work as a method invocation.
 class NodeProxy {
-  constructor(node, prop) { 
-    this.node = node; 
+  constructor(node, prop) {
+    this.node = node;
     this.prop = prop;
-    return new Proxy(noop, this) 
+    return new Proxy(noop, this)
   }
 
-  set(){ throw 'cannot set properties' } 
-  
-  deleteProperty(){ throw 'cannot delete properties' } 
+  set(){ throw 'cannot set properties' }
 
-  get(t, name){ 
+  deleteProperty(){ throw 'cannot delete properties' }
+
+  get(t, name){
     const n = this.node
     if (name === NODE) return n
     else if (typeof name === 'symbol') return

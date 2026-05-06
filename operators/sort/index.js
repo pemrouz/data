@@ -1,6 +1,15 @@
 // @ts-nocheck
 import { isArray, bisect_right } from "../../utils.js";
 import { Operator, value, createOperator } from "../../core.js";
+// ZAValue is the descending sort + top-n. State:
+//   sorted   — every source key in descending order (kept fully so we can
+//              rebuild the visible window incrementally on rank changes)
+//   view.value — the first `n` entries materialized as an array
+// The class also serves as the base for ascending sort (column accessor
+// negated by the subclass) and for un-keyed numeric sort. Most updates only
+// need to touch the n-element window: bisect to find the new rank, splice
+// `sorted`, then translate the rank shift into BU1/BR1A/BI0A (or BMV1 when
+// both ranks fall inside the window).
 export class ZAValue extends Operator {
     matches(col, n) { return this.col_name == col && this.n == n; }
     constructor(p, col, col_name, n) {
@@ -31,6 +40,9 @@ export class ZAValue extends Operator {
             .slice(0, this.n)
             .map(i => value[i]));
     }
+    // Row removed upstream. If it was outside the visible window we just
+    // splice it out of `sorted`. If it was inside, we have to evict its DOM
+    // slot (BR1A) and refill the tail from the next-ranked source row.
     BR1(R1) {
         for (let i = 0; i < R1.length; i++) {
             const oidx = this.get_index(R1[i++]);
@@ -43,6 +55,14 @@ export class ZAValue extends Operator {
                 super.BI0A([len, this.p.value[this.sorted[len]]]);
         }
     }
+    // The four cases of a row's rank change, governed by where the old and
+    // new ranks fall relative to the visible window of size n:
+    //   • out → out: nothing observable, just update `sorted`
+    //   • out → in : evict the row pushed off the tail, insert this one
+    //   • in  → out: evict this one from its position, refill the tail
+    //   • in  → in : in-window rotation — emitted as BMV1 so DOM sinks can
+    //                use insertBefore on the same node rather than tearing
+    //                down and rebuilding (preserves focus, animations, etc.)
     BU1(U1) {
         for (let i = 0; i < U1.length; i++) {
             const name = U1[i++];
@@ -58,6 +78,8 @@ export class ZAValue extends Operator {
                 super.BU1([oidx, value]);
                 continue;
             }
+            // bisect would have returned the position *before* removing the
+            // current entry, so when moving down we have to compensate.
             if (nidx > oidx)
                 nidx--;
             sorted.splice(oidx, 1);
@@ -81,6 +103,9 @@ export class ZAValue extends Operator {
             }
         }
     }
+    // New row enters. If its rank is past the window we only need to record
+    // it in `sorted`; otherwise, evict the bottom of the visible window (if
+    // we're already at capacity) and splice the newcomer into its rank.
     BI0(I0) {
         for (let i = 0; i < I0.length; i++) {
             const at = I0[i++];
@@ -94,6 +119,11 @@ export class ZAValue extends Operator {
             super.BI0A([new_idx, value]);
         }
     }
+    // Nested-key changes (`row.col` mutated). If the change touches the sort
+    // column we have to recompute the row's rank — funnel into BU1. Otherwise
+    // it's just a deep update on a row that may or may not be visible: only
+    // forward the BR2/BU2 if the row is in-window, with the key prefix
+    // rewritten from upstream-name to in-window-position.
     BR2(R2) {
         for (let i = 0; i < R2.length; i++) {
             const [name, col, ...rest] = R2[i++];

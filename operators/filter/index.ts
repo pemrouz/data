@@ -3,6 +3,8 @@ import { isArray } from '../../utils.ts'
 import { createOperator } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
+// Walks a key path against a (possibly nested) row. Returns undefined if any
+// segment is missing — `r?.[...]` short-circuits the rest.
 function get(k, r){
   const p = k.concat([])
   while (p.length) r = r?.[p.shift()]
@@ -19,6 +21,10 @@ function otof(k, v, fns) {
   return fns
 }
 
+// Recursive deep-equality for the object-shape filter form: every leaf in
+// `expected` must match the corresponding leaf in `actual`. Doesn't recurse
+// into `actual`'s extra keys — the row is allowed to have more fields than
+// the predicate cares about.
 function match(actual, expected) {
   if (typeof expected !== 'object')
     return actual === expected
@@ -28,6 +34,11 @@ function match(actual, expected) {
       .every(([k, v]) => match(actual?.[k], v))
 }
 
+// FilterValue is the function-predicate form. RowOperator drives the per-row
+// classification — we just have to return the row (kept) or undefined
+// (dropped) from `process`. The Filter*Value subclasses wrap convenience
+// argument shapes (`filter('key', val)`, `filter({k:v})`, etc.) into the
+// underlying predicate function.
 export class FilterValue extends RowOperator {
   constructor(p, fn){
     super()
@@ -43,12 +54,14 @@ export class FilterValue extends RowOperator {
   }
 }
 
+// `filter({a: 1})` form — match-by-template against arbitrary nesting.
 export class FilterObjectValue extends FilterValue {
   constructor(p, obj) {
     super(p, r => match(r, obj))
   }
 }
 
+// `filter('key')` (truthy) and `filter('key', val)` (equality on top-level key).
 export class FilterStringValue extends FilterValue {
   constructor(p, name, value) {
     super(p, value === undefined
@@ -58,6 +71,8 @@ export class FilterStringValue extends FilterValue {
   }
 }
 
+// `filter(['a', 'b'], val)` — equality at a nested path. The lone string
+// case routes to FilterStringValue above; this one is for arrays of segments.
 export class FilterColumnValue extends FilterValue {
   constructor(p, name, value) {
     const key = [].concat(name)
