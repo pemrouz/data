@@ -72,11 +72,12 @@ export class ZAValue extends Operator {
                 super.BI0A([n - 1, p.value[sorted[n - 1]]]);
             }
             else if (oidx < n && nidx < n) {
-                const lo = oidx < nidx ? oidx : nidx;
-                const hi = oidx < nidx ? nidx : oidx;
-                for (let idx = lo; idx <= hi; idx++) {
-                    super.BU1(['' + idx, p.value[sorted[idx]]]);
-                }
+                // Both ranks fall inside the visible window: this is a rotation
+                // of the element from oidx to nidx. Emit a single move event so
+                // sinks that care about identity (DOMSink uses insertBefore on
+                // the same element) preserve it; sinks that don't fall back to
+                // BU1 over the affected range automatically.
+                super.BMV1([oidx, nidx]);
             }
         }
     }

@@ -1209,9 +1209,7 @@ test('update (dir, dir)', () => {
       { type: 'update', key: [ '1', 'fooo' ], value: 40 },
       { type: 'remove', key: [ 2 ], value: { fooo: 3, date: 3 } },
       { type: 'insert', key: [], value: { fooo: 10, date: 10 }, at: 0 },
-      { type: 'update', key: [ '0' ], value: { fooo: 5, date: 5 } },
-      { type: 'update', key: [ '1' ], value: { fooo: 40, date: 4 } },
-      { type: 'update', key: [ '2' ], value: { fooo: 10, date: 4 } },
+      { type: 'move', from: 0, to: 2 },
       { type: 'remove', key: [ 1 ], value: { fooo: 40, date: 0 } },
       { type: 'insert', key: [], value: { fooo: 3, date: 3 }, at: 2 },
       { type: 'update', key: [], value: [ 

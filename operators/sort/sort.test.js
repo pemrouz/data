@@ -57,3 +57,28 @@ test('sort (za) - insert/update/remove', () => {
     delete data[value];
     same(res[value], []);
 });
+// In-window rank rotation should be emitted as a single 'move' event rather
+// than per-position 'update' events. Sinks that care about identity (DOMSink
+// uses insertBefore on the same element) preserve it; sinks without BMV1
+// fall back to a BU1 batch over the affected range automatically.
+test('sort (za) - in-window rank change emits BMV1', () => {
+    const data = $({
+        1: { date: 1 },
+        2: { date: 2 },
+        3: { date: 3 },
+        4: { date: 4 },
+    });
+    const res = sort(data, 'date', 4);
+    const changes = res.connect([]);
+    changes.length = 0; // discard the initial XU0
+    // row 1 (currently last in the desc-sorted window) jumps to first
+    data[1].date = 99;
+    same(res[value], [
+        { date: 99 }, { date: 4 }, { date: 3 }, { date: 2 },
+    ]);
+    // expect a single 'move' event; the U2 for the changed value is also
+    // emitted (the column update path that pre-dates the rank change).
+    const moves = changes.filter(c => c.type === 'move');
+    same(moves.length, 1);
+    same(moves[0], { type: 'move', from: 3, to: 0 });
+});
