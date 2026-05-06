@@ -3,6 +3,7 @@ import { ok } from 'node:assert';
 import { test } from 'node:test';
 import { $ } from "../../core.js";
 import { group } from "./index.js";
+import { limit } from "../sort/index.js";
 const REPS = 5;
 const measure = (fn, reps = REPS) => {
     const times = [];
@@ -36,5 +37,21 @@ test('group insert - 10000 rows', () => {
         i++;
     });
     console.log(`  group insert 10k: ${elapsed.toFixed(2)}ms`);
+    ok(elapsed < 50);
+});
+// limit→group: this is the composition that the array-source restructure
+// targeted. Each delete on `src` triggers limit's BR1A (pop) + BI0A (refill),
+// which group has to translate into per-group-bucket splices. Before the
+// fix this ran into stale-key crashes and (with the old defensive sink)
+// quadratic shift bookkeeping; now it is one splice per event.
+test('limit→group churn - 10000 rows / 10 cat / window 100', () => {
+    const src = $(makeData(10000, 10));
+    const grouped = group(limit(src, 100), d => d.cat);
+    let removed = 100;
+    const elapsed = measure(() => {
+        delete src[removed];
+        removed++;
+    });
+    console.log(`  limit→group churn 10k/100: ${elapsed.toFixed(2)}ms`);
     ok(elapsed < 50);
 });
