@@ -44,8 +44,7 @@ export class GroupValue extends Operator {
   }
 
   BR1(R1){
-    const NR1 = []
-    const NR2 = []
+    const leaving = new Map()
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++]
       const group = this.mapping.get(name)
@@ -53,26 +52,36 @@ export class GroupValue extends Operator {
         throw new Error('unexpected group r1: ' + name + ' ' + typeof name)
       }
       this.mapping.remove(name)
-      const value = this.view.value[group][name]
-      if (value !== undefined) {
-        delete this.view.value[group][name]
-        NR2.push([group, name], value)
-        if (isEmpty(this.view.value[group])) {
-          NR1.push(group, this.view.value[group])
-          delete this.view.value[group]
+      const bucket = this.view.value[group]
+      if (bucket !== undefined && name in bucket) {
+        let leavers = leaving.get(group)
+        if (!leavers) leaving.set(group, leavers = {})
+        leavers[name] = bucket[name]
+        delete bucket[name]
+      }
+    }
+
+    const NR1 = []
+    const NR2 = []
+    for (const [group, leavers] of leaving) {
+      if (isEmpty(this.view.value[group])) {
+        NR1.push(group, leavers)
+        delete this.view.value[group]
+      } else {
+        for (const name in leavers) {
+          NR2.push([group, name], leavers[name])
         }
       }
     }
-    this.view.BR1(NR1)
-    this.view.BR2(NR2)
+
+    if (NR1.length) this.view.BR1(NR1)
+    if (NR2.length) this.view.BR2(NR2)
   }
 
   BU1(U1){
-    const NR2 = []
     const NU2 = []
-    const NR1 = []
     const NI2 = []
-    const removed_groups = []
+    const leaving = new Map()
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
       const value = U1[i]
@@ -82,10 +91,16 @@ export class GroupValue extends Operator {
         NU2.push([new_group, name], this.view.value[new_group][name] = value)
       } else {
         if (old_group !== undefined) {
-          const old_value = this.view.value[old_group][name]
-          delete this.view.value[old_group][name]
-          NR2.push([old_group, name], old_value)
-          removed_groups.push(old_group)
+          // bucket entry may be missing if the inner key drifted upstream
+          // (e.g. LimitValue spliced its array under us); skip the leave
+          // side rather than emit a BR2 with an undefined value
+          const oldVal = this.view.value[old_group]?.[name]
+          if (oldVal !== undefined) {
+            let leavers = leaving.get(old_group)
+            if (!leavers) leaving.set(old_group, leavers = {})
+            leavers[name] = oldVal
+            delete this.view.value[old_group][name]
+          }
         }
         this.view.value[new_group] ??= {}
         NI2.push([new_group], this.view.value[new_group][name] = value, name)
@@ -93,10 +108,16 @@ export class GroupValue extends Operator {
       }
     }
 
-    for (const group of removed_groups) {
+    const NR1 = []
+    const NR2 = []
+    for (const [group, leavers] of leaving) {
       if (isEmpty(this.view.value[group])) {
-        NR1.push(group, this.view.value[group])
+        NR1.push(group, leavers)
         delete this.view.value[group]
+      } else {
+        for (const name in leavers) {
+          NR2.push([group, name], leavers[name])
+        }
       }
     }
 

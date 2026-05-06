@@ -1294,13 +1294,11 @@ test('group (obj)', () => {
         { type: 'update', key: [1, '5'], value: { num: 1.8 } },
         { type: 'remove', key: [1, '5'], value: { num: 1.8 } },
         { type: 'insert', key: [2], value: { num: 2.1 }, at: '5' },
-        { type: 'remove', key: [5], value: {} },
-        { type: 'remove', key: [5, '7'], value: { num: 5.9 } },
+        { type: 'remove', key: [5], value: { '7': { num: 5.9 } } },
         { type: 'insert', key: [1], value: { num: 1 }, at: '7' },
         { type: 'insert', key: [4], value: { num: 4.1 }, at: '8' },
         { type: 'remove', key: [2, '2'], value: { num: 2.2 } },
-        { type: 'remove', key: [4], value: {} },
-        { type: 'remove', key: [4, '8'], value: { num: 4.1 } },
+        { type: 'remove', key: [4], value: { '8': { num: 4.1 } } },
         { type: 'update', key: [], value: {} }
     ]);
     same(grouped[value], {});
