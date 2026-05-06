@@ -242,6 +242,14 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   to   { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes row-flash {
+  0%   { background: rgba(255, 94, 58, 0.16); }
+  100% { background: transparent; }
+}
+.mblot-row.row-flash, .tgroup-row.row-flash {
+  animation: row-flash 600ms ease-out;
+}
+
 .op-section {
   margin: 0 0 2.5rem;
   padding: 0 0 2.5rem;

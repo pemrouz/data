@@ -74,27 +74,47 @@ const NUM_FIELDS = ['bid', 'ask', 'last', 'pnl']
 let streaming = true
 let streamId = null
 
-function streamTick () {
-  if (!streaming || document.visibilityState === 'hidden') return
+function flashOperatorRow (tradeId, field) {
+  document.querySelectorAll(`[data-trade-id="${tradeId}"]`).forEach(row => {
+    const panel = row.closest('[data-fields]')
+    if (!panel) return
+    if (!panel.dataset.fields.split(',').includes(field)) return
+    row.classList.remove('row-flash')
+    void row.offsetWidth
+    row.classList.add('row-flash')
+  })
+}
+
+function mutateOnce () {
   const N = trades[value].length
   const i = (Math.random() * N) | 0
   const f = NUM_FIELDS[(Math.random() * NUM_FIELDS.length) | 0]
   const row = trades[i]
   const cur = row[f][value]
-  let next, display
+  const fmt = f === 'pnl' ? fmtPnl : fmt2
+  let next
   if (f === 'pnl') {
-    next = Math.round(cur + (Math.random() - 0.5) * 200)
-    display = fmtPnl(next)
+    const raw = Math.round(cur + (Math.random() - 0.5) * 600)
+    next = Math.max(-1900, Math.min(1900, raw))
   } else {
-    next = +(cur + (Math.random() - 0.5) * 0.05).toFixed(2)
-    display = fmt2(next)
+    const raw = cur + (Math.random() - 0.5) * 0.08
+    next = +Math.max(0.5, raw).toFixed(2)
   }
+  // Skip if the formatted display wouldn't change — reactive .to() already
+  // dedupes the DOM text update, so flashing here would be noise.
+  if (fmt(cur) === fmt(next)) return
   row[f] = next
-  lastTick[value] = `trades[${i}].${f} = ${display}`
+  lastTick[value] = `trades[${i}].${f} = ${fmt(next)}`
   flashCell(i, f)
+  flashOperatorRow(row.id[value], f)
 }
 
-function startStream () { if (!streamId) streamId = setInterval(streamTick, 160) }
+function streamTick () {
+  if (!streaming || document.visibilityState === 'hidden') return
+  mutateOnce(); mutateOnce()
+}
+
+function startStream () { if (!streamId) streamId = setInterval(streamTick, 90) }
 function stopStream  () { if (streamId) { clearInterval(streamId); streamId = null } }
 startStream()
 
@@ -130,7 +150,7 @@ function syncFilter () {
       span.text('id'), span.text('tenor'), span.text('bid'),
       span.text('ask'), span.text('last'), span.text('pnl'),
     ),
-    div.mblot_row(filtered, (node, t) => node(
+    div.mblot_row(filtered, (node, t) => node.attr('data-trade-id', t.id)(
       span.text(t.id),
       span.attr('data-tenor', t.tenor).text(t.tenor),
       span.text(t.bid.to(fmt2)),
@@ -214,7 +234,7 @@ render($$('#za-result'), div(
   div.mblot_head(
     span.text(''), span.text('id'), span.text('tenor'), span.text('pnl'),
   ),
-  div.mblot_row(top5, (node, t) => node(
+  div.mblot_row(top5, (node, t) => node.attr('data-trade-id', t.id)(
     span.rank_cell.text(''),
     span.text(t.id),
     span.attr('data-tenor', t.tenor).text(t.tenor),
@@ -282,7 +302,7 @@ function syncIntersect () {
     div.mblot_head(
       span.text('id'), span.text('tenor'), span.text('last'), span.text('pnl'),
     ),
-    div.mblot_row(denseRows, (node, t) => node(
+    div.mblot_row(denseRows, (node, t) => node.attr('data-trade-id', t.id)(
       span.text(t.id),
       span.attr('data-tenor', t.tenor).text(t.tenor),
       span.text(t.last.to(fmt2)),
@@ -313,7 +333,7 @@ render($$('#group-result'), div.group_panel(
       span.ctx.text(`${tenor} positions`),
     ),
     div.tgroup_body.attr('data-tenor', tenor)(
-      div.tgroup_row(rows, (n, t) => n(
+      div.tgroup_row(rows, (n, t) => n.attr('data-trade-id', t.id)(
         span.text(t.id),
         span.text(t.bid.to(fmt2)),
         span.text(t.ask.to(fmt2)),
@@ -334,7 +354,7 @@ render($$('#map-result'), div(
     span.text('id'), span.text('tenor'),
     span.text('bid'), span.text('ask'), span.spread.text('spread'),
   ),
-  div.mblot_row(spreaded, (node, t) => node(
+  div.mblot_row(spreaded, (node, t) => node.attr('data-trade-id', t.id)(
     span.text(t.id),
     span.attr('data-tenor', t.tenor).text(t.tenor),
     span.text(t.bid.to(fmt2)),

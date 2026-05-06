@@ -85,7 +85,7 @@
       <p class="desc">Rows matching a predicate. Click a chip to switch.</p>
       <pre class="code" data-hl="off"></pre>
       <div class="op-controls" id="filter-chips"></div>
-      <div class="live-panel" id="filter-result"></div>
+      <div class="live-panel" id="filter-result" data-fields="bid,ask,last,pnl"></div>
     </div>
 
     <div class="op-section" id="op-between">
@@ -105,7 +105,7 @@
       <p class="desc">Sort descending, optionally limited. Top 5 winners,
         re-ranking live as pnl ticks.</p>
       <pre class="code">trades.za('pnl', 5)</pre>
-      <div class="live-panel" id="za-result"></div>
+      <div class="live-panel" id="za-result" data-fields="pnl"></div>
     </div>
 
     <div class="op-section" id="op-length">
@@ -122,7 +122,7 @@ trades.length(d =&gt; d.tenor)</pre>
         the chosen tenor.</p>
       <pre class="code" data-hl="off"></pre>
       <div class="op-controls" id="intersect-chips"></div>
-      <div class="live-panel" id="intersect-result"></div>
+      <div class="live-panel" id="intersect-result" data-fields="last,pnl"></div>
     </div>
 
     <div class="op-section" id="op-group">
@@ -130,7 +130,7 @@ trades.length(d =&gt; d.tenor)</pre>
       <p class="desc">Rows nested under a computed key. Each tenor becomes its
         own bucket, with its trades indented underneath.</p>
       <pre class="code">trades.group(d =&gt; d.tenor)</pre>
-      <div class="live-panel" id="group-result"></div>
+      <div class="live-panel" id="group-result" data-fields="bid,ask,pnl"></div>
     </div>
 
     <div class="op-section" id="op-map">
@@ -139,7 +139,7 @@ trades.length(d =&gt; d.tenor)</pre>
         column is computed from each row's bid &amp; ask; it updates whenever
         either field ticks.</p>
       <pre class="code">trades.map(d =&gt; ({ ...d, spread: d.ask - d.bid }))</pre>
-      <div class="live-panel" id="map-result"></div>
+      <div class="live-panel" id="map-result" data-fields="bid,ask"></div>
     </div>
 
     <div class="op-section" id="op-to">
