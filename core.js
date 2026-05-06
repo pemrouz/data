@@ -171,6 +171,20 @@ export class Value {
         }
         this.view.BI0(I0);
     }
+    // Move-at-depth-1 verb. Each [from, to] pair moves the element at
+    // index `from` to index `to`; rows in between rotate by one. Cheaper
+    // than emulating the rotation as N value-update events because sinks
+    // that care about identity (DOMSink uses insertBefore on the same
+    // <li>) keep the existing entity rather than tearing down + rebuilding.
+    BMV1(M1) {
+        for (let i = 0; i < M1.length; i += 2) {
+            const from = +M1[i];
+            const to = +M1[i + 1];
+            const [v] = this.view.value.splice(from, 1);
+            this.view.value.splice(to, 0, v);
+        }
+        this.view.BMV1(M1);
+    }
     BI2(I2) {
         if (typeof this.view.value !== 'object')
             this.view.value = {};
@@ -343,6 +357,58 @@ export class View {
         }
         this.sink(sink => sink.BI2(I2, this));
     }
+    // Apply a batched [from, to] rotation to named children whose key falls
+    // inside any affected range, refreshing each from the (already moved)
+    // parent value. Sinks that don't implement BMV1 fall back to BU1 over the
+    // affected positions so they refresh content reactively.
+    BMV1(M1) {
+        if (!M1.length)
+            return;
+        if (this.p)
+            this.value = this.p.value?.[this.name];
+        if (this.views.size) {
+            let lo = Infinity, hi = -Infinity;
+            for (let i = 0; i < M1.length; i += 2) {
+                const a = +M1[i], b = +M1[i + 1];
+                if (a < lo)
+                    lo = a;
+                if (b < lo)
+                    lo = b;
+                if (a > hi)
+                    hi = a;
+                if (b > hi)
+                    hi = b;
+            }
+            for (let j = lo; j <= hi; j++) {
+                const child = this.get_named(`${j}`);
+                if (child && child.value !== this.value[j])
+                    child.XU0();
+            }
+        }
+        for (const x of this.sinks) {
+            const sink = x.deref();
+            if (!sink) {
+                this.sinks.delete(sink);
+                continue;
+            }
+            if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
+                sink.BMV1(M1, this);
+            }
+            else {
+                // fallback: emit BU1 for the affected range
+                const NU1 = [];
+                for (let i = 0; i < M1.length; i += 2) {
+                    const a = +M1[i], b = +M1[i + 1];
+                    const lo = a < b ? a : b;
+                    const hi = a < b ? b : a;
+                    for (let j = lo; j <= hi; j++)
+                        NU1.push('' + j, this.value[j]);
+                }
+                if (NU1.length)
+                    sink.BU1(NU1, this);
+            }
+        }
+    }
     V1(offset) {
         for (let i = offset; i < this.value.length + 1; i++) {
             const child = this.get_named(`${i}`);
@@ -460,6 +526,8 @@ class ArrSink {
     XR0(value) { this.remove([], value); }
     BR1(R1) { iter2(R1, (name, value) => this.remove([name], value)); }
     BR2(R2) { iter2(R2, (key, value) => this.remove(key, value)); }
+    move = (from, to) => this.arr.push({ type: 'move', from, to });
+    BMV1(M1) { iter2(M1, (from, to) => this.move(+from, +to)); }
     R0(value) { this.arr.push({ type: 'remove', key: [], value: sclone(value) }); }
     R1(name, value) { this.arr.push({ type: 'remove', key: [name], value: sclone(value) }); }
     R2(key, value) { this.arr.push({ type: 'remove', key, value: sclone(value) }); }
@@ -493,6 +561,7 @@ class PropSink extends Sink {
     BU2() { this.XU0(this.p.value); }
     BR2() { this.XU0(this.p.value); }
     BI2() { this.XU0(this.p.value); }
+    BMV1() { this.XU0(this.p.value); }
 }
 class FunctionSink extends Sink {
     constructor(p, obj, fn) {
@@ -508,6 +577,7 @@ class FunctionSink extends Sink {
     BI2(I2) { iter3(I2, (key, value, at) => this.fn({ type: 'insert', key, value: sclone(value), at })); }
     BR1(R1) { iter2(R1, (name, value) => this.fn({ type: 'remove', key: [name], value: sclone(value) })); }
     BR2(R2) { iter2(R2, (key, value) => this.fn({ type: 'remove', key, value: sclone(value) })); }
+    BMV1(M1) { iter2(M1, (from, to) => this.fn({ type: 'move', from: +from, to: +to })); }
 }
 export class ViewProxy {
     view;

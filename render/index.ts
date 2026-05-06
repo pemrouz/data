@@ -103,6 +103,21 @@ class DOMSink {
 
   BR2(BR2){}
 
+  // Move-at-depth-1: relocate the existing DOM element rather than
+  // tearing it down and rebuilding. Preserves identity, focus, and any
+  // state the row holds.
+  BMV1(M1){
+    if (this._detached()) return
+    if (!isArray(this.nodes)) return
+    for (let i = 0; i < M1.length; i += 2) {
+      const from = +M1[i]
+      const to = +M1[i + 1]
+      const [dom] = this.nodes.splice(from, 1)
+      this.nodes.splice(to, 0, dom)
+      this.parent.insertBefore(dom, this.nodes[to + 1] ?? null)
+    }
+  }
+
   BU2(U2){
     if (this._detached()) return
     for (let i = 0; i < U2.length; i++) {
