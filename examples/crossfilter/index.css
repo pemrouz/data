@@ -1,166 +1,258 @@
-@import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz:400,700);
+/* Crossfilter — themed to match the data landing page. Stands alone:
+   no external imports, system fonts only, dark editorial palette,
+   orange-red accent reserved for the brush + active selection. */
+
+:root {
+  --bg:       #0d0e10;
+  --bg-2:     #15171a;
+  --bg-3:     #1d2024;
+  --fg:       #e8e6e1;
+  --fg-dim:   #8a8a86;
+  --fg-faint: #4a4a48;
+  --rule:     #232528;
+  --accent:   #ff5e3a;
+  --pos:      #67dba1;
+
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
 
 body {
-    font-family: "Helvetica Neue";
-    margin: 40px auto;
-    width: 960px;
-    min-height: 2000px;
-    position: relative;
+  font: 16px/1.55 var(--sans);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3rem) 0 4rem;
+  width: 960px;
+  max-width: 100%;
+  min-height: 100vh;
+  position: relative;
 }
 
-footer {
-    padding: 2em 0 1em 0;
-    font-size: 12px;
+::selection { background: var(--accent); color: var(--bg); }
+
+a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--fg-faint);
 }
+a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- header ---------- */
 
 h1 {
-    font-size: 96px;
-    margin-top: .3em;
-    margin-bottom: 0;
+  font: 500 clamp(3rem, 8vw, 5rem)/0.95 var(--mono);
+  letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--fg);
+  text-transform: lowercase;
 }
-
-h1+h2 {
-    margin-top: 0;
+h1::after {
+  content: '_';
+  color: var(--accent);
+  margin-left: 0.05em;
+  animation: blink 1.05s steps(1) infinite;
 }
+@keyframes blink { 50% { opacity: 0; } }
 
 h2 {
-    font-weight: 400;
-    font-size: 28px;
+  font: 400 1rem/1.4 var(--mono);
+  color: var(--fg-dim);
+  margin: 0.6rem 0 1.5rem;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+h2::before { content: '// '; color: var(--fg-faint); }
+
+body > p {
+  line-height: 1.6;
+  max-width: 64ch;
+  color: var(--fg);
+  margin: 0 0 1rem;
 }
 
-h1,
-h2 {
-    font-family: "Yanone Kaffeesatz";
-    text-rendering: optimizeLegibility;
+code {
+  font-family: var(--mono);
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.875em;
+  color: var(--fg);
 }
 
-body>p {
-    line-height: 1.5em;
-    width: 640px;
-    text-rendering: optimizeLegibility;
+/* ---------- selection counter ---------- */
+
+aside {
+  display: inline-block;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.65rem 1rem;
+  margin: 0.5rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+aside span:first-child,
+aside span:nth-child(3) {
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+/* ---------- chart grid ---------- */
 
 #charts {
-    padding: 10px 0;
+  padding: 1.25rem 0 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .chart {
-    display: inline-block;
-    height: 151px;
-    margin-bottom: 20px;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.6rem 0.6rem 0.4rem;
+}
+
+.title {
+  font: 500 0.75rem/1 var(--mono);
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.4rem 0.4rem;
 }
 
 .reset {
-    padding-left: 1em;
-    font-size: smaller;
-    color: #ccc;
+  margin-left: 0.6em;
+  color: var(--accent);
+  font-size: 0.7rem;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  border-bottom: 0;
+  cursor: pointer;
 }
+.reset:hover { color: var(--accent); border-bottom: 0; }
 
-.background.bar {
-    fill: #ccc;
-}
+/* ---------- bars ---------- */
 
-.foreground.bar {
-    fill: steelblue;
-}
+.background.bar { fill: var(--rule); }
+.foreground.bar { fill: var(--accent); }
+
+/* ---------- axis ---------- */
 
 .axis path,
 .axis line {
-    fill: none;
-    stroke: #000;
-    shape-rendering: crispEdges;
+  fill: none;
+  stroke: var(--fg-faint);
+  shape-rendering: crispEdges;
 }
-
 .axis text {
-    font: 10px sans-serif;
+  font: 10px var(--mono);
+  fill: var(--fg-faint);
 }
 
-/* brush */
-.brush {
-    pointer-events: all;
-}
+/* ---------- brush ---------- */
 
+.brush { pointer-events: all; }
 .brush .background {
-    visibility: hidden;
-    cursor: crosshair;
+  visibility: hidden;
+  cursor: crosshair;
 }
-
 .brush rect.extent {
-    cursor: move;
-    fill: steelblue;
-    fill-opacity: .125;
+  cursor: move;
+  fill: var(--accent);
+  fill-opacity: 0.18;
+  stroke: var(--accent);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
 }
-
-.brush .resize {
-    cursor: ew-resize;
-}
-
-.brush .resize rect {
-    visibility: hidden;
-}
-
+.brush .resize { cursor: ew-resize; }
+.brush .resize rect { visibility: hidden; }
 .brush .resize path {
-    fill: #eee;
-    stroke: #666;
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 0.5;
 }
 
-/*  */
-
-#time-chart {
-    width: 260px;
-}
-
-#delay-chart {
-    width: 230px;
-}
-
-#distance-chart {
-    width: 420px;
-}
-
-#date-chart {
-    width: 920px;
-}
+/* ---------- flight list ---------- */
 
 .list {
-    min-height: 1024px;
+  margin-top: 1.5rem;
+  min-height: 600px;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
 }
 
-.list .date,
+.list .date {
+  margin-bottom: 1.25rem;
+}
+
 .list .day {
-    margin-bottom: .4em;
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.4rem;
+  padding: 0 0.5rem;
 }
 
 .list .flight {
-    line-height: 1.5em;
-    background: #eee;
-    width: 640px;
-    margin-bottom: 1px;
-}
-
-.list .time {
-    color: #999;
+  display: grid;
+  grid-template-columns: 90px 90px 90px 1fr 1fr;
+  gap: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  margin-bottom: 2px;
+  padding: 0.4rem 0.5rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  max-width: 720px;
 }
 
 .list .flight div {
-    display: inline-block;
-    width: 100px;
+  padding: 0 0.5rem;
 }
 
+.list .time   { color: var(--fg-dim); }
+.list .origin,
+.list .destination { color: var(--fg); }
 .list div.distance,
 .list div.delay {
-    width: 160px;
-    padding-right: 10px;
-    text-align: right;
+  text-align: right;
+}
+.list .delay { color: var(--accent); }
+.list .delay.early { color: var(--pos); }
+
+/* ---------- footer ---------- */
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+  color: var(--fg-dim);
+  font: 0.8125rem var(--mono);
 }
 
-.list .early {
-    color: green;
-}
+/* ---------- responsive ---------- */
 
-aside {
-    position: absolute;
-    left: 740px;
-    font-size: smaller;
-    width: 220px;
+@media (max-width: 1000px) {
+  body { width: 100%; padding-left: 1rem; padding-right: 1rem; }
+  #charts { gap: 0.6rem; }
+  .list .flight { grid-template-columns: 80px 70px 70px 1fr 1fr; max-width: 100%; }
 }
