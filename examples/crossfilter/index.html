@@ -159,6 +159,25 @@ window.v = value
   // dismiss the loader once render has populated the body
   dismissLoader()
 
+  // When embedded in the landing page, post our content height to the
+  // parent so it can size the iframe to fit. Avoids a visible scrollbar
+  // and the "table cut off below the fold" problem.
+  if (window !== window.top) {
+    let queued = false
+    const post = () => {
+      queued = false
+      const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+      window.parent.postMessage({ type: 'crossfilter-height', height: h }, '*')
+    }
+    const queue = () => {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(post)
+    }
+    new ResizeObserver(queue).observe(document.body)
+    window.addEventListener('load', queue)
+  }
+
   // ----------------------------------------------------------------
 
   async function loadFlights() {

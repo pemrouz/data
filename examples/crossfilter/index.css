@@ -26,7 +26,13 @@ html, body {
   color: var(--fg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Hide scrollbars but stay scrollable. Mainly a polish for the
+     embedded iframe view, where the parent auto-resizes us anyway. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { display: none; }
 
 body {
   font: 16px/1.55 var(--sans);
@@ -34,7 +40,6 @@ body {
   padding: clamp(2rem, 5vw, 3rem) 0 4rem;
   width: 960px;
   max-width: 100%;
-  min-height: 100vh;
   position: relative;
 }
 
@@ -339,7 +344,11 @@ footer {
 
 /* ---------- responsive ---------- */
 
-@media (max-width: 1000px) {
+/* Stack the chart row only when the viewport is genuinely narrower than
+   the three-up grid (≈ 940 px). The landing-page iframe is 1000 px wide
+   on desktop, so the threshold has to sit below that or every embedded
+   view falls back to single-column. */
+@media (max-width: 940px) {
   body { width: 100%; padding-left: 1rem; padding-right: 1rem; }
   #charts { grid-template-columns: 1fr; }
   .chart:nth-child(4) { width: auto; }

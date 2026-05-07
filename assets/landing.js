@@ -377,7 +377,18 @@ render($$('#to-result'), div.to_panel(
   div.agg_sub.text(trades.length().to(n => `summed across ${n} positions`)),
 ))
 
-/* ---------- 4. syntax highlighter ---------- */
+/* ---------- 4. crossfilter iframe auto-resize ---------- */
+
+// The crossfilter example posts its content height; size the iframe to
+// match so the embedded view never shows a scrollbar or empty space.
+window.addEventListener('message', e => {
+  if (e.data?.type !== 'crossfilter-height') return
+  const frame = $$('iframe.cf')
+  if (!frame || !(e.data.height > 0)) return
+  frame.style.height = e.data.height + 'px'
+})
+
+/* ---------- 5. syntax highlighter ---------- */
 
 const KEYWORDS = /\b(import|from|const|let|var|function|return|new|if|else|for|of|in|true|false|null|undefined|delete|class|extends|export|default|async|await|typeof|instanceof|Infinity)\b/g
 
