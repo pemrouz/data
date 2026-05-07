@@ -63,8 +63,13 @@ class DOMSink {
     XR0() {
         if (this._detached())
             return;
-        for (const i in this.nodes)
-            this.remove_node(i);
+        // Snapshot the keys before mutating: remove_node pops the array's
+        // tail, which terminates a live `for (i in this.nodes)` loop early
+        // under V8 (the iterator stops as soon as i ≥ the shrinking length,
+        // leaving trailing entries un-removed).
+        const gone = [];
+        for (const i in this.nodes) gone.push(i);
+        for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
     }
     XU0(value) {
         if (this._detached())
@@ -72,14 +77,16 @@ class DOMSink {
         const prev_nodes = this.nodes ?? {};
         if (typeof value === 'undefined') {
             this.nodes = {};
-            for (const i in prev_nodes)
-                this.remove_node(i);
+            const gone = [];
+            for (const i in prev_nodes) gone.push(i);
+            for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
             return;
         }
         if (typeof value !== 'object') {
             this.nodes = {};
-            for (const i in prev_nodes)
-                this.remove_node(i);
+            const gone = [];
+            for (const i in prev_nodes) gone.push(i);
+            for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
             this.create_node(NODE);
             return;
         }
@@ -87,9 +94,17 @@ class DOMSink {
         for (const i in value)
             if (!prev_nodes[i])
                 this.create_node(i); // if (this.nodes[k]) maybe reorder
+        // Same V8 quirk: snapshot the keys to drop before mutating, otherwise
+        // remove_node's tail-pop on dense arrays cuts the for-in short and
+        // leaves stale DOM rows behind (visible as empty rows in the
+        // crossfilter flight list when a brush narrows enough to trigger
+        // limit's XU0 fallback).
+        const gone = [];
         for (const i in prev_nodes)
             if (!(i in value))
-                this.remove_node(i);
+                gone.push(i);
+        for (let j = 0; j < gone.length; j++)
+            this.remove_node(gone[j]);
     }
     BR1(R1) {
         if (this._detached())
