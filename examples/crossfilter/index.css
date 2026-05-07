@@ -47,6 +47,87 @@ a {
 }
 a:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* ---------- loader ---------- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  z-index: 100;
+  padding: 2rem;
+  text-align: center;
+}
+.loader-mark {
+  font-size: clamp(3rem, 8vw, 5rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin-bottom: 1.4rem;
+  color: var(--fg);
+  line-height: 0.9;
+}
+.loader-cursor {
+  color: var(--accent);
+  animation: blink 1.05s steps(1) infinite;
+  margin-left: 0.05em;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.loader-status {
+  color: var(--fg-dim);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+  text-transform: lowercase;
+}
+.loader-status::before {
+  content: '// ';
+  color: var(--fg-faint);
+}
+.loader-bar {
+  width: 360px;
+  max-width: 80vw;
+  height: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+  position: relative;
+}
+.loader-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 180ms ease-out;
+  box-shadow: 0 0 10px var(--accent), 0 0 22px var(--accent);
+}
+.loader-meta {
+  font-size: 0.8125rem;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 0.55rem;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.loader-meta .loader-pct { color: var(--accent); font-weight: 500; }
+.loader-sep { color: var(--fg-faint); }
+.loader-detail {
+  margin-top: 1.2rem;
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+.loader.done {
+  opacity: 0;
+  transition: opacity 350ms ease-out;
+  pointer-events: none;
+}
+
 /* ---------- header ---------- */
 
 h1 {
@@ -62,7 +143,6 @@ h1::after {
   margin-left: 0.05em;
   animation: blink 1.05s steps(1) infinite;
 }
-@keyframes blink { 50% { opacity: 0; } }
 
 h2 {
   font: 400 1rem/1.4 var(--mono);
@@ -112,28 +192,42 @@ aside span:nth-child(3) {
   font-size: 0.9375rem;
 }
 
-/* ---------- chart grid ---------- */
+/* ---------- chart grid ----------
+   Explicit two-row layout so charts don't reflow randomly:
+   row 1 holds the three small histograms (time/delay/distance);
+   row 2 holds the wide date histogram, justified to the start so its
+   card hugs the SVG (which is sized via an attribute, not CSS).
+   Card widths add 2px to each SVG width to absorb the 1px borders. */
 
 #charts {
+  display: grid;
+  grid-template-columns: 262px 232px 422px;
+  gap: 0.75rem;
   padding: 1.25rem 0 0.5rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
 }
 
 .chart {
   background: var(--bg-2);
   border: 1px solid var(--rule);
   border-radius: 6px;
-  padding: 0.6rem 0.6rem 0.4rem;
+  overflow: hidden;
 }
+.chart:nth-child(4) {
+  grid-column: 1 / -1;
+  width: 922px;
+  max-width: 100%;
+  justify-self: start;
+}
+.chart svg { display: block; }
 
 .title {
-  font: 500 0.75rem/1 var(--mono);
+  font: 500 0.7rem/1 var(--mono);
   color: var(--fg-dim);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 0 0 0.4rem 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
 }
 
 .reset {
@@ -197,9 +291,7 @@ aside span:nth-child(3) {
   font-size: 0.8125rem;
 }
 
-.list .date {
-  margin-bottom: 1.25rem;
-}
+.list .date { margin-bottom: 1.25rem; }
 
 .list .day {
   color: var(--fg-dim);
@@ -225,19 +317,15 @@ aside span:nth-child(3) {
   max-width: 720px;
 }
 
-.list .flight div {
-  padding: 0 0.5rem;
-}
+.list .flight div { padding: 0 0.5rem; }
 
-.list .time   { color: var(--fg-dim); }
+.list .time          { color: var(--fg-dim); }
 .list .origin,
-.list .destination { color: var(--fg); }
+.list .destination   { color: var(--fg); }
 .list div.distance,
-.list div.delay {
-  text-align: right;
-}
-.list .delay { color: var(--accent); }
-.list .delay.early { color: var(--pos); }
+.list div.delay      { text-align: right; }
+.list .delay         { color: var(--accent); }
+.list .delay.early   { color: var(--pos); }
 
 /* ---------- footer ---------- */
 
@@ -253,6 +341,7 @@ footer {
 
 @media (max-width: 1000px) {
   body { width: 100%; padding-left: 1rem; padding-right: 1rem; }
-  #charts { gap: 0.6rem; }
+  #charts { grid-template-columns: 1fr; }
+  .chart:nth-child(4) { width: auto; }
   .list .flight { grid-template-columns: 80px 70px 70px 1fr 1fr; max-width: 100%; }
 }

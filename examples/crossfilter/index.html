@@ -1,9 +1,29 @@
+<!doctype html>
 <link rel="stylesheet" href="./index.css">
-<body></body>
+<body>
+  <div id="loader" class="loader">
+    <div class="loader-mark">data<span class="loader-cursor">_</span></div>
+    <div class="loader-status">streaming flight records</div>
+    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+    <div class="loader-meta">
+      <span class="loader-pct">0%</span>
+      <span class="loader-sep">·</span>
+      <span class="loader-bytes">0.0 / 35.6 MB</span>
+      <span class="loader-sep">·</span>
+      <span class="loader-rate">…</span>
+    </div>
+    <div class="loader-detail">231,083 records · January 2001 · ASA Data Expo</div>
+  </div>
+</body>
 <script type="module">
   import { $, render, HTML, SVG, value } from '../../index.js'
-//   import { data } from '/examples/crossfilter/flights500.js'
-  import { data } from './flights.js'
+
+  // Stream-fetch the dataset with live progress, then dynamic-import via a
+  // Blob URL. The original `import { data } from './flights.js'` blocks the
+  // module silently for several seconds on first visit; streaming gives us
+  // real bytes/sec to show in the loader.
+  const data = await loadFlights()
+
   const { svg, g, path, rect, clipPath, line, text } = SVG
   const { div, body, span, a, h1, h2, p, aside, footer, code } = HTML
   const { min, max, floor } = Math
@@ -31,7 +51,7 @@
   const byTenMins = d => floor(d.delay / 10) * 10
   const byFiftyMiles = d => floor(d.distance / 50) * 50
 
-  // parsed flights 
+  // parsed flights
   const source = $(data)
   const flights = window.flights = source.map(({ destination, origin, ...d }) => {
     const date = parseDate(d.date)
@@ -93,15 +113,15 @@ window.v = value
     },
   }
 
-  // data for list 
+  // data for list
   const flightsByDate = window.ac = (window.limit = active
     .limit(80))
     .group(formatDate)
 
   // render everything
   render(document.body, body(
-    h1('Crossfilter'),
-    h2('Fast Multidimensional Filtering for Coordinated Views.'),
+    h1('crossfilter'),
+    h2('fast multidimensional filtering for coordinated views.'),
     p(
       'This page recreates Square\'s classic Crossfilter demo, but where the original ships a purpose-built multidimensional filter, here every chart, the data table, and the totals counter is a reactive view derived from the same flights source — ',
       code('flights.between(\'delay\', filters.delay).intersect(date, time).length(byHour)'),
@@ -135,6 +155,72 @@ window.v = value
       ' (US domestic flights, January 2001).',
     ),
   ))
+
+  // dismiss the loader once render has populated the body
+  dismissLoader()
+
+  // ----------------------------------------------------------------
+
+  async function loadFlights() {
+    const loader = document.getElementById('loader')
+    const $bar   = loader.querySelector('.loader-bar-fill')
+    const $pct   = loader.querySelector('.loader-pct')
+    const $bytes = loader.querySelector('.loader-bytes')
+    const $rate  = loader.querySelector('.loader-rate')
+    const $stat  = loader.querySelector('.loader-status')
+    const fmtMB  = b => (b / 1048576).toFixed(1)
+
+    const t0 = performance.now()
+    const res = await fetch('./flights.js')
+    const total = +res.headers.get('Content-Length') || 37313858
+
+    if (!res.body || !res.body.getReader) {
+      // browsers without streams — fall back to whole-text load
+      const text = await res.text()
+      $bar.style.width = '100%'
+      $pct.textContent = '100%'
+      $bytes.textContent = `${fmtMB(total)} / ${fmtMB(total)} MB`
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/javascript' }))
+      const { data } = await import(url)
+      URL.revokeObjectURL(url)
+      return data
+    }
+
+    const reader = res.body.getReader()
+    const chunks = []
+    let received = 0
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      received += value.byteLength
+      const pct = received / total
+      const elapsed = (performance.now() - t0) / 1000
+      $bar.style.width = `${(pct * 100).toFixed(1)}%`
+      $pct.textContent = `${(pct * 100) | 0}%`
+      $bytes.textContent = `${fmtMB(received)} / ${fmtMB(total)} MB`
+      $rate.textContent = elapsed > 0.05 ? `${fmtMB(received / elapsed)} MB/s` : '…'
+    }
+
+    $bar.style.width = '100%'
+    $pct.textContent = '100%'
+    $stat.textContent = 'parsing'
+    // yield a frame so the bar paints to 100% before the parse blocks
+    await new Promise(r => requestAnimationFrame(r))
+
+    const url = URL.createObjectURL(new Blob(chunks, { type: 'application/javascript' }))
+    const { data } = await import(url)
+    URL.revokeObjectURL(url)
+    return data
+  }
+
+  function dismissLoader() {
+    const loader = document.getElementById('loader')
+    if (!loader) return
+    loader.classList.add('done')
+    setTimeout(() => loader.remove(), 360)
+  }
 
   // render function for a chart
   function chart(node, { data, title, domain, width, ticks, format, round }, name) {
@@ -335,26 +421,16 @@ window.v = value
   // calculate path for svg bars
   function bars(max, domain, width, name/*, ngroups*/) {
     return function (groups) {
-    //   console.log(" bars", { max: max[value], domain, width, name, groups   }) //, groups, max)
-    //   console.log("bars", { max, name, groups } )
       if (max[value] === undefined) return ''
       const height = 100
       const x = scale(domain, [0, width])
       const y = scale([0, max[value]], [height, 0])
-      // const n = ngroups[value]
       let path = ''
-      // console.log("groups", max, groups, n, Object.keys(groups).length)
       for (const i in groups) {
-        // for (let i = 0; i < ngroups; i++) {
         const len = groups[i].value;
-        // console.log({ i, len, x: x(+i), y: y(len) })
         path += `M${x(+i)},${height}V${y(len)}h9V${height}`
       }
-      // console.log("path", path)
-      // for (const i in groups) {
-      // }
-      // console.log(" path",   path)
-      return path//.join("");
+      return path
     }
   }
 
@@ -365,10 +441,7 @@ window.v = value
       const irange = i[1] - i[0]
       const orange = o[1] - o[0]
       const m = (value - i[0]) / irange
-      // if (rx) console.log("scale", { m, value, irange, orange, result: o[0] + m*orange })
       const result = o[0] + m * orange
-      // if (result === Infinity || result === -Infinity)
-      //   console.log("scale fail", { i, o, value })
       return result
     }
   }
