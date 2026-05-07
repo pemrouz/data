@@ -68,8 +68,10 @@ class DOMSink {
         // under V8 (the iterator stops as soon as i ≥ the shrinking length,
         // leaving trailing entries un-removed).
         const gone = [];
-        for (const i in this.nodes) gone.push(i);
-        for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
+        for (const i in this.nodes)
+            gone.push(i);
+        for (let j = 0; j < gone.length; j++)
+            this.remove_node(gone[j]);
     }
     XU0(value) {
         if (this._detached())
@@ -78,15 +80,19 @@ class DOMSink {
         if (typeof value === 'undefined') {
             this.nodes = {};
             const gone = [];
-            for (const i in prev_nodes) gone.push(i);
-            for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
+            for (const i in prev_nodes)
+                gone.push(i);
+            for (let j = 0; j < gone.length; j++)
+                this.remove_node(gone[j]);
             return;
         }
         if (typeof value !== 'object') {
             this.nodes = {};
             const gone = [];
-            for (const i in prev_nodes) gone.push(i);
-            for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
+            for (const i in prev_nodes)
+                gone.push(i);
+            for (let j = 0; j < gone.length; j++)
+                this.remove_node(gone[j]);
             this.create_node(NODE);
             return;
         }
