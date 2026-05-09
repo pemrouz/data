@@ -1,4 +1,4 @@
-import { $, value, render, HTML, SVG } from '../build/data.modern.js'
+import { $, value, render, HTML, SVG } from 'data/full'
 
 const { div, span, ul, li, b } = HTML
 const { svg: svgEl, rect, line, text, circle, g } = SVG
