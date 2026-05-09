@@ -6,6 +6,14 @@ import { $, value, view } from '../core.ts'
 // would throw on .filter(...) etc. (see commit 860befe).
 import '../full.ts'
 import { walk, classify, summarize, ancestorOf } from './walk.ts'
+import './index.ts'
+
+// Silence the console.* calls inside $.inspect/$.graph during the test run —
+// the assertions are on return values, not on console output, and the noise
+// would clutter the test output.
+const noop = () => {}
+console.group = noop; console.log = noop; console.table = noop
+console.groupEnd = noop; console.dir = noop; console.warn = noop
 
 test('summarize - primitives pass through', () => {
   strictEqual(summarize(42), 42)
@@ -132,4 +140,100 @@ test('walk - cycle defense: re-encountered view marked kind:cycle', () => {
   seen.add(data[view])
   const tree = walk(data[view], seen)
   strictEqual(tree.kind, 'cycle')
+})
+
+test('$.inspect - root view returns key:[], parent:null', () => {
+  const data = $({ a: 1, b: 2 })
+  const out = $.inspect(data)
+  same(out.key, [])
+  strictEqual(out.parent, null)
+  same(out.value, { a: 1, b: 2 })
+})
+
+test('$.inspect - child view shows parent and own key', () => {
+  const data = $({ a: { b: 1 } })
+  const out = $.inspect(data.a)
+  same(out.key, ['a'])
+  ok(out.parent, 'child should report a parent')
+  // parent is a fresh ViewProxy wrapping the parent view; reading [value]
+  // should give the root data.
+  same(out.parent[value], { a: { b: 1 } })
+})
+
+test('$.inspect - sinks list operator + connect-style attached to view', () => {
+  const data = $({ x: { active: true } })
+  const op = data.filter(d => d.active)
+  const arr = data.connect([])
+  const out = $.inspect(data)
+  ok(out.sinks.some(s => s.kind === 'operator' && s.ctor.startsWith('Filter')))
+  ok(out.sinks.some(s => s.kind === 'connect' && s.ctor === 'ArrSink'))
+  ok(op && arr)
+})
+
+test('$.graph(proxy) returns the same shape as walk()', () => {
+  const data = $({ a: 1 })
+  const tree = $.graph(data)
+  strictEqual(tree.kind, 'root')
+  same(tree.key, [])
+})
+
+test('$.graph - chain shape: filter → length appears under root.sinks', () => {
+  const data = $({ x: { active: true, n: 1 }, y: { active: false, n: 2 } })
+  const filtered = data.filter(d => d.active)
+  const counted = filtered.length()
+  const tree = $.graph(data)
+  const filterOp = tree.sinks.find(s => s.kind === 'operator' && s.ctor === 'FilterValue')
+  ok(filterOp, 'FilterValue should appear in root sinks')
+  const lengthOp = filterOp.sinks.find(s => s.kind === 'operator' && s.ctor === 'LengthValue')
+  ok(lengthOp, 'LengthValue should appear under FilterValue')
+  ok(counted)
+})
+
+test('$.graph() with no arg returns [] and warns (WeakSet of roots not iterable)', () => {
+  // Documented limitation: _devtoolsRoots is a WeakSet so we can't enumerate.
+  // The no-arg form is best-effort — it returns [] and warns.
+  const out = $.graph()
+  same(out, [])
+})
+
+test('$.fromDOM - walks parentElement chain to find __ripple_sink', () => {
+  // Synthesize a DOM element with __ripple_sink directly (we don't need the
+  // real render layer for this unit test — the walking logic is what matters).
+  const data = $({ items: { a: 1 } })
+  const fakeSink = { p: data[view] }
+  const grandchild = { parentElement: { parentElement: { __ripple_sink: fakeSink, parentElement: null } } }
+  const proxy = $.fromDOM(grandchild)
+  ok(proxy, 'should find a proxy by walking up')
+  // The returned proxy should resolve to the same value as the original.
+  same(proxy[value], { items: { a: 1 } })
+})
+
+test('$.fromDOM - returns null when no __ripple_sink found in chain', () => {
+  const orphan = { parentElement: { parentElement: null } }
+  strictEqual($.fromDOM(orphan), null)
+})
+
+test('$.highlight - adds and schedules removal of __ripple_highlight class', () => {
+  const data = $({ items: {} })
+  const calls = []
+  // Fake DOMSink with a parent whose classList records add/remove.
+  const fakeParent = {
+    classList: {
+      add(c) { calls.push(['add', c]) },
+      remove(c) { calls.push(['remove', c]) },
+    },
+  }
+  const fakeSink = {
+    constructor: { name: 'DOMSink' },
+    parent: fakeParent,
+    p: data[view],
+  }
+  data[view].sinks.add(new WeakRef(fakeSink))
+  const n = $.highlight(data, 5)
+  strictEqual(n, 1)
+  same(calls[0], ['add', '__ripple_highlight'])
+  return new Promise(r => setTimeout(() => {
+    same(calls[1], ['remove', '__ripple_highlight'])
+    r()
+  }, 20))
 })

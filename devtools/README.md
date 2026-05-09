@@ -1,0 +1,59 @@
+# devtools
+
+Optional, opt-in inspection helpers for the reactive data library. Importing
+`data/devtools` (or, in source form, `./devtools/index.ts`) attaches a handful
+of methods to the canonical `$` so they're discoverable from the browser
+console: `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, plus (in the
+forthcoming layer) `$.trace` and `$.profile`.
+
+## Why opt-in
+
+The core has zero per-notification overhead today. The two tiny passive
+hooks needed by devtools (`_devtoolsRoots: WeakSet<View>` in `core.ts` and
+the non-enumerable `__ripple_sink` property on bound DOM elements) are
+unconditional but free in steady state. Anything that *does* touch the hot
+path — trace and profile, which monkey-patch `View.prototype` — only runs
+when you explicitly call `$.trace(p)` or `$.profile()`.
+
+## Read-side helpers (always available once imported)
+
+```js
+$.inspect(proxy)
+//   → { key, value, parent, children: [{name}], sinks: [{kind, ctor}] }
+//   Pretty-prints to the console; returns the snapshot.
+
+$.graph(proxy)
+//   → { key, kind, value, children, sinks } (recursive)
+//   DFS over the View graph from `proxy`. LinkedView nodes show as
+//   `kind: 'linked-alias'` and don't recurse into the source.
+
+$.graph()
+//   → []   (with a console.warn — _devtoolsRoots is a WeakSet so the no-arg
+//   form can't enumerate live roots; pass a proxy explicitly.)
+
+$.fromDOM(el)
+//   → ViewProxy | null
+//   Walks `el.parentElement` chain to the nearest __ripple_sink and
+//   returns a proxy for the owning view. Use with $0 in the devtools
+//   console: `$.fromDOM($0)`.
+
+$.highlight(proxy, ms = 1000)
+//   → number of elements highlighted
+//   Adds a `.__ripple_highlight` class to every DOM element bound to
+//   `proxy`'s view, removing it after `ms`. Style the class yourself.
+```
+
+## Manual smoke tests
+
+After commit 7 wires devtools into the example pages, open
+`http://127.0.0.1:3000/examples/todo/?devtools` after `npm run serve`, then
+in the browser console:
+
+1. `$.graph(items)` — tree shows root + the three filter operators + the
+   length operators chained off them.
+2. `$.inspect(items)` — value is the localStorage object; sinks list the
+   filter operators.
+3. `$.fromDOM($0)` after picking a `<li>` — returns the proxy for that todo
+   item; reading its `[value]` matches the visible text.
+4. `$.highlight(items.filter('completed', true))` — outline class briefly
+   added to the `<ul>` bound to the active filter.
