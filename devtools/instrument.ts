@@ -8,16 +8,19 @@ import {
   VERBS,
   traceTargets,
   profilers,
+  cascadeRecorders,
   dispatchTrace,
   enterProfile,
   exitProfile,
+  enterCascadeFrame,
+  exitCascadeFrame,
 } from './events.ts'
 
 const originals = new Map()
 let installed = false
 
 function hasActive() {
-  return traceTargets.size > 0 || profilers.size > 0
+  return traceTargets.size > 0 || profilers.size > 0 || cascadeRecorders.size > 0
 }
 
 export function ensureInstrumented() {
@@ -28,16 +31,21 @@ export function ensureInstrumented() {
     originals.set(verb, orig)
     View.prototype[verb] = function patched(...args) {
       if (!hasActive()) return orig.apply(this, args)
-      // Trace dispatch first — it's a read-only observation. Then time
-      // the original call for the profiler.
+      // Trace dispatch first — it's a read-only observation. Then enter
+      // the timed paths for profile and/or cascade recorder.
       if (traceTargets.size) dispatchTrace(this, verb, args[0])
-      if (profilers.size) {
-        enterProfile()
-        const t0 = performance.now()
-        try { return orig.apply(this, args) }
-        finally { exitProfile(this, verb, performance.now() - t0) }
+      const profOn = profilers.size > 0
+      const cascOn = cascadeRecorders.size > 0
+      if (!profOn && !cascOn) return orig.apply(this, args)
+      if (profOn) enterProfile()
+      if (cascOn) enterCascadeFrame(this, verb)
+      const t0 = performance.now()
+      try { return orig.apply(this, args) }
+      finally {
+        const dt = performance.now() - t0
+        if (cascOn) exitCascadeFrame(this, verb)
+        if (profOn) exitProfile(this, verb, dt)
       }
-      return orig.apply(this, args)
     }
   }
   installed = true

@@ -24,6 +24,14 @@ export const traceTargets = new Map()
 // byOp: Map<string, ProfileBucket>, byVerb: object } }.
 export const profilers = new Map()
 
+// Active cascade recorders. A cascade is the synchronous tree of patched
+// verb calls triggered by one root mutation. Each entry:
+// { id, root: View|null, opts, cascades: Cascade[], current: Cascade|null,
+//   stack: number[], cascadeStartT: number, nextCascadeId: number }.
+// Frames carry parent indices so renderers can rebuild the tree without a
+// second pass.
+export const cascadeRecorders = new Map()
+
 let nextId = 1
 export function nextTraceId() { return nextId++ }
 
@@ -80,6 +88,93 @@ export function exitProfile(view, verb, dt) {
 }
 
 export function isAtTopOfStack() { return depth === 0 }
+
+// Cascade recorder hooks. enterCascadeFrame is called *before* orig.apply
+// in the patched verb; exitCascadeFrame is called in the finally block so
+// errors thrown by the underlying call don't leave half-closed frames.
+// Each recorder maintains its own stack — we don't share with the global
+// `depth` counter because the profiler counts re-entrancy across all
+// instrumented calls, while a cascade is scoped to its recorder's root.
+//
+// Coalescing: a single user assignment like `data.a = 2` actually fires
+// two top-level patched verbs (Value.BU1 always splits into view.BU1 +
+// view.BI0, one of which is empty). To keep the cascade count aligned
+// with user intent, we defer the cascade close to a microtask — any
+// sibling top-level frame arriving synchronously extends the same
+// cascade. flushPendingClose() commits eagerly when the public API
+// asks (stop/report/clear), so callers don't need to await microtasks.
+export function enterCascadeFrame(view, verb) {
+  if (!cascadeRecorders.size) return
+  const t = performance.now()
+  for (const r of cascadeRecorders.values()) {
+    // Ancestry gates only the *start* of a cascade. Once a cascade is
+    // open, every nested patched-verb call is captured — operator views
+    // (FilterValue, LengthValue, etc.) are connected to the source via
+    // sink subscription, not via the View .p chain, so ancestorOf would
+    // exclude them mid-propagation. This way, "scope by root" means
+    // "cascades triggered by mutating this subtree" — which transitively
+    // reaches every operator chained off it.
+    if (!r.current && r.root && !ancestorOf(view, r.root)) continue
+    if (r.current && r.pendingClose) {
+      // Sibling top-level call within the same task tick — extend.
+      r.pendingClose = false
+    }
+    if (!r.current) {
+      r.current = {
+        id: r.nextCascadeId++,
+        startedAt: t,
+        totalMs: 0,
+        frames: [],
+      }
+      r.cascadeStartT = t
+      r.stack = []
+    }
+    const i = r.current.frames.length
+    const parent = r.stack.length ? r.stack[r.stack.length - 1] : -1
+    r.current.frames.push({
+      i,
+      parent,
+      ctor: view.res?.constructor?.name || 'View',
+      key: [...view.key],
+      verb,
+      startMs: t - r.cascadeStartT,
+      endMs: -1,
+    })
+    r.stack.push(i)
+  }
+}
+
+export function exitCascadeFrame(view, verb) {
+  if (!cascadeRecorders.size) return
+  const t = performance.now()
+  for (const r of cascadeRecorders.values()) {
+    // Symmetric with enter: only pop if our stack is open. Don't re-check
+    // ancestry here — if enter pushed, exit must pop (the pair is bound
+    // by the patched-verb's try/finally).
+    if (!r.current || !r.stack.length) continue
+    const i = r.stack.pop()
+    const f = r.current.frames[i]
+    f.endMs = t - r.cascadeStartT
+    if (r.stack.length === 0) {
+      // totalMs grows monotonically across coalesced top-level frames.
+      if (f.endMs > r.current.totalMs) r.current.totalMs = f.endMs
+      r.pendingClose = true
+      // Capture r in the closure; the microtask is a no-op if a sibling
+      // already cleared pendingClose (i.e. the cascade was extended).
+      queueMicrotask(() => flushPendingClose(r))
+    }
+  }
+}
+
+export function flushPendingClose(r) {
+  if (!r.pendingClose || !r.current) return
+  r.pendingClose = false
+  r.cascades.push(r.current)
+  const cap = r.opts?.maxCascades ?? 200
+  if (r.cascades.length > cap) r.cascades.splice(0, r.cascades.length - cap)
+  r.current = null
+  r.stack = null
+}
 
 export function newProfileAcc() {
   return { events: 0, ms: 0, byOp: new Map(), byVerb: {} }

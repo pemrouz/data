@@ -77,3 +77,51 @@ test('devtools perf - on-state with one trace + one profile attached', () => {
     $.devtools.disable()
   }
 })
+
+test('devtools perf - cascade recorder attached, bounded overhead', () => {
+  // The recorder allocates a frame object per patched verb call plus pushes
+  // a parent index onto a stack. Per-event cost is comparable to the trace
+  // listener (object alloc dominates); ceiling matches the trace+profile
+  // case so a regression in either path lights up here.
+  const data = $({})
+  const filtered = data.filter(d => d.active)
+  const counted = filtered.length()
+  const rec = $.cascades(data, { maxCascades: 50 })
+  try {
+    const on = timeRun(() => {
+      for (let i = 0; i < ITERATIONS; i++) data['k' + i] = { active: i % 2 === 0 }
+      for (let i = 0; i < ITERATIONS; i++) delete data['k' + i]
+    })
+    console.log(`cascade-recorder ${ITERATIONS}x insert/delete: ${on.toFixed(2)}ms`)
+    ok(on < 2000, `cascade-recorder should be under 2000ms, got ${on.toFixed(2)}ms`)
+  } finally {
+    rec.stop()
+    $.devtools.disable()
+  }
+  ok(counted)
+})
+
+test('devtools perf - cascade recorder buffer cap holds memory bounded', async () => {
+  // With a small cap, many distinct cascades should produce exactly `cap`
+  // retained — this is the contract the panel relies on to render a
+  // fixed-size list without growing memory unboundedly. Mutations need a
+  // microtask yield between them (cascade-close runs in queueMicrotask
+  // and sync mutations within a tick coalesce); 100 yields is plenty to
+  // verify the cap of 25 is enforced.
+  const data = $({})
+  const rec = $.cascades(data, { maxCascades: 25 })
+  try {
+    for (let i = 0; i < 100; i++) {
+      data['k' + i] = i
+      await Promise.resolve()
+    }
+    const out = rec.report()
+    ok(out.length === 25, `expected exactly 25 cascades, got ${out.length}`)
+    // Newest preserved: last id should be the largest.
+    const ids = out.map(c => c.id)
+    ok(Math.max(...ids) === ids[ids.length - 1], 'newest cascade should be last')
+  } finally {
+    rec.stop()
+    $.devtools.disable()
+  }
+})

@@ -9,7 +9,7 @@ import { walk, classify, summarize, ancestorOf, iterRoots, internalRoot } from '
 import './index.ts'
 import { _devtoolsRoots, _devtoolsInternalRoots } from '../core.ts'
 import { ensureInstrumented, restoreInstrumentation, isInstrumented } from './instrument.ts'
-import { traceTargets, profilers, nextTraceId, newProfileAcc, finalize } from './events.ts'
+import { traceTargets, profilers, cascadeRecorders, nextTraceId, newProfileAcc, finalize } from './events.ts'
 import { View } from '../core.ts'
 
 // Silence the console.* calls inside $.inspect/$.graph during the test run —
@@ -415,6 +415,188 @@ test('$.devtools.disable - restores View.prototype byte-identical', () => {
   data.a = 2
   strictEqual(traceTargets.size, 0)
   strictEqual(profilers.size, 0)
+})
+
+test('$.cascades - single mutation produces one cascade with frames timed >= 0', () => {
+  const data = $({ a: 1 })
+  const rec = $.cascades(data)
+  data.a = 2
+  const out = rec.stop()
+  strictEqual(out.length, 1, 'one mutation should produce one cascade')
+  const c = out[0]
+  ok(c.frames.length >= 1, 'cascade should record at least one frame')
+  ok(c.totalMs >= 0, 'totalMs should be non-negative')
+  // Every frame's endMs should be >= startMs (closed by exitCascadeFrame).
+  for (const f of c.frames) {
+    ok(f.endMs >= f.startMs, `frame ${f.i} endMs ${f.endMs} < startMs ${f.startMs}`)
+    ok(f.endMs >= 0, 'endMs must be assigned (default -1 means unclosed)')
+  }
+  $.devtools.disable()
+})
+
+test('$.cascades - frame parent indices reconstruct a forest of well-formed trees', () => {
+  const data = $({})
+  const filtered = data.filter(d => d.active)
+  const counted = filtered.length()
+  const rec = $.cascades(data)
+  // One insert fans out to root → filter → length. We don't assert exact
+  // verb names (that depends on internal dispatch order); we assert the
+  // tree shape is well-formed. A cascade can have multiple root frames
+  // because Value.BU1 splits into view.BU1 + view.BI0 (see events.ts
+  // coalescing notes).
+  data.k0 = { active: true }
+  const [c] = rec.stop()
+  ok(c, 'expected at least one cascade')
+  const roots = c.frames.filter(f => f.parent === -1)
+  ok(roots.length >= 1, `cascade must have at least one root frame, got ${roots.length}`)
+  // Every non-root frame's parent must point to a real earlier frame.
+  for (const f of c.frames) {
+    if (f.parent === -1) continue
+    ok(f.parent >= 0 && f.parent < f.i, `parent ${f.parent} of frame ${f.i} out of range`)
+  }
+  ok(counted)
+  $.devtools.disable()
+})
+
+test('$.cascades - subtree root scoping skips cascades outside the subtree', () => {
+  const data = $({ foo: { x: 1 }, bar: { y: 1 } })
+  const rec = $.cascades(data.foo)
+  data.bar.y = 999  // outside scope
+  data.foo.x = 999  // inside scope
+  const out = rec.stop()
+  ok(out.length >= 1, 'foo mutation should be captured')
+  // No frame should reference a key starting with 'bar'.
+  for (const c of out) {
+    for (const f of c.frames) {
+      ok(!f.key.includes('bar'), `bar leaked into cascade frame: ${f.key.join('.')}`)
+    }
+  }
+  $.devtools.disable()
+})
+
+test('$.cascades - mutations across task ticks produce distinct cascades', async () => {
+  // Within one sync tick, all top-level patched verbs coalesce into a
+  // single cascade (see events.ts). To get N cascades we must yield to
+  // the microtask queue between mutations — a single Promise.resolve()
+  // suffices since the cascade-close is queued via queueMicrotask.
+  const data = $({})
+  const rec = $.cascades(data)
+  data.a = 1
+  await Promise.resolve()
+  data.b = 2
+  await Promise.resolve()
+  data.c = 3
+  const out = rec.stop()
+  ok(out.length >= 3, `expected >=3 cascades, got ${out.length}`)
+  // Each cascade's frames must form a contiguous index range starting at 0,
+  // proving they didn't interleave (two open cascades would mix indices).
+  for (const c of out) {
+    for (let i = 0; i < c.frames.length; i++) {
+      strictEqual(c.frames[i].i, i, `frame ${i} has wrong index ${c.frames[i].i}`)
+    }
+  }
+  // Ascending startedAt across cascades.
+  for (let i = 1; i < out.length; i++) {
+    ok(out[i].startedAt >= out[i - 1].startedAt, 'cascades should be in chronological order')
+  }
+  $.devtools.disable()
+})
+
+test('$.cascades - sync mutations within one tick coalesce into a single cascade', () => {
+  // The flip side of the previous test: when mutations are back-to-back
+  // sync (no microtask in between), they all belong to the same cascade.
+  // This is the "user clicked once and four things changed" model.
+  const data = $({})
+  const rec = $.cascades(data)
+  data.a = 1
+  data.b = 2
+  data.c = 3
+  const out = rec.stop()
+  strictEqual(out.length, 1, `expected 1 coalesced cascade, got ${out.length}`)
+  // The cascade should carry several top-level (parent=-1) frames, one
+  // pair per assignment (view.BU1 + view.BI0).
+  const roots = out[0].frames.filter(f => f.parent === -1)
+  ok(roots.length >= 3, `expected >=3 top-level frames, got ${roots.length}`)
+  $.devtools.disable()
+})
+
+test('$.cascades - fan-out: chained operators all appear under root frame', () => {
+  const data = $({})
+  const a = data.filter(d => d.active).length()
+  const b = data.filter(d => !d.active).length()
+  const rec = $.cascades(data)
+  data.k0 = { active: true }
+  const [c] = rec.stop()
+  ok(c, 'expected one cascade')
+  // The cascade must contain frames for both filter branches (FilterValue
+  // appears twice — one per branch). We can't rely on order, just presence.
+  const filters = c.frames.filter(f => f.ctor === 'FilterValue')
+  ok(filters.length >= 2, `expected >=2 FilterValue frames, got ${filters.length}`)
+  // Each filter frame should have a parent that traces back to the root.
+  for (const f of filters) {
+    ok(f.parent >= 0, 'filter frame should have a parent in this cascade')
+  }
+  ok(a && b)
+  $.devtools.disable()
+})
+
+test('$.cascades - report() returns snapshot without stopping; clear() empties buffer', () => {
+  const data = $({})
+  const rec = $.cascades(data)
+  data.a = 1
+  const r1 = rec.report()
+  data.b = 2
+  const r2 = rec.report()
+  ok(r2.length > r1.length, 'report() should reflect new cascades')
+  rec.clear()
+  ok(rec.report().length === 0, 'clear() should empty the buffer')
+  data.c = 3
+  ok(rec.report().length >= 1, 'recorder still active after clear()')
+  rec.stop()
+  $.devtools.disable()
+})
+
+test('$.cascades - maxCascades caps ring buffer (oldest evicted)', async () => {
+  const data = $({})
+  const rec = $.cascades(data, { maxCascades: 3 })
+  for (let i = 0; i < 10; i++) {
+    data['k' + i] = i
+    await Promise.resolve()  // yield so each mutation closes its cascade
+  }
+  const out = rec.stop()
+  ok(out.length <= 3, `expected <=3 cascades, got ${out.length}`)
+  // Newest preserved — last cascade's id should be the highest in the buffer.
+  const ids = out.map(c => c.id)
+  strictEqual(Math.max(...ids), ids[ids.length - 1])
+  $.devtools.disable()
+})
+
+test('$.cascades - stop disposer cleans up; further mutations don\'t append', () => {
+  const data = $({})
+  const rec = $.cascades(data)
+  data.a = 1
+  const captured = rec.stop().length
+  data.b = 2
+  data.c = 3
+  // After stop(), the recorder is gone — calling report() returns the
+  // (frozen) buffer, not new cascades. We verify by re-installing a fresh
+  // recorder and confirming cascadeRecorders has size 1, not 2.
+  const rec2 = $.cascades(data)
+  strictEqual(cascadeRecorders.size, 1, 'old recorder must be removed after stop()')
+  rec2.stop()
+  ok(captured >= 1)
+  $.devtools.disable()
+})
+
+test('$.cascades - disable() restores View.prototype and clears recorders', () => {
+  const origXU0 = View.prototype.XU0
+  const data = $({ a: 1 })
+  $.cascades(data)
+  ok(View.prototype.XU0 !== origXU0, 'patched after $.cascades()')
+  ok(cascadeRecorders.size === 1)
+  $.devtools.disable()
+  strictEqual(View.prototype.XU0, origXU0, 'restored after disable()')
+  strictEqual(cascadeRecorders.size, 0, 'cascadeRecorders cleared')
 })
 
 test('$.highlight - adds and schedules removal of __ripple_highlight class', () => {

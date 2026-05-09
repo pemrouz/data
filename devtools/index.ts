@@ -11,6 +11,8 @@ import {
   VERBS,
   traceTargets,
   profilers,
+  cascadeRecorders,
+  flushPendingClose,
   nextTraceId,
   newProfileAcc,
   finalize,
@@ -153,6 +155,45 @@ $.profile = function profile(proxy, opts = {}) {
   return { stop, report }
 }
 
+// $.cascades(proxy?, opts?) — start recording propagation cascades. A
+// cascade is the synchronous tree of verb calls triggered by one root
+// mutation; each frame records its parent index, op constructor, key,
+// verb, and start/end timestamps relative to cascade start. Returns
+// { stop, report, clear }. With no proxy argument, every cascade in the
+// whole graph is captured. opts.maxCascades caps the ring buffer
+// (default 200) so a long-running session doesn't grow unboundedly.
+$.cascades = function cascades(proxy, opts = {}) {
+  ensureInstrumented()
+  const v = proxy?.[view] || null
+  const id = nextTraceId()
+  const recorder = {
+    id,
+    root: v,
+    opts: { maxCascades: opts.maxCascades ?? 200 },
+    cascades: [],
+    current: null,
+    stack: null,
+    cascadeStartT: 0,
+    nextCascadeId: 1,
+  }
+  cascadeRecorders.set(id, recorder)
+  return {
+    stop() {
+      flushPendingClose(recorder)
+      cascadeRecorders.delete(id)
+      return recorder.cascades.slice()
+    },
+    report() {
+      flushPendingClose(recorder)
+      return recorder.cascades.slice()
+    },
+    clear() {
+      flushPendingClose(recorder)
+      recorder.cascades.length = 0
+    },
+  }
+}
+
 // $.devtools — explicit control for users who want to pre-warm or fully
 // tear down the instrumentation patches. trace/profile auto-enable; this
 // is for the "I want to time my whole app startup" or "I want to confirm
@@ -162,6 +203,7 @@ $.devtools = {
   disable() {
     traceTargets.clear()
     profilers.clear()
+    cascadeRecorders.clear()
     restoreInstrumentation()
   },
   panel: {
