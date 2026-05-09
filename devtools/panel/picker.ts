@@ -40,8 +40,14 @@ export function createPicker(): PickerHandle {
     overlay.style.left = '-9999px'
     document.body.appendChild(overlay)
     document.addEventListener('mousemove', onMove, true)
-    // Capture-phase click so we can prevent the page's handlers from running.
-    document.addEventListener('click', onClick, true)
+    // Defer the click capture listener until after the current event finishes
+    // propagating. Without this delay, the click that *armed* the picker (on
+    // the toolbar pick button) bubbles up to document and trips the freshly
+    // installed capture listener on the same event in some browsers, which
+    // immediately disarms us on a non-existent target.
+    setTimeout(() => {
+      if (armed) document.addEventListener('click', onClick, true)
+    }, 0)
   }
 
   function disarm() {
@@ -75,18 +81,26 @@ export function createPicker(): PickerHandle {
     const proxy = ($ as any).fromDOM(target)
     disarm()
     if (proxy) {
-      // Switch to the Graph tab and let the existing tab pick up the
-      // selection on its next render. We don't try to scroll-into-view
-      // a particular tree node here — the user can search by hand once
-      // they're on the right tab.
-      state.activeTab = 'graph'
-      // Find this proxy's root view and select it in the picker dropdown.
+      // Find the proxy's root view and select it in the dropdown, then
+      // switch to the Graph tab. Order matters: setting selectedRootIdx
+      // before activeTab means the graph tab's first render already shows
+      // the right root.
       const targetView = proxy[view]
       let root = targetView
       while (root.p) root = root.p
       const rootsArr = [...iterRoots()]
       const idx = rootsArr.findIndex((v: any) => v === root)
       if (idx >= 0) state.selectedRootIdx = idx
+      state.activeTab = 'graph'
+    } else if (typeof console !== 'undefined') {
+      // Visible feedback that the picker fired but the target wasn't bound
+      // to any reactive view — otherwise the user just sees the cursor
+      // revert and assumes the picker is broken.
+      console.warn(
+        '[ripple devtools] no __ripple_sink found in the click target chain — ' +
+        'this element isn\'t bound to a reactive view. Click an element ' +
+        'inside a render(...) tree.'
+      )
     }
   }
 

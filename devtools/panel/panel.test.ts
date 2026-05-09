@@ -328,6 +328,11 @@ test('panel/picker - arm/disarm + click selects matching root and switches to gr
     }
     return (n: string, fn: any) => { (map[n] ||= []).push(fn) }
   })()
+  // The picker defers click-listener install via setTimeout(0) to avoid
+  // the arm-click immediately re-firing onClick. Run timers synchronously
+  // in the test so we don't have to await a real timer.
+  const realSetTimeout = globalThis.setTimeout as any
+  ;(globalThis as any).setTimeout = (fn: any) => { fn(); return 0 }
   const { mount, unmount } = await import('./index.ts')
   const { $, view, value } = await import('../../core.ts')
   await import('../index.ts')
@@ -368,6 +373,7 @@ test('panel/picker - arm/disarm + click selects matching root and switches to gr
 
   unmount()
   clearPersistedPanelState()
+  ;(globalThis as any).setTimeout = realSetTimeout
 })
 
 test('panel/state - mutations route through and persist subset to localStorage', async () => {
