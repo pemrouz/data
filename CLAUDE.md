@@ -17,15 +17,17 @@ hand-written `.js` files remain in tree (e.g.
 [assets/landing.js](assets/landing.js), `examples/crossfilter/flights*.js`)
 because they have no `.ts` counterpart.
 
-`tsup` produces four sub-path entries that line up 1:1 with the `"exports"`
+`tsup` produces seven sub-path entries that line up 1:1 with the `"exports"`
 map in [package.json](package.json):
 
-| Sub-path         | Source       | What it ships |
+| Sub-path                | Source       | What it ships |
 |---|---|---|
-| `data`           | [index.ts](index.ts)              | Lean core: `$`, `value`, `render`, `HTML`, `SVG`, `Operators`, `createOperator`. No operator dispatch registered. |
-| `data/full`      | [full.ts](full.ts)                | Strict superset of `data` — same exports plus JSX helpers (`h`, `Fragment`, `For`), with the side effect of registering every operator on the dispatch table. |
-| `data/render`    | [render/index.ts](render/index.ts) | Just the DOM render layer (`render`, `HTML`, `SVG`). |
-| `data/devtools`  | [devtools/index.ts](devtools/index.ts) | Opt-in inspection helpers — importing this attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`, `$.profile` onto the canonical `$`, AND lazy-loads + auto-mounts an in-page overlay panel ([devtools/panel/](devtools/panel/)) with Graph / Events / Profile tabs and a DOM picker. Append `?nopanel` to the URL to suppress the panel; `$.devtools.panel.{open,close}()` for explicit control. |
+| `data`                  | [index.ts](index.ts)                          | Lean core: `$`, `value`, `render`, `HTML`, `SVG`, `Operators`, `createOperator`. No operator dispatch registered. |
+| `data/full`             | [full.ts](full.ts)                            | Strict superset of `data` — same exports plus JSX helpers (`h`, `Fragment`, `For`, `jsx`, `jsxs`, `jsxDEV`), with the side effect of registering every operator on the dispatch table. |
+| `data/render`           | [render/index.ts](render/index.ts)            | Just the DOM render layer (`render`, `HTML`, `SVG`). |
+| `data/devtools`         | [devtools/index.ts](devtools/index.ts)        | Opt-in inspection helpers — importing this attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`, `$.profile` onto the canonical `$`, AND lazy-loads + auto-mounts an in-page overlay panel ([devtools/panel/](devtools/panel/)) with Graph / Events / Profile tabs and a DOM picker. Append `?nopanel` to the URL to suppress the panel; `$.devtools.panel.{open,close}()` for explicit control. |
+| `data/jsx-runtime`      | [jsx-runtime.ts](jsx-runtime.ts)              | Automatic JSX runtime entry — `jsx`, `jsxs`, `Fragment`. Picked up when a consumer sets `"jsxImportSource": "data"` in their tsconfig. Same NodeProxy/DOMSink semantics as the classic `h` transform. |
+| `data/jsx-dev-runtime`  | [jsx-dev-runtime.ts](jsx-dev-runtime.ts)      | Dev-mode counterpart — `jsxDEV`, `Fragment`. |
 
 Tests do **not** require a build: `node --experimental-strip-types` reads
 `.ts` directly. Run `npm test`. Examples *do* require a build because they
