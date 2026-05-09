@@ -17,13 +17,17 @@
 </body>
 <script type="importmap">
 { "imports": {
-    "data":        "../../dist/index.js",
-    "data/full":   "../../dist/full.js",
-    "data/render": "../../dist/render/index.js"
+    "data":          "../../dist/index.js",
+    "data/full":     "../../dist/full.js",
+    "data/render":   "../../dist/render/index.js",
+    "data/devtools": "../../dist/devtools/index.js"
 } }
 </script>
 <script type="module">
   import { $, render, HTML, SVG, value } from 'data/full'
+  // Opt-in devtools: append ?devtools to the URL to load $.inspect/.graph/
+  // .trace/.profile/.fromDOM/.highlight onto the canonical $. Off by default.
+  if (location.search.includes('devtools')) await import('data/devtools')
 
   // Stream-fetch the dataset with live progress, then dynamic-import via a
   // Blob URL. The original `import { data } from './flights.js'` blocks the

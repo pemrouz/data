@@ -8,13 +8,18 @@
 </html>
 <script type="importmap">
 { "imports": {
-    "data":        "../../dist/index.js",
-    "data/full":   "../../dist/full.js",
-    "data/render": "../../dist/render/index.js"
+    "data":          "../../dist/index.js",
+    "data/full":     "../../dist/full.js",
+    "data/render":   "../../dist/render/index.js",
+    "data/devtools": "../../dist/devtools/index.js"
 } }
 </script>
 <script type="module">
     import { $, value, render, HTML } from 'data/full'
+    // Opt-in devtools: append ?devtools to the URL to load $.inspect/.graph/
+    // .trace/.profile/.fromDOM/.highlight onto the canonical $. Off by default
+    // so the examples stay byte-clean.
+    if (location.search.includes('devtools')) await import('data/devtools')
     const { section, div, header, input, h1, label, ul, footer, span, strong, button, li, a, body } = HTML
     const KEY = 'todos-ripple'
     const items = window.items = $(JSON.parse(localStorage.getItem(KEY) || '{}'))
