@@ -75,6 +75,26 @@ test('sort (za) - insert/update/remove', () => {
   same(res[value], [])
 })
 
+// Regression: when the new value moves a *middle* row up, BU1 used to read
+// `col(p.value[name])` while `name` was still at its old slot in `sorted`,
+// feeding the bisect a non-monotonic array. The descending-bisect's
+// `col(sorted[mid]) < v_new` test returned false at name's slot (equal, not
+// less), so the search jumped right and never re-discovered the higher rank.
+// Result: the row stayed at its old position with the new value, instead of
+// being lifted to the front. The pre-existing "row 1 jumps to first" test
+// missed this because '1' was already at the end of `sorted`, so the bisect
+// happened to converge correctly even on the broken array.
+test('sort (za) - middle row promoted to top (bisect on stale slot)', () => {
+  const data = $({
+    A: { vol: 900 }, B: { vol: 850 }, C: { vol: 800 },
+    D: { vol: 750 }, E: { vol: 700 },
+  })
+  const top3 = sort(data, 'vol', 3)
+  same(top3[value], [{ vol: 900 }, { vol: 850 }, { vol: 800 }])
+  data.C.vol = 950
+  same(top3[value], [{ vol: 950 }, { vol: 900 }, { vol: 850 }])
+})
+
 // In-window rank rotation should be emitted as a single 'move' event rather
 // than per-position 'update' events. Sinks that care about identity (DOMSink
 // uses insertBefore on the same element) preserve it; sinks without BMV1

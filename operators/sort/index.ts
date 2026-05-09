@@ -77,13 +77,17 @@ export class ZAValue extends Operator {
       let oidx = this.get_index(name)
       if (oidx === -1) { this.BI0([name, value]); continue }
 
-      let nidx = this.find(this.col(this.p.value[name]))
-      if (oidx === nidx) { super.BU1([oidx, value]); continue }
-      // bisect would have returned the position *before* removing the
-      // current entry, so when moving down we have to compensate.
-      if (nidx > oidx) nidx--
+      // Splice out *before* bisecting: by the time BU1 fires, p.value[name]
+      // already holds the new sort value, so leaving `name` in `sorted`
+      // would feed the bisect a non-monotonic array (its old slot now reads
+      // as the new value). Binary search on a non-sorted array can skip past
+      // the correct insertion point — the failure mode we hit is value
+      // increases that get classified as "no change" (oidx === nidx) and
+      // leave the row at its old rank.
       sorted.splice(oidx, 1)
+      let nidx = this.find(this.col(this.p.value[name]))
       sorted.splice(nidx, 0, name)
+      if (oidx === nidx) { super.BU1([oidx, value]); continue }
       if (oidx >= n && nidx >= n) {}
       else if (oidx >= n && nidx <  n) {
         super.BR1A([n - 1])
