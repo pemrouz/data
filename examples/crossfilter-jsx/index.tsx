@@ -50,35 +50,37 @@ const filters = (window as any).filters = $({
   date: [+new Date(2001, 1, 1), +new Date(2001, 2, 1)],
 })
 
-const delay = (window as any).delay = flights.between('delay', filters.delay)
-const distance = (window as any).distance = flights.between('distance', filters.distance)
-const date = (window as any).date = flights.between('date', filters.date)
-const time = (window as any).time = flights.between('time', filters.time)
-const active = (window as any).x = date.intersect(distance, delay, time)
+const dims: any = (window as any).dims = {
+  delay:    flights.between('delay',    filters.delay),
+  distance: flights.between('distance', filters.distance),
+  date:     flights.between('date',     filters.date),
+  time:     flights.between('time',     filters.time),
+}
+const active = (window as any).x = flights.intersect(dims)
 ;(window as any).v = value
 
 const charts: any = (window as any).charts = {
   time: {
     title: 'Time of Day',
-    data: delay.intersect(distance, date).length(byHour),
+    data: flights.intersect(dims, 'time').length(byHour),
     domain: [0, 24], width: 240,
     ticks: [0, 5, 10, 15, 20], format: String,
   },
   delay: {
     title: 'Arrival Delay (min.)',
-    data: distance.intersect(date, time).length(byTenMins),
+    data: flights.intersect(dims, 'delay').length(byTenMins),
     domain: [-60, 150], width: 210,
     ticks: [-60, -30, 0, 30, 60, 90, 120, 150], format: String,
   },
   distance: {
     title: 'Distance (mi.)',
-    data: delay.intersect(date, time).length(byFiftyMiles),
+    data: flights.intersect(dims, 'distance').length(byFiftyMiles),
     domain: [0, 2000], width: 400,
     ticks: [0, 500, 1000, 1500, 2000], format: String,
   },
   date: {
     title: 'Date',
-    data: delay.intersect(distance, time).length(byDay),
+    data: flights.intersect(dims, 'date').length(byDay),
     domain: [+new Date(2001, 0, 1), +new Date(2001, 3, 1)], width: 900,
     ticks: [+new Date(2001, 0, 1), +new Date(2001, 1, 1), +new Date(2001, 2, 1), +new Date(2001, 3, 1)],
     format: (t: any) => months[new Date(t).getMonth()],
@@ -177,7 +179,7 @@ function chart(node: any, c: any, name: string) {
   const height = 100
   const x = scale(domain, [0, width])
   const rx = scale([0, width], domain)
-  const [{ value: maxRef }] = data.za('value', 1)
+  const maxRef = data.max('value')
   const filter = filters[name]
   const range = filter.to(([lo = domain[0], hi = domain[1]] = []) => [lo, hi])
   const extent = range.to(([lo, hi]: any) => x(hi) - x(lo))
@@ -236,8 +238,8 @@ function chart(node: any, c: any, name: string) {
                     this.setPointerCapture(d.pointerId)
                     exLeftRef = this.parentNode.getBoundingClientRect().left
                     exInitial = rx(d.x - exLeftRef)
-                    exBase = [filter[0][value], filter[1][value]]
-                    exWrite = rafWriter(filter, value)
+                    exBase = [filter.first()[value], filter.last()[value]]
+                    exWrite = filter.raf()
                     d.stopPropagation()
                   }}
                   onPointerMove={function (this: any, d: any) {
@@ -265,18 +267,6 @@ function chart(node: any, c: any, name: string) {
   )
 }
 
-function rafWriter(target: any, key: any) {
-  let pending: any, scheduled = false
-  const writer: any = (v: any) => {
-    pending = v
-    if (scheduled) return
-    scheduled = true
-    requestAnimationFrame(() => { scheduled = false; target[key] = pending })
-  }
-  writer.flush = () => { if (scheduled) { scheduled = false; target[key] = pending } }
-  return writer
-}
-
 function background(node: any, filter: any, rx: any, width: number, height: number, round: any) {
   let down = false
   let initial: any
@@ -288,7 +278,7 @@ function background(node: any, filter: any, rx: any, width: number, height: numb
     .on('pointerdown', function (this: any, d: any) {
       down = true
       initial = apply(c(this, d))
-      write = rafWriter(filter, value)
+      write = filter.raf()
       filter[value] = [initial, initial]
     })
     .on('pointermove', function (this: any, d: any) {
@@ -300,7 +290,7 @@ function background(node: any, filter: any, rx: any, width: number, height: numb
     .on('pointerup', (d: any) => {
       down = false
       write?.flush()
-      if (filter[0][value] === filter[1][value]) filter[value] = []
+      if (filter.first()[value] === filter.last()[value]) filter[value] = []
     })
 }
 
@@ -332,7 +322,7 @@ function resizeHandle(filtersArr: any, initial: any, x: any, rx: any, round: any
            down = true
            this.setPointerCapture(ev.pointerId)
            leftRef = this.parentNode.getBoundingClientRect().left
-           write = rafWriter(filtersArr, value)
+           write = filtersArr.raf()
            ev.stopPropagation()
          }}
          onPointerMove={function (this: any, e: any) {
