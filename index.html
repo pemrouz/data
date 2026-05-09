@@ -175,6 +175,44 @@ trades.length(d =&gt; d.tenor)</pre>
     <p class="muted" style="max-width:62ch">
       Importing <code class="inline">data/devtools</code> attaches a handful of helpers to <code class="inline">$</code> for the browser console, and auto-mounts a draggable overlay panel into a closed Shadow DOM root. Append <code class="inline">?devtools</code> to either example below to try it; the panel itself ships as a separate ~30 KB chunk that's lazy-loaded only when you import the entry.
     </p>
+
+    <!-- Static mockup of the panel (HTML + the panel's actual class names so
+         the styles in landing.css mirror the live widget). Not interactive;
+         click "todo with panel" below to drive the real one. -->
+    <div class="dock-mock-wrap">
+      <div class="dock-mock">
+        <div class="dock-mock-header">
+          <span class="dock-mock-title">data devtools</span>
+          <span class="dock-mock-actions">
+            <span class="dock-mock-btn dock-mock-active" title="DOM picker (armed)">◎</span>
+            <span class="dock-mock-btn">—</span>
+            <span class="dock-mock-btn">×</span>
+          </span>
+        </div>
+        <div class="dock-mock-tabs">
+          <span class="dock-mock-tab dock-mock-tab-active">graph</span>
+          <span class="dock-mock-tab">events</span>
+          <span class="dock-mock-tab">profile</span>
+        </div>
+        <div class="dock-mock-body">
+          <div class="dock-mock-toolbar">
+            <span class="dim">root:</span>
+            <span class="dock-mock-select">#0&nbsp; items&nbsp; { keys: 56 } ▾</span>
+            <span class="dock-mock-checkbox">☐ show internal</span>
+          </div>
+          <div class="dock-mock-tree">
+            <div class="dock-mock-node"><span class="dock-mock-badge dock-mock-root">root</span> items <span class="dim">= { keys: 56 }</span></div>
+            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(44)</span></div>
+            <div class="dock-mock-node dock-mock-indent2"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> LengthValue <span class="dim">= 44</span></div>
+            <div class="dock-mock-node dock-mock-indent3 dock-mock-picked"><span class="dock-mock-badge dock-mock-dom">dom</span> DOMSink&nbsp;&nbsp;<span class="dock-mock-pick-label">← picked</span></div>
+            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▸</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(12)</span></div>
+            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-badge dock-mock-operator">operator</span> ToValue <span class="dim">= false</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted dock-mock-caption">Above: the Graph tab after a DOM pick — the matched <code class="inline">DOMSink</code> pulses green; ancestors auto-expand so you can see the chain at a glance.</p>
+    </div>
+
     <div class="devtools-cols">
       <div>
         <h3>console api</h3>

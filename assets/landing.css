@@ -610,6 +610,132 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 .devtools .devtools-bullets li { margin-bottom: 0.5rem; }
 .devtools .devtools-bullets b { color: var(--accent); font-weight: 500; }
 
+/* Static mockup of the devtools panel — colors mirror the actual panel
+   styles in devtools/panel/styles.ts so the visual stays accurate even
+   if the live widget gets re-themed. Not interactive. */
+.dock-mock-wrap { margin-top: 1rem; margin-bottom: 1.5rem; }
+.dock-mock {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #e6e6e6;
+  overflow: hidden;
+}
+.dock-mock-header {
+  display: flex; align-items: center;
+  background: #222;
+  border-bottom: 1px solid #333;
+  padding: 4px 6px;
+}
+.dock-mock-title {
+  flex: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #9be3a8;
+}
+.dock-mock-actions { display: flex; gap: 2px; }
+.dock-mock-btn {
+  display: inline-block;
+  padding: 2px 6px;
+  color: #888;
+  font-size: 14px;
+  line-height: 1;
+}
+.dock-mock-btn.dock-mock-active { color: #9be3a8; }
+.dock-mock-tabs {
+  display: flex;
+  background: #181818;
+  border-bottom: 1px solid #333;
+}
+.dock-mock-tab {
+  padding: 6px 12px;
+  color: #888;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-right: 1px solid #2a2a2a;
+}
+.dock-mock-tab.dock-mock-tab-active {
+  color: #9be3a8;
+  background: #1f2a20;
+}
+.dock-mock-body {
+  padding: 8px;
+  max-height: 260px;
+  overflow: hidden;
+}
+.dock-mock-toolbar {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.dock-mock-toolbar .dim { color: #666; }
+.dock-mock-select {
+  flex: 1;
+  background: #161616;
+  color: #e6e6e6;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-mock-checkbox { color: #888; white-space: nowrap; }
+.dock-mock-tree { line-height: 1.6; }
+.dock-mock-node { display: block; }
+.dock-mock-indent  { padding-left: 16px; }
+.dock-mock-indent2 { padding-left: 32px; }
+.dock-mock-indent3 { padding-left: 48px; }
+.dock-mock-twist { color: #555; display: inline-block; width: 12px; }
+.dock-mock-node .dim { color: #888; }
+.dock-mock-badge {
+  display: inline-block;
+  padding: 0 4px;
+  margin-right: 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #2a2a2a;
+  color: #888;
+}
+.dock-mock-root     { background: #2d3a2d; color: #9be3a8; }
+.dock-mock-operator { background: #2d3447; color: #9bb3e3; }
+.dock-mock-dom      { background: #3a2d2d; color: #e39b9b; }
+
+.dock-mock-picked {
+  outline: 1px solid #9be3a8;
+  outline-offset: 2px;
+  border-radius: 2px;
+  animation: __landing_pulse 1.4s ease-out infinite;
+  background: rgba(155, 227, 168, 0.05);
+}
+.dock-mock-pick-label { color: #9be3a8; font-size: 10px; }
+
+@keyframes __landing_pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(155, 227, 168, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(155, 227, 168, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(155, 227, 168, 0); }
+}
+
+.dock-mock-caption {
+  text-align: center;
+  font-size: 0.8125rem;
+  margin-top: 0.75rem;
+  max-width: 60ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ---------- install ---------- */
 
 .install pre.code { margin-bottom: 1rem; }
