@@ -4,7 +4,7 @@ Guide for Claude sessions working in this repo. Read this before making changes.
 
 ## What this is
 
-A small TypeScript reactive data library. `$(value)` wraps a value or array into a `ViewProxy`; chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`) produce derived reactive views; [render/index.ts](render/index.ts) attaches reactive data to the DOM via `HTML.*`/`SVG.*` builders.
+A small TypeScript reactive data library. `$(value)` wraps a value or array into a `ViewProxy`; chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`) produce derived reactive views; [render/index.ts](render/index.ts) attaches reactive data to the DOM via `HTML.*`/`SVG.*` builders. JSX authoring is supported via [jsx/index.ts](jsx/index.ts) (`h`, `Fragment`, `For`), re-exported from `data/full`. Inspection helpers live behind the opt-in `data/devtools` entry — see [devtools/README.md](devtools/README.md).
 
 ## Source layout and build
 
@@ -41,6 +41,7 @@ Tests run TypeScript directly via `--experimental-strip-types` — no compile st
 - `$(value)` → `ViewProxy`. Read raw value with `proxy[value]` (the `value` Symbol from [core.ts:4](core.ts#L4)). Mutate via assignment: `proxy.foo = 1`, `proxy[2].completed = true`, `delete proxy[1]`, `proxy[value] = newValue`.
 - Operators chain off the proxy: `data.filter(d => d.active).between('val', [0, 100]).length()`. The chainable form requires the dispatch table to be populated, which only happens when [full.ts](full.ts) is imported (= the `data/full` package entry). Bare [index.ts](index.ts) (= `data`) is operator-free; calling `.filter(...)` on a proxy without first loading `full.ts` throws an error pointing the user at `data/full`. The canonical dispatch list lives at [full.ts:24-49](full.ts#L24-L49). The dispatch picks a class based on argument shape (e.g. `filter(fn)` → `FilterValue`, `filter('key', val)` → `FilterStringValue`, `filter({k:v})` → `FilterObjectValue`).
 - `render(el, template)` from [render/index.ts](render/index.ts); `HTML.div(...)`, `SVG.path(...)` builders.
+- `h(tag, props, ...children)`, `Fragment`, `For` from [jsx/index.ts](jsx/index.ts) (re-exported by `data/full`) — JSX adapter over the same builders. `<div className="x">{c}</div>` desugars to `h("div", {className:"x"}, c)` which returns the same `NodeProxy` AST `HTML.div.x(c)` produces. Same `render()`, same `DOMSink`, same per-key surgical updates. ViewProxy children with no function sibling route through `.text()` (preserves element identity); with a function sibling they stay on the data path so `[VP, fn]` keeps working as a data-iteration shorthand.
 - `connect` is built-in (not an operator): `proxy.connect([])` returns the array and pushes change events into it; `proxy.connect(obj, 'prop')` mirrors the value to `obj.prop`; `proxy.connect(obj, fn)` calls `fn(change)` on each event. See [core.ts:601-622](core.ts#L601-L622).
 
 ## Adding a new operator
@@ -85,8 +86,9 @@ For a fuller breakdown see [.claude/architecture.md](.claude/architecture.md).
 
 - [examples/todo/](examples/todo/) — basic mutation + filter + length.
 - [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 flight records.
+- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Compiled in-place via [examples/todo-jsx/tsconfig.json](examples/todo-jsx/tsconfig.json) (and the matching crossfilter one) which scopes `jsx: react` + `jsxFactory: h` + `jsxFragmentFactory: Fragment`; `npm run serve` runs `build:examples-jsx` after `tsup` to produce the sibling `.js`. Playwright tests at [tests/todo-jsx.spec.ts](tests/todo-jsx.spec.ts) and [tests/crossfilter-jsx.spec.ts](tests/crossfilter-jsx.spec.ts) assert DOM-identity preservation across reactive updates and brush-parity with the builder version.
 
-Both are runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/todo/` etc.
+All runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/todo/` etc.
 
 ## Common gotchas
 
@@ -96,6 +98,8 @@ Both are runnable via `npm run serve` then opening `http://127.0.0.1:3000/exampl
 - Sinks are held via `WeakRef` ([core.ts:421](core.ts#L421)). Dropping the only strong reference unsubscribes silently. Tests keep `connect([])`'s return alive in a local for this reason.
 - `between()` and similar range operators with reactive bounds (`ViewProxy` args) track their inputs reactively; with plain values they don't.
 - Mutations on nested data work transparently: `res.a.b.c = 1` triggers the right notification cascade. No need for immutable updates.
+- JSX `<label>{vp}</label>` routes through `.text(vp)` because there's no function sibling — preserves the host element across reactive updates. Adding a function child (`<div>{[vp, fn]}</div>` for a data binding) flips both children to the data path so `node.data = vp` and `node.fn = fn`. See the discriminator at [jsx/index.ts](jsx/index.ts) — `hasRowFn`. Don't author a single-VP child expecting iteration; use `<For>` or the `[vp, fn]` shorthand.
+- Don't author a JSX row generator as `node(<Fragment>…</Fragment>)`. Fragment evaluates to an array, and `Node.add` treats array args as `node.static = arr` — silently breaks the row template. Use multiple positional args instead: `node(<div/>, <span/>, …)`.
 
 ## Working conventions in this repo (please follow)
 

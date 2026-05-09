@@ -201,6 +201,25 @@ render(document.body,
 
 todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
 </pre>
+    <h2 style="margin-top:1rem">or in jsx</h2>
+    <p class="muted" style="max-width:60ch">
+      <code class="inline">h</code> returns the same NodeProxy AST the builder produces, so <code class="inline">render()</code> walks an identical tree and DOMSink keeps doing per-key surgical updates — element identity and focus survive across reactive changes. Worked examples: <a href="./examples/todo-jsx/">todo-jsx</a>, <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
+    </p>
+<pre class="code">/** @jsx h */
+import { $, render, h, For } from 'data/full'
+
+const todos = $([{ task: 'foo' }, { task: 'bar' }])
+
+render(document.body,
+  &lt;ul&gt;
+    &lt;For each={todos} tag="li"&gt;
+      {(item) =&gt; &lt;li&gt;{item.task}&lt;/li&gt;}
+    &lt;/For&gt;
+  &lt;/ul&gt;
+)
+
+todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
+</pre>
   </section>
 
 </main>
@@ -210,7 +229,10 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
   <span><a href="https://www.npmjs.com/package/data">npm</a></span>
   <span><a href="./examples/crossfilter/">crossfilter</a></span>
   <span><a href="./examples/todo/">todo</a></span>
+  <span><a href="./examples/crossfilter-jsx/">crossfilter-jsx</a></span>
+  <span><a href="./examples/todo-jsx/">todo-jsx</a></span>
   <span><a href="./operators/README.md">operators</a></span>
+  <span><a href="./comparisons.html">comparisons</a></span>
   <span><a href="./README.md">readme</a></span>
   <span class="spacer"></span>
   <span class="lic">MIT</span>
