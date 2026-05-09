@@ -9,6 +9,12 @@
 // use a subset of operators can import from `data` (the lean entry) and call
 // the function-style API exported by individual operator modules.
 export * from './index.ts'
+// JSX authoring layer. Re-exported here (rather than as its own dist entry)
+// so the host element identity (NodeProxy class, NODE/view symbols) stays
+// shared with `render`, `HTML`, `SVG`. With separate bundles, each entry
+// gets its own NodeProxy class and `instanceof` checks across bundles fail —
+// folding JSX into `data/full` keeps everything one bundle, one identity.
+export { h, Fragment, For } from './jsx/index.ts'
 
 import { isArray } from './utils.ts'
 import { Operators } from './core.ts'
