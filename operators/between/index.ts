@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { isArray, iter, left } from '../../utils.ts'
-import { Operator, ViewProxy, createOperator } from '../../core.ts'
+import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
 
 // BetweenValue is the range filter. The user calls `data.between('col', [lo,
 // hi])` typically with reactive bounds (a brush rectangle on a chart) — the
@@ -26,13 +26,17 @@ export class BetweenValue extends Operator {
     // O(log n) bisect that lets us advance lo_index/hi_index incrementally.
     this.find = left(d => { return this.p.value[d][col] })
 
-    // Two flavours of reactive arg: a single ViewProxy that yields
-    // `[lo, hi]` snapshots, or a tuple of two separately-reactive bounds.
+    // Three flavours of arg: a single ViewProxy that yields `[lo, hi]`
+    // snapshots, a tuple of two separately-reactive bounds, or a tuple of
+    // plain numbers. Plain values are wrapped in $() so the connect machinery
+    // is uniform — the wrapped proxy is captured-once and never updated.
     if (arg instanceof ViewProxy) {
       arg.connect(this, 'extent')
     } else {
-      arg[0].connect(this, 'lo')
-      arg[1].connect(this, 'hi')
+      this._loSrc = arg[0] instanceof ViewProxy ? arg[0] : $(arg[0])
+      this._hiSrc = arg[1] instanceof ViewProxy ? arg[1] : $(arg[1])
+      this._loSrc.connect(this, 'lo')
+      this._hiSrc.connect(this, 'hi')
     }
     this.XU0(p.value)
   }

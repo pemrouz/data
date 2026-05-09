@@ -4,6 +4,25 @@ import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { between } from './index.ts'
 
+// Regression: between() with plain numeric bounds previously threw
+// `arg[0].connect is not a function` because it called .connect on raw
+// numbers. The README and operators/README explicitly document plain bounds
+// as valid ("captured once"), so this is a doc/code contract gap.
+test('between - plain numeric bounds', () => {
+  const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
+  const filtered = between(all, 'num', [20, 80])
+  same(filtered[value], { 3: { num: 50 } })
+})
+
+test('between - mixed reactive/plain bounds', () => {
+  const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
+  const lo = $(20)
+  const filtered = between(all, 'num', [lo, 80])
+  same(filtered[value], { 3: { num: 50 } })
+  lo[value] = 5
+  same(filtered[value], { 2: { num: 10 }, 3: { num: 50 } })
+})
+
 test('between - reactive bounds', async () => {
   const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
   const filters = $({ lo: 20, hi: 80 })
