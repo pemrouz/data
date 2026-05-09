@@ -25,7 +25,7 @@ map in [package.json](package.json):
 | `data`           | [index.ts](index.ts)              | Lean core: `$`, `value`, `render`, `HTML`, `SVG`, `Operators`, `createOperator`. No operator dispatch registered. |
 | `data/full`      | [full.ts](full.ts)                | Strict superset of `data` — same exports plus JSX helpers (`h`, `Fragment`, `For`), with the side effect of registering every operator on the dispatch table. |
 | `data/render`    | [render/index.ts](render/index.ts) | Just the DOM render layer (`render`, `HTML`, `SVG`). |
-| `data/devtools`  | [devtools/index.ts](devtools/index.ts) | Opt-in inspection helpers — importing this attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight` (and lazily `$.trace`/`$.profile`) onto the canonical `$`. |
+| `data/devtools`  | [devtools/index.ts](devtools/index.ts) | Opt-in inspection helpers — importing this attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`, `$.profile` onto the canonical `$`, AND lazy-loads + auto-mounts an in-page overlay panel ([devtools/panel/](devtools/panel/)) with Graph / Events / Profile tabs and a DOM picker. Append `?nopanel` to the URL to suppress the panel; `$.devtools.panel.{open,close}()` for explicit control. |
 
 Tests do **not** require a build: `node --experimental-strip-types` reads
 `.ts` directly. Run `npm test`. Examples *do* require a build because they

@@ -36,10 +36,13 @@ import { $, value, render, HTML } from 'data'
 // who want the rendering primitives without pulling the reactive runtime.
 import { render, HTML, SVG } from 'data/render'
 
-// `data/devtools` — opt-in console inspection helpers. Side-effecting: importing
-// it attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, etc. onto the
-// canonical `$`. Only load it when you want the helpers (gate behind a query
-// param in production). See [devtools/README.md](devtools/README.md).
+// `data/devtools` — opt-in inspection helpers. Side-effecting: importing it
+// attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
+// `$.profile` onto the canonical `$`, AND auto-mounts a draggable overlay
+// panel into a closed Shadow DOM root with Graph / Events / Profile tabs and
+// a DOM picker. Append `?nopanel` to suppress the panel; only load this entry
+// when you want the helpers (gate behind a query param in production).
+// See [devtools/README.md](devtools/README.md).
 import 'data/devtools'
 ```
 
@@ -281,7 +284,11 @@ npm run serve
 │   └── index.ts      — h, Fragment, For (JSX adapter over HTML/SVG)
 ├── devtools/
 │   ├── README.md     — `data/devtools` reference
-│   └── index.ts      — opt-in $.inspect/$.graph/$.fromDOM/$.highlight (+ trace/profile)
+│   ├── index.ts      — opt-in $.inspect/$.graph/$.fromDOM/$.highlight + $.trace/$.profile
+│   ├── walk.ts       — pure graph walk + iterRoots + summarize + classify
+│   ├── instrument.ts — View.prototype monkey-patch (gated by trace/profile)
+│   ├── events.ts     — trace dispatch + profile bucketing + re-entrancy depth
+│   └── panel/        — overlay UI: shell, state, graph/events/profile tabs, DOM picker
 └── examples/
     ├── todo/         and todo-jsx/         (same app, two authoring styles)
     └── crossfilter/  and crossfilter-jsx/

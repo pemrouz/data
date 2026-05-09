@@ -581,6 +581,35 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   display: flex; gap: 1rem; flex-wrap: wrap;
 }
 
+/* ---------- devtools ---------- */
+
+.devtools .devtools-cols {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 1rem;
+}
+@media (max-width: 720px) {
+  .devtools .devtools-cols { grid-template-columns: 1fr; }
+}
+.devtools h3 {
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 0.75rem;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.devtools h3::before { content: '// '; color: var(--fg-faint); }
+.devtools .devtools-bullets {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--fg);
+}
+.devtools .devtools-bullets li { margin-bottom: 0.5rem; }
+.devtools .devtools-bullets b { color: var(--accent); font-weight: 500; }
+
 /* ---------- install ---------- */
 
 .install pre.code { margin-bottom: 1rem; }

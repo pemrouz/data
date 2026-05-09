@@ -169,7 +169,45 @@ trades.length(d =&gt; d.tenor)</pre>
     <noscript><p class="muted">JavaScript is required to render the demo. Source: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
   </section>
 
-  <!-- 6. install -->
+  <!-- 6. devtools -->
+  <section class="devtools stack" style="--gap:1rem">
+    <h2>devtools</h2>
+    <p class="muted" style="max-width:62ch">
+      Importing <code class="inline">data/devtools</code> attaches a handful of helpers to <code class="inline">$</code> for the browser console, and auto-mounts a draggable overlay panel into a closed Shadow DOM root. Append <code class="inline">?devtools</code> to either example below to try it; the panel itself ships as a separate ~30 KB chunk that's lazy-loaded only when you import the entry.
+    </p>
+    <div class="devtools-cols">
+      <div>
+        <h3>console api</h3>
+<pre class="code">import 'data/devtools'
+
+$.inspect(items)        // { key, value, parent, children, sinks }
+$.graph()               // every live root, recursive
+$.fromDOM($0)           // proxy for whichever view binds the
+                        // DOM element you picked in the inspector
+$.highlight(filtered)   // outline DOM regions bound to a view
+
+const stop = $.trace(items)         // log every notification
+const p    = $.profile(items)       // per-operator timing
+p.stop().byOperator                 // sorted by totalMs desc</pre>
+      </div>
+      <div>
+        <h3>overlay panel</h3>
+        <p>Four surfaces over the same hooks:</p>
+        <ul class="devtools-bullets">
+          <li><b>Graph</b> — collapsible tree for the selected root, with a "show internal" toggle for devtools-internal roots.</li>
+          <li><b>Events</b> — push-driven live tail of <code class="inline">$.trace</code> events, with pause/resume, clear, and verb/key substring filter.</li>
+          <li><b>Profile</b> — start/stop drives <code class="inline">$.profile()</code>; a 500ms-polled report renders as a sortable table.</li>
+          <li><b>DOM picker</b> — armed crosshair; click any page element to walk to its <code class="inline">__ripple_sink</code> and select that root in the Graph tab.</li>
+        </ul>
+        <p class="muted" style="font-size:0.875rem">
+          <a href="./examples/todo/?devtools">todo with panel →</a> ·
+          <a href="./examples/crossfilter/?devtools">crossfilter with panel →</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. install -->
   <section class="install stack" style="--gap:1rem">
     <h2>install</h2>
     <div class="install-cmd">npm install data</div>
