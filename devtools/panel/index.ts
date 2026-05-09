@@ -6,8 +6,10 @@
 import { value } from '../../core.ts'
 import { createShell, type Shell } from './shell.ts'
 import { getPanelState, resetPanelState } from './state.ts'
+import { createGraphTab } from './graph.ts'
 
 let current: Shell | null = null
+let graphTab: ReturnType<typeof createGraphTab> | null = null
 
 export function mount(): Shell | null {
   if (typeof document === 'undefined') return null
@@ -40,20 +42,32 @@ export function mount(): Shell | null {
   return current
 }
 
-// Tab content modules (Graph/Events/Profile) land in commits 5–7. For
-// now each tab shows a placeholder so users can verify routing works.
+// Tab dispatch. Graph tab is wired here; Events/Profile/Picker land in
+// commits 6–8. Each tab module owns its own subscriptions and is disposed
+// when the user switches away (so we don't accumulate trace listeners).
 function renderTab(name: string) {
   if (!current) return
   const body = current.body
   body.innerHTML = ''
+
+  // Tear down the previous tab's subscriptions before installing the new one.
+  if (graphTab) { graphTab.dispose(); graphTab = null }
+
+  if (name === 'graph') {
+    graphTab = createGraphTab()
+    graphTab.render(body)
+    return
+  }
+
   const empty = document.createElement('div')
   empty.className = 'empty'
-  empty.textContent = `${name} tab content lands in commits 5–8`
+  empty.textContent = `${name} tab content lands in a later commit`
   body.appendChild(empty)
 }
 
 export function unmount() {
   if (!current) return
+  if (graphTab) { graphTab.dispose(); graphTab = null }
   current.destroy()
   current = null
   resetPanelState()

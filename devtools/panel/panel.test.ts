@@ -16,14 +16,21 @@ function installDomStub() {
       children: [] as any[],
       style: new Proxy({}, { set: (t, k, v) => { t[k] = v; return true } }),
       dataset: {},
-      classList: {
-        _set: new Set<string>(),
-        add(c: string) { this._set.add(c) },
-        remove(c: string) { this._set.delete(c) },
-        toggle(c: string, on: boolean) {
-          if (on) this._set.add(c); else this._set.delete(c)
-        },
-        contains(c: string) { return this._set.has(c) },
+      _classList: new Set<string>(),
+      get classList() {
+        const set = this._classList
+        return {
+          _set: set,
+          add(c: string) { set.add(c) },
+          remove(c: string) { set.delete(c) },
+          toggle(c: string, on: boolean) { if (on) set.add(c); else set.delete(c) },
+          contains(c: string) { return set.has(c) },
+        }
+      },
+      get className() { return [...this._classList].join(' ') },
+      set className(v: string) {
+        this._classList.clear()
+        for (const c of String(v).split(/\s+/)) if (c) this._classList.add(c)
       },
       _attrs: {} as Record<string, string>,
       setAttribute(k: string, v: string) { this._attrs[k] = v },
@@ -58,6 +65,11 @@ function installDomStub() {
   const docBody = makeEl('body')
   globalThis.document = {
     createElement: (t: string) => makeEl(t),
+    createTextNode: (text: string) => {
+      const n: any = makeEl('#text')
+      n.textContent = text
+      return n
+    },
     body: docBody,
   } as any
   globalThis.localStorage = {
@@ -117,6 +129,46 @@ test('panel/state - getPanelState returns a singleton, marked internal', async (
   ok(_devtoolsInternalRoots.has(a[view]), 'panel state should be registered as internal')
   strictEqual(a[value].activeTab, 'graph', 'default activeTab is graph')
   resetPanelState()
+})
+
+test('panel/graph - renders root selector and tree from $.graph()', async () => {
+  installDomStub()
+  // Stub rAF so the throttled rewalk fires synchronously in the test.
+  globalThis.requestAnimationFrame = (fn: any) => { fn(); return 0 }
+  const { mount, unmount } = await import('./index.ts')
+  const { $ } = await import('../../core.ts')
+  await import('../../full.ts')   // register operators so .filter works
+  await import('../index.ts')      // attach $.trace etc.
+  // Create a small root with an operator chain so the graph tab has
+  // something to render.
+  const data = $({ x: { active: true, n: 1 } })
+  const _filter = data.filter(d => d.active)
+  const _length = _filter.length()
+
+  const shell = mount()!
+  shell.setActiveTab('graph')
+
+  // Graph tab body should now contain the toolbar and tree.
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const toolbar = findEl(shell.body, (el) => el.classList?.contains?.('gt-toolbar'))
+  ok(toolbar, 'graph tab should render its toolbar')
+  const select = findEl(shell.body, (el) => el.tagName === 'SELECT')
+  ok(select, 'graph tab should render a root selector')
+  const tree = findEl(shell.body, (el) => el.classList?.contains?.('gt-tree'))
+  ok(tree, 'graph tab should render the tree container')
+  // Tree should contain at least one node row (the root) and ideally the
+  // operator descendants. Just assert the tree is non-empty.
+  ok((tree.children || []).length > 0, 'tree should render at least one node')
+
+  unmount()
+  ok(_filter && _length)
 })
 
 test('panel/state - mutations route through and persist subset to localStorage', async () => {

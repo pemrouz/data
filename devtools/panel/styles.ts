@@ -95,4 +95,71 @@ export default `
   text-align: center;
   padding: 24px 8px;
 }
+
+/* Graph tab */
+.gt-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.gt-label { color: #888; }
+.gt-select {
+  background: #161616;
+  color: #e6e6e6;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
+}
+.gt-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #888;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gt-tree { line-height: 1.6; }
+.gt-node details { padding-left: 0; }
+.gt-children { padding-left: 16px; border-left: 1px dotted #2a2a2a; margin-left: 4px; }
+.gt-node summary { cursor: pointer; list-style: none; }
+.gt-node summary::-webkit-details-marker { display: none; }
+.gt-node summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 12px;
+  color: #555;
+  transition: transform 0.1s;
+}
+.gt-node details[open] > summary::before { transform: rotate(90deg); }
+.gt-badge {
+  display: inline-block;
+  padding: 0 4px;
+  margin-right: 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #2a2a2a;
+  color: #888;
+}
+.gt-root { background: #2d3a2d; color: #9be3a8; }
+.gt-child { background: #2a2a2a; color: #888; }
+.gt-operator { background: #2d3447; color: #9bb3e3; }
+.gt-dom { background: #3a2d2d; color: #e39b9b; }
+.gt-connect { background: #3a3727; color: #e3c98e; }
+.gt-linked-alias { background: #2d2d3a; color: #b39be3; }
+.gt-cycle { background: #4a2929; color: #ffaaaa; }
+.gt-rowlabel { color: #ddd; }
+
+.__ripple_highlight {
+  outline: 2px solid #9be3a8 !important;
+  outline-offset: 2px;
+}
 `
