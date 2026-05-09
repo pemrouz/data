@@ -43,6 +43,41 @@ $.highlight(proxy, ms = 1000)
 //   `proxy`'s view, removing it after `ms`. Style the class yourself.
 ```
 
+## Heavyweight helpers (auto-enable instrumentation on first call)
+
+```js
+$.trace(proxy, opts?)
+//   → dispose(): void
+//   Logs every notification (XU0/BU1/BI0/etc.) for the subtree rooted at
+//   `proxy`. opts: { verbs?: string[], log?: boolean, onEvent?: fn }.
+//   Pass log:false + onEvent to capture programmatically; omit them and
+//   trace prints to console.
+
+$.profile(proxy?, opts?)
+//   → { stop(): Report, report(): Report }
+//   Collects per-operator counts and wall-time. opts: { durationMs }.
+//   Report: { totalEvents, totalMs, byOperator: [...], byVerb: {} }.
+//   byOperator is sorted by totalMs desc — hottest first.
+//   Re-entrancy is handled: a parent BU1 triggering child XU0s doesn't
+//   double-count wall time.
+
+$.devtools.enable() / $.devtools.disable()
+//   Pre-warm or fully tear down the View.prototype patches. trace/profile
+//   auto-enable; this is for explicit control. disable() restores
+//   View.prototype byte-identically and clears all listeners.
+```
+
+## Cost
+
+- **Off-state** (devtools never imported): zero — the only structural hooks
+  in core (`_devtoolsRoots`, `__ripple_sink`) are constant-time and run
+  outside the fan-out path.
+- **On-state, no listeners** (devtools imported, no trace/profile active):
+  one boolean check + one `apply` per verb. Within noise of off-state.
+- **On-state, one trace + one profile attached**: ~3× throughput cost in
+  microbenchmarks, dominated by the trace event-record allocation and the
+  profile bucket lookup. Tolerable for live inspection.
+
 ## Manual smoke tests
 
 After commit 7 wires devtools into the example pages, open

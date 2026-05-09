@@ -327,6 +327,74 @@ test('instrument - re-entrancy: nested verb calls don\'t double-count wall time'
   ok(acc.ms < 1000, `wall time should be small, got ${acc.ms}`)
 })
 
+test('$.trace - captures events for the subtree, disposer stops capture', () => {
+  const data = $({ a: 1, b: 2 })
+  const events = []
+  const stop = $.trace(data, { log: false, onEvent: (ev) => events.push(ev) })
+  data.a = 10
+  data.b = 20
+  stop()
+  const captured = events.length
+  data.a = 99
+  strictEqual(events.length, captured, 'no further events after dispose')
+  ok(captured >= 2, `expected >=2 events captured, got ${captured}`)
+  $.devtools.disable()
+})
+
+test('$.trace - ancestor scoping skips events outside the traced subtree', () => {
+  const data = $({ foo: { x: 1 }, bar: { y: 1 } })
+  const events = []
+  const stop = $.trace(data.foo, { log: false, onEvent: (ev) => events.push(ev) })
+  data.bar.y = 999
+  data.foo.x = 999
+  stop()
+  ok(events.length >= 1, 'foo mutation should be captured')
+  ok(!events.some(e => e.key.includes('bar')), 'bar mutations should not leak')
+  $.devtools.disable()
+})
+
+test('$.profile - accumulates report; stop returns sorted byOperator', () => {
+  const data = $({})
+  const filtered = data.filter(d => d.active)
+  const counted = filtered.length()
+  const p = $.profile(data)
+  for (let i = 0; i < 100; i++) data['k' + i] = { active: i % 3 === 0 }
+  const r = p.stop()
+  ok(r.totalEvents >= 100, `expected >=100 events, got ${r.totalEvents}`)
+  ok(r.byOperator.length > 0, 'expected at least one operator bucket')
+  // Sorted by totalMs descending — verify monotonic.
+  for (let i = 1; i < r.byOperator.length; i++) {
+    ok(r.byOperator[i - 1].totalMs >= r.byOperator[i].totalMs, 'sorted by totalMs desc')
+  }
+  ok(counted)
+  $.devtools.disable()
+})
+
+test('$.profile - report() returns snapshot without stopping', () => {
+  const data = $({})
+  const p = $.profile(data)
+  data.x = 1
+  const r1 = p.report()
+  data.y = 2
+  const r2 = p.report()
+  ok(r2.totalEvents >= r1.totalEvents, 'report() reflects new events')
+  p.stop()
+  $.devtools.disable()
+})
+
+test('$.devtools.disable - restores View.prototype byte-identical', () => {
+  const data = $({ a: 1 })
+  const origXU0 = View.prototype.XU0
+  $.trace(data, { log: false })
+  ok(View.prototype.XU0 !== origXU0, 'patched after trace()')
+  $.devtools.disable()
+  strictEqual(View.prototype.XU0, origXU0, 'restored after disable()')
+  // After disable, mutations don't accumulate any state.
+  data.a = 2
+  strictEqual(traceTargets.size, 0)
+  strictEqual(profilers.size, 0)
+})
+
 test('$.highlight - adds and schedules removal of __ripple_highlight class', () => {
   const data = $({ items: {} })
   const calls = []
