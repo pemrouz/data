@@ -95,6 +95,24 @@ test('sort (za) - middle row promoted to top (bisect on stale slot)', () => {
   same(top3[value], [{ vol: 950 }, { vol: 900 }, { vol: 850 }])
 })
 
+// Regression: out-of-window value updates with no rank change still emitted
+// `super.BU1([oidx, value])` where oidx >= n, growing view.value past `n`
+// (the materialized window). Found via stress test where a churning ticker
+// pushed the top-50 view to 60+ entries after a few thousand updates.
+test('sort (za) - out-of-window updates do not grow the window', () => {
+  const data = $({
+    A: { vol: 900 }, B: { vol: 850 }, C: { vol: 800 },
+    D: { vol: 750 }, E: { vol: 700 }, F: { vol: 650 },
+    G: { vol: 600 }, H: { vol: 550 },
+  })
+  const top3 = sort(data, 'vol', 3)
+  same(top3[value].length, 3)
+  data.E.vol = 695  // E was rank 4 (out), still rank 4
+  data.F.vol = 645  // F was rank 5, still rank 5
+  data.G.vol = 595  // ditto
+  same(top3[value].length, 3)
+})
+
 // In-window rank rotation should be emitted as a single 'move' event rather
 // than per-position 'update' events. Sinks that care about identity (DOMSink
 // uses insertBefore on the same element) preserve it; sinks without BMV1

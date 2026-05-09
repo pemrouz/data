@@ -87,7 +87,13 @@ export class ZAValue extends Operator {
       sorted.splice(oidx, 1)
       let nidx = this.find(this.col(this.p.value[name]))
       sorted.splice(nidx, 0, name)
-      if (oidx === nidx) { super.BU1([oidx, value]); continue }
+      // No rank change: only forward the value update if the row is in the
+      // visible window. Otherwise we'd write `view.value[oidx] = value` past
+      // `n`, growing the materialized window past its limit.
+      if (oidx === nidx) {
+        if (oidx < n) super.BU1([oidx, value])
+        continue
+      }
       if (oidx >= n && nidx >= n) {}
       else if (oidx >= n && nidx <  n) {
         super.BR1A([n - 1])
