@@ -26,6 +26,7 @@ import { MapValue } from './operators/map/index.ts'
 import { GroupValue } from './operators/group/index.ts'
 import { LengthValue, LengthFnValue } from './operators/length/index.ts'
 import { IntersectValue } from './operators/intersect/index.ts'
+import { SumValue, AvgValue, MaxValue, MinValue } from './operators/aggregate/index.ts'
 
 // Operator dispatch table. Each entry receives the call arguments and returns
 // the appropriate Operator subclass — letting one method name (`filter`,
@@ -50,3 +51,10 @@ Operators['za']        = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANum
 Operators['top']       = () => ZANumberValue
 Operators['az']        = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANumberValue
 Operators['limit']     = () => LimitValue
+// Scalar aggregates: each takes an optional column accessor, returns a
+// single-value reactive view. sum/avg are O(1) per change; max/min recompute
+// O(n) per change (simple-correct, swap in a sorted multiset if it bottlenecks).
+Operators['sum']       = () => SumValue
+Operators['avg']       = () => AvgValue
+Operators['max']       = () => MaxValue
+Operators['min']       = () => MinValue

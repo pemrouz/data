@@ -79,6 +79,10 @@ type Data<T = any> = { [k in keyof T]: Data<T[k]> } & {
   map<R>(fn: (row: RowOf<T>) => R): Data<Record<string, R>>
   length(): Data<number>
   length<R>(fn: (row: RowOf<T>) => R): Data<Record<R, number>>
+  sum(col?: string): Data<number>
+  avg(col?: string): Data<number>
+  max(col?: string): Data<any>
+  min(col?: string): Data<any>
   za(column: string, max?: number): Data<T>
   za(max?: number): Data<T>
   az(column: string, max?: number): Data<T>
