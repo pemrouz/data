@@ -44,6 +44,18 @@ export function bisect_right(v, lo = 0, hi = this.sorted.length) {
   return lo;
 }
 
+// Left-bisect for ascending-sorted arrays. Mirror of bisect_right above —
+// AZValue.prototype.find uses this so the rank-tracking machinery in BU1/BI0
+// works against ascending order without a parallel codepath.
+export function bisect_left(v, lo = 0, hi = this.sorted.length) {
+  while (lo < hi) {
+    const mid = lo + hi >>> 1;
+    if (this.col(this.p.value[this.sorted[mid]]) < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 export function find(a, v, lo = 0, hi = a.length) {
   while (lo < hi) {
     const mid = lo + hi >>> 1;

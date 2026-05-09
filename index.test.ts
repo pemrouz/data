@@ -1262,7 +1262,44 @@ test('update (dir, dir)', () => {
     ])
     same(changes5, [ { type: 'update', key: [], value: undefined } ])
   })
-  
+
+  // Regression: `az` was registered to the same ZAColumnValue/ZANumberValue
+  // as `za`, so `proxy.az(...)` silently produced descending order.
+  test('az - sorts ascending (not descending like za)', () => {
+    const data = $({
+      a: { v: 3 },
+      b: { v: 1 },
+      c: { v: 2 },
+      d: { v: 5 },
+      e: { v: 4 },
+    })
+    const desc = data.za('v', 3)
+    const asc  = data.az('v', 3)
+    same(desc[value], [{ v: 5 }, { v: 4 }, { v: 3 }])
+    same(asc[value],  [{ v: 1 }, { v: 2 }, { v: 3 }])
+  })
+
+  test('az - tracks rank changes incrementally', () => {
+    const data = $({ a: 3, b: 1, c: 2, d: 5, e: 4 })
+    const asc = data.az(3)
+    same(asc[value], [1, 2, 3])
+    data.b = 99    // 1 leaves the window
+    same(asc[value], [2, 3, 4])
+    data.f = 0     // 0 enters the window at top
+    same(asc[value], [0, 2, 3])
+  })
+
+  test('az / za - independent dedup despite same (col, n)', () => {
+    const data = $({ a: { v: 3 }, b: { v: 1 }, c: { v: 2 } })
+    const asc1 = data.az('v', 2)
+    const asc2 = data.az('v', 2)
+    const desc = data.za('v', 2)
+    same(asc1[value], asc2[value])  // same args → same view
+    // Order differs — proves different operator classes despite same args
+    same(asc1[value], [{ v: 1 }, { v: 2 }])
+    same(desc[value], [{ v: 3 }, { v: 2 }])
+  })
+
   // --------------------------------------
   // between
   test('between - variable', async () => {

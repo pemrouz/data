@@ -20,7 +20,7 @@ import { isArray } from './utils.ts'
 import { Operators } from './core.ts'
 import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } from './operators/filter/index.ts'
 import { BetweenValue } from './operators/between/index.ts'
-import { ZAColumnValue, ZANumberValue, LimitValue } from './operators/sort/index.ts'
+import { ZAColumnValue, ZANumberValue, AZColumnValue, AZNumberValue, LimitValue } from './operators/sort/index.ts'
 import { ToValue } from './operators/to/index.ts'
 import { MapValue } from './operators/map/index.ts'
 import { GroupValue } from './operators/group/index.ts'
@@ -44,12 +44,12 @@ Operators['map']       = () => MapValue
 Operators['length']    = (fn) => typeof fn === 'function' ? LengthFnValue : LengthValue
 Operators['intersect'] = () => IntersectValue
 Operators['group']     = () => GroupValue
-// za/az/top all share ZAValue's machinery — direction is encoded in the
-// column accessor rather than a separate flag, and `top` is just `za` with
-// the identity column accessor (rows compared as-is).
+// za sorts descending, az sorts ascending. `top` is `za` with no column —
+// rows compared as-is — useful when the source itself is comparable
+// (numbers, dates, strings) rather than rows-with-columns.
 Operators['za']        = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANumberValue
 Operators['top']       = () => ZANumberValue
-Operators['az']        = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANumberValue
+Operators['az']        = (a, b) => typeof a === 'string' ? AZColumnValue : AZNumberValue
 Operators['limit']     = () => LimitValue
 // Scalar aggregates: each takes an optional column accessor, returns a
 // single-value reactive view. sum/avg are O(1) per change; max/min recompute

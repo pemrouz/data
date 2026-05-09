@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isArray, bisect_right } from '../../utils.ts'
+import { isArray, bisect_right, bisect_left } from '../../utils.ts'
 import { Operator, value, createOperator } from '../../core.ts'
 
 // ZAValue is the descending sort + top-n. State:
@@ -253,6 +253,48 @@ export class ZAColumnValue extends ZAValue {
 }
 
 export class ZANumberValue extends ZAValue {
+  constructor(p, n = Infinity){
+    super(p, d => d, value, n)
+  }
+}
+
+// AZValue mirrors ZAValue but sorts ascending. Same state shape, same
+// rank-tracking machinery — only the initial sort comparator and the
+// bisect direction flip. All BU1/BR1/BI0/BR2/BU2/BI2 logic in ZAValue is
+// inherited unchanged because it only ever consults `this.find` and
+// `this.sorted`, both of which now follow ascending order.
+//
+// Why a subclass instead of a `dir` flag on ZAValue: keeping the two
+// orderings as distinct classes lets `instanceof` separate them in the
+// dedup check, so `proxy.za('col')` and `proxy.az('col')` never collide
+// in the matches() lookup even though they share `col_name` and `n`.
+export class AZValue extends ZAValue {
+  XU0(value) {
+    if (typeof value !== 'object') return this.XR0()
+    this.sorted = Object
+      .keys(value)
+      .sort((a, b) => {
+        const va = this.col(value[a])
+        const vb = this.col(value[b])
+        return va > vb ?  1
+             : va < vb ? -1
+                       :  0
+      })
+    this.view.XU0(this.view.value = this.sorted
+      .slice(0, this.n)
+      .map(i => value[i])
+    )
+  }
+}
+AZValue.prototype.find = bisect_left
+
+export class AZColumnValue extends AZValue {
+  constructor(p, col, n = Infinity){
+    super(p, d => d[col], col, n)
+  }
+}
+
+export class AZNumberValue extends AZValue {
   constructor(p, n = Infinity){
     super(p, d => d, value, n)
   }
