@@ -1,0 +1,168 @@
+/* Page-specific styles for comparisons.html. Loads after landing.css and reuses
+   its variables (--bg, --fg, --rule, --accent, --mono, --sans, etc.). */
+
+.comparisons-hero {
+  padding: 3rem 0 2.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.comparisons-hero h1 {
+  font: 500 clamp(2.5rem, 7vw, 4rem)/1 var(--mono);
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.comparisons-hero h1::before {
+  content: '// ';
+  color: var(--fg-faint);
+  font-weight: 400;
+}
+.comparisons-hero .lede {
+  margin-top: 1.25rem;
+  max-width: 60ch;
+  color: var(--fg);
+  font-size: 1.125rem;
+}
+.comparisons-hero .frame {
+  margin-top: 1rem;
+  color: var(--fg-dim);
+  max-width: 60ch;
+}
+
+/* ---------- tables ---------- */
+
+table.matrix, table.bench {
+  width: 100%;
+  border-collapse: collapse;
+  font: 0.8125rem var(--mono);
+  margin: 1.5rem 0;
+}
+table.matrix th, table.matrix td,
+table.bench th, table.bench td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+table.matrix th, table.bench th {
+  font-weight: 500;
+  color: var(--fg-dim);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+}
+table.matrix td:first-child {
+  color: var(--fg);
+}
+table.matrix td.tick   { color: var(--pos); }
+table.matrix td.cross  { color: var(--fg-faint); }
+table.matrix td.partial { color: var(--ten-10y); }
+
+table.bench td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+table.bench tr.self td {
+  background: linear-gradient(0deg, var(--accent-2), var(--accent-2));
+}
+table.bench tr.self td:first-child {
+  color: var(--accent);
+}
+table.bench .notes {
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  max-width: 32ch;
+  white-space: normal;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg-2);
+}
+.scroll-x table { margin: 0; }
+.scroll-x table th { background: var(--bg-2); }
+
+/* ---------- per-peer sections ---------- */
+
+.peer {
+  padding: 2rem 0;
+  border-bottom: 1px dashed var(--rule);
+}
+.peer:last-of-type { border-bottom: 0; }
+
+.peer h3 {
+  font: 500 1rem var(--mono);
+  margin: 0 0 0.75rem;
+  color: var(--fg);
+}
+.peer h3 .peer-tag {
+  margin-left: 0.5rem;
+  color: var(--fg-faint);
+  font-weight: 400;
+  font-size: 0.8125rem;
+}
+.peer p {
+  max-width: 70ch;
+  margin: 0.75rem 0;
+  color: var(--fg);
+}
+.peer .summary {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-2);
+  font: 0.8125rem var(--mono);
+  color: var(--fg);
+}
+.peer .summary b { color: var(--accent); font-weight: 500; }
+
+.codepair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.codepair > div {
+  min-width: 0;
+}
+.codepair .label {
+  font: 0.75rem var(--mono);
+  color: var(--fg-dim);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+}
+.codepair pre.code {
+  margin: 0;
+  font-size: 0.75rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+@media (max-width: 720px) {
+  .codepair { grid-template-columns: 1fr; }
+  table.matrix, table.bench { font-size: 0.75rem; }
+  table.matrix th, table.matrix td,
+  table.bench th, table.bench td { padding: 0.4rem 0.5rem; }
+}
+
+/* ---------- where it loses callout ---------- */
+
+.tradeoffs {
+  padding: 2rem 0;
+}
+.tradeoffs ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  max-width: 70ch;
+}
+.tradeoffs li {
+  margin: 0.5rem 0;
+  color: var(--fg);
+}
+.tradeoffs li b { color: var(--accent); font-weight: 500; }
