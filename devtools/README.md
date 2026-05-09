@@ -41,6 +41,14 @@ Tabs:
 - **Profile** — start/stop button drives `$.profile(selectedRoot)`; a
   500ms-polled `report()` populates a sortable table (default sort by
   totalMs desc).
+- **Replay** — start/stop button drives `$.cascades(selectedRoot,
+  { captureState: true })`. Each recorded cascade carries a `state`
+  field (deep-cloned post-cascade snapshot of the source view's value).
+  The slider scrubs through the recorded history; the snapshot pane
+  renders the JSON of the state at the scrubbed cascade. NOTE: this
+  is "time-travel-lite" — the live View graph is not rewound, only
+  historical snapshots are displayed. Reverse-execution / true
+  rewind is a future commit.
 - **Flame** — start/stop button drives `$.cascades(selectedRoot)`; a
   500ms-polled `report()` populates a left-rail list of recorded
   cascades, and the right pane renders the picked cascade as a flame
@@ -118,6 +126,11 @@ $.cascades(proxy?, opts?)
 //   With no proxy, captures every cascade in the graph; with a proxy,
 //   only cascades whose first frame is at-or-under that root.
 //   opts.maxCascades caps the ring buffer (default 200; oldest evicted).
+//   opts.captureState:true populates a `state` field on each cascade —
+//   a structuredClone of the source view's value at cascade close (the
+//   post-cascade state). Used by the Replay tab. Off by default since
+//   structuredClone'ing the source value per cascade is meaningfully
+//   more expensive than the bare frame-recording path.
 //   Coalescing: sibling top-level patched-verb calls within one task
 //   tick merge into a single cascade — Value.BU1 splits into view.BU1 +
 //   view.BI0 internally, so without coalescing one user assignment

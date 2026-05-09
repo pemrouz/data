@@ -169,12 +169,16 @@ $.cascades = function cascades(proxy, opts = {}) {
   const recorder = {
     id,
     root: v,
-    opts: { maxCascades: opts.maxCascades ?? 200 },
+    opts: {
+      maxCascades: opts.maxCascades ?? 200,
+      captureState: !!opts.captureState,
+    },
     cascades: [],
     current: null,
     stack: null,
     cascadeStartT: 0,
     nextCascadeId: 1,
+    rootView: null,
   }
   cascadeRecorders.set(id, recorder)
   return {

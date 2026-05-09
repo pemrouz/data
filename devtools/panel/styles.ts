@@ -390,6 +390,48 @@ export default `
 .fl-frame[data-verb="BMV1"] { background: #3a3727; color: #e3c98e; }
 .fl-frame-label { pointer-events: none; }
 
+/* Replay tab */
+.rp-tab { display: flex; flex-direction: column; height: 100%; }
+.rp-toolbar {
+  display: flex; gap: 6px; align-items: center;
+  margin-bottom: 6px; padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+.rp-btn {
+  background: #161616; color: #ccc; border: 1px solid #333; border-radius: 3px;
+  padding: 2px 8px; font-family: inherit; font-size: 11px; cursor: pointer;
+}
+.rp-btn:hover { background: #222; }
+.rp-status { color: #888; font-size: 10px; }
+.rp-checkbox {
+  display: flex; align-items: center; gap: 4px;
+  color: #888; cursor: pointer; white-space: nowrap; font-size: 11px;
+  margin-left: auto;
+}
+.rp-scrub {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; padding: 4px 0;
+  border-bottom: 1px dotted #2a2a2a;
+  flex-shrink: 0;
+}
+.rp-slider { flex: 1; min-width: 0; cursor: pointer; }
+.rp-scrub-label {
+  color: #9be3a8; font-size: 10px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.rp-snapshot {
+  flex: 1; overflow: auto;
+  margin: 0; padding: 6px 8px;
+  background: #141414; color: #ddd;
+  border: 1px solid #2a2a2a; border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* Hover inspector sidecar. Mounted inside the panel's shadow root and
    positioned with viewport coords so it follows the cursor. */
 .ho-sidecar {

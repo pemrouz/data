@@ -588,6 +588,32 @@ test('$.cascades - stop disposer cleans up; further mutations don\'t append', ()
   $.devtools.disable()
 })
 
+test('$.cascades - captureState:true records post-cascade state snapshot per cascade', () => {
+  const data = $({ a: 1, b: 2 })
+  const rec = $.cascades(data, { captureState: true })
+  data.a = 10
+  const out = rec.stop()
+  ok(out.length >= 1, 'expected at least one cascade')
+  const c = out[0]
+  ok(c.state, 'state snapshot should be present')
+  strictEqual(c.state.a, 10, 'state.a should be the post-mutation value')
+  strictEqual(c.state.b, 2, 'unmutated keys should still appear in the snapshot')
+  // Snapshot is a deep clone — mutating it later must not affect the
+  // live data (verifies we structuredClone'd the value, not aliased it).
+  c.state.a = 999
+  ok(data.a[value] === 10, 'snapshot is independent of live data')
+  $.devtools.disable()
+})
+
+test('$.cascades - captureState:false (default) leaves state undefined', () => {
+  const data = $({ a: 1 })
+  const rec = $.cascades(data)  // no captureState option
+  data.a = 2
+  const [c] = rec.stop()
+  strictEqual(c.state, undefined)
+  $.devtools.disable()
+})
+
 test('$.cascades - disable() restores View.prototype and clears recorders', () => {
   const origXU0 = View.prototype.XU0
   const data = $({ a: 1 })

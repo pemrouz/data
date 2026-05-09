@@ -103,6 +103,19 @@ export function isAtTopOfStack() { return depth === 0 }
 // sibling top-level frame arriving synchronously extends the same
 // cascade. flushPendingClose() commits eagerly when the public API
 // asks (stop/report/clear), so callers don't need to await microtasks.
+// snapshotValue(view) — best-effort deep clone of the source value at the
+// moment we capture it. structuredClone fails on non-plain objects (DOM
+// nodes, functions, etc.); fall back to a JSON round-trip and finally to
+// the live ref if both fail. Snapshots are only captured when the recorder
+// was started with { captureState: true } so this cost stays opt-in.
+function snapshotValue(view) {
+  const v = view?.value
+  if (v === undefined || v === null) return v
+  try { return structuredClone(v) } catch {}
+  try { return JSON.parse(JSON.stringify(v)) } catch {}
+  return v
+}
+
 export function enterCascadeFrame(view, verb) {
   if (!cascadeRecorders.size) return
   const t = performance.now()
@@ -125,9 +138,17 @@ export function enterCascadeFrame(view, verb) {
         startedAt: t,
         totalMs: 0,
         frames: [],
+        // state snapshot is populated only if the recorder was started
+        // with captureState:true, and only at cascade close (Value's
+        // verbs mutate the underlying value *before* dispatching to
+        // patched View verbs, so a snapshot at enter would already
+        // reflect the mutation — capturing at close gives the true
+        // post-cascade state, which is what replay scrubbers need).
+        state: undefined,
       }
       r.cascadeStartT = t
       r.stack = []
+      r.rootView = view
     }
     const i = r.current.frames.length
     const parent = r.stack.length ? r.stack[r.stack.length - 1] : -1
@@ -169,11 +190,17 @@ export function exitCascadeFrame(view, verb) {
 export function flushPendingClose(r) {
   if (!r.pendingClose || !r.current) return
   r.pendingClose = false
+  // Capture the post-cascade state, anchored to the cascade's root view.
+  // This is what the Replay tab scrubber renders.
+  if (r.opts?.captureState) {
+    r.current.state = snapshotValue(r.rootView)
+  }
   r.cascades.push(r.current)
   const cap = r.opts?.maxCascades ?? 200
   if (r.cascades.length > cap) r.cascades.splice(0, r.cascades.length - cap)
   r.current = null
   r.stack = null
+  r.rootView = null
 }
 
 export function newProfileAcc() {

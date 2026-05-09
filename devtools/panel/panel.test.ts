@@ -95,7 +95,7 @@ test('panel/shell - mount attaches a host to document.body with shadow root', as
   ok(docBody.children.includes(shell!.host), 'host should be appended to body')
   ok(shell!.root, 'shell.root should be the shadow root')
   ok(shell!.body, 'shell.body should exist (tab content area)')
-  ok(Object.keys(shell!.tabButtons).length === 4, 'should create 4 tab buttons')
+  ok(Object.keys(shell!.tabButtons).length === 5, 'should create 5 tab buttons')
   unmount()
   ok(!docBody.children.includes(shell!.host), 'unmount removes host')
   strictEqual(getShell(), null)
@@ -581,6 +581,62 @@ test('panel/flame - clear empties the list; new mutations repopulate it', async 
   for (const fn of clearBtn._listeners?.click || []) fn({})
   const after = (list.children || []).filter((c: any) => c.classList?.contains?.('fl-cas')).length
   strictEqual(after, 0, 'clear should empty the cascade list')
+
+  unmount()
+  clearPersistedPanelState()
+})
+
+test('panel/replay - start records snapshots; scrubber renders the picked one', async () => {
+  installDomStub()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({ a: 1 })
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('replay')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+
+  // Click start.
+  const startBtn = findEl(shell.body, (el: any) =>
+    el.tagName === 'BUTTON' && el.classList?.contains?.('rp-btn') && el.textContent?.includes?.('start')
+  )
+  ok(startBtn, 'replay tab should render a start button')
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  // Mutate across microtask boundaries so each becomes its own cascade.
+  data.a = 2
+  await Promise.resolve()
+  data.a = 3
+  await Promise.resolve()
+
+  // Click stop (toggle).
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  // Slider should reflect the recorded count.
+  const slider = findEl(shell.body, (el: any) => el.classList?.contains?.('rp-slider'))
+  ok(slider, 'replay tab should render a slider')
+  ok(Number(slider.max) >= 1, `expected slider.max >= 1, got ${slider.max}`)
+
+  // Snapshot pane should have content (JSON of the after-state).
+  const snap = findEl(shell.body, (el: any) => el.classList?.contains?.('rp-snapshot'))
+  ok(snap, 'replay tab should render the snapshot pane')
+  ok(snap.textContent?.length > 0, 'snapshot pane should have rendered content')
 
   unmount()
   clearPersistedPanelState()

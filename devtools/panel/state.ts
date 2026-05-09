@@ -21,7 +21,7 @@ const PERSIST_KEY = '__ripple_panel_state'
 // makes resetPanelState() actually reset.
 function makeDefault() {
   return {
-    activeTab: 'graph',         // 'graph' | 'events' | 'profile' | 'flame'
+    activeTab: 'graph',         // 'graph' | 'events' | 'profile' | 'flame' | 'replay'
     selectedRootIdx: null,      // index into iterRoots(); null = first available
     showInternal: false,
     paused: false,
@@ -34,6 +34,9 @@ function makeDefault() {
     // cascade is being inspected. The cascade buffer itself lives on the
     // recorder, not in panel state.
     flame:   { running: false, selectedCascadeId: null, maxCascades: 50 },
+    // Replay tab state. running drives the recorder; scrubIdx is the
+    // currently-displayed cascade index (the post-cascade state snapshot).
+    replay:  { running: false, scrubIdx: 0, maxCascades: 100 },
   }
 }
 

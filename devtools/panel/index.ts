@@ -10,6 +10,7 @@ import { createGraphTab } from './graph.ts'
 import { createEventsTab } from './events.ts'
 import { createProfileTab } from './profile.ts'
 import { createFlameTab } from './flame.ts'
+import { createReplayTab } from './replay.ts'
 import { createPicker } from './picker.ts'
 import { createHover } from './hover.ts'
 
@@ -18,6 +19,7 @@ let graphTab: ReturnType<typeof createGraphTab> | null = null
 let eventsTab: ReturnType<typeof createEventsTab> | null = null
 let profileTab: ReturnType<typeof createProfileTab> | null = null
 let flameTab: ReturnType<typeof createFlameTab> | null = null
+let replayTab: ReturnType<typeof createReplayTab> | null = null
 let picker: ReturnType<typeof createPicker> | null = null
 let hover: ReturnType<typeof createHover> | null = null
 
@@ -92,6 +94,7 @@ function renderTab(name: string) {
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
   if (profileTab) { profileTab.dispose(); profileTab = null }
   if (flameTab) { flameTab.dispose(); flameTab = null }
+  if (replayTab) { replayTab.dispose(); replayTab = null }
 
   if (name === 'graph') {
     graphTab = createGraphTab()
@@ -113,6 +116,11 @@ function renderTab(name: string) {
     flameTab.render(body)
     return
   }
+  if (name === 'replay') {
+    replayTab = createReplayTab()
+    replayTab.render(body)
+    return
+  }
 
   const empty = document.createElement('div')
   empty.className = 'empty'
@@ -126,6 +134,7 @@ export function unmount() {
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
   if (profileTab) { profileTab.dispose(); profileTab = null }
   if (flameTab) { flameTab.dispose(); flameTab = null }
+  if (replayTab) { replayTab.dispose(); replayTab = null }
   if (picker) { picker.disarm(); picker = null }
   if (hover) { hover.disarm(); hover = null }
   current.destroy()
