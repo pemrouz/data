@@ -43,8 +43,6 @@ export class FilterValue extends RowOperator {
   constructor(p, fn){
     super()
     this.p = p
-    this.n = 0
-    this.all = 0
     this.fn = fn
     this.XU0(this.p.value)
   }
