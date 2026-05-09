@@ -354,6 +354,50 @@ export default `
 .fl-frame[data-verb="BMV1"] { background: #3a3727; color: #e3c98e; }
 .fl-frame-label { pointer-events: none; }
 
+/* Hover inspector sidecar. Mounted inside the panel's shadow root and
+   positioned with viewport coords so it follows the cursor. */
+.ho-sidecar {
+  position: fixed;
+  z-index: 2147483647;
+  background: #1a1a1a;
+  color: #e6e6e6;
+  border: 1px solid #333;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  padding: 6px 8px;
+  min-width: 220px;
+  max-width: 320px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+  transition: left 50ms linear, top 50ms linear;
+}
+.ho-sidecar.pinned {
+  pointer-events: auto;
+  border-color: #9bb3e3;
+  box-shadow: 0 0 0 1px #9bb3e3, 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+.ho-head {
+  font-weight: 600;
+  color: #9bb3e3;
+  padding-bottom: 3px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.ho-chain { color: #ddd; word-break: break-all; }
+.ho-ctor  { color: #888; }
+.ho-value { color: #9be3a8; word-break: break-all; }
+.ho-sinks { color: #888; }
+.ho-empty { color: #e39b9b; font-style: italic; }
+.ho-hint  {
+  margin-top: 4px;
+  padding-top: 3px;
+  border-top: 1px dotted #2a2a2a;
+  color: #666;
+  font-size: 10px;
+}
+
 .__ripple_highlight {
   outline: 2px solid #9be3a8 !important;
   outline-offset: 2px;

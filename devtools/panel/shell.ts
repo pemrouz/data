@@ -17,6 +17,7 @@ export type Shell = {
   body: HTMLElement
   tabButtons: Record<string, HTMLButtonElement>
   pickButton: HTMLButtonElement
+  hoverButton: HTMLButtonElement
   setActiveTab(name: string): void
   destroy(): void
   onTab(fn: (name: string) => void): void
@@ -56,6 +57,9 @@ export function createShell(): Shell {
   const pickBtn = mkButton('◎', 'arm DOM picker (click an element to find its view)')
   pickBtn.dataset.role = 'pick'
   actions.appendChild(pickBtn)
+  const hoverBtn = mkButton('⊙', 'arm hover inspector (mouse over to inspect, click to pin)')
+  hoverBtn.dataset.role = 'hover'
+  actions.appendChild(hoverBtn)
   const minBtn = mkButton('—', 'minimize / restore')
   actions.appendChild(minBtn)
   const closeBtn = mkButton('×', 'unmount panel')
@@ -155,7 +159,7 @@ export function createShell(): Shell {
   }
 
   return {
-    host, root, dock, body, tabButtons, pickButton: pickBtn,
+    host, root, dock, body, tabButtons, pickButton: pickBtn, hoverButton: hoverBtn,
     setActiveTab, destroy,
     onTab(fn) { tabHandlers.push(fn) },
   }

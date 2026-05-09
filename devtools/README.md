@@ -46,6 +46,12 @@ Tabs:
 - **DOM picker** — toolbar `◎` button arms a crosshair overlay; click any
   page element to walk to its `__ripple_sink` and select the matching root
   in the Graph tab. Excludes the panel's own host so you can't pick into it.
+- **Hover inspector** — toolbar `⊙` button arms a sidecar that follows the
+  cursor and shows the bound view's chain (root › … › name), the owning
+  ctor (operator class or root Value), the value preview, and the live sink
+  count for whatever element is under the mouse. Click to pin (sidecar
+  freezes; click again to unpin); Esc to disarm. Mutually exclusive with
+  the DOM picker — arming one disarms the other.
 
 The panel ships as a separate chunk (`dist/devtools/panel/index.js`,
 ~30 KB) lazy-loaded via dynamic import — consumers who only want the

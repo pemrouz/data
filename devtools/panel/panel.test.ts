@@ -523,6 +523,116 @@ test('panel/flame - clear empties the list; new mutations repopulate it', async 
   clearPersistedPanelState()
 })
 
+test('panel/hover - arm renders a sidecar; mousemove updates chain + value', async () => {
+  installDomStub()
+  ;(globalThis.document as any).addEventListener = (() => {
+    const map: Record<string, ((e: any) => void)[]> = {}
+    ;(globalThis.document as any)._listeners = map
+    ;(globalThis.document as any).removeEventListener = (n: string, fn: any) => {
+      const arr = map[n]; if (!arr) return
+      const i = arr.indexOf(fn); if (i >= 0) arr.splice(i, 1)
+    }
+    return (n: string, fn: any) => { (map[n] ||= []).push(fn) }
+  })()
+  ;(globalThis as any).window = { innerWidth: 1024, innerHeight: 768 }
+  const realSetTimeout = globalThis.setTimeout as any
+  ;(globalThis as any).setTimeout = (fn: any) => { fn(); return 0 }
+
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view, value } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({ a: { x: 1 } })
+
+  const shell = mount()!
+
+  // Fake DOM target bound to data via __ripple_sink.
+  const target: any = (globalThis.document as any).createElement('div')
+  const fakeSink: any = { p: data[view], parent: target, constructor: { name: 'DOMSink' } }
+  target.__ripple_sink = fakeSink
+  data[view].sinks.add(new WeakRef(fakeSink))
+
+  // Arm hover via the toolbar button.
+  for (const fn of (shell.hoverButton as any)._listeners?.click || []) fn({})
+  strictEqual(getPanelState()[value].hoverArmed, true, 'hoverArmed should flip to true after click')
+
+  // Sidecar mounts inside the shadow root.
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const sidecar = findEl(shell.root, (el: any) => el.classList?.contains?.('ho-sidecar'))
+  ok(sidecar, 'arming hover should mount a .ho-sidecar inside the shadow root')
+
+  // Fire a mousemove with the fake target.
+  const moves = (globalThis.document as any)._listeners?.mousemove || []
+  ok(moves.length, 'arm should install a mousemove listener')
+  const ev: any = { target, clientX: 200, clientY: 150 }
+  for (const fn of moves) fn(ev)
+
+  // The sidecar's children should include a head (selector), a chain, a
+  // ctor row, and a value row.
+  const head = findEl(sidecar, (el: any) => el.classList?.contains?.('ho-head'))
+  const chain = findEl(sidecar, (el: any) => el.classList?.contains?.('ho-chain'))
+  const valueRow = findEl(sidecar, (el: any) => el.classList?.contains?.('ho-value'))
+  ok(head, 'sidecar should render a .ho-head with the element selector')
+  ok(chain, 'sidecar should render the .ho-chain row')
+  ok(valueRow, 'sidecar should render the .ho-value row')
+  // Chain should contain `<root>` since target is bound to the root view.
+  ok(chain.textContent?.includes?.('<root>'), `chain text should reference root, got: ${chain.textContent}`)
+
+  // Disarm via Esc.
+  const keys = (globalThis.document as any)._listeners?.keydown || []
+  for (const fn of keys) fn({ key: 'Escape', preventDefault() {}, stopPropagation() {} })
+  strictEqual(getPanelState()[value].hoverArmed, false, 'Esc should disarm hover')
+
+  unmount()
+  clearPersistedPanelState()
+  ;(globalThis as any).setTimeout = realSetTimeout
+})
+
+test('panel/hover - clicking armed picker disarms hover (mutual exclusion)', async () => {
+  installDomStub()
+  ;(globalThis.document as any).addEventListener = (() => {
+    const map: Record<string, ((e: any) => void)[]> = {}
+    ;(globalThis.document as any)._listeners = map
+    ;(globalThis.document as any).removeEventListener = (n: string, fn: any) => {
+      const arr = map[n]; if (!arr) return
+      const i = arr.indexOf(fn); if (i >= 0) arr.splice(i, 1)
+    }
+    return (n: string, fn: any) => { (map[n] ||= []).push(fn) }
+  })()
+  ;(globalThis as any).window = { innerWidth: 1024, innerHeight: 768 }
+  const realSetTimeout = globalThis.setTimeout as any
+  ;(globalThis as any).setTimeout = (fn: any) => { fn(); return 0 }
+
+  const { mount, unmount } = await import('./index.ts')
+  const { value } = await import('../../core.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+
+  const shell = mount()!
+  // Arm hover first.
+  for (const fn of (shell.hoverButton as any)._listeners?.click || []) fn({})
+  strictEqual(getPanelState()[value].hoverArmed, true)
+  // Now arm picker — hover should auto-disarm.
+  for (const fn of (shell.pickButton as any)._listeners?.click || []) fn({})
+  strictEqual(getPanelState()[value].pickerArmed, true)
+  strictEqual(getPanelState()[value].hoverArmed, false, 'arming picker should disarm hover')
+
+  unmount()
+  clearPersistedPanelState()
+  ;(globalThis as any).setTimeout = realSetTimeout
+})
+
 test('panel/state - mutations route through and persist subset to localStorage', async () => {
   installDomStub()
   const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')

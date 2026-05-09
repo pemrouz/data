@@ -11,6 +11,7 @@ import { createEventsTab } from './events.ts'
 import { createProfileTab } from './profile.ts'
 import { createFlameTab } from './flame.ts'
 import { createPicker } from './picker.ts'
+import { createHover } from './hover.ts'
 
 let current: Shell | null = null
 let graphTab: ReturnType<typeof createGraphTab> | null = null
@@ -18,6 +19,7 @@ let eventsTab: ReturnType<typeof createEventsTab> | null = null
 let profileTab: ReturnType<typeof createProfileTab> | null = null
 let flameTab: ReturnType<typeof createFlameTab> | null = null
 let picker: ReturnType<typeof createPicker> | null = null
+let hover: ReturnType<typeof createHover> | null = null
 
 export function mount(): Shell | null {
   if (typeof document === 'undefined') return null
@@ -48,13 +50,29 @@ export function mount(): Shell | null {
     current?.setActiveTab(next)
   })
 
-  // Picker: lazy-init on first arm via the toolbar button.
+  // Picker + Hover: mutually exclusive — arming one disarms the other so
+  // we don't end up with two competing capture-phase click listeners.
   picker = createPicker()
+  hover = createHover(current.root)
   current.pickButton.addEventListener('click', () => {
     if (!picker) return
     if (picker.isArmed()) picker.disarm()
-    else picker.arm()
+    else {
+      hover?.disarm()
+      picker.arm()
+    }
     current?.pickButton.classList?.toggle?.('active', picker.isArmed())
+    current?.hoverButton.classList?.toggle?.('active', !!hover?.isArmed())
+  })
+  current.hoverButton.addEventListener('click', () => {
+    if (!hover) return
+    if (hover.isArmed()) hover.disarm()
+    else {
+      picker?.disarm()
+      hover.arm()
+    }
+    current?.hoverButton.classList?.toggle?.('active', hover.isArmed())
+    current?.pickButton.classList?.toggle?.('active', !!picker?.isArmed())
   })
 
   renderTab(state[value].activeTab)
@@ -109,6 +127,7 @@ export function unmount() {
   if (profileTab) { profileTab.dispose(); profileTab = null }
   if (flameTab) { flameTab.dispose(); flameTab = null }
   if (picker) { picker.disarm(); picker = null }
+  if (hover) { hover.disarm(); hover = null }
   current.destroy()
   current = null
   resetPanelState()

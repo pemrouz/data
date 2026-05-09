@@ -18,6 +18,7 @@ const DEFAULT = {
   showInternal: false,
   paused: false,
   pickerArmed: false,
+  hoverArmed: false,
   graph:   { expanded: {} },
   events:  { ringBufferSize: 500, filter: '' },
   profile: { running: false, lastReportAt: 0 },
