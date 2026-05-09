@@ -23,4 +23,11 @@
     "data/devtools": "../../dist/devtools/index.js"
 } }
 </script>
-<script type="module" src="./index.js"></script>
+<script type="module">
+  // Opt-in devtools: append ?devtools to the URL to load $.inspect/.graph/
+  // .trace/.profile/.fromDOM/.highlight onto the canonical $ and auto-mount
+  // the overlay panel. Off by default so the JSX example mirrors the vanilla
+  // crossfilter's "byte-clean" baseline.
+  if (location.search.includes('devtools')) await import('data/devtools')
+  await import('./index.js')
+</script>
