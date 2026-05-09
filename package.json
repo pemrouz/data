@@ -1,9 +1,37 @@
 {
   "name": "data",
   "version": "1.0.0",
-  "description": "reactive data",
+  "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
   "main": "index.js",
+  "types": "build/index.d.ts",
   "type": "module",
+  "files": [
+    "index.js",
+    "core.js",
+    "row.js",
+    "utils.js",
+    "operators/*/index.js",
+    "render/index.js",
+    "build/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pemrouz/data.git"
+  },
+  "homepage": "https://pemrouz.github.io/data",
+  "bugs": {
+    "url": "https://github.com/pemrouz/data/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "reactive",
+    "incremental",
+    "crossfilter",
+    "view",
+    "operators",
+    "dom",
+    "typescript"
+  ],
   "scripts": {
     "build": "microbundle build --name Data -o build --generateTypes --raw ",
     "serve": "npx tsc && npx serve",
@@ -12,9 +40,9 @@
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
     "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js",
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts",
-    "test:all": "npm run test && npm run test:render"
+    "test:all": "npm run test && npm run test:render",
+    "prepublishOnly": "npm run build && npm test"
   },
-  "keywords": [],
   "author": "pemrouz",
   "devDependencies": {
     "@playwright/test": "^1.49.1",
