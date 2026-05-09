@@ -26,7 +26,6 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 | [group](group/) | nest rows under keys returned by a function | — | — |
 | [map](map/) | per-row transform | — | — |
 | [to](to/) | whole-value transform; emits only on change | — | — |
-| [debounce](debounce/) | hold updates for `ms` and emit only the final result of a burst | — | — |
 
 **Reactive args** — operators marked here accept other `ViewProxy`s as arguments and re-fire when those inputs change. Plain values are captured once.
 

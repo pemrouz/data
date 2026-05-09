@@ -1,6 +1,6 @@
 # data
 
-A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`, `debounce`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
+A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
 
 ```js
 import { $, value } from 'data/full'
@@ -213,7 +213,6 @@ For internals — the View / Sink / notification model — see [.claude/architec
 | `group` | rows nested under a computed key | [operators/group/](operators/group/) |
 | `map` | per-row transform | [operators/map/](operators/map/) |
 | `to` | whole-value transform | [operators/to/](operators/to/) |
-| `debounce` | delay updates, coalesce bursts | [operators/debounce/](operators/debounce/) |
 
 Index with longer summaries and the dispatch model: [operators/README.md](operators/README.md).
 
@@ -262,8 +261,7 @@ npm run serve
 │   ├── intersect/
 │   ├── group/
 │   ├── map/
-│   ├── to/
-│   └── debounce/
+│   └── to/
 ├── render/
 │   ├── README.md     — render layer reference
 │   └── index.ts      — render(), HTML, SVG

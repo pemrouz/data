@@ -22,7 +22,6 @@ import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } 
 import { BetweenValue } from './operators/between/index.ts'
 import { ZAColumnValue, ZANumberValue, LimitValue } from './operators/sort/index.ts'
 import { ToValue } from './operators/to/index.ts'
-import { DebounceValue } from './operators/debounce/index.ts'
 import { MapValue } from './operators/map/index.ts'
 import { GroupValue } from './operators/group/index.ts'
 import { LengthValue, LengthFnValue } from './operators/length/index.ts'
@@ -39,7 +38,6 @@ Operators['filter']    = (a, b) => typeof a === 'function' ? FilterValue   // fi
                                  : FilterObjectValue                            // filter({k:v,...})
 Operators['between']   = () => BetweenValue
 Operators['to']        = () => ToValue
-Operators['debounce']  = () => DebounceValue
 Operators['map']       = () => MapValue
 // length() counts rows; length(fn) groups by fn(row) and counts each group.
 Operators['length']    = (fn) => typeof fn === 'function' ? LengthFnValue : LengthValue

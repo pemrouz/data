@@ -99,7 +99,7 @@ Dedup is opt-in: an operator only participates if it defines `matches`. Currentl
 
 - [operators/between/index.ts:6](../operators/between/index.ts#L6) — matches on column + range.
 - [operators/sort/index.ts:6](../operators/sort/index.ts#L6) — `matches(col, n) { return this.col_name == col && this.n == n }`.
-- All others (`filter`, `map`, `length`, `intersect`, `group`, `to`, `debounce`) currently have no `matches`, so they create a fresh operator on every call. If you add `matches` to one, also confirm it doesn't break tests that rely on per-call freshness.
+- All others (`filter`, `map`, `length`, `intersect`, `group`, `to`) currently have no `matches`, so they create a fresh operator on every call. If you add `matches` to one, also confirm it doesn't break tests that rely on per-call freshness.
 
 An operator's lifetime is tied to *some* downstream `WeakRef` keeping it alive; if all downstream proxies are dropped, the operator gets GC'd and a fresh one is built next time.
 

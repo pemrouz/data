@@ -4,7 +4,7 @@ Guide for Claude sessions working in this repo. Read this before making changes.
 
 ## What this is
 
-A small TypeScript reactive data library. `$(value)` wraps a value or array into a `ViewProxy`; chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`, `debounce`) produce derived reactive views; [render/index.ts](render/index.ts) attaches reactive data to the DOM via `HTML.*`/`SVG.*` builders.
+A small TypeScript reactive data library. `$(value)` wraps a value or array into a `ViewProxy`; chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`) produce derived reactive views; [render/index.ts](render/index.ts) attaches reactive data to the DOM via `HTML.*`/`SVG.*` builders.
 
 ## Source layout and build
 
@@ -79,6 +79,7 @@ For a fuller breakdown see [.claude/architecture.md](.claude/architecture.md).
 - Median of 5 `performance.now()` runs, threshold via `ok(elapsed < N)`. Reference: [filter.perf.ts](filter.perf.ts).
 - Each `*.perf.ts` typically covers: setup cost, single-row incremental update, batch update.
 - Don't widen thresholds to make a perf test pass — investigate the regression. Recent commits (`perf: incremental LimitValue with large-batch fallback`, `perf: rAF-coalesce brush input in crossfilter example`) show active perf work; respect it.
+- `npm run bench:compare` runs the cross-library comparison harness in [comparisons/bench/](comparisons/bench/) (this lib vs. crossfilter / MobX / RxJS / Solid / Preact / Vue / Svelte). It **reports**, it does not gate — peer regressions don't fail this repo's CI. Refresh the numbers in [comparisons.html](comparisons.html) when peer versions are bumped.
 
 ## Examples
 
@@ -91,7 +92,7 @@ Both are runnable via `npm run serve` then opening `http://127.0.0.1:3000/exampl
 
 - Use `proxy[value]` (the `value` symbol), **not** `proxy.value`, to read the raw underlying data. `proxy.value` would create a child view named `"value"`.
 - Setting one proxy to another (`a[value] = b`) creates a `LinkedView` ([core.ts:427](core.ts#L427)) — `a` now forwards to `b`'s underlying data. See the `proxy/link` test at [core.test.ts:83-132](core.test.ts#L83-L132) for the full semantics.
-- Operator dedup is opt-in via a `matches()` method. Currently only `between` ([operators/between/index.ts:6](operators/between/index.ts#L6)) and `sort`/`za`/`az`/`top` ([operators/sort/index.ts:6](operators/sort/index.ts#L6)) implement it; calling those twice with equivalent args returns the cached view. `filter`, `map`, `length`, `intersect`, `group`, `to`, `debounce` create a fresh operator on every call.
+- Operator dedup is opt-in via a `matches()` method. Currently only `between` ([operators/between/index.ts:6](operators/between/index.ts#L6)) and `sort`/`za`/`az`/`top` ([operators/sort/index.ts:6](operators/sort/index.ts#L6)) implement it; calling those twice with equivalent args returns the cached view. `filter`, `map`, `length`, `intersect`, `group`, `to` create a fresh operator on every call.
 - Sinks are held via `WeakRef` ([core.ts:421](core.ts#L421)). Dropping the only strong reference unsubscribes silently. Tests keep `connect([])`'s return alive in a local for this reason.
 - `between()` and similar range operators with reactive bounds (`ViewProxy` args) track their inputs reactively; with plain values they don't.
 - Mutations on nested data work transparently: `res.a.b.c = 1` triggers the right notification cascade. No need for immutable updates.
