@@ -1,0 +1,111 @@
+// @ts-nocheck
+// Pure helpers for the devtools layer. No instrumentation, no monkey-patching,
+// no side effects on the runtime — just read-side traversal of the View/Sink
+// graph and value summaries. Other devtools modules (index, instrument, events)
+// build on these.
+import { Operator, Sink, View } from '../core.ts'
+
+// classify(sink) — what role does this sink play? The graph view shows
+// operators differently from DOM bindings differently from user-attached
+// connect() sinks. We don't import DOMSink (it lives in render/, optional)
+// or ArrSink/PropSink/FunctionSink (private to core), so we duck-type by
+// constructor name and parent shape.
+export function classify(sink) {
+  if (sink instanceof Operator) return 'operator'
+  if (sink && typeof sink === 'object') {
+    if ('parent' in sink && sink.constructor?.name === 'DOMSink') return 'dom'
+    const n = sink.constructor?.name
+    if (n === 'ArrSink' || n === 'PropSink' || n === 'FunctionSink') return 'connect'
+  }
+  return 'sink'
+}
+
+// summarize(value) — short, JSON-safe-ish preview suitable for a console
+// graph dump. Avoids dragging huge objects into the output. Arrays show as
+// `Array(n)`, plain objects as `{ keys: n }`, primitives pass through.
+export function summarize(value) {
+  if (value === null || value === undefined) return value
+  const t = typeof value
+  if (t === 'string') return value.length > 80 ? value.slice(0, 77) + '...' : value
+  if (t === 'number' || t === 'boolean' || t === 'bigint' || t === 'symbol') return value
+  if (Array.isArray(value)) return `Array(${value.length})`
+  if (t === 'function') return `Function(${value.name || 'anonymous'})`
+  if (t === 'object') return `{ keys: ${Object.keys(value).length} }`
+  return String(value)
+}
+
+// ancestorOf(child, root) — is `root` reachable from `child` by walking the
+// parent chain? Used by trace/profile to scope events to a subtree without
+// instrumenting every operator. The depth cap is paranoia: parent chains
+// shouldn't loop, but if anything ever does we don't want an infinite walk.
+export function ancestorOf(child, root, maxDepth = 32) {
+  if (!child || !root) return false
+  if (child === root) return true
+  let n = child, d = 0
+  while (n && d < maxDepth) {
+    if (n === root) return true
+    n = n.p
+    d++
+  }
+  return false
+}
+
+// walk(view) — depth-first dump of the View graph rooted at `view`. Returns
+// a serializable tree (no live View references) so it survives console.dir
+// and can be serialized to JSON if a panel ever wants to ship it over a
+// channel. WeakRef'd children/sinks are dereffed via View.each / View.sink
+// which already prune dead entries, so dropped subscribers vanish naturally.
+export function walk(view, seen) {
+  seen = seen || new WeakSet()
+  if (seen.has(view)) {
+    return { key: [...view.key], kind: 'cycle', children: [], sinks: [] }
+  }
+  seen.add(view)
+
+  // LinkedView aliases another view. Don't recurse into the target — pass an
+  // aliasOf marker so callers can choose to walk the source separately. We
+  // detect it by the LinkedView-only `src` field rather than importing the
+  // unexported class.
+  if ('src' in view && view.src && view.src !== view) {
+    return {
+      key: [...view.key],
+      name: view.name,
+      kind: 'linked-alias',
+      aliasOf: view.src.key ? [...view.src.key] : [],
+      children: [],
+      sinks: [],
+    }
+  }
+
+  const node = {
+    key: [...view.key],
+    name: view.name,
+    kind: view.p ? 'child' : 'root',
+    value: summarize(view.value),
+    children: [],
+    sinks: [],
+  }
+
+  view.each?.((_name, child) => {
+    node.children.push(walk(child, seen))
+  })
+
+  view.sink?.((s) => {
+    if (s instanceof Operator) {
+      const opNode = walk(s.view, seen)
+      opNode.kind = 'operator'
+      opNode.ctor = s.constructor.name
+      node.sinks.push(opNode)
+    } else {
+      node.sinks.push({
+        key: [...view.key],
+        kind: classify(s),
+        ctor: s.constructor?.name || 'anonymous',
+        children: [],
+        sinks: [],
+      })
+    }
+  })
+
+  return node
+}
