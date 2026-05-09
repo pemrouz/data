@@ -301,18 +301,20 @@ export class AZNumberValue extends AZValue {
 }
 
 // LimitValue keeps the first `n` non-undefined entries of an upstream collection
-// in source iteration order. The array branch is incremental: BR1/BI0/BU1
-// produce position-keyed deltas instead of triggering a full rescan, so
-// downstream `group`/DOM doesn't tear down the window every time a brush
-// removes a row that happened to fall inside it.
+// in source iteration order. Both array and object sources are incremental:
+// BR1/BI0/BU1 produce position-keyed deltas instead of triggering a full
+// rescan, so downstream `group`/DOM doesn't tear down the window every time
+// a brush removes a row that happened to fall inside it.
 //
 // State:
-//   keys  — source keys currently inside the window, sorted ascending (numeric
-//           comparison works for sparse arrays whose keys are numeric strings)
-//   last  — largest key in the window; refill scans source[last+1..]
-//
-// The object branch falls back to full XU0 because for-in insertion order is
-// not numerically comparable.
+//   keys  — source keys currently inside the window. For arrays they're
+//           numeric and stay sorted ascending so findPos/insertPos can
+//           bisect; for objects they're stored as strings and looked up
+//           with indexOf (linear scan, bounded by `n` so it stays cheap).
+//   last  — only used for the array branch: largest key in the window;
+//           refill scans source[last+1..]. For objects the refill walks
+//           p.value's iteration order looking for the first key not in
+//           the window.
 export class LimitValue extends Operator {
   constructor(p, n) {
     super()
@@ -340,13 +342,13 @@ export class LimitValue extends Operator {
         for (const i in value) {
           if (value[i] !== undefined) {
             this.view.value.push(value[i])
-            this.keys.push(+i)
+            this.keys.push(i)   // keep as string — object keys aren't always numeric
             if (this.view.value.length === this.n) break
           }
         }
       }
     }
-    this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
+    this.last = this.isArr && this.keys.length ? this.keys[this.keys.length - 1] : undefined
     this.view.XU0(this.view.value)
   }
 
@@ -381,61 +383,140 @@ export class LimitValue extends Operator {
     return undefined
   }
 
+  // Object-source refill helper: first key in p.value's iteration order
+  // that isn't already in the window and has a defined value. Bounded by
+  // `n + (source size)` per call, but typically returns on the first hit
+  // past the window — fine for small to moderate sources.
+  nextObjectKey() {
+    const src = this.p.value
+    if (!src) return undefined
+    for (const k in src) {
+      if (src[k] === undefined) continue
+      if (this.keys.indexOf(k) !== -1) continue
+      return k
+    }
+    return undefined
+  }
+
   BU1(U1) {
-    if (!this.isArr) { this.XU0(this.p.value); return }
+    if (this.isArr) {
+      const NU1 = []
+      for (let i = 0; i < U1.length; i++) {
+        const key = U1[i++]
+        const val = U1[i]
+        const pos = this.findPos(+key)
+        if (pos === -1) continue
+        this.view.value[pos] = val
+        NU1.push(''+pos, val)
+      }
+      if (NU1.length) this.view.BU1(NU1)
+      return
+    }
+    // Object branch: existing key in window → update at its position; brand-new
+    // key (BU1 on a property not in the source before) → append if window has
+    // headroom, otherwise drop (objects' iteration order puts new keys at the
+    // end, past the window).
     const NU1 = []
-    for (let i = 0; i < U1.length; i++) {
-      const key = U1[i++]
-      const val = U1[i]
-      const pos = this.findPos(+key)
-      if (pos === -1) continue
-      this.view.value[pos] = val
-      NU1.push(''+pos, val)
+    for (let i = 0; i < U1.length; i += 2) {
+      const key = '' + U1[i]
+      const val = U1[i + 1]
+      const pos = this.keys.indexOf(key)
+      if (pos !== -1) {
+        if (val === undefined) {
+          // The row left the source — same as a BR1 in effect. Splice out
+          // and try to refill from the next iteration-order key.
+          this.keys.splice(pos, 1)
+          this.view.value.splice(pos, 1)
+          super.BR1A([pos])
+          const next = this.nextObjectKey()
+          if (next !== undefined) {
+            this.keys.push(next)
+            super.BI0A([this.view.value.length, this.p.value[next]])
+          }
+        } else {
+          this.view.value[pos] = val
+          NU1.push(''+pos, val)
+        }
+      } else if (val !== undefined && this.keys.length < this.n) {
+        this.keys.push(key)
+        super.BI0A([this.view.value.length, val])
+      }
     }
     if (NU1.length) this.view.BU1(NU1)
   }
 
   BR1(R1) {
-    if (!this.isArr) { this.XU0(this.p.value); return }
-    // Large batches: each refill may scan far into a sparse source, so a
-    // single XU0 walk is cheaper than n × (scan to end). Threshold matches
-    // the scale where the refill cost dominates the per-item bookkeeping.
+    if (this.isArr) {
+      // Large batches: each refill may scan far into a sparse source, so a
+      // single XU0 walk is cheaper than n × (scan to end). Threshold matches
+      // the scale where the refill cost dominates the per-item bookkeeping.
+      if (R1.length > this.n * 2) { this.XU0(this.p.value); return }
+      for (let i = 0; i < R1.length; i += 2) {
+        const numKey = +R1[i]
+        const pos = this.findPos(numKey)
+        if (pos === -1) continue
+        this.keys.splice(pos, 1)
+        super.BR1A([pos])
+        const next = this.nextAfter(this.last ?? -1)
+        if (next !== undefined) {
+          this.keys.push(next)
+          this.last = next
+          super.BI0A([this.view.value.length, this.p.value[next]])
+        } else {
+          this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
+        }
+      }
+      return
+    }
+    // Object branch: linear lookup, refill from iteration order.
     if (R1.length > this.n * 2) { this.XU0(this.p.value); return }
     for (let i = 0; i < R1.length; i += 2) {
-      const numKey = +R1[i]
-      const pos = this.findPos(numKey)
+      const key = '' + R1[i]
+      const pos = this.keys.indexOf(key)
       if (pos === -1) continue
       this.keys.splice(pos, 1)
       super.BR1A([pos])
-      const next = this.nextAfter(this.last ?? -1)
+      const next = this.nextObjectKey()
       if (next !== undefined) {
         this.keys.push(next)
-        this.last = next
         super.BI0A([this.view.value.length, this.p.value[next]])
-      } else {
-        this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
       }
     }
   }
 
   BI0(I0) {
-    if (!this.isArr) { this.XU0(this.p.value); return }
-    if (I0.length > this.n * 2) { this.XU0(this.p.value); return }
+    if (this.isArr) {
+      if (I0.length > this.n * 2) { this.XU0(this.p.value); return }
+      for (let i = 0; i < I0.length; i += 2) {
+        const numKey = +I0[i]
+        const val = I0[i + 1]
+        if (this.keys.length < this.n) {
+          const pos = this.insertPos(numKey)
+          this.keys.splice(pos, 0, numKey)
+          if (this.last === undefined || numKey > this.last) this.last = numKey
+          super.BI0A([pos, val])
+        } else if (numKey < this.last) {
+          const pos = this.insertPos(numKey)
+          this.keys.pop()
+          super.BR1A([this.n - 1])
+          this.keys.splice(pos, 0, numKey)
+          this.last = this.keys[this.keys.length - 1]
+          super.BI0A([pos, val])
+        }
+      }
+      return
+    }
+    // Object insert is rare (BU1 covers most "new key" paths). Treat as an
+    // append-if-room — object iteration puts inserted keys at the end, past
+    // the window if the window is full.
     for (let i = 0; i < I0.length; i += 2) {
-      const numKey = +I0[i]
+      const key = '' + I0[i]
       const val = I0[i + 1]
+      if (val === undefined) continue
+      if (this.keys.indexOf(key) !== -1) continue
       if (this.keys.length < this.n) {
-        const pos = this.insertPos(numKey)
-        this.keys.splice(pos, 0, numKey)
-        if (this.last === undefined || numKey > this.last) this.last = numKey
-        super.BI0A([pos, val])
-      } else if (numKey < this.last) {
-        const pos = this.insertPos(numKey)
-        this.keys.pop()
-        super.BR1A([this.n - 1])
-        this.keys.splice(pos, 0, numKey)
-        this.last = this.keys[this.keys.length - 1]
-        super.BI0A([pos, val])
+        this.keys.push(key)
+        super.BI0A([this.view.value.length, val])
       }
     }
   }

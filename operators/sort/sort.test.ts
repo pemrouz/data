@@ -173,3 +173,80 @@ test('sort (za) - in-window rank change emits BMV1', () => {
   same(moves.length, 1)
   same(moves[0], { type: 'move', from: 3, to: 0 })
 })
+
+// limit on object sources used to fall back to a full XU0 on every
+// BR1/BU1/BI0, which defeated the operator's purpose for object-shaped
+// data. These tests drive the incremental object branch.
+test('limit (obj) - takes first n keys in iteration order', () => {
+  const data = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
+  const res = limit(data, 3)
+  same(res[value], [1, 2, 3])
+})
+
+test('limit (obj) - update inside the window emits a BU1, not a full XU0', () => {
+  const data = $({ a: 1, b: 2, c: 3, d: 4 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  data.b = 20
+  same(res[value], [1, 20, 3])
+  // Position is stringified by the operator's BU1 path; existing precedent.
+  same(changes, [{ type: 'update', key: ['1'], value: 20 }])
+})
+
+test('limit (obj) - update outside the window is a no-op', () => {
+  const data = $({ a: 1, b: 2, c: 3, d: 4 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  data.d = 40   // outside the window
+  same(res[value], [1, 2, 3])
+  same(changes, [])
+})
+
+test('limit (obj) - removing a windowed key refills from the next iteration-order key', () => {
+  const data = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  delete data.b
+  same(res[value], [1, 3, 4])
+  // Position keys/`at` are numeric on the BR1A/BI0A paths (the array
+  // branch emits the same shape) — only the BU1 path stringifies.
+  same(changes, [
+    { type: 'remove', key: [1], value: 2 },
+    { type: 'insert', key: [], value: 4, at: 2 },
+  ])
+})
+
+test('limit (obj) - removing a key outside the window is a no-op', () => {
+  const data = $({ a: 1, b: 2, c: 3, d: 4 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  delete data.d
+  same(res[value], [1, 2, 3])
+  same(changes, [])
+})
+
+test('limit (obj) - new key joins when window has headroom', () => {
+  const data = $({ a: 1, b: 2 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  data.c = 3
+  same(res[value], [1, 2, 3])
+  same(changes.filter(c => c.type === 'insert'), [
+    { type: 'insert', key: [], value: 3, at: 2 },
+  ])
+})
+
+test('limit (obj) - new key does not join a full window', () => {
+  const data = $({ a: 1, b: 2, c: 3 })
+  const res = limit(data, 3)
+  const changes = res.connect([])
+  changes.length = 0
+  data.d = 4
+  same(res[value], [1, 2, 3])
+  same(changes, [])
+})
