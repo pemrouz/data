@@ -26,7 +26,14 @@ import { MapValue } from './operators/map/index.ts'
 import { GroupValue } from './operators/group/index.ts'
 import { LengthValue, LengthFnValue } from './operators/length/index.ts'
 import { IntersectValue } from './operators/intersect/index.ts'
-import { SumValue, AvgValue, MaxValue, MinValue } from './operators/aggregate/index.ts'
+import { SumValue, AvgValue, MaxValue, MinValue, SomeValue, EveryValue } from './operators/aggregate/index.ts'
+import { TapValue } from './operators/tap/index.ts'
+import { DistinctValue } from './operators/distinct/index.ts'
+import { ReduceValue } from './operators/reduce/index.ts'
+import { UnionValue } from './operators/union/index.ts'
+import { ExceptValue } from './operators/except/index.ts'
+import { KeysValue, ValuesValue } from './operators/keys/index.ts'
+import { ReverseValue } from './operators/reverse/index.ts'
 
 // Operator dispatch table. Each entry receives the call arguments and returns
 // the appropriate Operator subclass — letting one method name (`filter`,
@@ -58,3 +65,25 @@ Operators['sum']       = () => SumValue
 Operators['avg']       = () => AvgValue
 Operators['max']       = () => MaxValue
 Operators['min']       = () => MinValue
+// Predicate aggregates: scalar booleans tracking whether ANY (some) or ALL
+// (every) tracked rows match the predicate. Empty set: some=false, every=true.
+Operators['some']      = () => SomeValue
+Operators['every']     = () => EveryValue
+// tap: passthrough operator that fires fn(change) on every event AND
+// propagates downstream. For declarative side effects (logging, persistence).
+Operators['tap']       = () => TapValue
+// distinct: dedup rows by a projection, materialized as a first-seen array.
+// reduce: general fold over rows; rebuilds on change (use the dedicated
+// aggregates for commutative ops — they're O(1) per delta).
+Operators['distinct']  = () => DistinctValue
+Operators['reduce']    = () => ReduceValue
+// Set algebra companions to intersect:
+//   union(...): rows in any source (value from first source containing it)
+//   except(other): rows in source but not in other
+Operators['union']     = () => UnionValue
+Operators['except']    = () => ExceptValue
+// Collection projections: snapshot of current keys / values, rebuilt on change.
+Operators['keys']      = () => KeysValue
+Operators['values']    = () => ValuesValue
+// reverse: array order inversion, full rebuild on change.
+Operators['reverse']   = () => ReverseValue

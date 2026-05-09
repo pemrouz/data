@@ -85,6 +85,16 @@ type Data<T = any> = { [k in keyof T]: Data<T[k]> } & {
   avg(col?: string): Data<number>
   max(col?: string): Data<any>
   min(col?: string): Data<any>
+  some(fn: (row: RowOf<T>) => boolean): Data<boolean>
+  every(fn: (row: RowOf<T>) => boolean): Data<boolean>
+  tap(fn: (change: { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }) => void): Data<T>
+  distinct<K = RowOf<T>>(fn?: (row: RowOf<T>) => K): Data<RowOf<T>[]>
+  reduce<R>(fn: (acc: R, row: RowOf<T>, key: string) => R, init: R): Data<R>
+  union(...sources: Data[]): Data<T>
+  except(other: Data): Data<T>
+  keys(): Data<string[]>
+  values(): Data<RowOf<T>[]>
+  reverse(): Data<RowOf<T>[]>
   za(column: string, max?: number): Data<T>
   za(max?: number): Data<T>
   az(column: string, max?: number): Data<T>

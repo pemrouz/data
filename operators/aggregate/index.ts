@@ -21,11 +21,15 @@ import { Operator, createOperator } from '../../core.ts'
 // recompute O(n) in `_publish` since a removed maximum can't be derived
 // from a delta alone.
 class AggregateValue extends Operator {
-  constructor(p, col) {
+  // `col` is the dedup key (string column name, fn reference, etc.). `read`
+  // is the per-row projector, defaulting to row[col] when col is a string,
+  // identity when col is undefined; subclasses with a custom projection
+  // (some/every — `r => !!fn(r)`) pass an explicit read function.
+  constructor(p, col, read) {
     super()
     this.p = p
     this.col = col
-    this.read = col ? (r => r?.[col]) : (r => r)
+    this.read = read || (typeof col === 'string' ? (r => r?.[col]) : (r => r))
     this.tracked = {}
     this.XU0(p.value)
   }
@@ -180,7 +184,61 @@ export class MinValue extends AggregateValue {
   }
 }
 
-export const sum = (source, col) => createOperator(source, SumValue, col)
-export const avg = (source, col) => createOperator(source, AvgValue, col)
-export const max = (source, col) => createOperator(source, MaxValue, col)
-export const min = (source, col) => createOperator(source, MinValue, col)
+// some/every: short-circuit booleans. Each row's projection is `!!fn(row)`;
+// the operator tracks how many tracked rows are truthy and publishes a
+// scalar bool. Empty set semantics match Array.prototype: some=false,
+// every=true (vacuous truth). The fn is passed as both the dedup key (so
+// `data.some(fn)` twice with the same fn returns the same view) and the
+// custom read; AggregateValue's machinery does the rest.
+export class SomeValue extends AggregateValue {
+  constructor(p, fn) { super(p, fn, r => !!fn(r)) }
+  _afterReset() {
+    this.trueCount = 0
+    for (const v of Object.values(this.tracked)) if (v) this.trueCount++
+    this._publish()
+  }
+  _delta(o, n) {
+    if (o === true) this.trueCount--
+    if (n === true) this.trueCount++
+  }
+  _publish() {
+    const v = this.trueCount > 0
+    if (v !== this.view.value) this.view.XU0(this.view.value = v)
+  }
+}
+
+export class EveryValue extends AggregateValue {
+  constructor(p, fn) { super(p, fn, r => !!fn(r)) }
+  _afterReset() {
+    // Track total tracked rows and how many are truthy. `every` is true iff
+    // all tracked rows are truthy. Empty set → true (matches Array#every).
+    this.totalCount = 0
+    this.trueCount = 0
+    for (const v of Object.values(this.tracked)) {
+      this.totalCount++
+      if (v) this.trueCount++
+    }
+    this._publish()
+  }
+  _delta(o, n) {
+    if (o !== undefined) {
+      this.totalCount--
+      if (o === true) this.trueCount--
+    }
+    if (n !== undefined) {
+      this.totalCount++
+      if (n === true) this.trueCount++
+    }
+  }
+  _publish() {
+    const v = this.trueCount === this.totalCount
+    if (v !== this.view.value) this.view.XU0(this.view.value = v)
+  }
+}
+
+export const sum   = (source, col) => createOperator(source, SumValue, col)
+export const avg   = (source, col) => createOperator(source, AvgValue, col)
+export const max   = (source, col) => createOperator(source, MaxValue, col)
+export const min   = (source, col) => createOperator(source, MinValue, col)
+export const some  = (source, fn)  => createOperator(source, SomeValue, fn)
+export const every = (source, fn)  => createOperator(source, EveryValue, fn)

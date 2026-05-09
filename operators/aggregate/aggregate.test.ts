@@ -2,7 +2,7 @@
 import { deepStrictEqual as same, strictEqual as eq } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
-import { sum, avg, max, min } from './index.ts'
+import { sum, avg, max, min, some, every } from './index.ts'
 
 // SUM ------------------------------------------------------------------
 
@@ -131,4 +131,62 @@ test('aggregate - dedup: different col → different view', () => {
   res[0].x = 100
   eq(sx[value], 102)
   eq(sy[value], 30)
+})
+
+// SOME / EVERY ---------------------------------------------------------
+
+test('some - true when any row matches', () => {
+  const res = $([1, 2, 3])
+  const s = some(res, d => d > 5)
+  eq(s[value], false)
+  res.insert(10)
+  eq(s[value], true)
+  delete res[3]
+  eq(s[value], false)
+})
+
+test('some - empty set is false (matches Array#some)', () => {
+  const res = $([])
+  eq(some(res, d => d > 0)[value], false)
+})
+
+test('every - true when all rows match', () => {
+  const res = $([2, 4, 6])
+  const e = every(res, d => d % 2 === 0)
+  eq(e[value], true)
+  res.insert(3)
+  eq(e[value], false)
+  res[3] = 8
+  eq(e[value], true)
+})
+
+test('every - empty set is true (matches Array#every — vacuous truth)', () => {
+  const res = $([])
+  eq(every(res, d => d > 0)[value], true)
+})
+
+test('some/every - update flipping a row\'s predicate', () => {
+  const res = $([{ done: false }, { done: false }, { done: true }])
+  const allDone = every(res, r => r.done)
+  const anyDone = some(res, r => r.done)
+  eq(allDone[value], false)
+  eq(anyDone[value], true)
+  res[0].done = true
+  res[1].done = true
+  eq(allDone[value], true)
+  eq(anyDone[value], true)
+  res[2].done = false
+  eq(allDone[value], false)
+  eq(anyDone[value], true)
+})
+
+test('some - dedup: same fn → same view', () => {
+  const res = $([1, 2, 3])
+  const fn = d => d > 0
+  const a = some(res, fn)
+  const b = some(res, fn)
+  eq(a[value], b[value])
+  res.insert(-1)
+  eq(a[value], true)
+  eq(b[value], true)   // shared state
 })
