@@ -58,6 +58,12 @@ function installDomStub() {
       set parentNode(v) { el._parent = v },
       get textContent() { return el._text ?? '' },
       set textContent(v) { el._text = v },
+      get innerHTML() { return '' },
+      set innerHTML(v: string) {
+        // Panel code does body.innerHTML = '' before re-rendering. Honor
+        // it so accumulated children don't pollute findEl traversals.
+        if (v === '') el.children.length = 0
+      },
     }
     elements.push(el)
     return el
@@ -169,6 +175,95 @@ test('panel/graph - renders root selector and tree from $.graph()', async () => 
 
   unmount()
   ok(_filter && _length)
+})
+
+test('panel/events - mutating selected root appends rows to the live tail', async () => {
+  installDomStub()
+  globalThis.requestAnimationFrame = (fn: any) => { fn(); return 0 }
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({ a: 1 })
+  // Find data's index among the live roots so the events tab traces it
+  // (and not some stale root left behind by an earlier test).
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  ok(idx >= 0, 'data root should be enumerable')
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('events')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const list = findEl(shell.body, (el) => el.classList?.contains?.('ev-list'))
+  ok(list, 'events tab should render its list')
+  const before = (list.children || []).length
+
+  // Mutate the data — should append a row.
+  data.a = 2
+  data.b = 99
+
+  // The trace's onEvent fires synchronously inside the mutation, so the
+  // list should have grown by the time the next statement runs.
+  const after = (list.children || []).length
+  ok(after > before, `expected list to grow on mutations (was ${before}, now ${after})`)
+
+  unmount()
+})
+
+test('panel/events - pause toggle stops appending until resumed', async () => {
+  installDomStub()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, value, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({ a: 1 })
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('events')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const list = findEl(shell.body, (el) => el.classList?.contains?.('ev-list'))!
+  data.a = 2
+  const baseline = (list.children || []).length
+
+  // Pause via state mutation (cheaper than synthesizing a click).
+  const state = getPanelState()
+  state.paused = true
+  data.a = 3
+  data.a = 4
+  strictEqual((list.children || []).length, baseline, 'no rows appended while paused')
+
+  state.paused = false
+  data.a = 5
+  ok((list.children || []).length > baseline, 'rows resume after unpause')
+
+  unmount()
+  clearPersistedPanelState()
 })
 
 test('panel/state - mutations route through and persist subset to localStorage', async () => {

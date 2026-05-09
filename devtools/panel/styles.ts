@@ -158,6 +158,65 @@ export default `
 .gt-cycle { background: #4a2929; color: #ffaaaa; }
 .gt-rowlabel { color: #ddd; }
 
+/* Events tab */
+.ev-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.ev-btn {
+  background: #161616;
+  color: #ccc;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ev-btn:hover { background: #222; }
+.ev-filter {
+  flex: 1;
+  background: #161616;
+  color: #e6e6e6;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  min-width: 0;
+}
+.ev-count { color: #666; font-size: 10px; white-space: nowrap; }
+.ev-list {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: calc(100% - 34px);
+  overflow-y: auto;
+}
+.ev-row { display: flex; gap: 6px; padding: 1px 0; }
+.ev-row:hover { background: #222; }
+.ev-verb {
+  display: inline-block;
+  min-width: 36px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #2a2a2a;
+  color: #888;
+}
+.ev-XU0, .ev-BU1, .ev-BU2 { color: #9bb3e3; background: #2d3447; }
+.ev-BI0, .ev-BI0A, .ev-BI2 { color: #9be3a8; background: #2d3a2d; }
+.ev-XR0, .ev-BR1, .ev-BR1A, .ev-BR2 { color: #e39b9b; background: #3a2d2d; }
+.ev-BMV1 { color: #e3c98e; background: #3a3727; }
+.ev-key { color: #ddd; }
+.ev-payload { color: #888; }
+
 .__ripple_highlight {
   outline: 2px solid #9be3a8 !important;
   outline-offset: 2px;
