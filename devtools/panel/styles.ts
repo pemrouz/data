@@ -217,6 +217,47 @@ export default `
 .ev-key { color: #ddd; }
 .ev-payload { color: #888; }
 
+/* Profile tab */
+.pf-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.pf-btn {
+  background: #161616;
+  color: #ccc;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.pf-btn:hover { background: #222; }
+.pf-status { color: #888; font-size: 10px; }
+.pf-table-wrap { max-height: calc(100% - 34px); overflow-y: auto; }
+.pf-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.pf-table th {
+  text-align: left;
+  padding: 4px 6px;
+  background: #181818;
+  color: #888;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+}
+.pf-table th:hover { color: #ccc; }
+.pf-table td {
+  padding: 2px 6px;
+  border-bottom: 1px dotted #2a2a2a;
+  color: #ddd;
+}
+.pf-table tr:hover td { background: #222; }
+
 .__ripple_highlight {
   outline: 2px solid #9be3a8 !important;
   outline-offset: 2px;

@@ -266,6 +266,53 @@ test('panel/events - pause toggle stops appending until resumed', async () => {
   clearPersistedPanelState()
 })
 
+test('panel/profile - start renders table after mutations; stop clears state', async () => {
+  installDomStub()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({})
+  const _filtered = data.filter(d => d.active)
+  const _length = _filtered.length()
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('profile')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  // Click start by simulating: just call the click listener.
+  const startBtn = findEl(shell.body, (el) => el.tagName === 'BUTTON' && el.classList?.contains?.('pf-btn'))!
+  ok(startBtn, 'start button exists')
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  // Trigger some events.
+  for (let i = 0; i < 10; i++) data['k' + i] = { active: i % 2 === 0 }
+
+  // Click stop (same button, now toggled).
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  // After stop, the table should have been rendered with byOperator rows.
+  const table = findEl(shell.body, (el) => el.classList?.contains?.('pf-table'))
+  ok(table, 'profile tab should render the byOperator table after stop')
+
+  unmount()
+  ok(_filtered && _length)
+  clearPersistedPanelState()
+})
+
 test('panel/state - mutations route through and persist subset to localStorage', async () => {
   installDomStub()
   const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')

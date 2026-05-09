@@ -8,10 +8,12 @@ import { createShell, type Shell } from './shell.ts'
 import { getPanelState, resetPanelState } from './state.ts'
 import { createGraphTab } from './graph.ts'
 import { createEventsTab } from './events.ts'
+import { createProfileTab } from './profile.ts'
 
 let current: Shell | null = null
 let graphTab: ReturnType<typeof createGraphTab> | null = null
 let eventsTab: ReturnType<typeof createEventsTab> | null = null
+let profileTab: ReturnType<typeof createProfileTab> | null = null
 
 export function mount(): Shell | null {
   if (typeof document === 'undefined') return null
@@ -57,6 +59,7 @@ function renderTab(name: string) {
   // Tear down the previous tab's subscriptions before installing the new one.
   if (graphTab) { graphTab.dispose(); graphTab = null }
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
+  if (profileTab) { profileTab.dispose(); profileTab = null }
 
   if (name === 'graph') {
     graphTab = createGraphTab()
@@ -66,6 +69,11 @@ function renderTab(name: string) {
   if (name === 'events') {
     eventsTab = createEventsTab()
     eventsTab.render(body)
+    return
+  }
+  if (name === 'profile') {
+    profileTab = createProfileTab()
+    profileTab.render(body)
     return
   }
 
@@ -79,6 +87,7 @@ export function unmount() {
   if (!current) return
   if (graphTab) { graphTab.dispose(); graphTab = null }
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
+  if (profileTab) { profileTab.dispose(); profileTab = null }
   current.destroy()
   current = null
   resetPanelState()
