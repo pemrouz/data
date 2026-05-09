@@ -33,6 +33,14 @@ import from `dist/` via an import map; `npm run serve` chains `tsup` (and a
 small `tsc` pass for the JSX example projects via `build:examples-jsx`)
 before the static server.
 
+JSX projects extend a single shared [tsconfig.jsx.json](tsconfig.jsx.json)
+(jsx: react, jsxFactory: h, jsxFragmentFactory: Fragment) — both example
+dirs ([examples/todo-jsx/tsconfig.json](examples/todo-jsx/tsconfig.json),
+[examples/crossfilter-jsx/tsconfig.json](examples/crossfilter-jsx/tsconfig.json))
+and [jsx/tsconfig.json](jsx/tsconfig.json) just `extends` it. New JSX
+sub-projects should follow the same pattern rather than duplicating the
+compilerOptions.
+
 ## Commands
 
 From [package.json](package.json):
@@ -101,7 +109,7 @@ For a fuller breakdown see [.claude/architecture.md](.claude/architecture.md).
 
 - [examples/todo/](examples/todo/) — basic mutation + filter + length.
 - [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 flight records.
-- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Compiled in-place via [examples/todo-jsx/tsconfig.json](examples/todo-jsx/tsconfig.json) (and the matching crossfilter one) which scopes `jsx: react` + `jsxFactory: h` + `jsxFragmentFactory: Fragment`; `npm run serve` runs `build:examples-jsx` after `tsup` to produce the sibling `.js`. Playwright tests at [tests/todo-jsx.spec.ts](tests/todo-jsx.spec.ts) and [tests/crossfilter-jsx.spec.ts](tests/crossfilter-jsx.spec.ts) assert DOM-identity preservation across reactive updates and brush-parity with the builder version.
+- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Both `tsconfig.json` files extend the shared [tsconfig.jsx.json](tsconfig.jsx.json) at the repo root; `npm run serve` runs `build:examples-jsx` after `tsup` to produce the sibling `.js`. Playwright tests at [tests/todo-jsx.spec.ts](tests/todo-jsx.spec.ts) and [tests/crossfilter-jsx.spec.ts](tests/crossfilter-jsx.spec.ts) assert DOM-identity preservation across reactive updates and brush-parity with the builder version.
 
 All runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/todo/` etc.
 
