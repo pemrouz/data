@@ -279,14 +279,32 @@ test('iterator', async () => {
   ])
 })
 
+// Helper: walk the WeakRef Set and check whether `target` is currently
+// registered. Mirrors the logic devtools/walk.ts:iterRoots() will use.
+function rootsHas(target) {
+  for (const ref of _devtoolsRoots) if (ref.deref() === target) return true
+  return false
+}
+
 test('devtools - root view is registered in _devtoolsRoots', () => {
   const res = $({ a: 1 })
-  ok(_devtoolsRoots.has(res[view]))
+  ok(rootsHas(res[view]))
 })
 
 test('devtools - linked roots are not registered (only the source is)', () => {
   const src = $({ a: 1 })
   const linked = $(src)
-  ok(_devtoolsRoots.has(src[view]))
-  ok(!_devtoolsRoots.has(linked[view]))
+  ok(rootsHas(src[view]))
+  ok(!rootsHas(linked[view]))
+})
+
+test('devtools - _devtoolsRoots holds WeakRef so unreached roots can be GC\'d', () => {
+  // Sanity check on the new shape: every entry is a WeakRef whose deref
+  // returns either a View or undefined (not a raw value).
+  $({ a: 1 })
+  for (const ref of _devtoolsRoots) {
+    ok(ref instanceof WeakRef, '_devtoolsRoots entries should be WeakRef instances')
+    const v = ref.deref()
+    ok(v === undefined || (v && typeof v === 'object'), 'deref returns View|undefined')
+  }
 })

@@ -118,12 +118,13 @@ Practical implications:
 
 ## Devtools hooks (internal)
 
-Two passive structural additions exist to support the optional `devtools/` entrypoint without imposing per-notification cost on the hot path:
+Three passive structural additions exist to support the optional `devtools/` entrypoint without imposing per-notification cost on the hot path:
 
-- `_devtoolsRoots: WeakSet<View>` ([core.ts](../core.ts)) — every non-Linked root is registered here in `View.value`. Lets `$.graph()` (no arg) enumerate live roots. Cost: one `WeakSet.add()` per `$()` call.
+- `_devtoolsRoots: Set<WeakRef<View>>` ([core.ts](../core.ts)) — every non-Linked root is registered here in `View.value`. Iteration prunes dead refs in-place (same lazy pattern as `View.sinks`); lets the panel and `$.graph()` (no arg) enumerate every live root without keeping a strong reference. Cost: one `WeakRef` allocation + one `Set.add()` per `$()` call.
+- `_devtoolsInternalRoots: WeakSet<View>` ([core.ts](../core.ts)) — roots the devtools layer creates for its own state (panel proxy state, etc.). The panel filters these out of the user-facing graph view by default; a "show internal" toggle reveals them.
 - `__ripple_sink` non-enumerable property on DOM elements that bind reactive data (set in `Node.render`) — lets `$.fromDOM(el)` walk up to the owning `DOMSink`. Cost: one `Object.defineProperty` per `DOMSink` construction.
 
-Neither runs during fan-out. Devtools instrumentation that *does* touch the hot path (trace/profile) is opt-in and lives in `devtools/instrument.ts`.
+None of these run during fan-out. Devtools instrumentation that *does* touch the hot path (trace/profile) is opt-in and lives in `devtools/instrument.ts`.
 
 ## Render layer
 

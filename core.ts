@@ -31,10 +31,14 @@ export default $
 // Overridable for deterministic IDs in tests — see core.test.ts:7.
 $.random = (o) => crypto.randomUUID() as string | number
 
-// Internal hook for the optional devtools entrypoint (see devtools/walk.ts).
-// Every root view is registered here on construction so $.graph() with no
-// argument can enumerate live roots without us having to keep a strong ref.
-export const _devtoolsRoots = new WeakSet<View>()
+// Internal hooks for the optional devtools entrypoint (see devtools/walk.ts).
+// _devtoolsRoots: every root view is registered here on construction; held
+// via WeakRef so unreachable roots can be GC'd. Iteration prunes dead refs
+// in the same lazy pattern as View.sinks. _devtoolsInternalRoots: roots the
+// devtools layer creates for its own state (e.g. panel proxy state); the
+// panel filters these out of the user-facing graph view.
+export const _devtoolsRoots = new Set<WeakRef<View>>()
+export const _devtoolsInternalRoots = new WeakSet<View>()
 
 // Operator dedup: if a sink with the same class + matching args is already
 // attached to this source, reuse it instead of building a parallel pipeline.
@@ -360,7 +364,7 @@ export class View {
     } else {
       const res = new Value
       res.XU0(value)
-      _devtoolsRoots.add(res.view)
+      _devtoolsRoots.add(new WeakRef(res.view))
       return res.view
     }
   }
