@@ -104,3 +104,35 @@ test('panel/shell - mount is idempotent', async () => {
   strictEqual(a, b, 'second mount returns the same shell')
   unmount()
 })
+
+test('panel/state - getPanelState returns a singleton, marked internal', async () => {
+  installDomStub()
+  const { getPanelState, resetPanelState } = await import('./state.ts')
+  const { _devtoolsInternalRoots } = await import('../../core.ts')
+  const { value, view } = await import('../../core.ts')
+  resetPanelState()
+  const a = getPanelState()
+  const b = getPanelState()
+  strictEqual(a, b, 'getPanelState returns the same proxy')
+  ok(_devtoolsInternalRoots.has(a[view]), 'panel state should be registered as internal')
+  strictEqual(a[value].activeTab, 'graph', 'default activeTab is graph')
+  resetPanelState()
+})
+
+test('panel/state - mutations route through and persist subset to localStorage', async () => {
+  installDomStub()
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  const { value } = await import('../../core.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const state = getPanelState()
+  state.activeTab = 'events'
+  strictEqual(state[value].activeTab, 'events')
+  // Reset the in-memory singleton; localStorage survives, so the next
+  // getPanelState() should rehydrate.
+  resetPanelState()
+  const fresh = getPanelState()
+  strictEqual(fresh[value].activeTab, 'events', 'rehydrated activeTab from localStorage')
+  clearPersistedPanelState()
+  resetPanelState()
+})

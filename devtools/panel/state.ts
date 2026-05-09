@@ -1,0 +1,75 @@
+// @ts-nocheck
+// Reactive panel state. Single $()-backed root holding everything the tabs
+// observe; registered via internalRoot() so it doesn't pollute the user-facing
+// graph view (the panel filters _devtoolsInternalRoots out of iterRoots()).
+//
+// Persistence: a small subset (activeTab, selectedRootIdx, showInternal) is
+// mirrored to localStorage on change so a refresh comes back where the user
+// left off. The bigger fields (expanded tree state, ring buffer, profile
+// snapshots) are deliberately ephemeral.
+import { $, value } from '../../core.ts'
+import { internalRoot } from '../walk.ts'
+
+const PERSIST_KEY = '__ripple_panel_state'
+
+const DEFAULT = {
+  activeTab: 'graph',         // 'graph' | 'events' | 'profile'
+  selectedRootIdx: null,      // index into iterRoots(); null = first available
+  showInternal: false,
+  paused: false,
+  pickerArmed: false,
+  graph:   { expanded: {} },
+  events:  { ringBufferSize: 500, filter: '' },
+  profile: { running: false, lastReportAt: 0 },
+}
+
+function loadPersisted() {
+  try {
+    if (typeof localStorage === 'undefined') return {}
+    const raw = localStorage.getItem(PERSIST_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+function persist(snapshot) {
+  try {
+    if (typeof localStorage === 'undefined') return
+    const { activeTab, selectedRootIdx, showInternal } = snapshot
+    localStorage.setItem(PERSIST_KEY, JSON.stringify({
+      activeTab, selectedRootIdx, showInternal,
+    }))
+  } catch {}
+}
+
+let stateProxy = null
+// Module-level lifetime anchor for the persistence FunctionSink. The
+// connect(obj, fn) shape requires `obj` to be a plain object (not a Proxy
+// of a function — ViewProxy fails the `typeof === 'object'` check and
+// falls through to bare attach, which mis-installs the sink). Holding
+// `lifetimeAnchor` at module scope keeps the sink alive as long as the
+// devtools layer is loaded.
+const lifetimeAnchor: Record<string, unknown> = {}
+
+export function getPanelState() {
+  if (stateProxy) return stateProxy
+  const initial = { ...DEFAULT, ...loadPersisted() }
+  stateProxy = $(initial)
+  internalRoot(stateProxy)
+  // Per-event callback: re-persist the small subset on every change.
+  stateProxy.connect(lifetimeAnchor, () => persist(stateProxy[value]))
+  return stateProxy
+}
+
+// Clear the in-memory singleton so a subsequent getPanelState() rehydrates
+// from localStorage. Used by tests; production code calls this from unmount.
+// Does NOT clear the persisted snapshot — call clearPersistedPanelState() for
+// that.
+export function resetPanelState() {
+  stateProxy = null
+}
+
+export function clearPersistedPanelState() {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(PERSIST_KEY)
+  } catch {}
+}
