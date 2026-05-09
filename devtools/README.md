@@ -3,17 +3,47 @@
 Optional, opt-in inspection helpers for the reactive data library. Importing
 `data/devtools` (or, in source form, `./devtools/index.ts`) attaches a handful
 of methods to the canonical `$` so they're discoverable from the browser
-console: `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, plus (in the
-forthcoming layer) `$.trace` and `$.profile`.
+console — `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
+`$.profile` — and lazy-loads an in-page overlay panel that wraps the same
+helpers in a draggable dock with Graph / Events / Profile tabs and a DOM
+picker.
 
 ## Why opt-in
 
-The core has zero per-notification overhead today. The two tiny passive
-hooks needed by devtools (`_devtoolsRoots: WeakSet<View>` in `core.ts` and
-the non-enumerable `__ripple_sink` property on bound DOM elements) are
+The core has zero per-notification overhead today. The structural hooks
+needed by devtools (`_devtoolsRoots: Set<WeakRef<View>>` and
+`_devtoolsInternalRoots: WeakSet<View>` in `core.ts`, plus the
+non-enumerable `__ripple_sink` property on bound DOM elements) are
 unconditional but free in steady state. Anything that *does* touch the hot
 path — trace and profile, which monkey-patch `View.prototype` — only runs
 when you explicitly call `$.trace(p)` or `$.profile()`.
+
+## Panel
+
+`import 'data/devtools'` auto-mounts a draggable overlay panel into a
+closed Shadow DOM root attached to `document.body`. Append `?nopanel` to
+the URL to suppress the auto-mount (the console API is still attached);
+call `$.devtools.panel.open()` / `$.devtools.panel.close()` for explicit
+control.
+
+Tabs:
+
+- **Graph** — collapsible tree of the View graph for the selected root.
+  Toolbar has a root selector populated from `iterRoots()` and a "show
+  internal" toggle (reveals `_devtoolsInternalRoots`, useful for debugging
+  the panel itself).
+- **Events** — push-driven live tail of `$.trace` events. Pause/resume,
+  clear, and a verb/key substring filter. Default ring-buffer size 500.
+- **Profile** — start/stop button drives `$.profile(selectedRoot)`; a
+  500ms-polled `report()` populates a sortable table (default sort by
+  totalMs desc).
+- **DOM picker** — toolbar `◎` button arms a crosshair overlay; click any
+  page element to walk to its `__ripple_sink` and select the matching root
+  in the Graph tab. Excludes the panel's own host so you can't pick into it.
+
+The panel ships as a separate chunk (`dist/devtools/panel/index.js`,
+~30 KB) lazy-loaded via dynamic import — consumers who only want the
+console API don't pay the panel's bytes upfront.
 
 ## Read-side helpers (always available once imported)
 

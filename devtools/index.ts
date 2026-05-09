@@ -164,6 +164,28 @@ $.devtools = {
     profilers.clear()
     restoreInstrumentation()
   },
+  panel: {
+    open() { return mountPanel() },
+    close() { return unmountPanel() },
+  },
+}
+
+// Auto-mount the in-page overlay panel on import (collapsed by default in
+// the shell), unless the URL carries ?nopanel — useful for consumers who
+// import devtools just for the console API and don't want the visible UI.
+// Lazy-imported so the panel bundle is only fetched when this code runs;
+// when the consumer's bundler splits modules, the panel chunk is separable
+// from the read-side helpers above.
+let mountPanel: () => unknown = () => undefined
+let unmountPanel: () => void = () => {}
+if (typeof document !== 'undefined') {
+  const noPanel =
+    typeof location !== 'undefined' && /(?:^|[?&])nopanel(?:[=&]|$)/.test(location.search)
+  void import('./panel/index.ts').then((m) => {
+    mountPanel = m.mount
+    unmountPanel = m.unmount
+    if (!noPanel) m.mount()
+  })
 }
 
 // Re-export so consumers can `import { walk, classify } from 'data/devtools'`
