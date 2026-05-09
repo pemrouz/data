@@ -316,7 +316,7 @@ window.v = value
                     exLeftRef = this.parentNode.getBoundingClientRect().left
                     exInitial = rx(d.x - exLeftRef)
                     exBase = [filter[0][value], filter[1][value]]
-                    exWrite = rafWriter(filter, value)
+                    exWrite = filter.raf()
                     d.stopPropagation()
                   })
                   .on('pointermove', function (d) {
@@ -343,20 +343,6 @@ window.v = value
     )
   }
 
-  // coalesce a stream of writes onto requestAnimationFrame: only the latest
-  // pending value is committed per frame. flush() commits immediately.
-  function rafWriter(target, key) {
-    let pending, scheduled = false
-    const writer = v => {
-      pending = v
-      if (scheduled) return
-      scheduled = true
-      requestAnimationFrame(() => { scheduled = false; target[key] = pending })
-    }
-    writer.flush = () => { if (scheduled) { scheduled = false; target[key] = pending } }
-    return writer
-  }
-
   function background(node, filter, rx, width, height, round) {
     let down = false
     let initial
@@ -368,7 +354,7 @@ window.v = value
       .on('pointerdown', function (d) {
         down = true
         initial = apply(c(this, d))
-        write = rafWriter(filter, value)
+        write = filter.raf()
         filter[value] = [initial, initial]
       })
       .on('pointermove', function (d) {
@@ -417,7 +403,7 @@ window.v = value
           down = true
           this.setPointerCapture(d.pointerId)
           leftRef = this.parentNode.getBoundingClientRect().left
-          write = rafWriter(filtersArr, value)
+          write = filtersArr.raf()
           d.stopPropagation()
         })
         .on('pointermove', function(e){
