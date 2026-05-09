@@ -47,7 +47,10 @@ export const _devtoolsInternalRoots = new WeakSet<View>()
 // the same brush bound may be subscribed to from multiple chart components.
 export function createOperator(source, OperatorClass, ...args) {
   const p = source[view]
-  let op = p.some_sink(sink => sink instanceof OperatorClass && sink.matches?.(...args))
+  // some_sink returns whatever the predicate returns, so the predicate has
+  // to yield the sink itself (not a boolean) for the dedup branch to find it.
+  let op = p.some_sink(sink =>
+    sink instanceof OperatorClass && sink.matches?.(...args) ? sink : undefined)
   if (!op) {
     op = new OperatorClass(p, ...args)
     p.sinks.add(new WeakRef(op))
@@ -558,15 +561,15 @@ export class View {
     let n
     for (const x of this.sinks) {
       const sink = x.deref?.()
-      if (!sink) { this.sinks.delete(sink); continue }
-      if (n = fn(x)) return n
+      if (!sink) { this.sinks.delete(x); continue }
+      if (n = fn(sink)) return n
     }
   }
 
   sink(fn){
     for (const x of this.sinks) {
       const sink = x.deref?.()
-      if (!sink) { this.sinks.delete(sink); continue }
+      if (!sink) { this.sinks.delete(x); continue }
       fn(sink)
     }
   }
@@ -809,10 +812,10 @@ export class ViewProxy {
     const OperatorClass = Operators[type]?.(...args)
     if (OperatorClass) {
       // Same dedup logic as createOperator, inline because we already have p.
-      let sink = p.some_sink(sink => {
-        if (sink instanceof OperatorClass)
-          return sink.matches?.(...args)
-      })
+      // The predicate must return the sink itself (not a boolean) for the
+      // dedup branch to find it — some_sink yields whatever the predicate yields.
+      let sink = p.some_sink(sink =>
+        sink instanceof OperatorClass && sink.matches?.(...args) ? sink : undefined)
       if (!sink) {
         p.sinks.add(new WeakRef(sink = new OperatorClass(p, ...args)))
       }
