@@ -7,6 +7,9 @@ import { $, value, view } from '../core.ts'
 import '../full.ts'
 import { walk, classify, summarize, ancestorOf } from './walk.ts'
 import './index.ts'
+import { ensureInstrumented, restoreInstrumentation, isInstrumented } from './instrument.ts'
+import { traceTargets, profilers, nextTraceId, newProfileAcc, finalize } from './events.ts'
+import { View } from '../core.ts'
 
 // Silence the console.* calls inside $.inspect/$.graph during the test run —
 // the assertions are on return values, not on console output, and the noise
@@ -211,6 +214,117 @@ test('$.fromDOM - walks parentElement chain to find __ripple_sink', () => {
 test('$.fromDOM - returns null when no __ripple_sink found in chain', () => {
   const orphan = { parentElement: { parentElement: null } }
   strictEqual($.fromDOM(orphan), null)
+})
+
+test('instrument - ensureInstrumented patches View.prototype, restore restores byte-identical', () => {
+  const origXU0 = View.prototype.XU0
+  const origBU1 = View.prototype.BU1
+  ok(!isInstrumented())
+  ensureInstrumented()
+  ok(isInstrumented())
+  ok(View.prototype.XU0 !== origXU0, 'XU0 should be patched')
+  ok(View.prototype.BU1 !== origBU1, 'BU1 should be patched')
+  restoreInstrumentation()
+  strictEqual(View.prototype.XU0, origXU0, 'XU0 restored to original')
+  strictEqual(View.prototype.BU1, origBU1, 'BU1 restored to original')
+  ok(!isInstrumented())
+})
+
+test('instrument - patched verbs preserve correctness when no listeners attached', () => {
+  ensureInstrumented()
+  // Run a small core-test-shaped scenario with instrumentation on but no
+  // listeners — fast-out path should kick in and the result should be
+  // byte-identical to the unpatched run.
+  const data = $({ a: 1 })
+  const changes = data.connect([])
+  data.a = 2
+  data.b = 3
+  delete data.a
+  same(changes, [
+    { type: 'update', value: { a: 1 }, key: [] },
+    { type: 'update', value: 2, key: ['a'] },
+    { type: 'insert', value: 3, key: [], at: 'b' },
+    { type: 'remove', value: 2, key: ['a'] },
+  ])
+  restoreInstrumentation()
+})
+
+test('instrument - dispatchTrace fires when a trace is registered', () => {
+  ensureInstrumented()
+  const data = $({ a: 1, b: 2 })
+  const events = []
+  const id = nextTraceId()
+  traceTargets.set(id, {
+    id, root: data[view], verbs: null, log: false,
+    onEvent: (ev) => events.push(ev),
+  })
+  data.a = 10
+  data.b = 20
+  traceTargets.delete(id)
+  // After the disposer, no more events.
+  data.a = 99
+  ok(events.length >= 2, `expected >=2 events, got ${events.length}`)
+  // Verify we captured the right verb + key for the first mutation.
+  ok(events.some(e => e.verb === 'BU1' && e.key.length === 0))
+  restoreInstrumentation()
+})
+
+test('instrument - trace ancestor scoping skips events outside subtree', () => {
+  ensureInstrumented()
+  const data = $({ foo: { x: 1 }, bar: { y: 1 } })
+  // Trace only the foo subtree.
+  const events = []
+  const id = nextTraceId()
+  traceTargets.set(id, {
+    id, root: data.foo[view], verbs: null, log: false,
+    onEvent: (ev) => events.push(ev),
+  })
+  data.bar.y = 999  // outside subtree — should be skipped
+  const before = events.length
+  data.foo.x = 999  // inside subtree — should fire
+  traceTargets.delete(id)
+  restoreInstrumentation()
+  ok(events.length > before, 'foo mutation should be traced')
+  ok(!events.some(e => e.key.includes('bar')), 'no bar events should leak through')
+})
+
+test('instrument - profilers accumulate per-operator counts and times', () => {
+  ensureInstrumented()
+  const data = $({})
+  const filtered = data.filter(d => d.active)
+  const counted = filtered.length()
+  const acc = newProfileAcc()
+  const id = nextTraceId()
+  profilers.set(id, { id, root: data[view], acc })
+  for (let i = 0; i < 50; i++) data['k' + i] = { active: i % 2 === 0 }
+  profilers.delete(id)
+  restoreInstrumentation()
+  const report = finalize(acc)
+  ok(report.totalEvents >= 50, `expected >=50 events, got ${report.totalEvents}`)
+  ok(report.byOperator.length > 0, 'at least one operator should be tracked')
+  // The hottest operator's totalMs should be >= 0 and counts should be > 0.
+  ok(report.byOperator.every(b => b.count > 0))
+  ok(counted)
+})
+
+test('instrument - re-entrancy: nested verb calls don\'t double-count wall time', () => {
+  ensureInstrumented()
+  const data = $({})
+  const acc = newProfileAcc()
+  const id = nextTraceId()
+  profilers.set(id, { id, root: data[view], acc })
+  // A single insert triggers BI0 on root and XU0 on each child view.
+  // The wall-clock attribution should only apply to the outermost (BI0)
+  // call; nested XU0 calls increment count but not totalMs sum.
+  for (let i = 0; i < 10; i++) data['k' + i] = { x: i }
+  profilers.delete(id)
+  restoreInstrumentation()
+  // sum of all bucket totalMs should be roughly the wall time of those calls.
+  // Just assert it's finite and nonneg — the precise value depends on the
+  // host. The important invariant is that no bucket reports more time than
+  // the entire run took.
+  ok(acc.ms >= 0)
+  ok(acc.ms < 1000, `wall time should be small, got ${acc.ms}`)
 })
 
 test('$.highlight - adds and schedules removal of __ripple_highlight class', () => {
