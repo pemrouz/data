@@ -5,7 +5,7 @@
 // machinery (trace/profile and the View.prototype patches that drive them)
 // lives in instrument.ts and gets layered on top.
 import { $, view, _devtoolsRoots, ViewProxy, Operator } from '../core.ts'
-import { walk, classify } from './walk.ts'
+import { walk, classify, iterRoots, internalRoot } from './walk.ts'
 import { ensureInstrumented, restoreInstrumentation } from './instrument.ts'
 import {
   VERBS,
@@ -48,25 +48,19 @@ $.inspect = function inspect(proxy) {
   return out
 }
 
-// $.graph(proxy?) — DFS the View graph from `proxy`, or from every live root
-// when no argument is given. Returns the same serializable tree shape that
-// devtools/walk.ts produces, so a panel could ship it over postMessage etc.
-$.graph = function graph(proxy) {
+// $.graph(proxy?, opts?) — DFS the View graph from `proxy`, or from every
+// live root when no argument is given. Returns the same serializable tree
+// shape that devtools/walk.ts produces, so a panel could ship it over
+// postMessage etc. opts.internal:true includes devtools-internal roots
+// (panel state etc.) when enumerating with no proxy argument.
+$.graph = function graph(proxy, opts) {
   if (proxy === undefined) {
-    // _devtoolsRoots is a WeakSet so we can't iterate it directly. Instead we
-    // expose a small probe: any sink retained by the user (or ArrSink kept
-    // alive by a connect([]) lifeline) keeps its root reachable via `.p`
-    // chains. For the common case the user passes a proxy explicitly; the
-    // no-arg form is best-effort and just returns an empty array if no roots
-    // happen to be enumerable. (A future improvement could mirror roots into
-    // a parallel Set kept until $.devtools.disable() runs.)
-    if (typeof console !== 'undefined') {
-      console.warn(
-        '$.graph() with no argument returns [] — pass a proxy explicitly. ' +
-        'WeakSet of roots can\'t be enumerated; this is a known limitation.'
-      )
+    const trees = []
+    for (const v of iterRoots(opts)) trees.push(walk(v))
+    if (typeof console !== 'undefined' && console.dir) {
+      console.dir(trees, { depth: null })
     }
-    return []
+    return trees
   }
   const v = proxy?.[view]
   if (!v) throw new Error('$.graph requires a ViewProxy or no argument')

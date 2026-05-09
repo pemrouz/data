@@ -27,9 +27,12 @@ $.graph(proxy)
 //   DFS over the View graph from `proxy`. LinkedView nodes show as
 //   `kind: 'linked-alias'` and don't recurse into the source.
 
-$.graph()
-//   → []   (with a console.warn — _devtoolsRoots is a WeakSet so the no-arg
-//   form can't enumerate live roots; pass a proxy explicitly.)
+$.graph(undefined, { internal? })
+//   → GraphNode[]
+//   With no proxy argument, walks every live root registered in
+//   _devtoolsRoots (now a Set<WeakRef<View>>; dead refs are pruned during
+//   iteration). Pass { internal: true } to also include devtools-internal
+//   roots (e.g. the panel's own state).
 
 $.fromDOM(el)
 //   → ViewProxy | null

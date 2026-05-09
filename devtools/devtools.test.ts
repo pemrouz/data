@@ -5,8 +5,9 @@ import { $, value, view } from '../core.ts'
 // Importing 'data/full' to get operator dispatch registered. The lean core
 // would throw on .filter(...) etc. (see commit 860befe).
 import '../full.ts'
-import { walk, classify, summarize, ancestorOf } from './walk.ts'
+import { walk, classify, summarize, ancestorOf, iterRoots, internalRoot } from './walk.ts'
 import './index.ts'
+import { _devtoolsRoots, _devtoolsInternalRoots } from '../core.ts'
 import { ensureInstrumented, restoreInstrumentation, isInstrumented } from './instrument.ts'
 import { traceTargets, profilers, nextTraceId, newProfileAcc, finalize } from './events.ts'
 import { View } from '../core.ts'
@@ -192,11 +193,32 @@ test('$.graph - chain shape: filter → length appears under root.sinks', () => 
   ok(counted)
 })
 
-test('$.graph() with no arg returns [] and warns (WeakSet of roots not iterable)', () => {
-  // Documented limitation: _devtoolsRoots is a WeakSet so we can't enumerate.
-  // The no-arg form is best-effort — it returns [] and warns.
+test('iterRoots - yields every live root, prunes dead WeakRefs', () => {
+  // Pin a fresh root, then verify it appears in the iteration.
+  const a = $({ x: 1 })
+  const seen = []
+  for (const v of iterRoots()) seen.push(v)
+  ok(seen.includes(a[view]), 'newly-created root should be enumerable')
+})
+
+test('iterRoots - excludes _devtoolsInternalRoots by default; included with {internal:true}', () => {
+  const internal = $({ panel: 'state' })
+  internalRoot(internal)
+  ok(_devtoolsInternalRoots.has(internal[view]))
+  const publicSeen = []
+  for (const v of iterRoots()) publicSeen.push(v)
+  ok(!publicSeen.includes(internal[view]), 'internal root should be hidden by default')
+  const allSeen = []
+  for (const v of iterRoots({ internal: true })) allSeen.push(v)
+  ok(allSeen.includes(internal[view]), 'internal root visible with {internal:true}')
+})
+
+test('$.graph() with no arg returns trees for all live roots', () => {
+  const a = $({ alive: true })
   const out = $.graph()
-  same(out, [])
+  ok(Array.isArray(out), 'no-arg form returns an array')
+  ok(out.length > 0, 'should include at least the root just created')
+  ok(out.some(t => t.kind === 'root'), 'every entry shape matches walk() root output')
 })
 
 test('$.fromDOM - walks parentElement chain to find __ripple_sink', () => {

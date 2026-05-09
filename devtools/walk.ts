@@ -3,7 +3,33 @@
 // no side effects on the runtime — just read-side traversal of the View/Sink
 // graph and value summaries. Other devtools modules (index, instrument, events)
 // build on these.
-import { Operator, Sink, View } from '../core.ts'
+import {
+  Operator, Sink, View, view,
+  _devtoolsRoots, _devtoolsInternalRoots,
+} from '../core.ts'
+
+// iterRoots() — yields every live root view registered in _devtoolsRoots,
+// derefing each WeakRef and pruning entries whose target has been GC'd. By
+// default skips internal roots (panel state etc.); pass { internal: true }
+// to include them.
+export function* iterRoots(opts) {
+  const includeInternal = opts && opts.internal
+  for (const ref of _devtoolsRoots) {
+    const v = ref.deref()
+    if (!v) { _devtoolsRoots.delete(ref); continue }
+    if (!includeInternal && _devtoolsInternalRoots.has(v)) continue
+    yield v
+  }
+}
+
+// internalRoot(proxy) — mark `proxy`'s view as devtools-internal so it's
+// hidden from the user-facing graph view by default. The panel uses this to
+// keep its own reactive state out of the inspector.
+export function internalRoot(proxy) {
+  const target = proxy?.[view]
+  if (target) _devtoolsInternalRoots.add(target)
+  return proxy
+}
 
 // classify(sink) — what role does this sink play? The graph view shows
 // operators differently from DOM bindings differently from user-attached
