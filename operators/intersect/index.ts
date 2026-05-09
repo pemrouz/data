@@ -186,9 +186,45 @@ export class IntersectValue extends Operator {
     if (NI0.length) this.view.BI0(NI0)
   }
 
-  R2(){ /* TODO: pass through */ }
-  U2(){ /* TODO: pass through */ }
-  I2(){ /* TODO: pass through */ }
+  // Nested-key events (deep updates on rows). Two gates:
+  //   1. The event must come from `this.p` (the primary source). A
+  //      secondary source's nested change to row[name] doesn't affect what
+  //      intersect emits for that row — downstream sees `this.p.value[name]`,
+  //      not the secondary's data — so dropping is the right answer.
+  //   2. The row must be in the intersection (`filters[name] === all`).
+  //      Otherwise the row isn't visible downstream and we'd be leaking
+  //      events for excluded rows.
+  // Previously these methods were misnamed `R2`/`U2`/`I2` — never called
+  // by the framework (which dispatches `BR2`/`BU2`/`BI2`) — so deep updates
+  // on excluded rows fell through to Operator's default forwarder and leaked
+  // downstream silently.
+  BR2(R2, v) {
+    if (v !== this.p || !R2.length) return
+    const NR2 = []
+    for (let i = 0; i < R2.length; i += 2) {
+      const path = R2[i]
+      if (this.filters[path[0]] === this.all) NR2.push(path, R2[i + 1])
+    }
+    if (NR2.length) this.view.BR2(NR2)
+  }
+  BU2(U2, v) {
+    if (v !== this.p || !U2.length) return
+    const NU2 = []
+    for (let i = 0; i < U2.length; i += 2) {
+      const path = U2[i]
+      if (this.filters[path[0]] === this.all) NU2.push(path, U2[i + 1])
+    }
+    if (NU2.length) this.view.BU2(NU2)
+  }
+  BI2(I2, v) {
+    if (v !== this.p || !I2.length) return
+    const NI2 = []
+    for (let i = 0; i < I2.length; i += 3) {
+      const path = I2[i]
+      if (this.filters[path[0]] === this.all) NI2.push(path, I2[i + 1], I2[i + 2])
+    }
+    if (NI2.length) this.view.BI2(NI2)
+  }
 
   // Identity-based dedup over the original args. Used by createOperator and
   // ViewProxy.apply to reuse an existing intersect view when the same call

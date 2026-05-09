@@ -128,3 +128,38 @@ test('intersect - dedup: dims-form with same key reuses; different key creates n
   ok(r1[view] === r2[view])      // same key → same view
   ok(r1[view] !== r3[view])      // different key → different view
 })
+
+// Regression: nested-key updates (BU2/BR2/BI2) used to fall through to the
+// default Operator forwarder because the gating handlers were misnamed
+// `R2`/`U2`/`I2`. So a deep update on a row that was excluded from the
+// intersection (because it wasn't in some secondary source) would still
+// emit a BU2 downstream, leaking events for invisible rows.
+test('intersect - deep update on a row excluded from intersection does not emit', () => {
+  const a = $({ 1: { x: 'a1' }, 2: { x: 'a2' } })
+  const b = $({ 1: { x: 'b1' } })   // row 2 excluded (not in b)
+  const res = intersect(a, b)
+  const changes = res.connect([])
+  // Deep update on row 1 — in the intersection, should propagate.
+  a[1].x = 'A1'
+  // Deep update on row 2 — NOT in the intersection, should drop.
+  a[2].x = 'A2'
+  same(changes, [
+    { type: 'update', key: [], value: { 1: { x: 'a1' } } },
+    { type: 'update', key: ['1', 'x'], value: 'A1' },
+  ])
+})
+
+// Regression: secondary sources' nested-key updates shouldn't propagate
+// because intersect's downstream view shows `p.value[name]`, not the
+// secondary's data — a deep change in `b` to row[1].x doesn't change what
+// intersect emits.
+test('intersect - secondary source nested update does not emit', () => {
+  const a = $({ 1: { x: 'a1' } })
+  const b = $({ 1: { x: 'b1' } })
+  const res = intersect(a, b)
+  const changes = res.connect([])
+  b[1].x = 'B1'
+  same(changes, [
+    { type: 'update', key: [], value: { 1: { x: 'a1' } } },
+  ])
+})
