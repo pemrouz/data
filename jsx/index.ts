@@ -53,8 +53,14 @@ export function applyProps(node, props) {
       node = node.id(v, true)
     } else if (k.length > 2 && k[0] === 'o' && k[1] === 'n' && typeof v === 'function') {
       node = node.on(k.slice(2).toLowerCase(), v)
-    } else if (k === 'ref' || k === 'children' || k === 'key') {
-      // ignored — children come positionally; ref/key not implemented
+    } else if (k === 'ref' && typeof v === 'function') {
+      // One-shot callback fired with the real DOM element after create().
+      // See the Ref class in render/index.ts.
+      node = node.ref(v)
+    } else if (k === 'children' || k === 'key') {
+      // children come positionally (classic) or via the runtime's children
+      // extraction (automatic, see jsx()). key is reserved for future
+      // keyed-list semantics; currently unused.
     } else {
       node = node.attr(k, v === true ? '' : v)
     }
@@ -102,6 +108,28 @@ export function h(tag, props, ...children) {
 export function Fragment(_, ...children) {
   return children
 }
+
+// Automatic JSX runtime entry points. Picked up when a project sets
+// `jsxImportSource: "data"` (or any path that resolves to this module via
+// jsx-runtime). Same NodeProxy/identity guarantees as the classic `h` —
+// these are tiny shims that extract `props.children` and forward to h().
+//
+//   jsx(type, props, key?)   — single static child
+//   jsxs(type, props, key?)  — array of static children
+//   jsxDEV(...)              — dev-mode signature, same body
+//
+// Children arrive bundled in props for the automatic runtime, in contrast
+// to the classic transform where they're variadic positional args.
+function _jsx(type, props, _key) {
+  const { children, ...rest } = props || {}
+  const arr = children == null ? []
+    : Array.isArray(children) ? children
+    : [children]
+  return h(type, rest, ...arr)
+}
+export const jsx = _jsx
+export const jsxs = _jsx
+export const jsxDEV = _jsx
 
 // Keyed-list component over a ViewProxy data source. Forwards to the existing
 // data-binding shape `HTML[tag](each, (node, item, key) => …)` from render —

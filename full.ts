@@ -14,7 +14,7 @@ export * from './index.ts'
 // shared with `render`, `HTML`, `SVG`. With separate bundles, each entry
 // gets its own NodeProxy class and `instanceof` checks across bundles fail —
 // folding JSX into `data/full` keeps everything one bundle, one identity.
-export { h, Fragment, For } from './jsx/index.ts'
+export { h, Fragment, For, jsx, jsxs, jsxDEV } from './jsx/index.ts'
 
 import { isArray } from './utils.ts'
 import { Operators } from './core.ts'

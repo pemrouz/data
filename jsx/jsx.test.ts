@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { $, value } from '../core.ts'
 import { render } from '../render/index.ts'
-import { h, Fragment, For, HTML, SVG } from './index.ts'
+import { h, Fragment, For, HTML, SVG, jsx, jsxs } from './index.ts'
 
 // Recording DOM stub. Each "element" is a plain object; every mutation
 // pushes a tuple onto the shared log. Comparing two logs verb-by-verb is
@@ -183,12 +183,25 @@ test('jsx/h - reactive ViewProxy as child binds via DOMSink', () => {
   ok(log.some(([k]) => k === 'text'))
 })
 
+test('jsx/h - ref callback fires once with the real DOM element', () => {
+  let captured: any = null
+  trace(h('div', null,
+    h('input', { type: 'checkbox', ref: (el: any) => { captured = el } })
+  ))
+  // The mock makes input have _kind: 'html' and _tag: 'input' — proves the
+  // ref fired with the actual created element, not a NodeProxy or template.
+  // (Wrapped in a <div> because top-level <input> never gets created as an
+  // element — only its children render into the root.)
+  ok(captured && captured._kind === 'html' && captured._tag === 'input',
+     'ref should receive the created input element')
+})
+
 test('jsx/Fragment-as-single-arg - node(<Fragment>...</Fragment>) auto-spreads', () => {
-  // Row generators commonly want to `return node(<Fragment>...</Fragment>)`.
-  // Fragment evaluates to an array; NodeProxy.apply detects the single-array
-  // arg and spreads it, so the children land as siblings instead of being
-  // captured as `node.static = arr` (which would silently break the row
-  // template).
+  // The crossfilter-jsx port relies on this: a row generator can return
+  // node(<Fragment>...</Fragment>) and have the children land as siblings.
+  // NodeProxy.apply detects the single-array arg and spreads — without that
+  // fix the array would land in Node.add's `typeof === 'object'` branch and
+  // become `node.static`, silently breaking the row template.
   const data = $({ a: { title: 'one' }, b: { title: 'two' } })
   const a = trace(
     h('ul', null,
@@ -206,5 +219,25 @@ test('jsx/Fragment-as-single-arg - node(<Fragment>...</Fragment>) auto-spreads',
         li(HTML.span.text(item.title), HTML.button('x')))
     )
   )
+  same(a, b)
+})
+
+test('jsx/jsx (auto-runtime) - bundles children into props', () => {
+  // Automatic-runtime signature: jsx(type, { children, ...rest }, key?).
+  // Output should match the classic h(type, rest, ...children) call.
+  const a = trace(jsx('div', { className: 'box', children: 'hi' }))
+  const b = trace(h('div', { className: 'box' }, 'hi'))
+  same(a, b)
+})
+
+test('jsx/jsxs (auto-runtime) - children array spreads as siblings', () => {
+  const a = trace(jsxs('ul', { children: [
+    h('li', null, 'one'),
+    h('li', null, 'two'),
+  ]}))
+  const b = trace(h('ul', null,
+    h('li', null, 'one'),
+    h('li', null, 'two'),
+  ))
   same(a, b)
 })

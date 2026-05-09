@@ -364,9 +364,17 @@ class Text extends Prop {
 }
 
 class Event extends Prop {
-  create(parent){ 
-    parent.addEventListener(this.name.toLowerCase(), this.value) 
+  create(parent){
+    parent.addEventListener(this.name.toLowerCase(), this.value)
   }
+}
+
+// Ref runs a one-shot callback with the parent element after creation —
+// the equivalent of React/Solid's `ref={el => …}`. Used for imperative
+// hooks (focus, measure, attach a third-party library) where we need the
+// real DOM node, not a reactive binding. `node.ref(fn)` adds it.
+class Ref extends Prop {
+  create(parent) { this.name(parent) }
 }
 
 const props = {
@@ -376,6 +384,7 @@ const props = {
   style: Style,
   id: ID,
   text: Text,
+  ref: Ref,
   nodes: Node,
 }
 
