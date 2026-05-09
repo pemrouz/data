@@ -1,6 +1,12 @@
 // @ts-nocheck
 import { isArray, iter } from '../../utils.ts'
-import { Operator, view, createOperator } from '../../core.ts'
+import { Operator, view, reactive, createOperator } from '../../core.ts'
+
+// A dims-style object: plain object (not a ViewProxy, not an array) whose
+// values are the source ViewProxies to intersect. Used by the
+// crossfilter-shaped overloads `intersect(dims)` and `intersect(dims, key)`.
+const isDims = (v) =>
+  v != null && typeof v === 'object' && !v[reactive] && !isArray(v)
 
 // IntersectValue keeps rows that exist in *all* connected sources. Each
 // source gets a unique bit; `filters[name]` is the mask of which sources
@@ -10,12 +16,36 @@ import { Operator, view, createOperator } from '../../core.ts'
 // many sources we're intersecting over (typical crossfilter case: 4–8 brush
 // dimensions).
 //
+// Three argument shapes are supported, all collapsed to the same list of
+// source views before construction proceeds:
+//   `intersect(viewA, viewB, ...)` — variadic, the original form
+//   `intersect(dims)`              — plain object whose values are views
+//   `intersect(dims, 'key')`       — leave-one-out: every value of dims
+//                                    except `dims[key]`
+// The dims-form pair is the crossfilter pattern: name dimensions once, then
+// each chart asks for "all dimensions except mine". Identity-based dedup
+// (matches() below) means repeated calls with the same `(dims, key)` reuse
+// the same operator view.
+//
 // `vp` retains the first source so `this.p.value[name]` stays the canonical
 // row identity (downstream sees rows from the primary source even when
 // secondary sources have a divergent view of the same key).
 export class IntersectValue extends Operator {
-  constructor(p, ...sources) {
+  constructor(p, ...args) {
     super()
+    this._args = args
+
+    // Normalize the args into a flat list of source ViewProxies.
+    let sources
+    if (args.length === 1 && isDims(args[0])) {
+      sources = Object.values(args[0])
+    } else if (args.length === 2 && isDims(args[0]) && typeof args[1] === 'string') {
+      const [dims, except] = args
+      sources = Object.entries(dims).filter(([k]) => k !== except).map(([, v]) => v)
+    } else {
+      sources = args
+    }
+
     this.vp = sources[0]
     this.p = p
     // The primary source gets bit 0 implicitly; each additional source gets
@@ -159,6 +189,17 @@ export class IntersectValue extends Operator {
   R2(){ /* TODO: pass through */ }
   U2(){ /* TODO: pass through */ }
   I2(){ /* TODO: pass through */ }
+
+  // Identity-based dedup over the original args. Used by createOperator and
+  // ViewProxy.apply to reuse an existing intersect view when the same call
+  // shape is repeated. Crossfilter benefit: each chart in a dashboard calls
+  // `flights.intersect(dims, 'thisChart')` on every render and gets the
+  // same operator view back, so the bitmask state is shared.
+  matches(...args){
+    if (args.length !== this._args.length) return false
+    for (let i = 0; i < args.length; i++) if (args[i] !== this._args[i]) return false
+    return true
+  }
 }
 
 export const intersect = (source, ...others) => createOperator(source, IntersectValue, ...others)
