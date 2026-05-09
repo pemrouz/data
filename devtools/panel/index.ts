@@ -9,12 +9,14 @@ import { getPanelState, resetPanelState } from './state.ts'
 import { createGraphTab } from './graph.ts'
 import { createEventsTab } from './events.ts'
 import { createProfileTab } from './profile.ts'
+import { createFlameTab } from './flame.ts'
 import { createPicker } from './picker.ts'
 
 let current: Shell | null = null
 let graphTab: ReturnType<typeof createGraphTab> | null = null
 let eventsTab: ReturnType<typeof createEventsTab> | null = null
 let profileTab: ReturnType<typeof createProfileTab> | null = null
+let flameTab: ReturnType<typeof createFlameTab> | null = null
 let picker: ReturnType<typeof createPicker> | null = null
 
 export function mount(): Shell | null {
@@ -71,6 +73,7 @@ function renderTab(name: string) {
   if (graphTab) { graphTab.dispose(); graphTab = null }
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
   if (profileTab) { profileTab.dispose(); profileTab = null }
+  if (flameTab) { flameTab.dispose(); flameTab = null }
 
   if (name === 'graph') {
     graphTab = createGraphTab()
@@ -87,6 +90,11 @@ function renderTab(name: string) {
     profileTab.render(body)
     return
   }
+  if (name === 'flame') {
+    flameTab = createFlameTab()
+    flameTab.render(body)
+    return
+  }
 
   const empty = document.createElement('div')
   empty.className = 'empty'
@@ -99,6 +107,7 @@ export function unmount() {
   if (graphTab) { graphTab.dispose(); graphTab = null }
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
   if (profileTab) { profileTab.dispose(); profileTab = null }
+  if (flameTab) { flameTab.dispose(); flameTab = null }
   if (picker) { picker.disarm(); picker = null }
   current.destroy()
   current = null

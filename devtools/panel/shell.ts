@@ -8,7 +8,7 @@ import styles from './styles.ts'
 const POS_KEY = '__ripple_panel_pos'
 const COLLAPSED_KEY = '__ripple_panel_collapsed'
 
-export const TABS = ['graph', 'events', 'profile']
+export const TABS = ['graph', 'events', 'profile', 'flame']
 
 export type Shell = {
   host: HTMLElement

@@ -37,6 +37,12 @@ Tabs:
 - **Profile** — start/stop button drives `$.profile(selectedRoot)`; a
   500ms-polled `report()` populates a sortable table (default sort by
   totalMs desc).
+- **Flame** — start/stop button drives `$.cascades(selectedRoot)`; a
+  500ms-polled `report()` populates a left-rail list of recorded
+  cascades, and the right pane renders the picked cascade as a flame
+  chart (one bar per patched-verb call, laid out by depth × time).
+  Hover a bar for full label + duration. Bar colour reflects verb
+  family (blue=update, green=insert, red=remove, amber=move).
 - **DOM picker** — toolbar `◎` button arms a crosshair overlay; click any
   page element to walk to its `__ripple_sink` and select the matching root
   in the Graph tab. Excludes the panel's own host so you can't pick into it.
@@ -93,6 +99,20 @@ $.profile(proxy?, opts?)
 //   byOperator is sorted by totalMs desc — hottest first.
 //   Re-entrancy is handled: a parent BU1 triggering child XU0s doesn't
 //   double-count wall time.
+
+$.cascades(proxy?, opts?)
+//   → { stop(): Cascade[], report(): Cascade[], clear(): void }
+//   Records the synchronous tree of patched-verb calls triggered by
+//   each user mutation. Each Cascade carries Frame[] with parent index
+//   (forming a forest), op ctor, view key, verb, and start/end ms.
+//   With no proxy, captures every cascade in the graph; with a proxy,
+//   only cascades whose first frame is at-or-under that root.
+//   opts.maxCascades caps the ring buffer (default 200; oldest evicted).
+//   Coalescing: sibling top-level patched-verb calls within one task
+//   tick merge into a single cascade — Value.BU1 splits into view.BU1 +
+//   view.BI0 internally, so without coalescing one user assignment
+//   would produce two cascades. flushPendingClose runs in stop/report/
+//   clear so callers don't have to await microtasks.
 
 $.devtools.enable() / $.devtools.disable()
 //   Pre-warm or fully tear down the View.prototype patches. trace/profile

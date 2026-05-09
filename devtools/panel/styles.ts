@@ -272,6 +272,88 @@ export default `
 }
 .pf-table tr:hover td { background: #222; }
 
+/* Flame tab */
+.fl-tab { display: flex; flex-direction: column; height: 100%; }
+.fl-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+.fl-btn {
+  background: #161616;
+  color: #ccc;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fl-btn:hover { background: #222; }
+.fl-status { color: #888; font-size: 10px; }
+.fl-split { display: flex; gap: 6px; flex: 1; min-height: 0; }
+.fl-list {
+  width: 30%;
+  min-width: 110px;
+  max-width: 180px;
+  overflow-y: auto;
+  border-right: 1px solid #2a2a2a;
+  padding-right: 4px;
+}
+.fl-cas {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 6px;
+  border-bottom: 1px dotted #2a2a2a;
+  cursor: pointer;
+  font-size: 11px;
+}
+.fl-cas:hover { background: #222; }
+.fl-cas.selected { background: #2d3a2d; color: #9be3a8; }
+.fl-cas-id { font-weight: 600; }
+.fl-cas-meta { color: #888; font-size: 10px; }
+.fl-cas.selected .fl-cas-meta { color: #7fc991; }
+.fl-chart { flex: 1; overflow: auto; min-width: 0; }
+.fl-head {
+  font-size: 10px;
+  color: #888;
+  padding: 2px 4px 4px;
+  border-bottom: 1px solid #2a2a2a;
+  margin-bottom: 4px;
+}
+.fl-flame { position: relative; min-width: 100%; }
+.fl-frame {
+  position: absolute;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid #333;
+  border-radius: 2px;
+  font-size: 9px;
+  line-height: 11px;
+  padding: 0 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: default;
+  background: #2d3447;
+  color: #9bb3e3;
+}
+.fl-frame:hover { filter: brightness(1.4); z-index: 1; }
+.fl-frame[data-verb="BU1"], .fl-frame[data-verb="BU2"], .fl-frame[data-verb="XU0"] {
+  background: #2d3447; color: #9bb3e3;
+}
+.fl-frame[data-verb="BI0"], .fl-frame[data-verb="BI0A"], .fl-frame[data-verb="BI2"] {
+  background: #2d3a2d; color: #9be3a8;
+}
+.fl-frame[data-verb="BR1"], .fl-frame[data-verb="BR1A"], .fl-frame[data-verb="BR2"], .fl-frame[data-verb="XR0"] {
+  background: #3a2d2d; color: #e39b9b;
+}
+.fl-frame[data-verb="BMV1"] { background: #3a3727; color: #e3c98e; }
+.fl-frame-label { pointer-events: none; }
+
 .__ripple_highlight {
   outline: 2px solid #9be3a8 !important;
   outline-offset: 2px;

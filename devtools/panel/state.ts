@@ -13,7 +13,7 @@ import { internalRoot } from '../walk.ts'
 const PERSIST_KEY = '__ripple_panel_state'
 
 const DEFAULT = {
-  activeTab: 'graph',         // 'graph' | 'events' | 'profile'
+  activeTab: 'graph',         // 'graph' | 'events' | 'profile' | 'flame'
   selectedRootIdx: null,      // index into iterRoots(); null = first available
   showInternal: false,
   paused: false,
@@ -21,6 +21,10 @@ const DEFAULT = {
   graph:   { expanded: {} },
   events:  { ringBufferSize: 500, filter: '' },
   profile: { running: false, lastReportAt: 0 },
+  // Flame tab state is deliberately ephemeral — running flag + which
+  // cascade is being inspected. The cascade buffer itself lives on the
+  // recorder, not in panel state.
+  flame:   { running: false, selectedCascadeId: null, maxCascades: 50 },
 }
 
 function loadPersisted() {

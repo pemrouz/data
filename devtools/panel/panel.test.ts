@@ -95,7 +95,7 @@ test('panel/shell - mount attaches a host to document.body with shadow root', as
   ok(docBody.children.includes(shell!.host), 'host should be appended to body')
   ok(shell!.root, 'shell.root should be the shadow root')
   ok(shell!.body, 'shell.body should exist (tab content area)')
-  ok(Object.keys(shell!.tabButtons).length === 3, 'should create 3 tab buttons')
+  ok(Object.keys(shell!.tabButtons).length === 4, 'should create 4 tab buttons')
   unmount()
   ok(!docBody.children.includes(shell!.host), 'unmount removes host')
   strictEqual(getShell(), null)
@@ -387,6 +387,140 @@ test('panel/picker - arm/disarm + click selects matching root and switches to gr
   unmount()
   clearPersistedPanelState()
   ;(globalThis as any).setTimeout = realSetTimeout
+})
+
+test('panel/flame - start records cascades; clicking one renders frame bars', async () => {
+  installDomStub()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({})
+  const _filtered = data.filter(d => d.active)
+  const _length = _filtered.length()
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('flame')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const findAll = (root: any, predicate: (el: any) => boolean, out: any[] = []): any[] => {
+    if (predicate(root)) out.push(root)
+    for (const c of root.children || []) findAll(c, predicate, out)
+    return out
+  }
+
+  // Click start.
+  const startBtn = findEl(shell.body, (el) =>
+    el.tagName === 'BUTTON' && el.classList?.contains?.('fl-btn') && el.textContent?.includes?.('start')
+  )
+  ok(startBtn, 'flame tab should render a start button')
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  // Mutate — should produce a cascade once we yield to microtasks.
+  for (let i = 0; i < 3; i++) {
+    data['k' + i] = { active: i % 2 === 0 }
+    await Promise.resolve()
+  }
+
+  // Force a refresh by clicking stop (which calls handle.stop() and re-renders).
+  const stopBtn = findEl(shell.body, (el) =>
+    el.tagName === 'BUTTON' && el.classList?.contains?.('fl-btn') && el.textContent?.includes?.('stop')
+  )
+  ok(stopBtn, 'after start, the toggle button should now read "stop"')
+  for (const fn of stopBtn._listeners?.click || []) fn({})
+
+  // Cascade list should have one row per recorded cascade.
+  const list = findEl(shell.body, (el) => el.classList?.contains?.('fl-list'))
+  ok(list, 'flame tab should render a cascade list')
+  const rows = (list.children || []).filter((c: any) => c.classList?.contains?.('fl-cas'))
+  ok(rows.length >= 1, `expected >=1 cascade rows, got ${rows.length}`)
+
+  // Click the first row to select it; chart should render frames.
+  for (const fn of rows[0]._listeners?.click || []) fn({})
+  const flame = findEl(shell.body, (el) => el.classList?.contains?.('fl-flame'))
+  ok(flame, 'selected cascade should render a flame container')
+  const frames = findAll(flame, (el: any) => el.classList?.contains?.('fl-frame'))
+  ok(frames.length >= 1, `expected >=1 flame frames, got ${frames.length}`)
+
+  // Each frame's data-verb should match a known notification verb.
+  const VERBS = new Set(['XU0','XR0','BU1','BU2','BI0','BI0A','BI2','BR1','BR1A','BR2','BMV1'])
+  for (const f of frames) {
+    ok(VERBS.has(f.dataset?.verb), `unexpected verb on frame: ${f.dataset?.verb}`)
+  }
+
+  unmount()
+  ok(_filtered && _length)
+  clearPersistedPanelState()
+})
+
+test('panel/flame - clear empties the list; new mutations repopulate it', async () => {
+  installDomStub()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({})
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+  getPanelState().selectedRootIdx = idx
+
+  const shell = mount()!
+  shell.setActiveTab('flame')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const buttons = (root: any) => {
+    const out: any[] = []
+    const walk = (n: any) => {
+      if (n.tagName === 'BUTTON' && n.classList?.contains?.('fl-btn')) out.push(n)
+      for (const c of n.children || []) walk(c)
+    }
+    walk(root)
+    return out
+  }
+
+  // Start + mutate + stop, so a cascade lands in the buffer.
+  const [startBtn, clearBtn] = buttons(shell.body)
+  ok(startBtn && clearBtn, 'flame tab should expose start + clear buttons')
+  for (const fn of startBtn._listeners?.click || []) fn({})
+  data.x = 1
+  await Promise.resolve()
+  // Stop (toggle button is the same element; its click listener handles both states).
+  for (const fn of startBtn._listeners?.click || []) fn({})
+
+  const list = findEl(shell.body, (el) => el.classList?.contains?.('fl-list'))!
+  const before = (list.children || []).filter((c: any) => c.classList?.contains?.('fl-cas')).length
+  ok(before >= 1, 'cascade list should have populated after the mutation')
+
+  // Click clear.
+  for (const fn of clearBtn._listeners?.click || []) fn({})
+  const after = (list.children || []).filter((c: any) => c.classList?.contains?.('fl-cas')).length
+  strictEqual(after, 0, 'clear should empty the cascade list')
+
+  unmount()
+  clearPersistedPanelState()
 })
 
 test('panel/state - mutations route through and persist subset to localStorage', async () => {
