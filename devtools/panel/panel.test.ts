@@ -177,6 +177,69 @@ test('panel/graph - renders root selector and tree from $.graph()', async () => 
   ok(_filter && _length)
 })
 
+test('panel/graph - DAG mode renders one node per view (deduped) + edges', async () => {
+  installDomStub()
+  // Stub createElementNS so SVG nodes work in the test harness.
+  ;(globalThis.document as any).createElementNS = (_ns: string, tag: string) => {
+    return (globalThis.document as any).createElement(tag)
+  }
+  globalThis.requestAnimationFrame = (fn: any) => { fn(); return 0 }
+  const { mount, unmount } = await import('./index.ts')
+  const { $ } = await import('../../core.ts')
+  await import('../../full.ts')
+  await import('../index.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  // Build a fan-out: two filters off the same source, each with a length.
+  // The tree view would render the source twice (one per filter branch);
+  // DAG mode should render it once with two outgoing sink edges.
+  const data = $({})
+  const _a = data.filter(d => d.active).length()
+  const _b = data.filter(d => !d.active).length()
+
+  // Flip layout to DAG via state, then mount + switch to graph tab.
+  getPanelState().graph.layout = 'dag'
+
+  const shell = mount()!
+  shell.setActiveTab('graph')
+
+  const findEl = (root: any, predicate: (el: any) => boolean): any => {
+    if (predicate(root)) return root
+    for (const c of root.children || []) {
+      const hit = findEl(c, predicate)
+      if (hit) return hit
+    }
+    return null
+  }
+  const findAll = (root: any, predicate: (el: any) => boolean, out: any[] = []): any[] => {
+    if (predicate(root)) out.push(root)
+    for (const c of root.children || []) findAll(c, predicate, out)
+    return out
+  }
+
+  const dagWrap = findEl(shell.body, (el: any) => el.classList?.contains?.('gt-dag'))
+  ok(dagWrap, 'DAG mode should render a .gt-dag container')
+
+  const nodes = findAll(dagWrap, (el: any) => el.classList?.contains?.('gt-dag-node'))
+  // Expected: 1 root + 2 FilterValue + 2 LengthValue = 5 (terminal sinks
+  // optional). Just assert >=4 to stay robust to internal sink shape.
+  ok(nodes.length >= 4, `expected >=4 dag nodes, got ${nodes.length}`)
+
+  // Exactly one root node (deduped — proves the fan-out source isn't
+  // duplicated like it would be in tree mode).
+  const roots = nodes.filter((n: any) => n.classList?.contains?.('gt-root'))
+  strictEqual(roots.length, 1, `expected 1 root node, got ${roots.length}`)
+
+  // At least 2 operator nodes (the two filters).
+  const ops = nodes.filter((n: any) => n.classList?.contains?.('gt-operator'))
+  ok(ops.length >= 2, `expected >=2 operator nodes, got ${ops.length}`)
+
+  unmount()
+  ok(_a && _b)
+  clearPersistedPanelState()
+})
+
 test('panel/events - mutating selected root appends rows to the live tail', async () => {
   installDomStub()
   globalThis.requestAnimationFrame = (fn: any) => { fn(); return 0 }

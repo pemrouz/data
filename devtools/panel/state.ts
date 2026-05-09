@@ -12,20 +12,29 @@ import { internalRoot } from '../walk.ts'
 
 const PERSIST_KEY = '__ripple_panel_state'
 
-const DEFAULT = {
-  activeTab: 'graph',         // 'graph' | 'events' | 'profile' | 'flame'
-  selectedRootIdx: null,      // index into iterRoots(); null = first available
-  showInternal: false,
-  paused: false,
-  pickerArmed: false,
-  hoverArmed: false,
-  graph:   { expanded: {} },
-  events:  { ringBufferSize: 500, filter: '' },
-  profile: { running: false, lastReportAt: 0 },
-  // Flame tab state is deliberately ephemeral — running flag + which
-  // cascade is being inspected. The cascade buffer itself lives on the
-  // recorder, not in panel state.
-  flame:   { running: false, selectedCascadeId: null, maxCascades: 50 },
+// Returned as a fresh object each call. Mutations via the reactive proxy
+// hit the *live* underlying object — if DEFAULT were a module-scoped
+// constant, nested fields like graph.layout would be shared across every
+// stateProxy ever created (and across resetPanelState() calls), and a
+// test that flipped graph.layout='dag' would leak that into every later
+// test that re-rehydrates from DEFAULT. Returning a fresh tree per call
+// makes resetPanelState() actually reset.
+function makeDefault() {
+  return {
+    activeTab: 'graph',         // 'graph' | 'events' | 'profile' | 'flame'
+    selectedRootIdx: null,      // index into iterRoots(); null = first available
+    showInternal: false,
+    paused: false,
+    pickerArmed: false,
+    hoverArmed: false,
+    graph:   { expanded: {}, layout: 'tree' },  // layout: 'tree' | 'dag'
+    events:  { ringBufferSize: 500, filter: '' },
+    profile: { running: false, lastReportAt: 0 },
+    // Flame tab state is deliberately ephemeral — running flag + which
+    // cascade is being inspected. The cascade buffer itself lives on the
+    // recorder, not in panel state.
+    flame:   { running: false, selectedCascadeId: null, maxCascades: 50 },
+  }
 }
 
 function loadPersisted() {
@@ -57,7 +66,7 @@ const lifetimeAnchor: Record<string, unknown> = {}
 
 export function getPanelState() {
   if (stateProxy) return stateProxy
-  const initial = { ...DEFAULT, ...loadPersisted() }
+  const initial = { ...makeDefault(), ...loadPersisted() }
   stateProxy = $(initial)
   internalRoot(stateProxy)
   // Per-event callback: re-persist the small subset on every change.

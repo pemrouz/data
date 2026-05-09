@@ -29,9 +29,13 @@ control.
 Tabs:
 
 - **Graph** — collapsible tree of the View graph for the selected root.
-  Toolbar has a root selector populated from `iterRoots()` and a "show
+  Toolbar has a root selector populated from `iterRoots()`, a "show
   internal" toggle (reveals `_devtoolsInternalRoots`, useful for debugging
-  the panel itself).
+  the panel itself), and a **DAG** toggle that flips the renderer to a
+  layered node-link diagram. DAG mode dedupes by view identity (a fan-out
+  source appears once with multiple outgoing edges, vs. duplicated subtrees
+  in tree mode), uses BFS depth from the root for layering, and renders
+  edges as cubic SVG paths in a non-interactive layer below the nodes.
 - **Events** — push-driven live tail of `$.trace` events. Pause/resume,
   clear, and a verb/key substring filter. Default ring-buffer size 500.
 - **Profile** — start/stop button drives `$.profile(selectedRoot)`; a

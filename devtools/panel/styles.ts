@@ -172,6 +172,42 @@ export default `
   100% { box-shadow: 0 0 0 8px rgba(155, 227, 168, 0); }
 }
 
+/* Graph tab — DAG mode */
+.gt-tree.gt-dag-mode { padding: 0; }
+.gt-dag {
+  position: relative;
+  overflow: auto;
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  padding: 0;
+}
+.gt-dag-node {
+  box-sizing: border-box;
+  border: 1px solid #333;
+  border-radius: 3px;
+  background: #1f1f1f;
+  color: #e6e6e6;
+  font-size: 10px;
+  padding: 4px 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gt-dag-node.gt-root      { background: #2d3a2d; color: #9be3a8; border-color: #3a4f3a; }
+.gt-dag-node.gt-child     { background: #2a2a2a; color: #ccc;     border-color: #3a3a3a; }
+.gt-dag-node.gt-operator  { background: #2d3447; color: #9bb3e3; border-color: #3a4760; }
+.gt-dag-node.gt-dom       { background: #3a2d2d; color: #e39b9b; border-color: #4d3a3a; }
+.gt-dag-node.gt-connect   { background: #3a3727; color: #e3c98e; border-color: #4d472f; }
+.gt-dag-edge { stroke-width: 1.5; opacity: 0.7; }
+.gt-dag-edge-child { stroke: #555; stroke-dasharray: 3 3; }
+.gt-dag-edge-sink  { stroke: #5e7593; }
+.gt-dag-node:hover { filter: brightness(1.3); z-index: 1; }
+
 /* Events tab */
 .ev-toolbar {
   display: flex;
