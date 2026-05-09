@@ -8,18 +8,30 @@ A small TypeScript reactive data library. `$(value)` wraps a value or array into
 
 ## Source layout and build
 
-`.ts` files at the root and under `operators/`, `render/`, `tests/` are the
-source of truth. `.gitignore` blanket-ignores `*.js`; build output goes to
-`dist/` (gitignored). There are **no committed `.js` siblings of `.ts`
-sources** — that scheme was retired. A handful of hand-written `.js` files
-remain in tree (e.g. [render/render.test.js](render/render.test.js),
+`.ts` files at the root and under `operators/`, `render/`, `jsx/`,
+`devtools/`, `tests/` are the source of truth. `.gitignore` blanket-ignores
+`*.js`; build output goes to `dist/` (gitignored). There are **no committed
+`.js` siblings of `.ts` sources** — that scheme was retired. A handful of
+hand-written `.js` files remain in tree (e.g.
+[render/render.test.js](render/render.test.js),
 [assets/landing.js](assets/landing.js), `examples/crossfilter/flights*.js`)
 because they have no `.ts` counterpart.
 
+`tsup` produces four sub-path entries that line up 1:1 with the `"exports"`
+map in [package.json](package.json):
+
+| Sub-path         | Source       | What it ships |
+|---|---|---|
+| `data`           | [index.ts](index.ts)              | Lean core: `$`, `value`, `render`, `HTML`, `SVG`, `Operators`, `createOperator`. No operator dispatch registered. |
+| `data/full`      | [full.ts](full.ts)                | Strict superset of `data` — same exports plus JSX helpers (`h`, `Fragment`, `For`), with the side effect of registering every operator on the dispatch table. |
+| `data/render`    | [render/index.ts](render/index.ts) | Just the DOM render layer (`render`, `HTML`, `SVG`). |
+| `data/devtools`  | [devtools/index.ts](devtools/index.ts) | Opt-in inspection helpers — importing this attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight` (and lazily `$.trace`/`$.profile`) onto the canonical `$`. |
+
 Tests do **not** require a build: `node --experimental-strip-types` reads
 `.ts` directly. Run `npm test`. Examples *do* require a build because they
-import from `dist/` via an import map; `npm run serve` chains `tsup` before
-the static server.
+import from `dist/` via an import map; `npm run serve` chains `tsup` (and a
+small `tsc` pass for the JSX example projects via `build:examples-jsx`)
+before the static server.
 
 ## Commands
 

@@ -18,18 +18,29 @@ count[value] = 42                              // body reads "42"
 npm install data
 ```
 
-Two entry points:
+Four sub-path entries:
 
 ```js
 // `data/full` — chainable operators (.filter, .between, .length, …) registered.
+// Re-exports everything from `data` plus the JSX helpers (h, Fragment, For).
 // This is what most apps want.
-import { $, value, render, HTML } from 'data/full'
+import { $, value, render, HTML, h, For } from 'data/full'
 
 // `data` — lean core, no operator dispatch registered. Pick this if you care
 // about tree-shaking and only use the function-style operator API
 // (e.g. `import { filter } from 'data/operators/filter'` — coming in a future
 // release; for now use `data/full`).
 import { $, value, render, HTML } from 'data'
+
+// `data/render` — just the DOM render layer (render, HTML, SVG). For consumers
+// who want the rendering primitives without pulling the reactive runtime.
+import { render, HTML, SVG } from 'data/render'
+
+// `data/devtools` — opt-in console inspection helpers. Side-effecting: importing
+// it attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, etc. onto the
+// canonical `$`. Only load it when you want the helpers (gate behind a query
+// param in production). See [devtools/README.md](devtools/README.md).
+import 'data/devtools'
 ```
 
 `data/full` is a strict superset of `data`: it re-exports everything from the
@@ -198,6 +209,7 @@ idEvents.length    // 1
   - `proxy.connect([])` pushes `{ type, key, value, at? }` change events into an array — best for tests, debug logging, and inspecting what flows through.
   - `proxy.connect(obj, 'prop')` mirrors the value to `obj[prop]` — best for binding to a DOM property (`document.body.textContent`) or a state object field.
   - `proxy.connect(obj, fn)` calls `fn(change)` per event — `obj` is just the lifetime anchor (a sink stays alive while the object does).
+- **`raf` writes.** `const write = proxy.raf()` returns a coalescing writer: `write(v)` schedules a single `requestAnimationFrame` that commits the latest pending value to `proxy[value]`; further calls before the frame fires overwrite the pending value. `write.flush()` commits immediately — for `pointerup` handlers that want the final brush position to land without an extra frame. Replaces hand-rolled `rafWriter` patterns in interactive UIs.
 
 For internals — the View / Sink / notification model — see [.claude/architecture.md](.claude/architecture.md).
 
@@ -267,6 +279,9 @@ npm run serve
 │   └── index.ts      — render(), HTML, SVG
 ├── jsx/
 │   └── index.ts      — h, Fragment, For (JSX adapter over HTML/SVG)
+├── devtools/
+│   ├── README.md     — `data/devtools` reference
+│   └── index.ts      — opt-in $.inspect/$.graph/$.fromDOM/$.highlight (+ trace/profile)
 └── examples/
     ├── todo/         and todo-jsx/         (same app, two authoring styles)
     └── crossfilter/  and crossfilter-jsx/
