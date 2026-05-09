@@ -245,7 +245,76 @@ p.stop().byOperator                 // sorted by totalMs desc</pre>
     </div>
   </section>
 
-  <!-- 7. install -->
+  <!-- 7. comparisons -->
+  <section class="bench-preview stack" style="--gap:1rem">
+    <h2>how it compares</h2>
+    <p class="muted" style="max-width:60ch">
+      Same workload — <b>10,000 trades</b>, top 10 by spread, <b>1000 individual ticks</b>
+      each forcing settle — across eight reactive libraries. No batching primitives:
+      every tick is its own propagation event, the way real interactive UIs behave.
+    </p>
+<pre class="code" style="font-size:0.8125rem">trades
+  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+  .filter(t =&gt; t.spread &gt; THRESHOLD)
+  .za('spread', 10)</pre>
+    <div class="bench-chart" aria-label="Time to process 1000 sequential ticks, lower is faster">
+      <div class="bench-row self">
+        <span class="lib">data</span>
+        <div class="bar"><div class="fill" style="width:0.47%"></div></div>
+        <span class="num">8.8&nbsp;ms</span>
+        <span class="x">1×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">preact</span>
+        <div class="bar"><div class="fill" style="width:4.22%"></div></div>
+        <span class="num">79&nbsp;ms</span>
+        <span class="x">9×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">solid</span>
+        <div class="bar"><div class="fill" style="width:6.85%"></div></div>
+        <span class="num">129&nbsp;ms</span>
+        <span class="x">15×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">crossfilter</span>
+        <div class="bar"><div class="fill" style="width:9.40%"></div></div>
+        <span class="num">177&nbsp;ms</span>
+        <span class="x">20×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">mobx</span>
+        <div class="bar"><div class="fill" style="width:18.96%"></div></div>
+        <span class="num">356&nbsp;ms</span>
+        <span class="x">41×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">vue</span>
+        <div class="bar"><div class="fill" style="width:35.44%"></div></div>
+        <span class="num">666&nbsp;ms</span>
+        <span class="x">76×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">rxjs</span>
+        <div class="bar"><div class="fill" style="width:68.54%"></div></div>
+        <span class="num">1,289&nbsp;ms</span>
+        <span class="x">147×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">svelte</span>
+        <div class="bar"><div class="fill" style="width:100%"></div></div>
+        <span class="num">1,880&nbsp;ms</span>
+        <span class="x">215×</span>
+      </div>
+    </div>
+    <p class="muted" style="font-size:0.8125rem;max-width:60ch">
+      Two libraries with native incremental top-K (<b>data</b>, crossfilter) sit at one end of the table;
+      six libraries doing O(N&nbsp;log&nbsp;N) per tick sit at the other.
+      <a href="./comparisons.html">full comparisons →</a>
+    </p>
+  </section>
+
+  <!-- 8. install -->
   <section class="install stack" style="--gap:1rem">
     <h2>install</h2>
     <div class="install-cmd">npm install data</div>

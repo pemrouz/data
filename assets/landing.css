@@ -751,6 +751,56 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 }
 .install .install-cmd::before { content: '$ '; color: var(--accent); }
 
+/* ---------- comparisons preview chart ---------- */
+
+.bench-preview .bench-chart {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 5rem 3rem;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  font: 0.8125rem var(--mono);
+  margin: 0.75rem 0 0.25rem;
+}
+.bench-preview .bench-row {
+  display: contents;
+}
+.bench-preview .bench-row .lib {
+  text-align: right;
+  color: var(--fg-dim);
+}
+.bench-preview .bench-row .bar {
+  height: 1.25rem;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bench-preview .bench-row .bar .fill {
+  height: 100%;
+  background: var(--fg-faint);
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+.bench-preview .bench-row .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.bench-preview .bench-row .x {
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.bench-preview .bench-row.self .lib { color: var(--accent); font-weight: 500; }
+.bench-preview .bench-row.self .bar .fill { background: var(--accent); }
+.bench-preview .bench-row.self .num { color: var(--accent); }
+.bench-preview .bench-row.self .x { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .bench-preview .bench-chart { grid-template-columns: 5rem 1fr 4.5rem 3rem; font-size: 0.75rem; }
+  .bench-preview .bench-row .bar { height: 1rem; }
+}
+
 /* ---------- footer ---------- */
 
 footer {
