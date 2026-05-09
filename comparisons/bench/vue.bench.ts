@@ -1,5 +1,5 @@
 // @ts-nocheck
-// @vue/reactivity — reactive(rows) deep-proxies; computed walks + sorts.
+// @vue/reactivity — three chained computeds, mirroring data's view graph.
 
 import { reactive, computed, effect } from '@vue/reactivity'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -7,15 +7,18 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function build() {
   const trades = reactive(makeTrades())
-  const top = computed(() => {
-    const out = []
+  const withSpread = computed(() => {
+    const out = new Array(trades.length)
     for (let i = 0; i < trades.length; i++) {
       const t = trades[i]
-      const spread = t.ask - t.bid
-      if (spread > THRESHOLD) out.push({ id: t.id, spread })
+      out[i] = { id: t.id, spread: t.ask - t.bid }
     }
-    out.sort((a, b) => b.spread - a.spread)
-    return out.slice(0, TOP_K)
+    return out
+  })
+  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
+  const top = computed(() => {
+    const f = filtered.value
+    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
   })
   let last: any[] = []
   const runner = effect(() => { last = top.value })
@@ -54,6 +57,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'reactive(rows) + computed; full filter + sort + slice per recompute',
+    notes: 'three chained computeds; reactive deep-proxy + 3× O(N) per recompute',
   }
 }

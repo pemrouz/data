@@ -174,71 +174,76 @@
         <!-- BENCH:START — bench:compare on node v25; numbers in ms (lower = faster) -->
         <tr class="self">
           <td>data</td><td>1.0.0</td>
-          <td class="num">8.20</td><td class="num">0.135</td><td class="num">8.76</td>
-          <td class="notes">map + filter + za(K); per-tick: O(1) map/filter + O(log N) bisect on sorted index</td>
+          <td class="num">7.54</td><td class="num">0.149</td><td class="num">11.46</td>
+          <td class="notes">map → filter → za(K); 3 chained view nodes (the natural API); per-tick: O(1) + O(1) + O(log N)</td>
         </tr>
         <tr>
           <td>crossfilter</td><td>1.5.4</td>
-          <td class="num">4.37</td><td class="num">0.982</td><td class="num">176.67</td>
+          <td class="num">4.46</td><td class="num">0.426</td><td class="num">171.53</td>
           <td class="notes">spread dimension + dim.top(K); remove + add per tick (no in-place mutation)</td>
         </tr>
         <tr>
           <td>mobx</td><td>6.15.3</td>
-          <td class="num">104.00</td><td class="num">10.46</td><td class="num">356.41</td>
-          <td class="notes">observable.array + computed; full filter + sort + slice per tick</td>
+          <td class="num">120.43</td><td class="num">10.33</td><td class="num">372.68</td>
+          <td class="notes">three chained computeds (map / filter / sort+slice); 3× O(N) walks per tick</td>
         </tr>
         <tr>
           <td>rxjs</td><td>7.8.2</td>
-          <td class="num">4.15</td><td class="num">2.12</td><td class="num">1,288.50</td>
-          <td class="notes">BehaviorSubject&lt;Trade[]&gt;; full filter + sort + slice per .next()</td>
+          <td class="num">3.40</td><td class="num">2.09</td><td class="num">1,431.86</td>
+          <td class="notes">three .pipe stages; each emits a new array per .next()</td>
         </tr>
         <tr>
           <td>solid</td><td>1.9.12</td>
-          <td class="num">8.98</td><td class="num">3.39</td><td class="num">128.85</td>
-          <td class="notes">per-row signals + memo; full filter + sort + slice per recompute</td>
+          <td class="num">10.25</td><td class="num">4.17</td><td class="num">112.00</td>
+          <td class="notes">three chained createMemos; per-row signals + 3× O(N) memo bodies</td>
         </tr>
         <tr>
           <td>preact-signals</td><td>1.14.1</td>
-          <td class="num">11.68</td><td class="num">3.95</td><td class="num">79.34</td>
-          <td class="notes">per-row signal + computed; full filter + sort + slice per recompute</td>
+          <td class="num">10.48</td><td class="num">3.69</td><td class="num">112.06</td>
+          <td class="notes">three chained computeds; per-row signals + 3× O(N) per recompute</td>
         </tr>
         <tr>
           <td>vue-reactivity</td><td>3.5.34</td>
-          <td class="num">18.40</td><td class="num">14.96</td><td class="num">666.23</td>
-          <td class="notes">reactive(rows) + computed; full filter + sort + slice per recompute</td>
+          <td class="num">20.57</td><td class="num">15.72</td><td class="num">820.45</td>
+          <td class="notes">three chained computeds; reactive deep-proxy + 3× O(N) per recompute</td>
         </tr>
         <tr>
           <td>svelte (store)</td><td>5.55.5</td>
-          <td class="num">3.79</td><td class="num">1.97</td><td class="num">1,879.94</td>
-          <td class="notes">writable + derived; full filter + sort + slice per .update</td>
+          <td class="num">3.21</td><td class="num">2.38</td><td class="num">1,442.59</td>
+          <td class="notes">three chained deriveds; full sort + slice per .update through 3 stages</td>
         </tr>
         <!-- BENCH:END -->
       </tbody>
     </table>
     </div>
-    <p class="muted" style="font-size:0.8125rem;max-width:62ch">
-      Each library uses its <em>idiomatic</em> encoding. RxJS replaces the
-      array on every tick (no per-row reactivity). Crossfilter mutates via
-      <code class="inline">remove(predicate) + add(rows)</code>. MobX, Vue mutate in place; MobX
-      wraps each tick in <code class="inline">runInAction</code> (a single user-facing action). Solid /
-      Preact use per-row signals. Svelte uses <code class="inline">svelte/store</code> with
-      <code class="inline">.update()</code> — runes need the compiler and aren't headless-bench
-      friendly. <b>No library uses a whole-stream batching primitive</b>: that
-      would amortize 1000 ticks into one settle, which a real tick-driven UI
-      can't do.
+    <p class="muted" style="font-size:0.8125rem;max-width:64ch">
+      Each peer's pipeline is split into <b>three chained reactive nodes</b>
+      — a <code class="inline">withSpread</code> stage, a <code class="inline">filtered</code> stage, a <code class="inline">top</code> stage —
+      mirroring data's <code class="inline">map → filter → za</code> chain rather than fusing
+      everything into one big <code class="inline">computed</code> body. This is what real
+      pipelines look like as they grow (different consumers wanting different
+      points along the chain), and it's the encoding the side-by-side code
+      below shows. RxJS replaces the array on every tick; crossfilter mutates
+      via <code class="inline">remove + add</code>; MobX/Vue mutate in place; MobX wraps each tick
+      in <code class="inline">runInAction</code>. Svelte uses <code class="inline">svelte/store</code> — runes need the
+      compiler and aren't headless-bench friendly. <b>No library uses a
+      whole-stream batching primitive</b>: that would amortize 1000 ticks into
+      one settle, which a real tick-driven UI can't do.
     </p>
     <div class="summary" style="margin-top:1.25rem;max-width:64ch">
       <b style="color:var(--accent)">Headline.</b> On a <b>single tick</b>,
-      <b>data at ~0.14&nbsp;ms</b> is the fastest — 7× ahead of crossfilter, ~15×
-      ahead of Svelte / RxJS, ~110× ahead of Vue. On the <b>1000-tick stream</b>,
-      data finishes in <b>~8.8&nbsp;ms</b> and every peer is between 9× and 215×
-      behind: Preact 9×, Solid 15×, Crossfilter 20×, MobX 41×, Vue 76×, RxJS
-      147×, Svelte 215×. The reason is structural: data's per-tick work through
-      <code class="inline">map → filter → za</code> is O(1) + O(1) + O(log&nbsp;N) using a sorted
-      index, while every peer (except crossfilter) re-sorts the full filtered
-      collection on every tick. Two libraries with native incremental top-K
-      (data, crossfilter) sit at one end of the table; six libraries doing
-      O(N&nbsp;log&nbsp;N) per tick sit at the other.
+      <b>data at ~0.15&nbsp;ms</b> is the fastest — ~3× ahead of crossfilter, ~14× ahead
+      of svelte/RxJS, ~25× ahead of Solid/Preact, ~100× ahead of Vue.
+      On the <b>1000-tick stream</b>, data finishes in <b>~11&nbsp;ms</b>:
+      Solid 10×, Preact 10×, crossfilter 15×, MobX 33×, Vue 72×, RxJS 125×,
+      svelte/store 126× behind. The reason is structural — data's per-tick
+      work through <code class="inline">map → filter → za</code> is
+      O(1)&nbsp;+&nbsp;O(1)&nbsp;+&nbsp;O(log&nbsp;N) over a sorted index,
+      while every peer (except crossfilter, which has its own indexed
+      <code class="inline">dim.top(K)</code>) re-sorts the full filtered collection on every tick.
+      Two libraries with native incremental top-K (data, crossfilter) sit at
+      one end of the table; six libraries doing O(N&nbsp;log&nbsp;N) per tick
+      sit at the other.
     </div>
   </section>
 
@@ -289,9 +294,9 @@ const rows = dSpread.top(10)</pre>
         </div>
       </div>
       <p class="summary" data-summary="crossfilter">
-        Single tick: <b>data ~0.14&nbsp;ms</b> vs. <b>crossfilter ~0.98&nbsp;ms</b>
-        — ~7× faster. <b>1000-tick stream</b>: <b>~8.8&nbsp;ms vs. ~177&nbsp;ms</b>
-        — 20× faster. Both libraries have incremental top-K, so the gap is
+        Single tick: <b>data ~0.15&nbsp;ms</b> vs. <b>crossfilter ~0.43&nbsp;ms</b>
+        — ~3× faster. <b>1000-tick stream</b>: <b>~11&nbsp;ms vs. ~172&nbsp;ms</b>
+        — ~15× faster. Both libraries have incremental top-K, so the gap is
         smaller than against the bulk-replace peers; the remaining gap is
         crossfilter's mandatory <code class="inline">remove + add</code> per tick (the spread index
         is updated twice). For a static dataset with brushable filters,
@@ -318,11 +323,12 @@ const rows = dSpread.top(10)</pre>
           <div class="label">data</div>
 <pre class="code">import { $, value } from 'data/full'
 
-const trades = $(makeTrades())
-const top = trades
-  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-  .filter(t =&gt; t.spread &gt; THRESHOLD)
-  .za('spread', 10)
+const trades    = $(makeTrades())
+const withSpread = trades.map(t =&gt;
+  ({ ...t, spread: t.ask - t.bid }))
+const filtered   = withSpread.filter(t =&gt;
+  t.spread &gt; THRESHOLD)
+const top        = filtered.za('spread', 10)
 
 trades[42].bid = 99.5
 const rows = top[value]</pre>
@@ -332,30 +338,28 @@ const rows = top[value]</pre>
 <pre class="code">import { observable, computed, runInAction } from 'mobx'
 
 const trades = observable.array(
-  makeTrades().map(t =&gt; observable.object(t))
-)
-const top = computed(() =&gt; {
-  const out = []
-  for (const t of trades) {
-    const s = t.ask - t.bid
-    if (s &gt; THRESHOLD) out.push({ id: t.id, spread: s })
-  }
-  out.sort((a, b) =&gt; b.spread - a.spread)
-  return out.slice(0, 10)
-})
+  makeTrades().map(t =&gt; observable.object(t)))
+
+const withSpread = computed(() =&gt;
+  trades.map(t =&gt; ({ ...t, spread: t.ask - t.bid })))
+const filtered = computed(() =&gt;
+  withSpread.get().filter(t =&gt; t.spread &gt; THRESHOLD))
+const top = computed(() =&gt;
+  [...filtered.get()].sort((a, b) =&gt; b.spread - a.spread)
+                     .slice(0, 10))
 
 runInAction(() =&gt; { trades[42].bid = 99.5 })
-const rows = top.get()   // full sort + slice</pre>
+const rows = top.get()      // 3× O(N) walks</pre>
         </div>
       </div>
       <p class="summary" data-summary="mobx">
-        Setup: <b>~104&nbsp;ms</b> for MobX (10k <code class="inline">observable.object</code>'s) vs.
-        <b>~8&nbsp;ms</b> for data. Single tick: <b>~10.5&nbsp;ms</b> vs. <b>~0.14&nbsp;ms</b>
-        — ~77× — because every change triggers a full filter + sort + slice over
-        the array. <b>1000-tick stream</b>: <b>~356&nbsp;ms vs. ~8.8&nbsp;ms</b> — ~41×.
-        MobX is fine for in-place mutation of small reactive state; for
-        continuous tick updates over thousands of rows with sorted views, the
-        per-tick re-sort dominates.
+        Setup: <b>~120&nbsp;ms</b> for MobX (10k <code class="inline">observable.object</code>'s) vs.
+        <b>~8&nbsp;ms</b> for data. Single tick: <b>~10.3&nbsp;ms</b> vs. <b>~0.15&nbsp;ms</b>
+        — ~70× — because every change triggers a full re-walk through three
+        chained computeds. <b>1000-tick stream</b>: <b>~373&nbsp;ms vs. ~11&nbsp;ms</b>
+        — ~33×. MobX is fine for in-place mutation of small reactive state;
+        for continuous ticks over thousands of rows with multiple chained
+        derived views, the per-tick re-sort dominates.
       </p>
     </div>
 
@@ -376,11 +380,12 @@ const rows = top.get()   // full sort + slice</pre>
           <div class="label">data</div>
 <pre class="code">import { $, value } from 'data/full'
 
-const trades = $(makeTrades())
-const top = trades
-  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-  .filter(t =&gt; t.spread &gt; THRESHOLD)
-  .za('spread', 10)
+const trades    = $(makeTrades())
+const withSpread = trades.map(t =&gt;
+  ({ ...t, spread: t.ask - t.bid }))
+const filtered   = withSpread.filter(t =&gt;
+  t.spread &gt; THRESHOLD)
+const top        = filtered.za('spread', 10)
 
 trades[42].bid = 99.5
 const rows = top[value]</pre>
@@ -391,30 +396,30 @@ const rows = top[value]</pre>
 import { map } from 'rxjs/operators'
 
 const subject = new BehaviorSubject(makeTrades())
+const withSpread$ = subject.pipe(map(rows =&gt;
+  rows.map(t =&gt; ({ ...t, spread: t.ask - t.bid }))))
+const filtered$   = withSpread$.pipe(map(rows =&gt;
+  rows.filter(t =&gt; t.spread &gt; THRESHOLD)))
+const top$        = filtered$.pipe(map(rows =&gt;
+  [...rows].sort((a, b) =&gt; b.spread - a.spread)
+           .slice(0, 10)))
+
 let last = []
-subject.pipe(map(rows =&gt; {
-  const out = []
-  for (const t of rows) {
-    const s = t.ask - t.bid
-    if (s &gt; THRESHOLD) out.push({ id: t.id, spread: s })
-  }
-  out.sort((a, b) =&gt; b.spread - a.spread)
-  return out.slice(0, 10)
-})).subscribe(v =&gt; last = v)
+top$.subscribe(v =&gt; last = v)
 
 const next = subject.value.slice()
 next[42] = { ...next[42], bid: 99.5 }
-subject.next(next)       // full sort + slice</pre>
+subject.next(next)       // 3 stages, all re-run</pre>
         </div>
       </div>
       <p class="summary" data-summary="rxjs">
-        Single tick: <b>data ~0.14&nbsp;ms</b> vs. <b>RxJS ~2.1&nbsp;ms</b> — ~16×.
-        <b>1000-tick stream</b>: <b>data ~8.8&nbsp;ms</b> vs. <b>RxJS ~1289&nbsp;ms</b>
-        — ~147×. Each tick is its own emission and each emission re-sorts the
-        full filtered collection; the cost compounds badly when the derivation
-        is non-trivial. RxJS is still the right tool for actual <em>streams</em>
-        (event composition, temporal operators); it's the wrong shape for
-        editable collections with sorted views.
+        Single tick: <b>data ~0.15&nbsp;ms</b> vs. <b>RxJS ~2.1&nbsp;ms</b> — ~14×.
+        <b>1000-tick stream</b>: <b>data ~11&nbsp;ms</b> vs. <b>RxJS ~1432&nbsp;ms</b>
+        — ~125×. Each tick is its own emission and each emission re-runs all
+        three pipe stages over the full collection; the cost compounds badly
+        when the derivation is non-trivial. RxJS is still the right tool for
+        actual <em>streams</em> (event composition, temporal operators); it's
+        the wrong shape for editable collections with sorted views.
       </p>
     </div>
 
@@ -457,11 +462,12 @@ subject.next(next)       // full sort + slice</pre>
           <div class="label">data</div>
 <pre class="code">import { $, value } from 'data/full'
 
-const trades = $(makeTrades())
-const top = trades
-  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-  .filter(t =&gt; t.spread &gt; THRESHOLD)
-  .za('spread', 10)
+const trades    = $(makeTrades())
+const withSpread = trades.map(t =&gt;
+  ({ ...t, spread: t.ask - t.bid }))
+const filtered   = withSpread.filter(t =&gt;
+  t.spread &gt; THRESHOLD)
+const top        = filtered.za('spread', 10)
 
 trades[42].bid = 99.5    // map → 1 row,
                          // filter → 1 row,
@@ -478,40 +484,41 @@ const cells = makeTrades().map(t =&gt; {
   const [ask, setAsk] = createSignal(t.ask)
   return { id: t.id, bid, setBid, ask, setAsk }
 })
-const top = createRoot(() =&gt; createMemo(() =&gt; {
-  const out = []
-  for (const c of cells) {
-    const s = c.ask() - c.bid()
-    if (s &gt; THRESHOLD) out.push({ id: c.id, spread: s })
-  }
-  out.sort((a, b) =&gt; b.spread - a.spread)
-  return out.slice(0, 10)
-}))
+const top = createRoot(() =&gt; {
+  const withSpread = createMemo(() =&gt;
+    cells.map(c =&gt; ({ id: c.id,
+                      spread: c.ask() - c.bid() })))
+  const filtered = createMemo(() =&gt;
+    withSpread().filter(t =&gt; t.spread &gt; THRESHOLD))
+  return createMemo(() =&gt;
+    [...filtered()].sort((a, b) =&gt; b.spread - a.spread)
+                   .slice(0, 10))
+})
 
 cells[42].setBid(99.5)
-const rows = top()       // full sort + slice on read</pre>
+const rows = top()       // 3 memos, full sort on read</pre>
         </div>
       </div>
       <p class="summary" data-summary="signals">
-        <b>Preact</b>: single ~3.95&nbsp;ms, stream ~79&nbsp;ms (~29× and ~9× behind data).
-        <b>Solid</b>: single ~3.4&nbsp;ms, stream ~129&nbsp;ms (~25× and ~15× behind).
-        <b>Svelte/store</b>: single ~1.97&nbsp;ms (~15× behind), stream <b>~1880&nbsp;ms</b>
-        (~215× behind — the slowest in the table; the array-replace + sort + slice
+        <b>Solid</b>: single ~4.2&nbsp;ms, stream ~112&nbsp;ms (~28× and ~10× behind data).
+        <b>Preact</b>: single ~3.7&nbsp;ms, stream ~112&nbsp;ms (~25× and ~10× behind).
+        <b>Svelte/store</b>: single ~2.4&nbsp;ms, stream <b>~1443&nbsp;ms</b>
+        (~126× behind — the slowest in the table; the array-replace + sort + slice
         per <code class="inline">.update</code> is brutal at this scale). <b>Vue</b>: see caveat below.
         On every case <b>data</b> wins decisively. The reason isn't memo
-        scheduling — Solid and Preact have lean schedulers — it's that the memo
+        scheduling — Solid and Preact have lean schedulers — it's that each memo
         body has to <em>sort</em> the filtered collection on every recomputation,
         and there's no way to make that incremental in a primitives library.
       </p>
       <p class="muted" style="font-size:0.8125rem;max-width:70ch">
-        <b>Vue caveat (~666&nbsp;ms on the stream).</b> <code class="inline">reactive(rows)</code>
+        <b>Vue caveat (~820&nbsp;ms on the stream).</b> <code class="inline">reactive(rows)</code>
         deep-proxies every row; each <code class="inline">trades[i].bid = …</code> goes through
-        scheduler bookkeeping, and the computed re-runs filter + sort + slice
-        over 10k rows on each <code class="inline">.value</code> read. In a real Vue app you'd reach
-        for <code class="inline">shallowReactive</code>, <code class="inline">markRaw</code>, or simply not put 10,000
-        reactive rows in component state. The number reflects the
-        <em>natural</em> Vue shape for this workload — an honest figure for
-        the comparison, not a refutation of Vue for the kinds of state Vue is
+        scheduler bookkeeping, and three chained computeds re-run on each
+        <code class="inline">.value</code> read (map, filter, sort+slice). In a real Vue app you'd
+        reach for <code class="inline">shallowReactive</code>, <code class="inline">markRaw</code>, or simply not put
+        10,000 reactive rows in component state. The number reflects the
+        <em>natural</em> Vue shape for this workload — an honest figure for the
+        comparison, not a refutation of Vue for the kinds of state Vue is
         actually used for.
       </p>
     </div>

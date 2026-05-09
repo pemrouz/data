@@ -1,5 +1,5 @@
 // @ts-nocheck
-// svelte/store — writable<Trade[]> + derived computing top-K.
+// svelte/store — three chained `derived`s, mirroring data's view graph.
 
 import { writable, derived, get } from 'svelte/store'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -7,16 +7,16 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function build() {
   const store = writable(makeTrades())
-  const top = derived(store, rows => {
-    const out = []
+  const withSpread = derived(store, rows => {
+    const out = new Array(rows.length)
     for (let i = 0; i < rows.length; i++) {
       const t = rows[i]
-      const spread = t.ask - t.bid
-      if (spread > THRESHOLD) out.push({ id: t.id, spread })
+      out[i] = { id: t.id, spread: t.ask - t.bid }
     }
-    out.sort((a, b) => b.spread - a.spread)
-    return out.slice(0, TOP_K)
+    return out
   })
+  const filtered = derived(withSpread, rows => rows.filter(t => t.spread > THRESHOLD))
+  const top = derived(filtered, rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
   let last: any[] = []
   const unsub = top.subscribe(v => { last = v })
   return { store, top, unsub, getLast: () => last }
@@ -61,6 +61,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'writable + derived; full filter + sort + slice per .update',
+    notes: 'three chained deriveds; full sort + slice per .update through 3 stages',
   }
 }

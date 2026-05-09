@@ -1,5 +1,5 @@
 // @ts-nocheck
-// @preact/signals-core — per-row signals + computed. Same pattern as Solid.
+// @preact/signals-core — three chained computeds, mirroring data's view graph.
 
 import { signal, computed, effect } from '@preact/signals-core'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -11,15 +11,18 @@ function build() {
     bid: signal(t.bid),
     ask: signal(t.ask),
   }))
-  const top = computed(() => {
-    const out = []
+  const withSpread = computed(() => {
+    const out = new Array(cells.length)
     for (let i = 0; i < cells.length; i++) {
       const c = cells[i]
-      const spread = c.ask.value - c.bid.value
-      if (spread > THRESHOLD) out.push({ id: c.id, spread })
+      out[i] = { id: c.id, spread: c.ask.value - c.bid.value }
     }
-    out.sort((a, b) => b.spread - a.spread)
-    return out.slice(0, TOP_K)
+    return out
+  })
+  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
+  const top = computed(() => {
+    const f = filtered.value
+    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
   })
   let last: any[] = []
   const dispose = effect(() => { last = top.value })
@@ -62,6 +65,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'per-row signal + computed; full filter + sort + slice per recompute',
+    notes: 'three chained computeds; per-row signals + 3× O(N) per recompute',
   }
 }

@@ -1,7 +1,7 @@
 // @ts-nocheck
-// Solid.js — per-row signals + createMemo computing top-K. Imports
-// solid-js/dist/solid.js explicitly because the default `node` export
-// resolves to the SSR build (signals are inert there).
+// Solid.js — three chained createMemos, mirroring data's view graph. Each tick
+// dirties all three; reading `top()` pulls memo recomputes top → filtered →
+// withSpread.
 
 import { createSignal, createMemo, createRoot } from 'solid-js/dist/solid.js'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -25,15 +25,18 @@ function build() {
       const [ask, setAsk] = createSignal(t.ask)
       return { id: t.id, bid, setBid, ask, setAsk }
     })
-    const memo = createMemo(() => {
-      const out = []
+    const withSpread = createMemo(() => {
+      const out = new Array(cells.length)
       for (let i = 0; i < cells.length; i++) {
         const c = cells[i]
-        const spread = c.ask() - c.bid()
-        if (spread > THRESHOLD) out.push({ id: c.id, spread })
+        out[i] = { id: c.id, spread: c.ask() - c.bid() }
       }
-      out.sort((a, b) => b.spread - a.spread)
-      return out.slice(0, TOP_K)
+      return out
+    })
+    const filtered = createMemo(() => withSpread().filter(t => t.spread > THRESHOLD))
+    const memo = createMemo(() => {
+      const f = filtered()
+      return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
     })
     top = memo
     last = memo()
@@ -78,6 +81,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'per-row signals + memo; full filter + sort + slice per recompute',
+    notes: 'three chained createMemos; per-row signals + 3× O(N) memo bodies',
   }
 }

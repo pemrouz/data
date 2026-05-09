@@ -1,7 +1,7 @@
 // @ts-nocheck
-// RxJS — BehaviorSubject<Trade[]>; pipe maps to top-K spread list. Each tick =
-// one .next() with a freshly substituted array, which fires the pipeline
-// synchronously: full sort + slice on every emission.
+// RxJS — three chained .pipe stages, mirroring data's view graph. Every
+// .next() fires the whole pipeline synchronously: map → filter → sort+slice,
+// each emitting a new array.
 
 import { BehaviorSubject } from 'rxjs'
 import { map } from 'rxjs/operators'
@@ -10,19 +10,24 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function build() {
   const subject = new BehaviorSubject(makeTrades())
-  let last: any[] = []
-  const sub = subject
-    .pipe(map(rows => {
-      const out = []
+  const withSpread$ = subject.pipe(
+    map(rows => {
+      const out = new Array(rows.length)
       for (let i = 0; i < rows.length; i++) {
         const t = rows[i]
-        const spread = t.ask - t.bid
-        if (spread > THRESHOLD) out.push({ id: t.id, spread })
+        out[i] = { id: t.id, spread: t.ask - t.bid }
       }
-      out.sort((a, b) => b.spread - a.spread)
-      return out.slice(0, TOP_K)
-    }))
-    .subscribe(v => { last = v })
+      return out
+    }),
+  )
+  const filtered$ = withSpread$.pipe(
+    map(rows => rows.filter(t => t.spread > THRESHOLD)),
+  )
+  const top$ = filtered$.pipe(
+    map(rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)),
+  )
+  let last: any[] = []
+  const sub = top$.subscribe(v => { last = v })
   return { subject, sub, getLast: () => last }
 }
 
@@ -63,6 +68,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'BehaviorSubject<Trade[]>; full filter + sort + slice per .next()',
+    notes: 'three .pipe stages (map / filter / sort+slice); each emits a new array',
   }
 }

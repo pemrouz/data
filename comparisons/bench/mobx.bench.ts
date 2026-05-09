@@ -1,7 +1,8 @@
 // @ts-nocheck
-// MobX — observable.array of observable.objects; `computed` filters and
-// sorts/slices to top K. Each tick = one mutation in runInAction; reading the
-// computed forces the full sort + slice.
+// MobX — pipeline split into three chained computeds, mirroring data's view
+// graph. Each tick invalidates all three; reading `top.get()` recomputes
+// `top → filtered → withSpread` in dependency order. Three full O(N) walks
+// per tick instead of one fused inline loop.
 
 import { observable, computed, runInAction, autorun } from 'mobx'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -11,15 +12,18 @@ function build() {
   const trades = observable.array(
     makeTrades().map(t => observable.object(t, {}, { deep: false })),
   )
-  const top = computed(() => {
-    const out = []
+  const withSpread = computed(() => {
+    const out = new Array(trades.length)
     for (let i = 0; i < trades.length; i++) {
       const t = trades[i]
-      const spread = t.ask - t.bid
-      if (spread > THRESHOLD) out.push({ id: t.id, spread })
+      out[i] = { id: t.id, spread: t.ask - t.bid }
     }
-    out.sort((a, b) => b.spread - a.spread)
-    return out.slice(0, TOP_K)
+    return out
+  })
+  const filtered = computed(() => withSpread.get().filter(t => t.spread > THRESHOLD))
+  const top = computed(() => {
+    const f = filtered.get()
+    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
   })
   let last = top.get()
   const dispose = autorun(() => { last = top.get() })
@@ -61,6 +65,6 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'observable.array + computed; full filter + sort + slice per tick',
+    notes: 'three chained computeds (map / filter / sort+slice); 3× O(N) per tick',
   }
 }
