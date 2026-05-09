@@ -33,7 +33,7 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 
 ## How dispatch works
 
-The mapping from operator name to class lives in [../index.ts](../index.ts) (lines 18–32). Each entry is a function that picks a class based on argument shape:
+The mapping from operator name to class lives in [../full.ts](../full.ts) (the lean `data` entry leaves the dispatch table empty; `data/full` is what populates it). Each entry is a function that picks a class based on argument shape:
 
 ```js
 Operators['filter']  = (a, b) => typeof a === 'function' ? FilterValue
@@ -51,9 +51,9 @@ So `proxy.filter('done', true)` and `proxy.filter(row => row.done)` resolve to *
 ## Adding an operator
 
 1. Extend `Operator` from [../core.ts](../core.ts), or `RowOperator` from [../row.ts](../row.ts) if your operator processes each row independently.
-2. Implement the notification methods you care about (`XU0`, `BU1`, `BI0`, `BR1`, …) — see [.claude/architecture.md](../.claude/architecture.md) for the full code legend and propagation rules.
+2. Implement the notification methods you care about (`XU0`, `BU1`, `BI0`, `BR1`, …) — see [.claude/architecture.md](../.claude/architecture.md) for the full code legend, propagation rules, and the **array-source shift contract** every key-indexed operator has to follow.
 3. Add a `matches(...args)` method if you want repeated calls with equivalent args to be deduplicated.
-4. Register the class in [../index.ts](../index.ts) so `proxy.<name>(...)` dispatches to it.
+4. Register the class in [../full.ts](../full.ts) so `proxy.<name>(...)` dispatches to it (registrations live on `data/full`, not the lean `data` entry).
 5. Add `<name>.test.ts` and `<name>.perf.ts` next to the source.
 
 ## `connect` (not an operator, but the read path)

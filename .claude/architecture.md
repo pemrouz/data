@@ -91,6 +91,18 @@ External sinks (e.g. `DOMSink` from [render/index.ts:11](../render/index.ts#L11)
 
 Note that `RowOperator` always emits at the `BU1`/`BI0`/`BR1` level — it flattens nested updates into a single child-level notification. This is why row operators yield an object/array of rows, not a tree.
 
+## Array-source shift contract
+
+Source arrays splice on `delete arr[i]` or `arr.splice(i, 0, v)` — every key above the mutation point shifts. Operators that hold key-indexed state (`sorted` in `between`/`sort`; the sparse-array `view.value` in any `RowOperator`) have to keep their state aligned with the source's post-splice indexing, or downstream reads dereference stale keys.
+
+Conventions in this repo:
+
+- **`RowOperator.BR1`** detects an array-shaped `view.value` and `splice`s instead of `delete`ing. For rows the predicate had excluded it still emits a `[name, undefined]` pair so downstream operators can apply their own shift bookkeeping. Object sources keep the previous `delete` + skip-empty behavior.
+- **`LengthValue.BR1`/`BI0`** count only non-`undefined` payloads in the protocol array — the shift-only `[name, undefined]` notifications above must not decrement/increment the count.
+- **`ZAValue` and `BetweenValue`** cache `isArr` in `XU0` and route `BR1`/`BI0` through array-aware paths that decrement every `sorted` key above each removed position (or increment for non-end inserts), splice the sparse `view.value` in lockstep, and refill the visible window from the post-shift keys.
+
+When you add a new operator that maintains its own array-shape state, follow the same recipe: cache `isArr` at `XU0` time, splice (don't delete) on array `BR1`, and shift surviving numeric keys before re-bisecting on the next event. If your operator only counts/aggregates and doesn't track positions, just skip `undefined` payloads in `BR1`/`BI0` like `length` does.
+
 ## Operator dedup
 
 `createOperator` ([core.ts:20-28](../core.ts#L20-L28)) walks the source view's sinks, looks for an existing instance of the same operator class whose `matches(...args)` returns truthy, and reuses it. The same dedup logic also runs inside `ViewProxy.apply` ([core.ts:563-583](../core.ts#L563-L583)) when an operator is invoked via `proxy.<op>()`.
