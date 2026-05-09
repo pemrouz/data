@@ -50,7 +50,8 @@
   ],
   "scripts": {
     "build": "tsup",
-    "serve": "tsup && npx serve",
+    "build:examples-jsx": "tsc -p examples/todo-jsx",
+    "serve": "tsup && npm run build:examples-jsx && npx serve",
     "test:render": "npx playwright test",
     "test:data": "node --experimental-strip-types --no-warnings --test index.test.ts",
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
