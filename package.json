@@ -2,17 +2,29 @@
   "name": "data",
   "version": "1.0.0",
   "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
-  "main": "index.js",
-  "types": "build/index.d.ts",
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./full": {
+      "types": "./dist/full.d.ts",
+      "import": "./dist/full.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js"
+    }
+  },
   "files": [
-    "index.js",
-    "core.js",
-    "row.js",
-    "utils.js",
-    "operators/*/index.js",
-    "render/index.js",
-    "build/"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
@@ -33,12 +45,12 @@
     "typescript"
   ],
   "scripts": {
-    "build": "microbundle build --name Data -o build --generateTypes --raw ",
-    "serve": "npx tsc && npx serve",
+    "build": "tsup",
+    "serve": "tsup && npx serve",
     "test:render": "npx playwright test",
     "test:data": "node --experimental-strip-types --no-warnings --test index.test.ts",
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
-    "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js",
+    "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js jsx/*.test.ts",
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts",
     "test:all": "npm run test && npm run test:render",
     "prepublishOnly": "npm run build && npm test"
@@ -47,8 +59,8 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@types/node": "^22.10.2",
-    "microbundle": "^0.15.1",
     "serve": "^14.2.4",
+    "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }
 }

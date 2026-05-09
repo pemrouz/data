@@ -15,8 +15,15 @@
     <div class="loader-detail">231,083 records · January 2001 · ASA Data Expo</div>
   </div>
 </body>
+<script type="importmap">
+{ "imports": {
+    "data":        "../../dist/index.js",
+    "data/full":   "../../dist/full.js",
+    "data/render": "../../dist/render/index.js"
+} }
+</script>
 <script type="module">
-  import { $, render, HTML, SVG, value } from '../../full.js'
+  import { $, render, HTML, SVG, value } from 'data/full'
 
   // Stream-fetch the dataset with live progress, then dynamic-import via a
   // Blob URL. The original `import { data } from './flights.js'` blocks the

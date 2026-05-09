@@ -6,8 +6,15 @@
     <link rel="stylesheet" href="./index.css">
 </head>
 </html>
+<script type="importmap">
+{ "imports": {
+    "data":        "../../dist/index.js",
+    "data/full":   "../../dist/full.js",
+    "data/render": "../../dist/render/index.js"
+} }
+</script>
 <script type="module">
-    import { $, value, render, HTML } from '../../full.js'
+    import { $, value, render, HTML } from 'data/full'
     const { section, div, header, input, h1, label, ul, footer, span, strong, button, li, a, body } = HTML
     const KEY = 'todos-ripple'
     const items = window.items = $(JSON.parse(localStorage.getItem(KEY) || '{}'))
