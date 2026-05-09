@@ -30,6 +30,11 @@ export class ZAValue extends Operator {
 
   XU0(value){
     if (typeof value !== 'object') return this.XR0()
+    // Source shape is captured here (not at call time of BR1/BI0) because
+    // those notifications fire *after* the source has already mutated, and
+    // for arrays a removal will have shifted indices we still need to
+    // translate against the pre-shift `sorted`.
+    this.isArr = isArray(value)
     this.sorted = Object
       .keys(value)
       .sort((a, b) => {
@@ -46,18 +51,67 @@ export class ZAValue extends Operator {
     )
   }
 
-  // Row removed upstream. If it was outside the visible window we just
-  // splice it out of `sorted`. If it was inside, we have to evict its DOM
-  // slot (BR1A) and refill the tail from the next-ranked source row.
+  // Row removed upstream. Object sources keep stable keys, so we just
+  // splice the deleted name out of `sorted` (and refill the visible window
+  // from the next-ranked row if the removal was in-window). Array sources
+  // require additional shift bookkeeping — see BR1A.
   BR1(R1){
-    for (let i = 0; i < R1.length; i++) {
-      const oidx = this.get_index(R1[i++])
+    if (this.isArr) return this.BR1A(R1)
+    for (let i = 0; i < R1.length; i += 2) {
+      const oidx = this.get_index(R1[i])
+      if (oidx === -1) continue
       this.sorted.splice(oidx, 1)
-      if (oidx >= this.n) return
+      if (oidx >= this.n) continue
       super.BR1A([oidx])
       const len = this.view.value.length
       if (this.sorted.length > len)
         super.BI0A([len, this.p.value[this.sorted[len]]])
+    }
+  }
+
+  // Array source: each removal at upstream index `name` shifts all later
+  // indices down by one. Sorted holds upstream keys (numeric strings); after
+  // the source splice, every entry in `sorted` whose key is greater than
+  // any removed index needs to decrement to match. We also re-emit an
+  // in-window evict per removal that fell inside the visible window, then
+  // refill the tail from whatever rows now sit at the boundary.
+  BR1A(R1){
+    const inWindow = []
+    const removedKeys = []
+    for (let i = 0; i < R1.length; i += 2) {
+      const name = R1[i]
+      // Always track the position for shift bookkeeping — upstream array
+      // operators may forward shift-only notifications for rows that were
+      // never in our `sorted` (because they were filtered out earlier in
+      // the chain). We must still re-key everything else.
+      removedKeys.push(+name)
+      const oidx = this.sorted.indexOf(name)
+      if (oidx === -1) continue
+      this.sorted.splice(oidx, 1)
+      if (oidx < this.n) inWindow.push(oidx)
+    }
+
+    // Shift remaining `sorted` keys to match the source's post-splice layout.
+    if (removedKeys.length) {
+      removedKeys.sort((a, b) => a - b)
+      for (let i = 0; i < this.sorted.length; i++) {
+        const k = +this.sorted[i]
+        let shift = 0
+        for (const r of removedKeys) { if (r < k) shift++; else break }
+        if (shift) this.sorted[i] = '' + (k - shift)
+      }
+    }
+
+    // Each in-window eviction shrinks `view.value` by one; remap by prior j.
+    inWindow.sort((a, b) => a - b)
+    for (let j = 0; j < inWindow.length; j++) super.BR1A([inWindow[j] - j])
+
+    // Refill the window up to min(n, sorted.length) — reading p.value with
+    // the post-shift keys we just wrote into `sorted`.
+    const target = this.sorted.length < this.n ? this.sorted.length : this.n
+    while (this.view.value.length < target) {
+      const idx = this.view.value.length
+      super.BI0A([idx, this.p.value[this.sorted[idx]]])
     }
   }
 
@@ -115,13 +169,23 @@ export class ZAValue extends Operator {
   // New row enters. If its rank is past the window we only need to record
   // it in `sorted`; otherwise, evict the bottom of the visible window (if
   // we're already at capacity) and splice the newcomer into its rank.
+  // Array sources additionally require sliding existing keys >= `at` up by
+  // one to match the source's post-splice indexing — `push` (at === length)
+  // collapses to a no-op shift since nothing needs moving.
   BI0(I0){
-    for (let i = 0; i < I0.length; i++) {
-      const at = I0[i++]
-      const value = I0[i]
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const value = I0[i + 1]
+      if (this.isArr) {
+        const atNum = +at
+        for (let j = 0; j < this.sorted.length; j++) {
+          const k = +this.sorted[j]
+          if (k >= atNum) this.sorted[j] = '' + (k + 1)
+        }
+      }
       const new_idx = this.find(this.col(this.p.value[at]))
       this.sorted.splice(new_idx, 0, at)
-      if (new_idx >= this.n) return
+      if (new_idx >= this.n) continue
       if (this.view.value.length === this.n)
         super.BR1A([this.n - 1])
       super.BI0A([new_idx, value])

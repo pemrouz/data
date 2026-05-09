@@ -113,6 +113,41 @@ test('sort (za) - out-of-window updates do not grow the window', () => {
   same(top3[value].length, 3)
 })
 
+// Regression: array-source deletion shifts every later upstream index down
+// by one. Previously ZAValue.BR1 only spliced the deleted key out of `sorted`
+// and left the rest untouched, so the next bisect dereferenced p.value with
+// stale numeric keys and crashed (or silently returned wrong rows).
+test('sort (za) - array source delete shifts sorted keys', () => {
+  const data = $([
+    { vol: 100 }, { vol: 200 }, { vol: 300 }, { vol: 400 }, { vol: 500 },
+  ])
+  const top3 = sort(data, 'vol', 3)
+  same(top3[value], [{ vol: 500 }, { vol: 400 }, { vol: 300 }])
+  // Delete the middle row (vol: 300, source idx 2). The two rows above
+  // shift down to indices 2 and 3.
+  delete data[2]
+  same(top3[value], [{ vol: 500 }, { vol: 400 }, { vol: 200 }])
+  // Updating what is *now* the top row must read the post-shift slot.
+  data[2].vol = 999
+  same(top3[value], [{ vol: 999 }, { vol: 500 }, { vol: 200 }])
+})
+
+// Regression: array-source insert at a non-end position shifts every key
+// >= `at` up by one. Previously ZAValue.BI0 just spliced the new key into
+// `sorted` without shifting siblings, so subsequent reads of p.value via
+// stale keys crashed or returned the wrong row.
+test('sort (za) - array source insert at position shifts sorted keys', () => {
+  const data = $([
+    { vol: 100 }, { vol: 200 }, { vol: 300 }, { vol: 400 }, { vol: 500 },
+  ])
+  const top3 = sort(data, 'vol', 3)
+  data.insert({ vol: 999 }, 1)  // inserts at idx 1, shifts the rest
+  same(top3[value], [{ vol: 999 }, { vol: 500 }, { vol: 400 }])
+  // Updating row originally at idx 4 (vol: 500), now at idx 5
+  data[5].vol = 1
+  same(top3[value], [{ vol: 999 }, { vol: 400 }, { vol: 300 }])
+})
+
 // In-window rank rotation should be emitted as a single 'move' event rather
 // than per-position 'update' events. Sinks that care about identity (DOMSink
 // uses insertBefore on the same element) preserve it; sinks without BMV1

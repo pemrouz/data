@@ -28,12 +28,21 @@ export class LengthValue extends Operator {
   }
   BR1(R1){
     if (!R1.length) return
-    this.view.XU0(this.view.value -= R1.length/2)
+    // Array-aware upstreams (RowOperator over an array source) emit
+    // `[name, undefined]` for shift-only events — the row was already
+    // excluded by an upstream predicate so we shouldn't decrement the
+    // count, but the position notification still has to flow through for
+    // sort/between to maintain their indices.
+    let n = 0
+    for (let i = 1; i < R1.length; i += 2) if (R1[i] !== undefined) n++
+    if (n) this.view.XU0(this.view.value -= n)
   }
   BU1(U1){}
   BI0(I0){
     if (!I0.length) return
-    this.view.XU0(this.view.value += I0.length/2)
+    let n = 0
+    for (let i = 1; i < I0.length; i += 2) if (I0[i] !== undefined) n++
+    if (n) this.view.XU0(this.view.value += n)
   }
   BR2(){}
   BU2(){}

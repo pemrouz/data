@@ -63,3 +63,31 @@ test('filter - array key', () => {
 test('filter - object', () => {
   filterTest(res => filter(res, { completed: true }))
 })
+
+// Regression: array-source delete must splice the filter's view (not just
+// `delete view.value[name]`), or the filter's array layout drifts away from
+// the source. Subsequent BU2 events on a post-shift row would then read a
+// hole, classify as a fresh insert, and double-count downstream.
+test('filter - array source delete propagates shift', () => {
+  const data = $([
+    { keep: true, n: 1 },
+    { keep: false, n: 2 },
+    { keep: true, n: 3 },
+    { keep: true, n: 4 },
+  ])
+  const kept = filter(data, 'keep', true)
+  same(kept[value], [
+    { keep: true, n: 1 }, , { keep: true, n: 3 }, { keep: true, n: 4 },
+  ])
+  delete data[1]  // remove the excluded row; post-splice source has 3 rows
+  same(kept[value], [
+    { keep: true, n: 1 }, { keep: true, n: 3 }, { keep: true, n: 4 },
+  ])
+  // The row originally at idx 3 is now at idx 2; updating it via the new
+  // index must surface as an update on the post-shift slot (not a stale-
+  // hole-filling insert that leaves the old row dangling at idx 3).
+  data[2].n = 99
+  same(kept[value], [
+    { keep: true, n: 1 }, { keep: true, n: 3 }, { keep: true, n: 99 },
+  ])
+})

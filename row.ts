@@ -59,12 +59,28 @@ export class RowOperator extends Operator {
   // Removes can't be derived from `process` (the row is already gone
   // upstream), so this branch is a straight propagation: drop from our
   // snapshot and forward the delta if the row was actually held.
+  //
+  // Array sources need extra care: by the time BR1 fires the source has
+  // already spliced its array, so every surviving position shifted down by
+  // one for each removed entry below it. Our `view.value` is the same
+  // array shape; if we don't splice in lockstep the layouts diverge,
+  // subsequent BU2 events misclassify (read a hole, insert "new"), and
+  // any downstream operator keying off positions (sort/za, between) gets
+  // stale indices. So we always splice for arrays — even if our predicate
+  // had excluded the row — and propagate a `[name, undefined]` pair so
+  // downstream array-aware operators can apply their own shift bookkeeping.
+  // The `value !== undefined` guard is preserved for object sources where
+  // there's no shift to track.
   BR1(R1) {
+    const isArr = isArray(this.view.value)
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++]
       const value = this.view.value?.[name]
-      if (value !== undefined) {
+      if (isArr) {
+        this.view.value.splice(name, 1)
+        NR1.push(name, value)
+      } else if (value !== undefined) {
         delete this.view.value[name]
         NR1.push(name, value)
       }
