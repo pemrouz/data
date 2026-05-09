@@ -62,6 +62,7 @@ type Data<T = any> = { [k in keyof T]: Data<T[k]> } & {
   connect([]): [];
   connect({}): {};
   connect(Function): Function
+  raf(): ((value: T) => void) & { flush(): void }
   update(value: T): undefined
   update(value, key: string[]): undefined
   insert(value: RowOf<T>): undefined
@@ -804,6 +805,7 @@ export class ViewProxy {
     const { p, name: type } = this.view
     if (!p) throw new Error('cannot invoke a root value!')
     if (type === 'connect') return connect(p, ...args)
+    if (type === 'raf')     return raf(p)
     const OperatorClass = Operators[type]?.(...args)
     if (OperatorClass) {
       // Same dedup logic as createOperator, inline because we already have p.
@@ -873,4 +875,38 @@ function connect(p, a, b) {
 
   p.sinks.add(new WeakRef(a))
   return a
+}
+
+// `proxy.raf()` returns a coalescing writer: each call records the latest
+// pending value and arms a single requestAnimationFrame; subsequent calls
+// before the frame fires overwrite the pending value, so a burst of writes
+// commits exactly once per frame. `writer.flush()` commits immediately and
+// cancels the pending frame — for `pointerup` handlers that need the final
+// brush position to land without an extra frame's latency.
+//
+// `globalThis.requestAnimationFrame` is looked up per-call (not captured at
+// module load) so test environments that polyfill rAF after import still
+// work; falls back to `setTimeout(cb, 16)` in plain Node.
+function raf(p) {
+  let pending
+  let scheduled = false
+  const schedule = (cb) => typeof globalThis.requestAnimationFrame === 'function'
+    ? globalThis.requestAnimationFrame(cb)
+    : setTimeout(cb, 16)
+  const writer = (v) => {
+    pending = v
+    if (scheduled) return
+    scheduled = true
+    schedule(() => {
+      if (!scheduled) return
+      scheduled = false
+      p.res.update(pending, p.key)
+    })
+  }
+  writer.flush = () => {
+    if (!scheduled) return
+    scheduled = false
+    p.res.update(pending, p.key)
+  }
+  return writer
 }

@@ -279,6 +279,78 @@ test('iterator', async () => {
   ])
 })
 
+// Replaces the rafWriter pattern that was hand-rolled in
+// examples/crossfilter/index.html. Tests run in node where there's no native
+// requestAnimationFrame; the operator falls back to setTimeout(16), so these
+// tests just await > 16ms before asserting.
+const tick = () => new Promise(r => setTimeout(r, 30))
+
+test('raf - coalesces a burst into one commit per frame', async () => {
+  const res = $([0, 0])
+  const changes = res.connect([])
+  const write = res.raf()
+  write([1, 1])
+  write([2, 2])
+  write([3, 3])
+  // not committed synchronously
+  same(res[value], [0, 0])
+  await tick()
+  // burst landed as one update, with the latest value
+  same(res[value], [3, 3])
+  same(changes, [
+    { type: 'update', key: [], value: [0, 0] },
+    { type: 'update', key: [], value: [3, 3] },
+  ])
+})
+
+test('raf - flush commits immediately and cancels the pending frame', async () => {
+  const res = $(0)
+  const changes = res.connect([])
+  const write = res.raf()
+  write(1)
+  write(2)
+  same(res[value], 0)
+  write.flush()
+  same(res[value], 2)
+  // pending frame should be cancelled — no second commit after the timer fires
+  await tick()
+  same(res[value], 2)
+  same(changes, [
+    { type: 'update', key: [], value: 0 },
+    { type: 'update', key: [], value: 2 },
+  ])
+})
+
+test('raf - flush is a no-op when nothing is pending', () => {
+  const res = $(0)
+  const write = res.raf()
+  write.flush()    // nothing pending — must not throw or commit
+  same(res[value], 0)
+})
+
+test('raf - separate bursts commit independently', async () => {
+  const res = $(0)
+  const changes = res.connect([])
+  const write = res.raf()
+  write(1)
+  await tick()
+  write(2)
+  await tick()
+  same(changes, [
+    { type: 'update', key: [], value: 0 },
+    { type: 'update', key: [], value: 1 },
+    { type: 'update', key: [], value: 2 },
+  ])
+})
+
+test('raf - works on a child view', async () => {
+  const res = $({ a: 1, b: 2 })
+  const write = res.a.raf()
+  write(10)
+  await tick()
+  same(res[value], { a: 10, b: 2 })
+})
+
 // Helper: walk the WeakRef Set and check whether `target` is currently
 // registered. Mirrors the logic devtools/walk.ts:iterRoots() will use.
 function rootsHas(target) {
