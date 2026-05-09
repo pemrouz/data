@@ -3,7 +3,7 @@
 A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`, `debounce`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
 
 ```js
-import { $, value } from 'data'
+import { $, value } from 'data/full'
 
 const count = $(0)
 count.connect(document.body, 'textContent')   // body now mirrors count
@@ -18,12 +18,31 @@ count[value] = 42                              // body reads "42"
 npm install data
 ```
 
+Two entry points:
+
+```js
+// `data/full` — chainable operators (.filter, .between, .length, …) registered.
+// This is what most apps want.
+import { $, value, render, HTML } from 'data/full'
+
+// `data` — lean core, no operator dispatch registered. Pick this if you care
+// about tree-shaking and only use the function-style operator API
+// (e.g. `import { filter } from 'data/operators/filter'` — coming in a future
+// release; for now use `data/full`).
+import { $, value, render, HTML } from 'data'
+```
+
+`data/full` is a strict superset of `data`: it re-exports everything from the
+lean entry and additionally registers every operator on the dispatch table.
+The only reason to prefer bare `data` is bundle size when chainable operators
+aren't needed.
+
 ## Quickstart
 
 ### A reactive scalar
 
 ```js
-import { $, value } from 'data'
+import { $, value } from 'data/full'
 
 const count = $(0)
 const doubled = count.to(n => n * 2)
@@ -44,7 +63,7 @@ events
 ### A reactive collection
 
 ```js
-import { $, value } from 'data'
+import { $, value } from 'data/full'
 
 const todos = $([
   { task: 'foo', done: false },
@@ -72,7 +91,7 @@ events
 ### Rendering to the DOM
 
 ```js
-import { $, render, HTML } from 'data'
+import { $, render, HTML } from 'data/full'
 const { ul, li } = HTML
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
@@ -199,15 +218,16 @@ npm run serve
 | `npm run perf` | Perf assertions — median-of-5 timings with hard thresholds |
 | `npm run test:render` | Playwright e2e against the example apps |
 | `npm run test:all` | Both `test` and `test:render` |
-| `npm run serve` | `tsc` + static server on `:3000` |
-| `npm run build` | microbundle bundle into `build/` |
+| `npm run serve` | `tsup` + static server on `:3000` (examples need `dist/` to exist) |
+| `npm run build` | `tsup` bundle into `dist/` (ESM + per-entry types) |
 
 ## Project layout
 
 ```
 .
 ├── core.ts           — $, ViewProxy, View, Value, Sink (foundation)
-├── index.ts          — package entry; re-exports + operator dispatch table
+├── index.ts          — `data` entry: lean re-exports only, no operator dispatch
+├── full.ts           — `data/full` entry: index.ts + registers all operators
 ├── utils.ts          — small helpers
 ├── row.ts            — RowOperator base class (used by filter, map)
 ├── operators/

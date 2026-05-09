@@ -6,9 +6,20 @@ Guide for Claude sessions working in this repo. Read this before making changes.
 
 A small TypeScript reactive data library. `$(value)` wraps a value or array into a `ViewProxy`; chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`, `debounce`) produce derived reactive views; [render/index.ts](render/index.ts) attaches reactive data to the DOM via `HTML.*`/`SVG.*` builders.
 
-## Source of truth: `.ts`. The `.js` siblings are committed compiled output.
+## Source layout and build
 
-[.gitignore](.gitignore) has `# *.js` (commented out, line 6) and `!**/flights.js`, so every `.ts` source has a `.js` next to it that **is tracked in git**. Edit the `.ts` file. Run `npm run build` (or whatever the user's compile step is) before committing if the `.js` needs to stay in sync. Never edit the `.js` files by hand.
+`.ts` files at the root and under `operators/`, `render/`, `tests/` are the
+source of truth. `.gitignore` blanket-ignores `*.js`; build output goes to
+`dist/` (gitignored). There are **no committed `.js` siblings of `.ts`
+sources** — that scheme was retired. A handful of hand-written `.js` files
+remain in tree (e.g. [render/render.test.js](render/render.test.js),
+[assets/landing.js](assets/landing.js), `examples/crossfilter/flights*.js`)
+because they have no `.ts` counterpart.
+
+Tests do **not** require a build: `node --experimental-strip-types` reads
+`.ts` directly. Run `npm test`. Examples *do* require a build because they
+import from `dist/` via an import map; `npm run serve` chains `tsup` before
+the static server.
 
 ## Commands
 
@@ -19,8 +30,8 @@ From [package.json](package.json):
 | `npm test` | Runs `*.test.ts` via `node --experimental-strip-types --test` |
 | `npm run perf` | Runs `*.perf.ts` (median-of-5 timing assertions) |
 | `npm run test:render` | Playwright e2e against `examples/` |
-| `npm run serve` | `tsc` + static server on `:3000` for examples |
-| `npm run build` | microbundle → `build/` |
+| `npm run serve` | `tsup` build + static server on `:3000` for examples |
+| `npm run build` | `tsup` → `dist/` (ESM + per-entry `.d.ts`) |
 | `npm run test:all` | Both unit and Playwright tests |
 
 Tests run TypeScript directly via `--experimental-strip-types` — no compile step needed for testing.
@@ -28,7 +39,7 @@ Tests run TypeScript directly via `--experimental-strip-types` — no compile st
 ## Public API
 
 - `$(value)` → `ViewProxy`. Read raw value with `proxy[value]` (the `value` Symbol from [core.ts:4](core.ts#L4)). Mutate via assignment: `proxy.foo = 1`, `proxy[2].completed = true`, `delete proxy[1]`, `proxy[value] = newValue`.
-- Operators chain off the proxy: `data.filter(d => d.active).between('val', [0, 100]).length()`. The full operator dispatch table is [index.ts:18-32](index.ts#L18-L32) — that's the canonical list. The dispatch picks a class based on argument shape (e.g. `filter(fn)` → `FilterValue`, `filter('key', val)` → `FilterStringValue`, `filter({k:v})` → `FilterObjectValue`).
+- Operators chain off the proxy: `data.filter(d => d.active).between('val', [0, 100]).length()`. The chainable form requires the dispatch table to be populated, which only happens when [full.ts](full.ts) is imported (= the `data/full` package entry). Bare [index.ts](index.ts) (= `data`) is operator-free; calling `.filter(...)` on a proxy without first loading `full.ts` throws an error pointing the user at `data/full`. The canonical dispatch list lives at [full.ts:24-49](full.ts#L24-L49). The dispatch picks a class based on argument shape (e.g. `filter(fn)` → `FilterValue`, `filter('key', val)` → `FilterStringValue`, `filter({k:v})` → `FilterObjectValue`).
 - `render(el, template)` from [render/index.ts](render/index.ts); `HTML.div(...)`, `SVG.path(...)` builders.
 - `connect` is built-in (not an operator): `proxy.connect([])` returns the array and pushes change events into it; `proxy.connect(obj, 'prop')` mirrors the value to `obj.prop`; `proxy.connect(obj, fn)` calls `fn(change)` on each event. See [core.ts:601-622](core.ts#L601-L622).
 
@@ -38,7 +49,7 @@ Tests run TypeScript directly via `--experimental-strip-types` — no compile st
 2. For `RowOperator`: implement `process(value, name, old_val) → value | undefined` (return `undefined` to exclude the row). [operators/filter/index.ts:41](operators/filter/index.ts#L41) and [operators/map/index.ts](operators/map/index.ts) are the canonical examples.
 3. For `Operator`: implement the notification methods you care about (`XU0`, `BU1`, `BU2`, `BI0`, `BI2`, `XR0`, `BR1`, `BR2`) — see legend below.
 4. Implement a `matches(...args)` method so `createOperator` can dedup repeated calls — [core.ts:20-28](core.ts#L20-L28).
-5. Register the class in [index.ts:18-32](index.ts#L18-L32) so `proxy.<yourOp>(...)` dispatches to it.
+5. Register the class in [full.ts:24-49](full.ts#L24-L49) so `proxy.<yourOp>(...)` dispatches to it (registrations live on `data/full`, not the lean `data` entry).
 
 For deeper internals — the View/Sink contract, when each notification method fires, parent/child propagation — see [.claude/architecture.md](.claude/architecture.md).
 
