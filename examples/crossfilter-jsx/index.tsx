@@ -12,7 +12,7 @@
 // `data/full` re-exports JSX helpers alongside the core/HTML surface so we
 // pull them all from a single bundle — see jsx/index.ts and full.ts for
 // why cross-bundle imports would break NodeProxy `instanceof` checks.
-import { $, render, value, h } from 'data/full'
+import { $, render, value, h, Fragment } from 'data/full'
 
 const data = await loadFlights()
 
@@ -117,22 +117,24 @@ render(document.body, (
     <div className="list">
       {/* flightsByDate is a ViewProxy (group output). Two nested data binds —
           outer over date groups, inner over flights within each group. The
-          row fn returns a NodeProxy by extending the pre-shaped row node
-          with positional children — Fragment arrays would land in
-          Node.add's `typeof === 'object'` branch and become `node.static`,
-          which isn't what we want. Multiple positional args is the
-          right shape. */}
+          row fn returns a Fragment of children that the pre-shaped row node
+          consumes; NodeProxy.apply auto-spreads the array so this is
+          equivalent to multiple positional args. */}
       <div className="date">{[flightsByDate, (node: any, flights: any, day: any) => node(
-        <div className="day">{day}</div>,
-        <div className="flight">{[flights, (node: any, flight: any) => node(
-          <div className="time">{flight.date.to(formatTime)}</div>,
-          <div className="origin">{flight.origin}</div>,
-          <div className="destination">{flight.destination}</div>,
-          <div className="distance">{flight.distance.to(formatDistance)}</div>,
-          <div className="delay" class={{ early: flight.delay.to((d: any) => d < 0) }}>
-            {flight.delay.to(formatChange)}
-          </div>,
-        )]}</div>,
+        <Fragment>
+          <div className="day">{day}</div>
+          <div className="flight">{[flights, (node: any, flight: any) => node(
+            <Fragment>
+              <div className="time">{flight.date.to(formatTime)}</div>
+              <div className="origin">{flight.origin}</div>
+              <div className="destination">{flight.destination}</div>
+              <div className="distance">{flight.distance.to(formatDistance)}</div>
+              <div className="delay" class={{ early: flight.delay.to((d: any) => d < 0) }}>
+                {flight.delay.to(formatChange)}
+              </div>
+            </Fragment>
+          )]}</div>
+        </Fragment>
       )]}</div>
     </div>
 
@@ -185,80 +187,81 @@ function chart(node: any, c: any, name: string) {
 
   let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite: any
 
-  // Multi-positional return: each JSX expression is a sibling under the
-  // chart's row node. Wrapping them in <Fragment> would collapse to an
-  // array and trip Node.add's "object → static" branch.
+  // Two siblings under the chart row: the title block and the SVG. NodeProxy.apply
+  // auto-spreads the Fragment, so this is equivalent to multiple positional args.
   return node(
-    <div className="title">
-      {title}
-      <a className="reset"
-         style={{ display: filter.to((f: any) => f?.length ? '' : 'none') }}
-         onClick={reset}>reset</a>
-    </div>,
-    <svg width={width + margin.left + margin.right}
-         height={height + margin.top + margin.bottom}>
-      <g transform="translate(10, 10)">
-        <clipPath id={clipId}>
-          <rect x={start} height={height} width={extent} />
-        </clipPath>
+    <Fragment>
+      <div className="title">
+        {title}
+        <a className="reset"
+           style={{ display: filter.to((f: any) => f?.length ? '' : 'none') }}
+           onClick={reset}>reset</a>
+      </div>
+      <svg width={width + margin.left + margin.right}
+           height={height + margin.top + margin.bottom}>
+        <g transform="translate(10, 10)">
+          <clipPath id={clipId}>
+            <rect x={start} height={height} width={extent} />
+          </clipPath>
 
-        <path className="background bar" d={barPath} />
-        <path className="foreground bar" d={barPath} clip-path={clip_path} />
+          <path className="background bar" d={barPath} />
+          <path className="foreground bar" d={barPath} clip-path={clip_path} />
 
-        <g className="axis" transform={`translate(0, ${height})`}>
-          <path className="domain" d={`M0.5,6V0.5H${width - 0.5}V6`} />
-          {ticks.map((t: any) => (
-            <g className="tick" transform={`translate(${x(t)}, 0)`}>
-              <line y2={6} />
-              <text y={9} dy=".71em" text-anchor="middle">{format(t)}</text>
-            </g>
-          ))}
+          <g className="axis" transform={`translate(0, ${height})`}>
+            <path className="domain" d={`M0.5,6V0.5H${width - 0.5}V6`} />
+            {ticks.map((t: any) => (
+              <g className="tick" transform={`translate(${x(t)}, 0)`}>
+                <line y2={6} />
+                <text y={9} dy=".71em" text-anchor="middle">{format(t)}</text>
+              </g>
+            ))}
+          </g>
+
+          {/* Brush: a `<g class="brush">` with a function-child that wires up
+              the background pointer handlers, plus rect/resize children. The
+              function-child compiles to a positional argument that Node.add
+              treats as a row generator (sets node.fn) — Node.generate runs
+              it on first render so `background(proxy, …)` extends the proxy
+              with .on(...) calls. Identical to the builder's
+              `g.brush(node => background(...))(rects...)` pattern. */}
+          <g className="brush">
+            {(n: any) => background(n, filter, rx, width, height, round)}
+            <rect className="background" width={width} height={height} />
+            <rect className="extent"
+                  x={start} height={height}
+                  width={filter.to((d: any) => d.length ? extent[value] : 0)}
+                  onPointerDown={function (this: any, d: any) {
+                    if (!filter[value]?.length) return
+                    exDown = true
+                    this.setPointerCapture(d.pointerId)
+                    exLeftRef = this.parentNode.getBoundingClientRect().left
+                    exInitial = rx(d.x - exLeftRef)
+                    exBase = [filter[0][value], filter[1][value]]
+                    exWrite = rafWriter(filter, value)
+                    d.stopPropagation()
+                  }}
+                  onPointerMove={function (this: any, d: any) {
+                    if (!exDown) return
+                    const cur = rx(d.x - exLeftRef)
+                    const delta = cur - exInitial
+                    const span = exBase[1] - exBase[0]
+                    let lo = exBase[0] + delta
+                    let hi = exBase[1] + delta
+                    if (lo < domain[0]) { lo = domain[0]; hi = lo + span }
+                    else if (hi > domain[1]) { hi = domain[1]; lo = hi - span }
+                    if (round) { lo = round(lo); hi = round(hi) }
+                    exWrite([lo, hi])
+                  }}
+                  onPointerUp={function (this: any, d: any) {
+                    exDown = false
+                    this.releasePointerCapture?.(d.pointerId)
+                    exWrite?.flush()
+                  }} />
+            {[0, 1].map(resizeHandle(filter, domain, x, rx, round))}
+          </g>
         </g>
-
-        {/* Brush: a `<g class="brush">` with a function-child that wires up
-            the background pointer handlers, plus rect/resize children. The
-            function-child compiles to a positional argument that Node.add
-            treats as a row generator (sets node.fn) — Node.generate runs
-            it on first render so `background(proxy, …)` extends the proxy
-            with .on(...) calls. Identical to the builder's
-            `g.brush(node => background(...))(rects...)` pattern. */}
-        <g className="brush">
-          {(n: any) => background(n, filter, rx, width, height, round)}
-          <rect className="background" width={width} height={height} />
-          <rect className="extent"
-                x={start} height={height}
-                width={filter.to((d: any) => d.length ? extent[value] : 0)}
-                onPointerDown={function (this: any, d: any) {
-                  if (!filter[value]?.length) return
-                  exDown = true
-                  this.setPointerCapture(d.pointerId)
-                  exLeftRef = this.parentNode.getBoundingClientRect().left
-                  exInitial = rx(d.x - exLeftRef)
-                  exBase = [filter[0][value], filter[1][value]]
-                  exWrite = rafWriter(filter, value)
-                  d.stopPropagation()
-                }}
-                onPointerMove={function (this: any, d: any) {
-                  if (!exDown) return
-                  const cur = rx(d.x - exLeftRef)
-                  const delta = cur - exInitial
-                  const span = exBase[1] - exBase[0]
-                  let lo = exBase[0] + delta
-                  let hi = exBase[1] + delta
-                  if (lo < domain[0]) { lo = domain[0]; hi = lo + span }
-                  else if (hi > domain[1]) { hi = domain[1]; lo = hi - span }
-                  if (round) { lo = round(lo); hi = round(hi) }
-                  exWrite([lo, hi])
-                }}
-                onPointerUp={function (this: any, d: any) {
-                  exDown = false
-                  this.releasePointerCapture?.(d.pointerId)
-                  exWrite?.flush()
-                }} />
-          {[0, 1].map(resizeHandle(filter, domain, x, rx, round))}
-        </g>
-      </g>
-    </svg>,
+      </svg>
+    </Fragment>
   )
 }
 

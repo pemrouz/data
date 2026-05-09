@@ -412,6 +412,13 @@ class NodeProxy {
   }
 
   apply(t, m, args) {
+    // Auto-spread a single array argument so `node(<Fragment>…</Fragment>)`
+    // works equivalently to `node(...children)`. JSX Fragment evaluates to
+    // an array of children; without this, the whole array would land in
+    // Node.add's `typeof === 'object'` branch and become `static`, silently
+    // breaking row templates. Passing a bare array as the only positional
+    // arg wasn't a documented builder pattern, so this is purely additive.
+    if (args.length === 1 && isArray(args[0])) args = args[0]
     return props[this.prop ?? 'nodes'].add(this.node.new, ...args)
   }
 

@@ -112,7 +112,7 @@ All runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/to
 - `between()` and similar range operators with reactive bounds (`ViewProxy` args) track their inputs reactively; with plain values they don't.
 - Mutations on nested data work transparently: `res.a.b.c = 1` triggers the right notification cascade. No need for immutable updates.
 - JSX `<label>{vp}</label>` routes through `.text(vp)` because there's no function sibling — preserves the host element across reactive updates. Adding a function child (`<div>{[vp, fn]}</div>` for a data binding) flips both children to the data path so `node.data = vp` and `node.fn = fn`. See the discriminator at [jsx/index.ts](jsx/index.ts) — `hasRowFn`. Don't author a single-VP child expecting iteration; use `<For>` or the `[vp, fn]` shorthand.
-- Don't author a JSX row generator as `node(<Fragment>…</Fragment>)`. Fragment evaluates to an array, and `Node.add` treats array args as `node.static = arr` — silently breaks the row template. Use multiple positional args instead: `node(<div/>, <span/>, …)`.
+- `node(...)` with a single array arg auto-spreads — see `NodeProxy.apply` in [render/index.ts](render/index.ts). So `node(<Fragment>…</Fragment>)` is equivalent to `node(...children)`. Bare arrays as the only positional arg weren't a documented builder pattern, so this was purely additive.
 
 ## Working conventions in this repo (please follow)
 

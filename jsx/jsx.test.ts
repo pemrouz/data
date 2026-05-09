@@ -182,3 +182,29 @@ test('jsx/h - reactive ViewProxy as child binds via DOMSink', () => {
   ok(log.some(([k]) => k === 'append' || k === 'appendChild'))
   ok(log.some(([k]) => k === 'text'))
 })
+
+test('jsx/Fragment-as-single-arg - node(<Fragment>...</Fragment>) auto-spreads', () => {
+  // Row generators commonly want to `return node(<Fragment>...</Fragment>)`.
+  // Fragment evaluates to an array; NodeProxy.apply detects the single-array
+  // arg and spreads it, so the children land as siblings instead of being
+  // captured as `node.static = arr` (which would silently break the row
+  // template).
+  const data = $({ a: { title: 'one' }, b: { title: 'two' } })
+  const a = trace(
+    h('ul', null,
+      h(For, { each: data, tag: 'li' },
+        (item: any) => h(Fragment, null,
+          h('span', null, item.title),
+          h('button', null, 'x'),
+        )
+      )
+    )
+  )
+  const b = trace(
+    HTML.ul(
+      HTML.li(data, (li: any, item: any) =>
+        li(HTML.span.text(item.title), HTML.button('x')))
+    )
+  )
+  same(a, b)
+})
