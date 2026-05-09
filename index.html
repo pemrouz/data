@@ -101,11 +101,14 @@
     </div>
 
     <div class="op-section" id="op-za">
-      <h3>za <span class="dim">— top by pnl</span></h3>
-      <p class="desc">Sort descending, optionally limited. Top 5 winners,
-        re-ranking live as pnl ticks.</p>
-      <pre class="code">trades.za('pnl', 5)</pre>
+      <h3>za / az <span class="dim">— top / bottom by pnl</span></h3>
+      <p class="desc">Sort descending (<code class="inline">za</code>) or ascending
+        (<code class="inline">az</code>), optionally limited. Top 5 winners and
+        bottom 5 losers, re-ranking live as pnl ticks.</p>
+      <pre class="code">trades.za('pnl', 5)
+trades.az('pnl', 5)</pre>
       <div class="live-panel" id="za-result"></div>
+      <div class="live-panel" id="az-result" style="margin-top:0.5rem"></div>
     </div>
 
     <div class="op-section" id="op-length">
@@ -114,6 +117,19 @@
       <pre class="code">trades.length()
 trades.length(d =&gt; d.tenor)</pre>
       <div class="live-panel" id="length-result"></div>
+    </div>
+
+    <div class="op-section" id="op-aggregates">
+      <h3>sum / avg / max / min / some / every <span class="dim">— scalar aggregates</span></h3>
+      <p class="desc">Each returns one number (or boolean) derived from every
+        row, updated incrementally — sum / avg are O(1) per delta, max / min
+        are O(n) per publish, some / every flip when their counter crosses.</p>
+      <pre class="code">trades.sum('pnl')             // total exposure
+trades.avg('pnl')             // mean
+trades.max('pnl'), trades.min('pnl')
+trades.some(t =&gt; t.pnl &gt; 1000)
+trades.every(t =&gt; t.pnl &gt; 0)</pre>
+      <div class="live-panel" id="aggregates-result"></div>
     </div>
 
     <div class="op-section" id="op-intersect">
@@ -125,12 +141,37 @@ trades.length(d =&gt; d.tenor)</pre>
       <div class="live-panel" id="intersect-result"></div>
     </div>
 
+    <div class="op-section" id="op-setops">
+      <h3>union / except <span class="dim">— set algebra companions</span></h3>
+      <p class="desc">Same bitmask machinery as <code class="inline">intersect</code>:
+        <code class="inline">union</code> keeps rows in <em>any</em> source,
+        <code class="inline">except</code> keeps rows in the source but not
+        the other.</p>
+      <pre class="code" data-hl="off"></pre>
+      <div class="op-controls" id="setops-chips"></div>
+      <div class="live-panel" id="setops-result"></div>
+    </div>
+
     <div class="op-section" id="op-group">
       <h3>group <span class="dim">— nest by tenor</span></h3>
       <p class="desc">Rows nested under a computed key. Each tenor becomes its
         own bucket, with its trades indented underneath.</p>
       <pre class="code">trades.group(d =&gt; d.tenor)</pre>
       <div class="live-panel" id="group-result"></div>
+    </div>
+
+    <div class="op-section" id="op-projections">
+      <h3>distinct / keys / values / reverse <span class="dim">— collection projections</span></h3>
+      <p class="desc">Reactive views over the shape of the data:
+        <code class="inline">distinct</code> dedups rows by a projection,
+        <code class="inline">keys</code>/<code class="inline">values</code>
+        unzip an object-shaped view, <code class="inline">reverse</code>
+        flips order.</p>
+      <pre class="code">trades.distinct(t =&gt; t.tenor)
+trades.length(t =&gt; t.tenor).keys()
+trades.length(t =&gt; t.tenor).values()
+trades.za('pnl', 5).reverse()</pre>
+      <div class="live-panel" id="projections-result"></div>
     </div>
 
     <div class="op-section" id="op-map">
@@ -143,11 +184,26 @@ trades.length(d =&gt; d.tenor)</pre>
     </div>
 
     <div class="op-section" id="op-to">
-      <h3>to <span class="dim">— aggregate pnl</span></h3>
-      <p class="desc">Whole-value transform. One number derived from all rows;
-        recomputes on every tick.</p>
-      <pre class="code">trades.to(arr =&gt; arr.reduce((s, t) =&gt; s + t.pnl, 0))</pre>
+      <h3>to / reduce <span class="dim">— aggregate pnl</span></h3>
+      <p class="desc"><code class="inline">to</code> rebuilds a derived value
+        from the whole snapshot on every tick.
+        <code class="inline">reduce</code> folds row-by-row through
+        <code class="inline">(acc, row, key) =&gt; acc</code> — a more
+        readable shape for the same kind of aggregation, especially with
+        non-commutative folds (string concat, object merge).</p>
+      <pre class="code">trades.to(arr =&gt; arr.reduce((s, t) =&gt; s + t.pnl, 0))
+trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
       <div class="live-panel" id="to-result"></div>
+    </div>
+
+    <div class="op-section" id="op-tap">
+      <h3>tap <span class="dim">— side effects in a chain</span></h3>
+      <p class="desc">Passthrough that fires <code class="inline">fn(change)</code>
+        for every event flowing through it AND propagates the same event
+        downstream. Below: tap'd into the live top-5 so you see the
+        per-tick rank-change events as they happen.</p>
+      <pre class="code">trades.za('pnl', 5).tap(change =&gt; log.unshift(change))</pre>
+      <div class="live-panel" id="tap-result"></div>
     </div>
   </section>
 
@@ -249,67 +305,70 @@ p.stop().byOperator                 // sorted by totalMs desc</pre>
   <section class="bench-preview stack" style="--gap:1rem">
     <h2>how it compares</h2>
     <p class="muted" style="max-width:60ch">
-      Same workload — <b>10,000 trades</b>, top 10 by spread, <b>1000 individual ticks</b>
-      each forcing settle — across eight reactive libraries. No batching primitives:
-      every tick is its own propagation event, the way real interactive UIs behave.
+      Same source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
+      (count, top-10 by spread, running average) across eight reactive libraries.
+      Each tick settles all three views before the next tick arrives. No batching
+      primitives.
     </p>
-<pre class="code" style="font-size:0.8125rem">trades
-  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-  .filter(t =&gt; t.spread &gt; THRESHOLD)
-  .za('spread', 10)</pre>
-    <div class="bench-chart" aria-label="Time to process 1000 sequential ticks, lower is faster">
+<pre class="code" style="font-size:0.8125rem">const liquidCount = trades.filter(t =&gt; t.ask - t.bid &gt; THRESHOLD).length()
+const top10       = trades.map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+                          .filter(t =&gt; t.spread &gt; THRESHOLD)
+                          .za('spread', 10)
+const avgBid      = trades.avg('bid')</pre>
+    <div class="bench-chart" aria-label="Time to settle 3 derived views over 1000 sequential ticks, lower is faster">
       <div class="bench-row self">
         <span class="lib">data</span>
-        <div class="bar"><div class="fill" style="width:0.79%"></div></div>
-        <span class="num">11&nbsp;ms</span>
+        <div class="bar"><div class="fill" style="width:0.39%"></div></div>
+        <span class="num">8.8&nbsp;ms</span>
         <span class="x">1×</span>
       </div>
       <div class="bench-row">
-        <span class="lib">solid</span>
-        <div class="bar"><div class="fill" style="width:7.77%"></div></div>
-        <span class="num">112&nbsp;ms</span>
-        <span class="x">10×</span>
+        <span class="lib">preact</span>
+        <div class="bar"><div class="fill" style="width:10.45%"></div></div>
+        <span class="num">233&nbsp;ms</span>
+        <span class="x">27×</span>
       </div>
       <div class="bench-row">
-        <span class="lib">preact</span>
-        <div class="bar"><div class="fill" style="width:7.77%"></div></div>
-        <span class="num">112&nbsp;ms</span>
-        <span class="x">10×</span>
+        <span class="lib">solid</span>
+        <div class="bar"><div class="fill" style="width:11.69%"></div></div>
+        <span class="num">261&nbsp;ms</span>
+        <span class="x">30×</span>
       </div>
       <div class="bench-row">
         <span class="lib">crossfilter</span>
-        <div class="bar"><div class="fill" style="width:11.89%"></div></div>
-        <span class="num">172&nbsp;ms</span>
-        <span class="x">15×</span>
+        <div class="bar"><div class="fill" style="width:12.16%"></div></div>
+        <span class="num">271&nbsp;ms</span>
+        <span class="x">31×</span>
       </div>
       <div class="bench-row">
         <span class="lib">mobx</span>
-        <div class="bar"><div class="fill" style="width:25.83%"></div></div>
-        <span class="num">373&nbsp;ms</span>
-        <span class="x">33×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">vue</span>
-        <div class="bar"><div class="fill" style="width:56.87%"></div></div>
-        <span class="num">820&nbsp;ms</span>
-        <span class="x">72×</span>
+        <div class="bar"><div class="fill" style="width:29.29%"></div></div>
+        <span class="num">653&nbsp;ms</span>
+        <span class="x">75×</span>
       </div>
       <div class="bench-row">
         <span class="lib">rxjs</span>
-        <div class="bar"><div class="fill" style="width:99.26%"></div></div>
-        <span class="num">1,432&nbsp;ms</span>
-        <span class="x">125×</span>
+        <div class="bar"><div class="fill" style="width:67.85%"></div></div>
+        <span class="num">1,513&nbsp;ms</span>
+        <span class="x">173×</span>
       </div>
       <div class="bench-row">
         <span class="lib">svelte</span>
+        <div class="bar"><div class="fill" style="width:82.71%"></div></div>
+        <span class="num">1,844&nbsp;ms</span>
+        <span class="x">211×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">vue</span>
         <div class="bar"><div class="fill" style="width:100%"></div></div>
-        <span class="num">1,443&nbsp;ms</span>
-        <span class="x">126×</span>
+        <span class="num">2,230&nbsp;ms</span>
+        <span class="x">255×</span>
       </div>
     </div>
     <p class="muted" style="font-size:0.8125rem;max-width:60ch">
-      Two libraries with native incremental top-K (<b>data</b>, crossfilter) sit at one end of the table;
-      six libraries doing O(N&nbsp;log&nbsp;N) per tick sit at the other.
+      In <b>data</b>, one tick walks one path that fans out to all three views — adding
+      a view costs O(per-tick path), not O(N). For everyone else, each derived view
+      is its own <code class="inline">computed</code> body that walks the source on every change.
       <a href="./comparisons.html">full comparisons →</a>
     </p>
   </section>

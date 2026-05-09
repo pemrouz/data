@@ -58,5 +58,6 @@ export type BenchResult = {
   setup: number
   single: number
   batch: number
+  dashboard?: number
   notes?: string
 }

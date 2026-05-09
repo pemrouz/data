@@ -1,11 +1,12 @@
 // @ts-nocheck
-// svelte/store — three chained `derived`s, mirroring data's view graph.
+// svelte/store — three chained `derived`s + dashboard adds two parallel
+// deriveds (liquidCount, avgBid).
 
 import { writable, derived, get } from 'svelte/store'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
 import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
-function build() {
+function buildSingle() {
   const store = writable(makeTrades())
   const withSpread = derived(store, rows => {
     const out = new Array(rows.length)
@@ -17,9 +18,41 @@ function build() {
   })
   const filtered = derived(withSpread, rows => rows.filter(t => t.spread > THRESHOLD))
   const top = derived(filtered, rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
-  let last: any[] = []
-  const unsub = top.subscribe(v => { last = v })
-  return { store, top, unsub, getLast: () => last }
+  const unsub = top.subscribe(() => {})
+  return { store, top, unsub }
+}
+
+function buildDashboard() {
+  const store = writable(makeTrades())
+  const liquidCount = derived(store, rows => {
+    let n = 0
+    for (let i = 0; i < rows.length; i++) {
+      const t = rows[i]
+      if (t.ask - t.bid > THRESHOLD) n++
+    }
+    return n
+  })
+  const withSpread = derived(store, rows => {
+    const out = new Array(rows.length)
+    for (let i = 0; i < rows.length; i++) {
+      const t = rows[i]
+      out[i] = { id: t.id, spread: t.ask - t.bid }
+    }
+    return out
+  })
+  const filtered = derived(withSpread, rows => rows.filter(t => t.spread > THRESHOLD))
+  const top10 = derived(filtered, rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const avgBid = derived(store, rows => {
+    let s = 0
+    for (let i = 0; i < rows.length; i++) s += rows[i].bid
+    return s / rows.length
+  })
+  const unsubs = [
+    liquidCount.subscribe(() => {}),
+    top10.subscribe(() => {}),
+    avgBid.subscribe(() => {}),
+  ]
+  return { store, liquidCount, top10, avgBid, unsubs }
 }
 
 function tick(store, t) {
@@ -32,12 +65,12 @@ function tick(store, t) {
 
 export default function bench(): BenchResult {
   const setup = measure(() => {
-    const g = build()
+    const g = buildSingle()
     g.unsub()
   })
 
   const single = (() => {
-    const { store, top } = build()
+    const { store, top } = buildSingle()
     let i = 0
     return measure(() => {
       tick(store, TICKS[i++ % TICKS.length])
@@ -46,11 +79,23 @@ export default function bench(): BenchResult {
   })()
 
   const stream = (() => {
-    const { store, top } = build()
+    const { store, top } = buildSingle()
     return measure(() => {
       for (let j = 0; j < TICKS.length; j++) {
         tick(store, TICKS[j])
         void get(top)
+      }
+    })
+  })()
+
+  const dashboard = (() => {
+    const { store, liquidCount, top10, avgBid } = buildDashboard()
+    return measure(() => {
+      for (let j = 0; j < TICKS.length; j++) {
+        tick(store, TICKS[j])
+        void get(liquidCount)
+        void get(top10)
+        void get(avgBid)
       }
     })
   })()
@@ -61,6 +106,7 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'three chained deriveds; full sort + slice per .update through 3 stages',
+    dashboard,
+    notes: 'writable + chained deriveds; dashboard = 3 parallel deriveds',
   }
 }

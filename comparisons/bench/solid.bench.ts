@@ -1,7 +1,6 @@
 // @ts-nocheck
-// Solid.js — three chained createMemos, mirroring data's view graph. Each tick
-// dirties all three; reading `top()` pulls memo recomputes top → filtered →
-// withSpread.
+// Solid.js — three chained createMemos for the top-K graph. Dashboard adds
+// two parallel memos (liquidCount, avgBid) over the same per-row signals.
 
 import { createSignal, createMemo, createRoot } from 'solid-js/dist/solid.js'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -15,15 +14,50 @@ type Cell = {
   setAsk: (n: number) => void
 }
 
-function build() {
+function makeCells() {
+  return makeTrades().map(t => {
+    const [bid, setBid] = createSignal(t.bid)
+    const [ask, setAsk] = createSignal(t.ask)
+    return { id: t.id, bid, setBid, ask, setAsk }
+  })
+}
+
+function buildSingle() {
   let cells: Cell[] = []
   let top = () => [] as any[]
-  let last: any[] = []
   const dispose = createRoot(d => {
-    cells = makeTrades().map(t => {
-      const [bid, setBid] = createSignal(t.bid)
-      const [ask, setAsk] = createSignal(t.ask)
-      return { id: t.id, bid, setBid, ask, setAsk }
+    cells = makeCells()
+    const withSpread = createMemo(() => {
+      const out = new Array(cells.length)
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i]
+        out[i] = { id: c.id, spread: c.ask() - c.bid() }
+      }
+      return out
+    })
+    const filtered = createMemo(() => withSpread().filter(t => t.spread > THRESHOLD))
+    const memo = createMemo(() => [...filtered()].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+    top = memo
+    void memo()
+    return d
+  })
+  return { cells, top, dispose }
+}
+
+function buildDashboard() {
+  let cells: Cell[] = []
+  let liquidCount = () => 0
+  let top10 = () => [] as any[]
+  let avgBid = () => 0
+  const dispose = createRoot(d => {
+    cells = makeCells()
+    liquidCount = createMemo(() => {
+      let n = 0
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i]
+        if (c.ask() - c.bid() > THRESHOLD) n++
+      }
+      return n
     })
     const withSpread = createMemo(() => {
       const out = new Array(cells.length)
@@ -34,15 +68,16 @@ function build() {
       return out
     })
     const filtered = createMemo(() => withSpread().filter(t => t.spread > THRESHOLD))
-    const memo = createMemo(() => {
-      const f = filtered()
-      return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
+    top10 = createMemo(() => [...filtered()].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+    avgBid = createMemo(() => {
+      let s = 0
+      for (let i = 0; i < cells.length; i++) s += cells[i].bid()
+      return s / cells.length
     })
-    top = memo
-    last = memo()
+    void liquidCount(); void top10(); void avgBid()
     return d
   })
-  return { cells, top, dispose, getLast: () => last }
+  return { cells, liquidCount, top10, avgBid, dispose }
 }
 
 function tick(cells, t) {
@@ -52,12 +87,12 @@ function tick(cells, t) {
 
 export default function bench(): BenchResult {
   const setup = measure(() => {
-    const g = build()
+    const g = buildSingle()
     g.dispose()
   })
 
   const single = (() => {
-    const { cells, top } = build()
+    const { cells, top } = buildSingle()
     let i = 0
     return measure(() => {
       tick(cells, TICKS[i++ % TICKS.length])
@@ -66,11 +101,23 @@ export default function bench(): BenchResult {
   })()
 
   const stream = (() => {
-    const { cells, top } = build()
+    const { cells, top } = buildSingle()
     return measure(() => {
       for (let j = 0; j < TICKS.length; j++) {
         tick(cells, TICKS[j])
         void top()
+      }
+    })
+  })()
+
+  const dashboard = (() => {
+    const { cells, liquidCount, top10, avgBid } = buildDashboard()
+    return measure(() => {
+      for (let j = 0; j < TICKS.length; j++) {
+        tick(cells, TICKS[j])
+        void liquidCount()
+        void top10()
+        void avgBid()
       }
     })
   })()
@@ -81,6 +128,7 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'three chained createMemos; per-row signals + 3× O(N) memo bodies',
+    dashboard,
+    notes: 'per-row signals + chained memos; dashboard = 3 parallel memos',
   }
 }

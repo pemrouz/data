@@ -42,7 +42,8 @@ for (const { path, label } of benches) {
     const mod = await import(path)
     const r: BenchResult = await mod.default()
     results.push(r)
-    log(`  ${r.name}@${r.version}: setup=${fmt(r.setup)}ms  single=${fmt(r.single)}ms  batch=${fmt(r.batch)}ms`)
+    const dash = r.dashboard != null ? `  dashboard=${fmt(r.dashboard)}ms` : ''
+    log(`  ${r.name}@${r.version}: setup=${fmt(r.setup)}ms  single=${fmt(r.single)}ms  stream=${fmt(r.batch)}ms${dash}`)
   } catch (e: any) {
     const reason = e?.code === 'ERR_MODULE_NOT_FOUND'
       ? 'peer dependency not installed'
@@ -56,10 +57,11 @@ log('')
 log('# results')
 log('')
 
-console.log('| Library | Version | Setup (ms) | Single update (ms) | Batch 1000 (ms) | Notes |')
-console.log('|---|---|---:|---:|---:|---|')
+console.log('| Library | Version | Setup (ms) | Single (ms) | Stream 1000 (ms) | Dashboard 1000×3 (ms) | Notes |')
+console.log('|---|---|---:|---:|---:|---:|---|')
 for (const r of results) {
-  console.log(`| ${r.name} | ${r.version} | ${fmt(r.setup)} | ${fmt(r.single)} | ${fmt(r.batch)} | ${r.notes ?? ''} |`)
+  const dash = r.dashboard != null ? fmt(r.dashboard) : '—'
+  console.log(`| ${r.name} | ${r.version} | ${fmt(r.setup)} | ${fmt(r.single)} | ${fmt(r.batch)} | ${dash} | ${r.notes ?? ''} |`)
 }
 
 if (skipped.length) {

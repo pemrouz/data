@@ -1,14 +1,14 @@
 // @ts-nocheck
 // MobX — pipeline split into three chained computeds, mirroring data's view
-// graph. Each tick invalidates all three; reading `top.get()` recomputes
-// `top → filtered → withSpread` in dependency order. Three full O(N) walks
-// per tick instead of one fused inline loop.
+// graph. Dashboard adds two parallel computeds (liquidCount, avgBid) reading
+// the same trades — three independent consumers, each with its own O(N) walk
+// per tick.
 
 import { observable, computed, runInAction, autorun } from 'mobx'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
 import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
-function build() {
+function buildSingle() {
   const trades = observable.array(
     makeTrades().map(t => observable.object(t, {}, { deep: false })),
   )
@@ -25,9 +25,46 @@ function build() {
     const f = filtered.get()
     return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
   })
-  let last = top.get()
-  const dispose = autorun(() => { last = top.get() })
-  return { trades, top, dispose, getLast: () => last }
+  const dispose = autorun(() => { void top.get() })
+  return { trades, top, dispose }
+}
+
+function buildDashboard() {
+  const trades = observable.array(
+    makeTrades().map(t => observable.object(t, {}, { deep: false })),
+  )
+  const liquidCount = computed(() => {
+    let n = 0
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i]
+      if (t.ask - t.bid > THRESHOLD) n++
+    }
+    return n
+  })
+  const withSpread = computed(() => {
+    const out = new Array(trades.length)
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i]
+      out[i] = { id: t.id, spread: t.ask - t.bid }
+    }
+    return out
+  })
+  const filtered = computed(() => withSpread.get().filter(t => t.spread > THRESHOLD))
+  const top10 = computed(() => {
+    const f = filtered.get()
+    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
+  })
+  const avgBid = computed(() => {
+    let s = 0
+    for (let i = 0; i < trades.length; i++) s += trades[i].bid
+    return s / trades.length
+  })
+  const dispose = autorun(() => {
+    void liquidCount.get()
+    void top10.get()
+    void avgBid.get()
+  })
+  return { trades, liquidCount, top10, avgBid, dispose }
 }
 
 function tick(trades, t) {
@@ -36,12 +73,12 @@ function tick(trades, t) {
 
 export default function bench(): BenchResult {
   const setup = measure(() => {
-    const g = build()
+    const g = buildSingle()
     g.dispose()
   })
 
   const single = (() => {
-    const { trades, top } = build()
+    const { trades, top } = buildSingle()
     let i = 0
     return measure(() => {
       tick(trades, TICKS[i++ % TICKS.length])
@@ -50,11 +87,23 @@ export default function bench(): BenchResult {
   })()
 
   const stream = (() => {
-    const { trades, top } = build()
+    const { trades, top } = buildSingle()
     return measure(() => {
       for (let j = 0; j < TICKS.length; j++) {
         tick(trades, TICKS[j])
         void top.get()
+      }
+    })
+  })()
+
+  const dashboard = (() => {
+    const { trades, liquidCount, top10, avgBid } = buildDashboard()
+    return measure(() => {
+      for (let j = 0; j < TICKS.length; j++) {
+        tick(trades, TICKS[j])
+        void liquidCount.get()
+        void top10.get()
+        void avgBid.get()
       }
     })
   })()
@@ -65,6 +114,7 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'three chained computeds (map / filter / sort+slice); 3× O(N) per tick',
+    dashboard,
+    notes: 'observable.array + chained computeds; dashboard = 3 parallel consumers',
   }
 }

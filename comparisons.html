@@ -145,11 +145,13 @@
     </p>
     <p class="muted" style="max-width:64ch">
       A <em>tick</em> is one mutation of one row's <code class="inline">bid</code> or
-      <code class="inline">ask</code>. Two cases: <b>single</b> (one tick + read), and <b>tick
-      stream</b> (1000 sequential ticks, <em>each</em> forcing settle — no
-      batching primitive used in any library). The tick-stream case is what
-      real interactive workloads look like: every tick is its own propagation
-      event, settled before the next tick arrives.
+      <code class="inline">ask</code>. Three cases: <b>single</b> (one tick + read), <b>top
+      view</b> (1000 sequential ticks, each settling the top-K view), and
+      <b>3-view dashboard</b> (1000 sequential ticks, each settling
+      <em>three</em> independent views off the same source — count, top-10,
+      and a running average). The dashboard case is what real reactive UIs
+      look like: a single source feeds many derived views, all of which need
+      to stay in sync after every mutation.
     </p>
     <p class="muted" style="max-width:64ch">
       Median-of-5 wall-clock with one warmup discarded; <code class="inline">global.gc()</code>
@@ -166,7 +168,8 @@
           <th>version</th>
           <th>setup&nbsp;(ms)</th>
           <th>single tick&nbsp;(ms)</th>
-          <th>1000 ticks, each settled&nbsp;(ms)</th>
+          <th>1000 ticks, top view&nbsp;(ms)</th>
+          <th>1000 ticks × 3 views&nbsp;(ms)</th>
           <th>notes</th>
         </tr>
       </thead>
@@ -174,43 +177,43 @@
         <!-- BENCH:START — bench:compare on node v25; numbers in ms (lower = faster) -->
         <tr class="self">
           <td>data</td><td>1.0.0</td>
-          <td class="num">7.54</td><td class="num">0.149</td><td class="num">11.46</td>
-          <td class="notes">map → filter → za(K); 3 chained view nodes (the natural API); per-tick: O(1) + O(1) + O(log N)</td>
+          <td class="num">8.20</td><td class="num">0.145</td><td class="num">8.53</td><td class="num">8.75</td>
+          <td class="notes">map → filter → za chain; dashboard adds <code class="inline">filter→length</code> + <code class="inline">avg('bid')</code> off the same source</td>
         </tr>
         <tr>
           <td>crossfilter</td><td>1.5.4</td>
-          <td class="num">4.46</td><td class="num">0.426</td><td class="num">171.53</td>
-          <td class="notes">spread dimension + dim.top(K); remove + add per tick (no in-place mutation)</td>
+          <td class="num">5.01</td><td class="num">0.604</td><td class="num">189.61</td><td class="num">271.09</td>
+          <td class="notes">spread dimension + dim.top(K); dashboard adds groupAll().reduceCount + reduce(sum/count) for avg</td>
         </tr>
         <tr>
           <td>mobx</td><td>6.15.3</td>
-          <td class="num">120.43</td><td class="num">10.33</td><td class="num">372.68</td>
-          <td class="notes">three chained computeds (map / filter / sort+slice); 3× O(N) walks per tick</td>
+          <td class="num">89.18</td><td class="num">10.30</td><td class="num">352.18</td><td class="num">653.19</td>
+          <td class="notes">three chained computeds; dashboard adds two parallel computeds (count + avg)</td>
         </tr>
         <tr>
           <td>rxjs</td><td>7.8.2</td>
-          <td class="num">3.40</td><td class="num">2.09</td><td class="num">1,431.86</td>
-          <td class="notes">three .pipe stages; each emits a new array per .next()</td>
+          <td class="num">3.06</td><td class="num">2.21</td><td class="num">1,404.31</td><td class="num">1,513.07</td>
+          <td class="notes">three .pipe stages; dashboard adds two parallel pipes per .next()</td>
         </tr>
         <tr>
           <td>solid</td><td>1.9.12</td>
-          <td class="num">10.25</td><td class="num">4.17</td><td class="num">112.00</td>
-          <td class="notes">three chained createMemos; per-row signals + 3× O(N) memo bodies</td>
+          <td class="num">10.35</td><td class="num">4.09</td><td class="num">120.11</td><td class="num">260.54</td>
+          <td class="notes">per-row signals + chained memos; dashboard = 3 parallel memos</td>
         </tr>
         <tr>
           <td>preact-signals</td><td>1.14.1</td>
-          <td class="num">10.48</td><td class="num">3.69</td><td class="num">112.06</td>
-          <td class="notes">three chained computeds; per-row signals + 3× O(N) per recompute</td>
+          <td class="num">11.00</td><td class="num">3.52</td><td class="num">88.08</td><td class="num">233.01</td>
+          <td class="notes">per-row signals + chained computeds; dashboard = 3 parallel computeds</td>
         </tr>
         <tr>
           <td>vue-reactivity</td><td>3.5.34</td>
-          <td class="num">20.57</td><td class="num">15.72</td><td class="num">820.45</td>
-          <td class="notes">three chained computeds; reactive deep-proxy + 3× O(N) per recompute</td>
+          <td class="num">23.62</td><td class="num">21.09</td><td class="num">845.20</td><td class="num">2,229.55</td>
+          <td class="notes">reactive + chained computeds; dashboard = 3 parallel computeds</td>
         </tr>
         <tr>
           <td>svelte (store)</td><td>5.55.5</td>
-          <td class="num">3.21</td><td class="num">2.38</td><td class="num">1,442.59</td>
-          <td class="notes">three chained deriveds; full sort + slice per .update through 3 stages</td>
+          <td class="num">3.72</td><td class="num">2.82</td><td class="num">1,774.75</td><td class="num">1,844.26</td>
+          <td class="notes">writable + chained deriveds; dashboard = 3 parallel deriveds</td>
         </tr>
         <!-- BENCH:END -->
       </tbody>
@@ -231,19 +234,19 @@
       one settle, which a real tick-driven UI can't do.
     </p>
     <div class="summary" style="margin-top:1.25rem;max-width:64ch">
-      <b style="color:var(--accent)">Headline.</b> On a <b>single tick</b>,
-      <b>data at ~0.15&nbsp;ms</b> is the fastest — ~3× ahead of crossfilter, ~14× ahead
-      of svelte/RxJS, ~25× ahead of Solid/Preact, ~100× ahead of Vue.
-      On the <b>1000-tick stream</b>, data finishes in <b>~11&nbsp;ms</b>:
-      Solid 10×, Preact 10×, crossfilter 15×, MobX 33×, Vue 72×, RxJS 125×,
-      svelte/store 126× behind. The reason is structural — data's per-tick
-      work through <code class="inline">map → filter → za</code> is
-      O(1)&nbsp;+&nbsp;O(1)&nbsp;+&nbsp;O(log&nbsp;N) over a sorted index,
-      while every peer (except crossfilter, which has its own indexed
-      <code class="inline">dim.top(K)</code>) re-sorts the full filtered collection on every tick.
-      Two libraries with native incremental top-K (data, crossfilter) sit at
-      one end of the table; six libraries doing O(N&nbsp;log&nbsp;N) per tick
-      sit at the other.
+      <b style="color:var(--accent)">Headline.</b> On the <b>3-view dashboard</b>
+      — the realistic case — data finishes 1,000 ticks in <b>~8.8&nbsp;ms</b>;
+      every peer is between 27× and 255× behind: Preact 27×, Solid 30×,
+      crossfilter 31×, MobX 75×, RxJS 173×, svelte/store 211×, Vue 255×.
+      <em>Adding two more derived views to data's graph cost ~0.2&nbsp;ms</em>
+      (8.53&nbsp;→&nbsp;8.75&nbsp;ms) — essentially free, because one tick
+      propagates through one path that fans out to all three views. For the
+      signal libraries, adding two views roughly doubled or tripled the
+      per-tick cost (Preact 88&nbsp;→&nbsp;233&nbsp;ms, Solid 120&nbsp;→&nbsp;260&nbsp;ms,
+      Vue 845&nbsp;→&nbsp;2,229&nbsp;ms): each new view is a new <code class="inline">computed</code>
+      that walks the full source on every change. RxJS and svelte/store didn't
+      grow much (1,404&nbsp;→&nbsp;1,513; 1,775&nbsp;→&nbsp;1,844) only because
+      their top-K cost already dominated the per-tick budget.
     </div>
   </section>
 

@@ -1,17 +1,17 @@
 // @ts-nocheck
-// `data` (this library). Pipeline:
+// `data` (this library). Two graph shapes:
 //
-//   src.map(t => ({...t, spread: t.ask - t.bid}))
-//      .filter(t => t.spread > THRESHOLD)
-//      .za('spread', TOP_K)
+//   single-view (used by `setup`, `single`, `batch`):
+//     trades.map(t => ({...t, spread: t.ask - t.bid}))
+//           .filter(t => t.spread > THRESHOLD)
+//           .za('spread', TOP_K)
 //
-// Three incremental stages compounding. On a `bid`/`ask` tick:
-//   • map.process recomputes `spread` for one row, emits one BU1.
-//   • filter.process re-evaluates the predicate for that row only.
-//   • za keeps a sorted index by `spread`; repositions the row's entry in the
-//     index (O(log N) bisect) and decides whether the change crosses the top-K
-//     window — at most one insert + one remove on the visible set.
-// No O(N) walk anywhere. Source is object-keyed for the same reason as before.
+//   dashboard (used by `dashboard`):
+//     three independent views off the same source —
+//       liquidCount = trades.filter(t => t.ask - t.bid > THRESHOLD).length()
+//       top10       = trades.map(...).filter(...).za('spread', TOP_K)
+//       avgBid      = trades.avg('bid')   // O(1) per delta — running mean
+//     each tick must settle all three.
 
 import { $, value } from '../../full.ts'
 import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
@@ -23,7 +23,7 @@ function toObj(rows) {
   return obj
 }
 
-function build() {
+function buildSingle() {
   const src = $(toObj(makeTrades()))
   const top = src
     .map(t => ({ ...t, spread: t.ask - t.bid }))
@@ -32,15 +32,28 @@ function build() {
   return { src, top }
 }
 
+function buildDashboard() {
+  const src = $(toObj(makeTrades()))
+  const liquidCount = src
+    .filter(t => t.ask - t.bid > THRESHOLD)
+    .length()
+  const top10 = src
+    .map(t => ({ ...t, spread: t.ask - t.bid }))
+    .filter(t => t.spread > THRESHOLD)
+    .za('spread', TOP_K)
+  const avgBid = src.avg('bid')
+  return { src, liquidCount, top10, avgBid }
+}
+
 function tick(src, t) {
   src[t.idx][t.field] = t.newValue
 }
 
 export default function bench(): BenchResult {
-  const setup = measure(() => { build() })
+  const setup = measure(() => { buildSingle() })
 
   const single = (() => {
-    const { src, top } = build()
+    const { src, top } = buildSingle()
     void top[value]
     let i = 0
     return measure(() => {
@@ -50,12 +63,27 @@ export default function bench(): BenchResult {
   })()
 
   const stream = (() => {
-    const { src, top } = build()
+    const { src, top } = buildSingle()
     void top[value]
     return measure(() => {
       for (let j = 0; j < TICKS.length; j++) {
         tick(src, TICKS[j])
         void top[value]
+      }
+    })
+  })()
+
+  const dashboard = (() => {
+    const { src, liquidCount, top10, avgBid } = buildDashboard()
+    void liquidCount[value]
+    void top10[value]
+    void avgBid[value]
+    return measure(() => {
+      for (let j = 0; j < TICKS.length; j++) {
+        tick(src, TICKS[j])
+        void liquidCount[value]
+        void top10[value]
+        void avgBid[value]
       }
     })
   })()
@@ -66,6 +94,7 @@ export default function bench(): BenchResult {
     setup,
     single,
     batch: stream,
-    notes: 'map + filter + za(K); per-tick: O(1) map/filter + O(log N) bisect',
+    dashboard,
+    notes: 'map+filter+za chain; dashboard = liquidCount + top10 + avg(bid) settled per tick',
   }
 }
