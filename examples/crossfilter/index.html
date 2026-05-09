@@ -80,18 +80,23 @@
     date: [+new Date(2001, 1, 1), +new Date(2001, 2, 1)],
   })
 
-  // flights filtered by selected ranges
-  const delay = window.delay = flights.between('delay', filters.delay)
-  const distance = window.distance = flights.between('distance', filters.distance)
-  const date = window.date = flights.between('date', filters.date)
-  const time = window.time = flights.between('time', filters.time)
-  const active = window.x = date.intersect(distance, delay, time)
+  // dimensions: each is `flights` filtered by one bound. Naming the set
+  // once means each chart can ask for "all dims except mine" via
+  // intersect(dims, name) without enumerating siblings; adding a new
+  // dimension is one line here, none in the chart definitions.
+  const dims = window.dims = {
+    delay:    flights.between('delay',    filters.delay),
+    distance: flights.between('distance', filters.distance),
+    date:     flights.between('date',     filters.date),
+    time:     flights.between('time',     filters.time),
+  }
+  const active = window.x = flights.intersect(dims)
 window.v = value
   // data to drive charts
   const charts = window.charts = {
     time: {
       title: 'Time of Day',
-      data: delay.intersect(distance, date).length(byHour),
+      data: flights.intersect(dims, 'time').length(byHour),
       domain: [0, 24],
       width: 240,
       ticks: [0, 5, 10, 15, 20],
@@ -99,7 +104,7 @@ window.v = value
     },
     delay: {
       title: 'Arrival Delay (min.)',
-      data: distance.intersect(date, time).length(byTenMins),
+      data: flights.intersect(dims, 'delay').length(byTenMins),
       domain: [-60, 150],
       width: 210,
       ticks: [-60, -30, 0, 30, 60, 90, 120, 150],
@@ -107,7 +112,7 @@ window.v = value
     },
     distance: {
       title: 'Distance (mi.)',
-      data: delay.intersect(date, time).length(byFiftyMiles),
+      data: flights.intersect(dims, 'distance').length(byFiftyMiles),
       domain: [0, 2000],
       width: 400,
       ticks: [0, 500, 1000, 1500, 2000],
@@ -115,7 +120,7 @@ window.v = value
     },
     date: {
       title: 'Date',
-      data: delay.intersect(distance, time).length(byDay),
+      data: flights.intersect(dims, 'date').length(byDay),
       domain: [+new Date(2001, 0, 1), +new Date(2001, 3, 1)],
       width: 900,
       ticks: [+new Date(2001, 0, 1), +new Date(2001, 1, 1), +new Date(2001, 2, 1), +new Date(2001, 3, 1)],
