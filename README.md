@@ -213,6 +213,7 @@ idEvents.length    // 1
   - `proxy.connect(obj, 'prop')` mirrors the value to `obj[prop]` — best for binding to a DOM property (`document.body.textContent`) or a state object field.
   - `proxy.connect(obj, fn)` calls `fn(change)` per event — `obj` is just the lifetime anchor (a sink stays alive while the object does).
 - **`raf` writes.** `const write = proxy.raf()` returns a coalescing writer: `write(v)` schedules a single `requestAnimationFrame` that commits the latest pending value to `proxy[value]`; further calls before the frame fires overwrite the pending value. `write.flush()` commits immediately — for `pointerup` handlers that want the final brush position to land without an extra frame. Replaces hand-rolled `rafWriter` patterns in interactive UIs.
+- **`first` / `last`** return the proxy at the first / last key of an array-shaped view (snapshot at call time). Sugar for `proxy[0]` / `proxy[length - 1]` and the equivalent for objects (first / last enumerable key).
 
 For internals — the View / Sink / notification model — see [.claude/architecture.md](.claude/architecture.md).
 
@@ -224,7 +225,8 @@ For internals — the View / Sink / notification model — see [.claude/architec
 | `between` | rows where a column falls in a range | [operators/between/](operators/between/) |
 | `za` / `az` / `top` / `limit` | sort and/or limit | [operators/sort/](operators/sort/) |
 | `length` | row count, or grouped counts | [operators/length/](operators/length/) |
-| `intersect` | rows present in all source views | [operators/intersect/](operators/intersect/) |
+| `sum` / `avg` / `max` / `min` | scalar aggregates over a column or row values | [operators/aggregate/](operators/aggregate/) |
+| `intersect` | rows present in all source views (or in dims, except a named one) | [operators/intersect/](operators/intersect/) |
 | `group` | rows nested under a computed key | [operators/group/](operators/group/) |
 | `map` | per-row transform | [operators/map/](operators/map/) |
 | `to` | whole-value transform | [operators/to/](operators/to/) |
