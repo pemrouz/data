@@ -78,6 +78,16 @@ export class TapValue extends Operator {
     for (let i = 0; i < I2.length; i += 3)
       this.fn({ type: 'insert', key: I2[i], value: sclone(I2[i + 1]), at: I2[i + 2] })
   }
+
+  // Move events: in-window rank rotations from sort/za/limit. The
+  // `connect(obj, fn)` sink (FunctionSink) reports these as
+  // `{ type: 'move', from, to }`; tap mirrors the convention so consumers
+  // see the same vocabulary regardless of which sink they use.
+  BMV1(M1) {
+    super.BMV1(M1)
+    for (let i = 0; i < M1.length; i += 2)
+      this.fn({ type: 'move', from: +M1[i], to: +M1[i + 1] })
+  }
 }
 
 export const tap = (source, fn) => createOperator(source, TapValue, fn)

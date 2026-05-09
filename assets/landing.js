@@ -230,19 +230,22 @@ syncBetween()
 lo.addEventListener('input', syncBetween)
 hi.addEventListener('input', syncBetween)
 
-/* ---- za: top 5 by pnl ---- */
-const top5 = trades.za('pnl', 5)
-render($$('#za-result'), div(
+/* ---- za / az: top / bottom 5 by pnl ---- */
+const top5    = trades.za('pnl', 5)
+const bottom5 = trades.az('pnl', 5)
+const renderRanked = (root, view) => render(root, div(
   div.mblot_head(
     span.text(''), span.text('id'), span.text('tenor'), span.text('pnl'),
   ),
-  div.mblot_row(top5, (node, t) => node.attr('data-trade-id', t.id)(
+  div.mblot_row(view, (node, t) => node.attr('data-trade-id', t.id)(
     span.rank_cell.text(''),
     span.text(t.id),
     span.attr('data-tenor', t.tenor).text(t.tenor),
     span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
   ))
 ))
+renderRanked($$('#za-result'), top5)
+renderRanked($$('#az-result'), bottom5)
 
 /* ---- length: total + per-tenor stacked bar ---- */
 const totalCount = trades.length()
@@ -365,17 +368,195 @@ render($$('#map-result'), div(
   ))
 ))
 
-/* ---- to: aggregate pnl ---- */
-const totalPnl = trades.to(arr =>
+/* ---- to / reduce: aggregate pnl, two ways ---- */
+const totalPnlTo     = trades.to(arr =>
   arr.reduce((s, t) => s + (t?.pnl || 0), 0)
 )
+const totalPnlReduce = trades.reduce((s, t) => s + (t?.pnl || 0), 0)
 render($$('#to-result'), div.to_panel(
-  div.agg_num
-    .class('pos', totalPnl.to(p => p >= 0))
-    .class('neg', totalPnl.to(p => p < 0))
-    .text(totalPnl.to(fmtPnl)),
+  div.agg_pair(
+    div.agg_col(
+      div.agg_label.text('to'),
+      div.agg_num
+        .class('pos', totalPnlTo.to(p => p >= 0))
+        .class('neg', totalPnlTo.to(p => p < 0))
+        .text(totalPnlTo.to(fmtPnl)),
+    ),
+    div.agg_col(
+      div.agg_label.text('reduce'),
+      div.agg_num
+        .class('pos', totalPnlReduce.to(p => p >= 0))
+        .class('neg', totalPnlReduce.to(p => p < 0))
+        .text(totalPnlReduce.to(fmtPnl)),
+    ),
+  ),
   div.agg_sub.text(trades.length().to(n => `summed across ${n} positions`)),
 ))
+
+/* ---- aggregates: sum / avg / max / min / some / every ---- */
+const sumPnl   = trades.sum('pnl')
+const avgPnl   = trades.avg('pnl')
+const maxPnl   = trades.max('pnl')
+const minPnl   = trades.min('pnl')
+const anyBig   = trades.some(t => t && t.pnl > 1000)
+const allWin   = trades.every(t => t && t.pnl > 0)
+const fmtBool  = b => b ? 'true' : 'false'
+const fmtMoney = v => v === undefined ? '—'
+                    : (v > 0 ? '+' : '') + Math.round(v).toLocaleString()
+const fmtAvg   = v => v === undefined ? '—'
+                    : (v > 0 ? '+' : '') + v.toFixed(0)
+render($$('#aggregates-result'), div.agg_grid(
+  div.agg_cell(
+    div.agg_cell_label.text('sum(pnl)'),
+    div.agg_cell_val
+      .class('pos', sumPnl.to(p => p >= 0)).class('neg', sumPnl.to(p => p < 0))
+      .text(sumPnl.to(fmtMoney)),
+  ),
+  div.agg_cell(
+    div.agg_cell_label.text('avg(pnl)'),
+    div.agg_cell_val
+      .class('pos', avgPnl.to(p => p >= 0)).class('neg', avgPnl.to(p => p < 0))
+      .text(avgPnl.to(fmtAvg)),
+  ),
+  div.agg_cell(
+    div.agg_cell_label.text('max(pnl)'),
+    div.agg_cell_val.class('pos').text(maxPnl.to(fmtMoney)),
+  ),
+  div.agg_cell(
+    div.agg_cell_label.text('min(pnl)'),
+    div.agg_cell_val.class('neg').text(minPnl.to(fmtMoney)),
+  ),
+  div.agg_cell(
+    div.agg_cell_label.text('some(pnl > 1000)'),
+    div.agg_cell_val
+      .class('pos', anyBig.to(b => b)).class('neg', anyBig.to(b => !b))
+      .text(anyBig.to(fmtBool)),
+  ),
+  div.agg_cell(
+    div.agg_cell_label.text('every(pnl > 0)'),
+    div.agg_cell_val
+      .class('pos', allWin.to(b => b)).class('neg', allWin.to(b => !b))
+      .text(allWin.to(fmtBool)),
+  ),
+))
+
+/* ---- setops: union / except over the same chip selector as intersect ---- */
+let setopTenor = '5Y'
+function syncSetops () {
+  $$('#op-setops pre.code').innerHTML =
+`const A = trades.filter(${STR('tenor')}, ${STR(setopTenor)})
+const B = trades.between(${STR('pnl')}, [${NUM(0)}, Infinity])
+
+A.union(B)     // either tenor or profitable
+A.except(B)    // ${setopTenor} losers (in A, not in B)`
+  // Counts via dense arrays, like the intersect demo above.
+  const aCount = trades.to(arr => arr.filter(r => r && r.tenor === setopTenor).length)
+  const bCount = trades.to(arr => arr.filter(r => r && r.pnl >= 0).length)
+  const uCount = trades.to(arr => arr.filter(r => r && (r.tenor === setopTenor || r.pnl >= 0)).length)
+  const eCount = trades.to(arr => arr.filter(r => r && r.tenor === setopTenor && r.pnl < 0).length)
+  const eRows  = trades.to(arr => arr.filter(r => r && r.tenor === setopTenor && r.pnl < 0))
+  const live = $$('#setops-result')
+  live.innerHTML = ''
+  render(live, div.setops_panel(
+    div.setops_grid(
+      div.setops_card(
+        div.setops_card_op.text('A ∩ B'),
+        div.setops_card_label.text(`${setopTenor} ∩ profitable`),
+        div.setops_card_count.text(trades.to(arr =>
+          arr.filter(r => r && r.tenor === setopTenor && r.pnl >= 0).length
+        )),
+      ),
+      div.setops_card(
+        div.setops_card_op.text('A ∪ B'),
+        div.setops_card_label.text(`${setopTenor} or profitable`),
+        div.setops_card_count.text(uCount),
+      ),
+      div.setops_card(
+        div.setops_card_op.text('A ∖ B'),
+        div.setops_card_label.text(`${setopTenor} losers`),
+        div.setops_card_count.text(eCount),
+      ),
+    ),
+    div.setops_pipeline(
+      span.step(span.text(`A: tenor=${setopTenor}: `), span.count.text(aCount)),
+      span.dim.text(' · '),
+      span.step(span.text('B: profitable: '), span.count.text(bCount)),
+    ),
+    div.mblot_head(
+      span.text('id'), span.text('tenor'), span.text('last'), span.text('pnl'),
+    ),
+    div.mblot_row(eRows, (node, t) => node.attr('data-trade-id', t.id)(
+      span.text(t.id),
+      span.attr('data-tenor', t.tenor).text(t.tenor),
+      span.attr('data-fields', 'last').text(t.last.to(fmt2)),
+      span.pnl.attr('data-fields', 'pnl').class('neg', t.pnl.to(p => p < 0)).text(t.pnl.to(fmtPnl)),
+    )),
+  ))
+}
+syncSetops()
+const setopsChips = $$('#setops-chips')
+TENORS.forEach(t => {
+  const chip = document.createElement('span')
+  chip.className = 'chip' + (t === setopTenor ? ' on' : '')
+  chip.textContent = t
+  chip.addEventListener('click', () => {
+    setopTenor = t
+    setopsChips.querySelectorAll('.chip').forEach(el => el.classList.toggle('on', el === chip))
+    syncSetops()
+  })
+  setopsChips.appendChild(chip)
+})
+
+/* ---- projections: distinct / keys / values / reverse ---- */
+const distinctTenors = trades.distinct(t => t && t.tenor)
+const tenorCounts    = trades.length(t => t && t.tenor)
+const tenorKeys      = tenorCounts.keys()
+const tenorValues    = tenorCounts.values().to(arr => arr.map(c => c?.value ?? c))
+const bottomReversed = top5.reverse()    // top5 reversed = bottom of top5 first
+render($$('#projections-result'), div.proj_panel(
+  div.proj_row(
+    div.proj_label.text('distinct(tenor)'),
+    div.proj_val.text(distinctTenors.to(arr =>
+      arr.map(t => t && t.tenor).filter(Boolean).join(', ') || '—'
+    )),
+  ),
+  div.proj_row(
+    div.proj_label.text('length(tenor).keys()'),
+    div.proj_val.text(tenorKeys.to(ks => ks.join(', ') || '—')),
+  ),
+  div.proj_row(
+    div.proj_label.text('length(tenor).values()'),
+    div.proj_val.text(tenorValues.to(vs => vs.join(', ') || '—')),
+  ),
+  div.proj_row(
+    div.proj_label.text('za(pnl, 5).reverse()'),
+    div.proj_val.text(bottomReversed.to(arr =>
+      arr.map(t => t && t.id).filter(Boolean).join(' → ') || '—'
+    )),
+  ),
+))
+
+/* ---- tap: live event log of top5 ---- */
+const tapLog = []
+const TAP_MAX = 18
+top5.tap(change => {
+  // Compact, readable summary — full record is too noisy for the panel.
+  const summary = change.type === 'move'
+    ? `${change.type} ${change.from}→${change.to}`
+    : `${change.type} ${change.key.length ? `[${change.key.join(',')}]` : '[]'} ${
+        change.at !== undefined ? `at ${change.at}` : ''
+      }`
+  tapLog.unshift({ at: Date.now(), summary })
+  if (tapLog.length > TAP_MAX) tapLog.length = TAP_MAX
+  // Manual re-render (the log isn't a ViewProxy).
+  const node = $$('#tap-result')
+  if (!node) return
+  node.innerHTML = tapLog.map(e =>
+    `<div class="tap-entry"><span class="tap-time">${
+      new Date(e.at).toTimeString().slice(0, 8)
+    }</span> <span class="tap-msg">${e.summary}</span></div>`
+  ).join('')
+})
 
 /* ---------- 4. crossfilter iframe auto-resize ---------- */
 
