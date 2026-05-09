@@ -226,10 +226,18 @@ For internals — the View / Sink / notification model — see [.claude/architec
 | `za` / `az` / `top` / `limit` | sort and/or limit | [operators/sort/](operators/sort/) |
 | `length` | row count, or grouped counts | [operators/length/](operators/length/) |
 | `sum` / `avg` / `max` / `min` | scalar aggregates over a column or row values | [operators/aggregate/](operators/aggregate/) |
+| `some` / `every` | scalar booleans — any/all rows matching a predicate | [operators/aggregate/](operators/aggregate/) |
 | `intersect` | rows present in all source views (or in dims, except a named one) | [operators/intersect/](operators/intersect/) |
+| `union` | rows present in any source (value from the first containing it) | [operators/union/](operators/union/) |
+| `except` | rows in source but not in other | [operators/except/](operators/except/) |
 | `group` | rows nested under a computed key | [operators/group/](operators/group/) |
+| `distinct` | first-seen unique rows by an optional projection | [operators/distinct/](operators/distinct/) |
 | `map` | per-row transform | [operators/map/](operators/map/) |
 | `to` | whole-value transform | [operators/to/](operators/to/) |
+| `reduce` | general fold — `(acc, row, key) => acc` (use aggregates for commutative cases) | [operators/reduce/](operators/reduce/) |
+| `tap` | passthrough that fires `fn(change)` per event for declarative side effects | [operators/tap/](operators/tap/) |
+| `keys` / `values` | current `Object.keys` / `Object.values` as a reactive array | [operators/keys/](operators/keys/) |
+| `reverse` | array order flipped | [operators/reverse/](operators/reverse/) |
 
 Index with longer summaries and the dispatch model: [operators/README.md](operators/README.md).
 
