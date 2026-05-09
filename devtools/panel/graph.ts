@@ -4,7 +4,7 @@
 // reflects current state without flooding the panel during bursts.
 import { $ as $core, value, view, ViewProxy } from '../../core.ts'
 import { iterRoots, walk } from '../walk.ts'
-import { getPanelState } from './state.ts'
+import { getPanelState, getPickedSink } from './state.ts'
 
 export type GraphTabHandle = {
   render(container: HTMLElement): void
@@ -113,8 +113,16 @@ export function createGraphTab(): GraphTabHandle {
       lastSelectedKey = keyOf(sel)
     }
 
-    const tree = walk(sel)
-    treeRoot.appendChild(renderNode(tree, []))
+    const tree = walk(sel, { pickedSink: getPickedSink() })
+    const wrap = renderNode(tree, [])
+    treeRoot.appendChild(wrap)
+    // If a node was tagged picked, scroll it into view after the DOM has
+    // settled. Using rAF instead of a 0ms timeout keeps it inside the same
+    // frame as the render so the user sees a single coherent change.
+    const picked = wrap.querySelector?.('.gt-picked') as HTMLElement | null
+    if (picked && typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => { try { picked.scrollIntoView?.({ block: 'nearest' }) } catch {} })
+    }
   }
 
   function installTraceForRoot(v: any) {
@@ -150,11 +158,14 @@ function summarizeForOption(v: unknown) {
 
 function renderNode(node: any, path: (string | number)[]): HTMLElement {
   const wrap = document.createElement('div')
-  wrap.className = 'gt-node'
+  wrap.className = 'gt-node' + (node.picked ? ' gt-picked' : '')
   const hasChildren = (node.children?.length || 0) + (node.sinks?.length || 0) > 0
   if (hasChildren) {
     const det = document.createElement('details')
-    det.open = path.length < 2  // auto-expand top two levels
+    // Auto-expand the top two levels and any branch on the path to a
+    // picked node, so a freshly-picked sink is visible without manual
+    // expansion.
+    det.open = path.length < 2 || !!node.pickedAncestor
     const sum = document.createElement('summary')
     sum.appendChild(badge(node))
     sum.appendChild(label(node))

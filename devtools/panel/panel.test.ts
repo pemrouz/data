@@ -344,10 +344,14 @@ test('panel/picker - arm/disarm + click selects matching root and switches to gr
   const idx = [...iterRoots()].findIndex(v => v === data[view])
 
   const shell = mount()!
-  // Make a fake DOM element with a __ripple_sink whose p is data's view.
+  // Make a fake DOM element with a __ripple_sink whose p is data's view,
+  // and register that sink on data so walk() sees it as a real sink during
+  // the post-pick highlight step.
   const target: any = (globalThis.document as any).createElement('div')
-  target.__ripple_sink = { p: data[view] }
+  const fakeSink: any = { p: data[view], parent: target, constructor: { name: 'DOMSink' } }
+  target.__ripple_sink = fakeSink
   ;(target as any).className = 'page-target'
+  data[view].sinks.add(new WeakRef(fakeSink))
 
   // Click the pick button to arm.
   for (const fn of (shell.pickButton as any)._listeners?.click || []) fn({})
@@ -370,6 +374,15 @@ test('panel/picker - arm/disarm + click selects matching root and switches to gr
   strictEqual(state[value].pickerArmed, false, 'picker should disarm after click')
   strictEqual(state[value].selectedRootIdx, idx, 'selectedRootIdx should match the clicked root')
   strictEqual(state[value].activeTab, 'graph', 'activeTab should switch to graph')
+
+  // The picker should have stashed the matched __ripple_sink so the graph
+  // tab can spotlight it. walk() tags the node when given the same ref.
+  const { getPickedSink } = await import('./state.ts')
+  const { walk } = await import('../walk.ts')
+  strictEqual(getPickedSink(), target.__ripple_sink, 'picked sink reference is stored')
+  const tree = walk(data[view], { pickedSink: getPickedSink() })
+  const pickedNode = tree.sinks.find((s: any) => s.picked)
+  ok(pickedNode, 'walk should tag the matching sink as picked')
 
   unmount()
   clearPersistedPanelState()

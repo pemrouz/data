@@ -142,7 +142,7 @@ test('walk - cycle defense: re-encountered view marked kind:cycle', () => {
   const data = $({ a: 1 })
   const seen = new WeakSet()
   seen.add(data[view])
-  const tree = walk(data[view], seen)
+  const tree = walk(data[view], { seen })
   strictEqual(tree.kind, 'cycle')
 })
 

@@ -158,6 +158,19 @@ export default `
 .gt-linked-alias { background: #2d2d3a; color: #b39be3; }
 .gt-cycle { background: #4a2929; color: #ffaaaa; }
 .gt-rowlabel { color: #ddd; }
+/* Picked node — the sink the DOM picker matched. Pulsing outline so the
+   eye finds it immediately; fades after a couple of seconds. */
+.gt-picked > details > summary,
+.gt-picked > .gt-badge {
+  outline: 1px solid #9be3a8;
+  outline-offset: 2px;
+  border-radius: 2px;
+  animation: __ripple_pulse 1s ease-out 3;
+}
+@keyframes __ripple_pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(155, 227, 168, 0.55); }
+  100% { box-shadow: 0 0 0 8px rgba(155, 227, 168, 0); }
+}
 
 /* Events tab */
 .ev-toolbar {

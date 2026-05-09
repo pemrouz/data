@@ -66,7 +66,17 @@ export function getPanelState() {
 // that.
 export function resetPanelState() {
   stateProxy = null
+  pickedSink = null
 }
+
+// The most recently picked sink (DOMSink, ArrSink, etc.) — held outside
+// the reactive state proxy because sinks aren't JSON-serializable and we
+// don't want them mirrored to localStorage. Graph tab reads this on render
+// to highlight the matching node; picker writes it on a successful pick.
+let pickedSink: any = null
+export function getPickedSink() { return pickedSink }
+export function setPickedSink(s: any) { pickedSink = s }
+export function clearPickedSink() { pickedSink = null }
 
 export function clearPersistedPanelState() {
   try {

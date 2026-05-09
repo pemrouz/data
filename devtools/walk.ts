@@ -76,13 +76,23 @@ export function ancestorOf(child, root, maxDepth = 32) {
   return false
 }
 
-// walk(view) — depth-first dump of the View graph rooted at `view`. Returns
-// a serializable tree (no live View references) so it survives console.dir
-// and can be serialized to JSON if a panel ever wants to ship it over a
-// channel. WeakRef'd children/sinks are dereffed via View.each / View.sink
-// which already prune dead entries, so dropped subscribers vanish naturally.
-export function walk(view, seen) {
-  seen = seen || new WeakSet()
+// walk(view, opts?) — depth-first dump of the View graph rooted at `view`.
+// Returns a serializable tree (no live View references) so it survives
+// console.dir and can be serialized to JSON if a panel ever wants to ship
+// it over a channel. WeakRef'd children/sinks are dereffed via View.each /
+// View.sink which already prune dead entries, so dropped subscribers vanish
+// naturally.
+//
+// opts.pickedSink — when set, the walk tags the matching sink node with
+// `picked: true` and bubbles `pickedAncestor: true` up through the chain
+// so callers can auto-expand the path. Used by the panel's Graph tab to
+// spotlight the binding picked via the DOM picker.
+export function walk(view, opts) {
+  opts = opts || {}
+  return walkImpl(view, opts.seen || new WeakSet(), opts)
+}
+
+function walkImpl(view, seen, opts) {
   if (seen.has(view)) {
     return { key: [...view.key], kind: 'cycle', children: [], sinks: [] }
   }
@@ -113,23 +123,32 @@ export function walk(view, seen) {
   }
 
   view.each?.((_name, child) => {
-    node.children.push(walk(child, seen))
+    const c = walkImpl(child, seen, opts)
+    if (c.picked || c.pickedAncestor) node.pickedAncestor = true
+    node.children.push(c)
   })
 
   view.sink?.((s) => {
     if (s instanceof Operator) {
-      const opNode = walk(s.view, seen)
+      const opNode = walkImpl(s.view, seen, opts)
       opNode.kind = 'operator'
       opNode.ctor = s.constructor.name
+      if (opts.pickedSink === s) opNode.picked = true
+      if (opNode.picked || opNode.pickedAncestor) node.pickedAncestor = true
       node.sinks.push(opNode)
     } else {
-      node.sinks.push({
+      const sinkNode = {
         key: [...view.key],
         kind: classify(s),
         ctor: s.constructor?.name || 'anonymous',
         children: [],
         sinks: [],
-      })
+      }
+      if (opts.pickedSink === s) {
+        sinkNode.picked = true
+        node.pickedAncestor = true
+      }
+      node.sinks.push(sinkNode)
     }
   })
 

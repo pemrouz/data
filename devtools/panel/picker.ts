@@ -9,7 +9,7 @@
 // while armed and tears them down on disarm.
 import { $ as $core, view, ViewProxy } from '../../core.ts'
 import { iterRoots } from '../walk.ts'
-import { getPanelState } from './state.ts'
+import { getPanelState, setPickedSink } from './state.ts'
 
 const $ = $core as any
 
@@ -78,13 +78,23 @@ export function createPicker(): PickerHandle {
     if (isInsidePanel(target)) return     // click on the panel itself: ignore (don't arm again)
     e.preventDefault()
     e.stopPropagation()
+    // Walk parentElement chain looking for the bound sink directly so we
+    // can stash the sink reference (graph tab uses it to spotlight the
+    // matching node). $.fromDOM does the same walk but only returns the
+    // owning proxy.
+    let n: Element | null = target
+    let pickedSink: any = null
+    while (n) {
+      if ((n as any).__ripple_sink) { pickedSink = (n as any).__ripple_sink; break }
+      n = n.parentElement
+    }
     const proxy = ($ as any).fromDOM(target)
     disarm()
     if (proxy) {
+      setPickedSink(pickedSink)
       // Find the proxy's root view and select it in the dropdown, then
-      // switch to the Graph tab. Order matters: setting selectedRootIdx
-      // before activeTab means the graph tab's first render already shows
-      // the right root.
+      // switch to the Graph tab. Order matters: selectedRootIdx + the
+      // picked sink need to be in place before the graph tab renders.
       const targetView = proxy[view]
       let root = targetView
       while (root.p) root = root.p
