@@ -279,6 +279,39 @@ test('iterator', async () => {
   ])
 })
 
+// `first()` / `last()` are sugar over `proxy[0]` / `proxy[lastKey]` — the
+// same child-view machinery, just discoverable as methods. Snapshot
+// semantics: `last()` reads the source's current last key at call time.
+test('first/last - array indexing', () => {
+  const res = $(['a', 'b', 'c'])
+  same(res.first()[value], 'a')
+  same(res.last()[value], 'c')
+})
+
+test('first/last - tracking the same child view as numeric indexing', () => {
+  const res = $(['a', 'b', 'c'])
+  // first() and proxy[0] resolve to the same child view, so subscribing
+  // through one and mutating through the other is observed.
+  const changes = res.first().connect([])
+  res[0] = 'A'
+  same(changes, [
+    { type: 'update', key: [], value: 'a' },
+    { type: 'update', key: [], value: 'A' },
+  ])
+})
+
+test('first/last - empty array returns proxy at "0" with undefined value', () => {
+  const res = $([])
+  same(res.first()[value], undefined)
+  same(res.last()[value], undefined)
+})
+
+test('first/last - object iteration order', () => {
+  const res = $({ a: 1, b: 2, c: 3 })
+  same(res.first()[value], 1)
+  same(res.last()[value], 3)
+})
+
 // Replaces the rafWriter pattern that was hand-rolled in
 // examples/crossfilter/index.html. Tests run in node where there's no native
 // requestAnimationFrame; the operator falls back to setTimeout(16), so these

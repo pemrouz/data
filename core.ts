@@ -66,6 +66,8 @@ type Data<T = any> = { [k in keyof T]: Data<T[k]> } & {
   connect({}): {};
   connect(Function): Function
   raf(): ((value: T) => void) & { flush(): void }
+  first(): Data<RowOf<T>>
+  last(): Data<RowOf<T>>
   update(value: T): undefined
   update(value, key: string[]): undefined
   insert(value: RowOf<T>): undefined
@@ -813,6 +815,8 @@ export class ViewProxy {
     if (!p) throw new Error('cannot invoke a root value!')
     if (type === 'connect') return connect(p, ...args)
     if (type === 'raf')     return raf(p)
+    if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
+    if (type === 'last')    return new ViewProxy(p.get_or_create_named(lastKey(p.value)))
     const OperatorClass = Operators[type]?.(...args)
     if (OperatorClass) {
       // Same dedup logic as createOperator, inline because we already have p.
@@ -882,6 +886,25 @@ function connect(p, a, b) {
 
   p.sinks.add(new WeakRef(a))
   return a
+}
+
+// Snapshot helpers for `proxy.first()` / `proxy.last()` — pick the source's
+// current first/last key at call time. Arrays use index 0 / length-1; objects
+// walk enumerable keys in iteration order. Empty sources collapse to '0' so
+// the caller still gets a (degenerate) ViewProxy with undefined value rather
+// than null, keeping the chainable API uniform.
+function firstKey(v) {
+  if (v == null || typeof v !== 'object') return '0'
+  if (isArray(v)) return '0'
+  for (const k in v) return k
+  return '0'
+}
+function lastKey(v) {
+  if (v == null || typeof v !== 'object') return '0'
+  if (isArray(v)) return String(Math.max(0, v.length - 1))
+  let last = '0'
+  for (const k in v) last = k
+  return last
 }
 
 // `proxy.raf()` returns a coalescing writer: each call records the latest
