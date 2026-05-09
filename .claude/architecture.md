@@ -116,6 +116,15 @@ Practical implications:
 - A test that does `proxy.connect([])` *must* keep the returned array bound to a local — once it goes out of scope, the `ArrSink`'s only strong reference is gone and the next GC will silently unsubscribe it.
 - `PropSink` extends its lifetime by registering itself in the `lifetimes: WeakMap<obj, Set<sink>>` map ([core.ts:491-503](../core.ts#L491-L503)) — so the sink lives as long as the *target object* does, not the user's reference to the sink.
 
+## Devtools hooks (internal)
+
+Two passive structural additions exist to support the optional `devtools/` entrypoint without imposing per-notification cost on the hot path:
+
+- `_devtoolsRoots: WeakSet<View>` ([core.ts](../core.ts)) — every non-Linked root is registered here in `View.value`. Lets `$.graph()` (no arg) enumerate live roots. Cost: one `WeakSet.add()` per `$()` call.
+- `__ripple_sink` non-enumerable property on DOM elements that bind reactive data (set in `Node.render`) — lets `$.fromDOM(el)` walk up to the owning `DOMSink`. Cost: one `Object.defineProperty` per `DOMSink` construction.
+
+Neither runs during fan-out. Devtools instrumentation that *does* touch the hot path (trace/profile) is opt-in and lives in `devtools/instrument.ts`.
+
 ## Render layer
 
 [render/index.ts](../render/index.ts) attaches reactive data to the DOM:

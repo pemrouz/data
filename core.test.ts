@@ -1,7 +1,7 @@
 ﻿// @ts-nocheck
-import { deepStrictEqual as same } from 'node:assert'
+import { deepStrictEqual as same, ok } from 'node:assert'
 import { test } from 'node:test'
-import { $, value } from './core.ts'
+import { $, value, view, _devtoolsRoots } from './core.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
@@ -277,4 +277,16 @@ test('iterator', async () => {
     { type: 'update', value: 3, key: [] },
     { type: 'update', value: undefined, key: [] }
   ])
+})
+
+test('devtools - root view is registered in _devtoolsRoots', () => {
+  const res = $({ a: 1 })
+  ok(_devtoolsRoots.has(res[view]))
+})
+
+test('devtools - linked roots are not registered (only the source is)', () => {
+  const src = $({ a: 1 })
+  const linked = $(src)
+  ok(_devtoolsRoots.has(src[view]))
+  ok(!_devtoolsRoots.has(linked[view]))
 })
