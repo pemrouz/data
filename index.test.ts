@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { $, value } from './index.ts'
+import { $, value } from './full.ts'
 import { test } from 'node:test'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object

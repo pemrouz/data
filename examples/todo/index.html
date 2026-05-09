@@ -7,7 +7,7 @@
 </head>
 </html>
 <script type="module">
-    import { $, value, render, HTML } from '../../index.js'
+    import { $, value, render, HTML } from '../../full.js'
     const { section, div, header, input, h1, label, ul, footer, span, strong, button, li, a, body } = HTML
     const KEY = 'todos-ripple'
     const items = window.items = $(JSON.parse(localStorage.getItem(KEY) || '{}'))

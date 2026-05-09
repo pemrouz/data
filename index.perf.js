@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { ok } from 'node:assert';
-import { $, value } from "./index.js";
+import { $, value } from "./full.js";
 import { test } from 'node:test';
 import { data as flights500 } from './examples/crossfilter/flights500.js';
 import { data as flights50000 } from './examples/crossfilter/flights50000.js';

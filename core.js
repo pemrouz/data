@@ -26,6 +26,10 @@ export const $ = (v) => new ViewProxy(View.value(v));
 export default $;
 // Overridable for deterministic IDs in tests — see core.test.ts:7.
 $.random = (o) => crypto.randomUUID();
+// Internal hook for the optional devtools entrypoint (see devtools/walk.ts).
+// Every root view is registered here on construction so $.graph() with no
+// argument can enumerate live roots without us having to keep a strong ref.
+export const _devtoolsRoots = new WeakSet();
 // Operator dedup: if a sink with the same class + matching args is already
 // attached to this source, reuse it instead of building a parallel pipeline.
 // Only operators that implement `matches()` participate; everything else gets
@@ -320,6 +324,7 @@ export class View {
         else {
             const res = new Value;
             res.XU0(value);
+            _devtoolsRoots.add(res.view);
             return res.view;
         }
     }
@@ -805,6 +810,10 @@ export class ViewProxy {
             return this.view.res.update(value, p.key);
         if (type === 'insert')
             return this.view.res.insert(value, p.key, at);
+        throw new Error(`Unknown operator '${type}'. ` +
+            `Operators (.filter, .between, .length, etc.) are only registered when ` +
+            `'data/full' is imported — bare 'data' is the lean core. Import from ` +
+            `'data/full' to enable chainable operators.`);
     }
     getPrototypeOf(target) {
         return ViewProxy.prototype;
