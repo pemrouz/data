@@ -50,7 +50,7 @@
     "test:render": "npx playwright test",
     "test:data": "node --experimental-strip-types --no-warnings --test index.test.ts",
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
-    "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js jsx/*.test.ts",
+    "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js render/*.test.ts jsx/*.test.ts",
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts",
     "test:all": "npm run test && npm run test:render",
     "prepublishOnly": "npm run build && npm test"

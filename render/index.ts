@@ -197,6 +197,11 @@ class Node extends Child {
     for (const child of node.children) {
       if (child.data) {
         dom.sink = new DOMSink(dom, child)
+        // Non-enumerable so it never shows up in JSON.stringify or
+        // for-in inspection of the element; configurable so a later
+        // bind can replace it. Used by $.fromDOM to walk a clicked
+        // element back to its owning view.
+        Object.defineProperty(dom, '__ripple_sink', { value: dom.sink, configurable: true })
       } else {
         child.create(dom)
       }
