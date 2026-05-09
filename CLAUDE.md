@@ -109,7 +109,7 @@ For a fuller breakdown see [.claude/architecture.md](.claude/architecture.md).
 
 - [examples/todo/](examples/todo/) — basic mutation + filter + length.
 - [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 flight records.
-- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Both `tsconfig.json` files extend the shared [tsconfig.jsx.json](tsconfig.jsx.json) at the repo root; `npm run serve` runs `build:examples-jsx` after `tsup` to produce the sibling `.js`. Playwright tests at [tests/todo-jsx.spec.ts](tests/todo-jsx.spec.ts) and [tests/crossfilter-jsx.spec.ts](tests/crossfilter-jsx.spec.ts) assert DOM-identity preservation across reactive updates and brush-parity with the builder version.
+- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Both `tsconfig.json` files extend the shared [tsconfig.jsx.json](tsconfig.jsx.json) at the repo root; `npm run serve` runs `build:examples-jsx` after `tsup` to produce the sibling `.js`. Playwright tests at [tests/todo-jsx.spec.ts](tests/todo-jsx.spec.ts) and [tests/crossfilter-jsx.spec.ts](tests/crossfilter-jsx.spec.ts) assert DOM-identity preservation across reactive updates and brush-parity with the builder version. The example sources type-check without `// @ts-nocheck` thanks to the per-tag intrinsic types in [jsx/jsx.d.ts](jsx/jsx.d.ts) — keep new JSX code typed the same way.
 
 All runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/todo/` etc.
 

@@ -1,6 +1,5 @@
 /** @jsx h */
 /** @jsxFrag Fragment */
-// @ts-nocheck
 // JSX port of examples/todo/. Functionally identical: same data flow, same
 // reactive bindings, same DOM. Only the authoring layer changes — every
 // `HTML.div(...)` chain is rewritten as `<div .../>`. Because h() returns
@@ -50,7 +49,7 @@ const route = (window as any).route = $('all')
 const change_view = () => {
   const r = document.location.hash.split('/').pop() || 'all'
   route[value] = r
-  selected[value] = filters[r] ?? filters.all
+  selected[value] = (filters as any)[r] ?? filters.all
 }
 
 addEventListener('hashchange', change_view)

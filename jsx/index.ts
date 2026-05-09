@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin JSX adapter over the HTML/SVG builders. Goal: let templates be
 // authored in JSX syntax without giving up the per-key surgical DOM updates
 // that DOMSink does. The trick is that JSX is purely a syntactic transform —
@@ -36,7 +35,7 @@ const SVG_TAGS = new Set([
 //                              setAttribute produces the standard empty-string
 //                              boolean attribute (matches existing 'autofocus='
 //                              shorthand, not the literal string "true")
-export function applyProps(node, props) {
+export function applyProps(node: any, props: any): any {
   if (!props) return node
   for (const k in props) {
     const v = props[k]
@@ -84,20 +83,20 @@ export function applyProps(node, props) {
 // generator. Without this distinction `<label>{item.title}</label>` would
 // recreate the label on every update (lost focus/markers), and the
 // `[data, fn]` data-binding shorthand would silently lose its data link.
-export function h(tag, props, ...children) {
+export function h(tag: any, props: any, ...children: any[]): any {
   if (typeof tag === 'function') return tag(props || {}, ...children)
-  let node = (SVG_TAGS.has(tag) ? SVG : HTML)[tag]
+  let node = ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag]
   node = applyProps(node, props)
   const flat = children.flat(Infinity)
   // Has a non-VP function child? That marks the data-iteration shape; in
   // that case VPs should stay on the data path, not the text path.
   let hasRowFn = false
   for (const c of flat) {
-    if (typeof c === 'function' && !c[view]) { hasRowFn = true; break }
+    if (typeof c === 'function' && !(c as any)[view]) { hasRowFn = true; break }
   }
   for (const c of flat) {
     if (c == null || c === false) continue
-    const isVP = typeof c === 'function' && c[view]
+    const isVP = typeof c === 'function' && (c as any)[view]
     node = (isVP && !hasRowFn) ? node.text(c) : node(c)
   }
   return node
@@ -105,7 +104,7 @@ export function h(tag, props, ...children) {
 
 // `<>{a}{b}</>` → `Fragment(null, a, b)` → `[a, b]`. The enclosing h()'s
 // .flat() pass spreads them as positional siblings.
-export function Fragment(_, ...children) {
+export function Fragment(_: any, ...children: any[]): any {
   return children
 }
 
@@ -120,7 +119,7 @@ export function Fragment(_, ...children) {
 //
 // Children arrive bundled in props for the automatic runtime, in contrast
 // to the classic transform where they're variadic positional args.
-function _jsx(type, props, _key) {
+function _jsx(type: any, props: any, _key?: any): any {
   const { children, ...rest } = props || {}
   const arr = children == null ? []
     : Array.isArray(children) ? children
@@ -144,8 +143,16 @@ export const jsxDEV = _jsx
 // `tag` defaults to 'div' but is replaced when the row fn returns a
 // NodeProxy — Solid-style. Use the matching tag if you want JSX <li>, or
 // omit the inner element and return a Fragment to extend the row template.
-export function For({ each, tag = 'div' }, fn) {
-  return (SVG_TAGS.has(tag) ? SVG : HTML)[tag](each, (node, item, key) => {
+//
+// Props type accepts `children` so `<For>{fn}</For>` (classic transform
+// passes the row fn as a positional arg, but JSX type resolution still
+// wants `children` in the props shape) type-checks under the per-tag
+// JSX types in jsx.d.ts.
+export function For(
+  { each, tag = 'div' }: { each: any; tag?: string; children?: any },
+  fn: (item: any, key: any) => any,
+): any {
+  return ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag](each, (node: any, item: any, key: any) => {
     const r = fn(item, key)
     return Array.isArray(r) ? node(...r.flat(Infinity)) : r
   })

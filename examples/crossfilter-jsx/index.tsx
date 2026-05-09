@@ -1,6 +1,5 @@
 /** @jsx h */
 /** @jsxFrag Fragment */
-// @ts-nocheck
 // JSX port of examples/crossfilter/. Same data flow, same brush logic, same
 // reactive bindings — only the template is rewritten in JSX. Exercises the
 // pieces the simpler todo-jsx port doesn't:
@@ -50,11 +49,14 @@ const filters = (window as any).filters = $({
   date: [+new Date(2001, 1, 1), +new Date(2001, 2, 1)],
 })
 
+// `between` accepts reactive bounds (ViewProxy resolving to [lo, hi]) — the
+// types narrow to the static [number, number] shape so we widen at the call.
+// `intersect` likewise accepts a string column name as the second arg.
 const dims: any = (window as any).dims = {
-  delay:    flights.between('delay',    filters.delay),
-  distance: flights.between('distance', filters.distance),
-  date:     flights.between('date',     filters.date),
-  time:     flights.between('time',     filters.time),
+  delay:    (flights as any).between('delay',    filters.delay),
+  distance: (flights as any).between('distance', filters.distance),
+  date:     (flights as any).between('date',     filters.date),
+  time:     (flights as any).between('time',     filters.time),
 }
 const active = (window as any).x = flights.intersect(dims)
 ;(window as any).v = value
@@ -62,25 +64,25 @@ const active = (window as any).x = flights.intersect(dims)
 const charts: any = (window as any).charts = {
   time: {
     title: 'Time of Day',
-    data: flights.intersect(dims, 'time').length(byHour),
+    data: (flights as any).intersect(dims, 'time').length(byHour),
     domain: [0, 24], width: 240,
     ticks: [0, 5, 10, 15, 20], format: String,
   },
   delay: {
     title: 'Arrival Delay (min.)',
-    data: flights.intersect(dims, 'delay').length(byTenMins),
+    data: (flights as any).intersect(dims, 'delay').length(byTenMins),
     domain: [-60, 150], width: 210,
     ticks: [-60, -30, 0, 30, 60, 90, 120, 150], format: String,
   },
   distance: {
     title: 'Distance (mi.)',
-    data: flights.intersect(dims, 'distance').length(byFiftyMiles),
+    data: (flights as any).intersect(dims, 'distance').length(byFiftyMiles),
     domain: [0, 2000], width: 400,
     ticks: [0, 500, 1000, 1500, 2000], format: String,
   },
   date: {
     title: 'Date',
-    data: flights.intersect(dims, 'date').length(byDay),
+    data: (flights as any).intersect(dims, 'date').length(byDay),
     domain: [+new Date(2001, 0, 1), +new Date(2001, 3, 1)], width: 900,
     ticks: [+new Date(2001, 0, 1), +new Date(2001, 1, 1), +new Date(2001, 2, 1), +new Date(2001, 3, 1)],
     format: (t: any) => months[new Date(t).getMonth()],
@@ -180,12 +182,12 @@ function chart(node: any, c: any, name: string) {
   const x = scale(domain, [0, width])
   const rx = scale([0, width], domain)
   const maxRef = data.max('value')
-  const filter = filters[name]
+  const filter = (filters as any)[name]
   const range = filter.to(([lo = domain[0], hi = domain[1]] = []) => [lo, hi])
   const extent = range.to(([lo, hi]: any) => x(hi) - x(lo))
   const start = range[0].to((d: any) => x(d))
   const barPath = data.to(bars(maxRef, domain, width, name))
-  const reset = () => (filters[name] = [])
+  const reset = () => ((filters as any)[name] = [])
 
   let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite: any
 
