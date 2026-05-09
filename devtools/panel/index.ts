@@ -9,11 +9,13 @@ import { getPanelState, resetPanelState } from './state.ts'
 import { createGraphTab } from './graph.ts'
 import { createEventsTab } from './events.ts'
 import { createProfileTab } from './profile.ts'
+import { createPicker } from './picker.ts'
 
 let current: Shell | null = null
 let graphTab: ReturnType<typeof createGraphTab> | null = null
 let eventsTab: ReturnType<typeof createEventsTab> | null = null
 let profileTab: ReturnType<typeof createProfileTab> | null = null
+let picker: ReturnType<typeof createPicker> | null = null
 
 export function mount(): Shell | null {
   if (typeof document === 'undefined') return null
@@ -42,6 +44,15 @@ export function mount(): Shell | null {
     if (ev.type !== 'update') return
     const next = state[value].activeTab
     current?.setActiveTab(next)
+  })
+
+  // Picker: lazy-init on first arm via the toolbar button.
+  picker = createPicker()
+  current.pickButton.addEventListener('click', () => {
+    if (!picker) return
+    if (picker.isArmed()) picker.disarm()
+    else picker.arm()
+    current?.pickButton.classList?.toggle?.('active', picker.isArmed())
   })
 
   renderTab(state[value].activeTab)
@@ -88,6 +99,7 @@ export function unmount() {
   if (graphTab) { graphTab.dispose(); graphTab = null }
   if (eventsTab) { eventsTab.dispose(); eventsTab = null }
   if (profileTab) { profileTab.dispose(); profileTab = null }
+  if (picker) { picker.disarm(); picker = null }
   current.destroy()
   current = null
   resetPanelState()

@@ -16,6 +16,7 @@ export type Shell = {
   dock: HTMLElement
   body: HTMLElement
   tabButtons: Record<string, HTMLButtonElement>
+  pickButton: HTMLButtonElement
   setActiveTab(name: string): void
   destroy(): void
   onTab(fn: (name: string) => void): void
@@ -52,6 +53,9 @@ export function createShell(): Shell {
   actions.className = 'actions'
   header.appendChild(actions)
 
+  const pickBtn = mkButton('◎', 'arm DOM picker (click an element to find its view)')
+  pickBtn.dataset.role = 'pick'
+  actions.appendChild(pickBtn)
   const minBtn = mkButton('—', 'minimize / restore')
   actions.appendChild(minBtn)
   const closeBtn = mkButton('×', 'unmount panel')
@@ -151,7 +155,7 @@ export function createShell(): Shell {
   }
 
   return {
-    host, root, dock, body, tabButtons,
+    host, root, dock, body, tabButtons, pickButton: pickBtn,
     setActiveTab, destroy,
     onTab(fn) { tabHandlers.push(fn) },
   }

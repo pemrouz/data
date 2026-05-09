@@ -313,6 +313,63 @@ test('panel/profile - start renders table after mutations; stop clears state', a
   clearPersistedPanelState()
 })
 
+test('panel/picker - arm/disarm + click selects matching root and switches to graph tab', async () => {
+  installDomStub()
+  // Pad the stub with the things picker needs.
+  ;(globalThis.document as any).addEventListener = (() => {
+    const map: Record<string, ((e: any) => void)[]> = {}
+    ;(globalThis.document as any)._listeners = map
+    ;(globalThis.document as any).removeEventListener = (n: string, fn: any) => {
+      const arr = map[n]
+      if (arr) {
+        const i = arr.indexOf(fn)
+        if (i >= 0) arr.splice(i, 1)
+      }
+    }
+    return (n: string, fn: any) => { (map[n] ||= []).push(fn) }
+  })()
+  const { mount, unmount } = await import('./index.ts')
+  const { $, view, value } = await import('../../core.ts')
+  await import('../index.ts')
+  const { iterRoots } = await import('../walk.ts')
+  const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')
+  clearPersistedPanelState()
+  resetPanelState()
+  const data = $({ a: 1 })
+  const idx = [...iterRoots()].findIndex(v => v === data[view])
+
+  const shell = mount()!
+  // Make a fake DOM element with a __ripple_sink whose p is data's view.
+  const target: any = (globalThis.document as any).createElement('div')
+  target.__ripple_sink = { p: data[view] }
+  ;(target as any).className = 'page-target'
+
+  // Click the pick button to arm.
+  for (const fn of (shell.pickButton as any)._listeners?.click || []) fn({})
+
+  // Simulate the document-level click — picker installs onClick at capture
+  // phase via addEventListener('click', onClick, true). Find that listener
+  // and invoke it with our target.
+  const docListeners = (globalThis.document as any)._listeners?.click || []
+  ok(docListeners.length, 'picker should install a document click listener while armed')
+  const ev: any = {
+    target,
+    preventDefault() {},
+    stopPropagation() {},
+  }
+  for (const fn of docListeners) fn(ev)
+
+  // After click, pickerArmed should be false and selectedRootIdx should
+  // point at data's index, with activeTab switched to graph.
+  const state = getPanelState()
+  strictEqual(state[value].pickerArmed, false, 'picker should disarm after click')
+  strictEqual(state[value].selectedRootIdx, idx, 'selectedRootIdx should match the clicked root')
+  strictEqual(state[value].activeTab, 'graph', 'activeTab should switch to graph')
+
+  unmount()
+  clearPersistedPanelState()
+})
+
 test('panel/state - mutations route through and persist subset to localStorage', async () => {
   installDomStub()
   const { getPanelState, resetPanelState, clearPersistedPanelState } = await import('./state.ts')

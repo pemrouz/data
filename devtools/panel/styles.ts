@@ -61,6 +61,7 @@ export default `
   line-height: 1;
 }
 .header button:hover { color: #e6e6e6; }
+.header button.active { color: #9be3a8; }
 .tabs {
   display: flex;
   background: #181818;
