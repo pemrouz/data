@@ -104,6 +104,29 @@ todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
 
 See [render/README.md](render/README.md) for the full template syntax.
 
+#### Authoring with JSX
+
+The same template, written in JSX:
+
+```tsx
+/** @jsx h */
+import { $, render, h, For } from 'data/full'
+
+const todos = $([{ task: 'foo' }, { task: 'bar' }])
+
+render(document.body,
+  <ul>
+    <For each={todos} tag="li">
+      {(item) => <li>{item.task}</li>}
+    </For>
+  </ul>
+)
+
+todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
+```
+
+`h` returns the same `NodeProxy` AST the builder DSL produces, so `render()` walks an identical tree and `DOMSink` keeps doing per-key surgical updates — element identity and focus survive. ViewProxy children with no function sibling route through `.text()`; with a sibling function they stay on the data path so `[VP, fn]` still works as a data-iteration shorthand. Worked examples: [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/).
+
 ## Why incremental?
 
 **Work is proportional to the *path* that changed, not the row, not the dataset, not anything broader.** Almost nothing else in the JS state-management space does this cleanly.
@@ -200,6 +223,7 @@ Two example apps live in [examples/](examples/):
 
 - [examples/todo/](examples/todo/) — TodoMVC: filter on `done`, route via hash, edit-in-place, length counters.
 - [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 (and 50 000) flight records, with brushable histograms. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter/).**
+- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Functionally identical; demonstrates that the JSX adapter preserves DOMSink's per-key incremental updates.
 
 Run them locally:
 
@@ -243,9 +267,11 @@ npm run serve
 ├── render/
 │   ├── README.md     — render layer reference
 │   └── index.ts      — render(), HTML, SVG
+├── jsx/
+│   └── index.ts      — h, Fragment, For (JSX adapter over HTML/SVG)
 └── examples/
-    ├── todo/
-    └── crossfilter/
+    ├── todo/         and todo-jsx/         (same app, two authoring styles)
+    └── crossfilter/  and crossfilter-jsx/
 ```
 
 Tests and perf checks live next to the code they cover — `operators/filter/filter.test.ts`, `operators/filter/filter.perf.ts`, etc.
