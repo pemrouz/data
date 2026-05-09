@@ -76,16 +76,15 @@ const remainingCount = remaining.length()
 
 const events = remainingCount.connect([])
 
-todos.insert({ task: 'qux', done: false })   // pushes 3 → 4 onto remainingCount
-todos[0].done = true                         //          4 → 3
-delete todos[2]                              //          3 → 2
+todos.insert({ task: 'qux', done: false })   // pushes 2 → 3 onto remainingCount
+todos[0].done = true                         //          3 → 2
+delete todos[2]                              //          2 → 1
 
 events
 // [ { type: 'update', key: [], value: 2 },   // initial: 2 not-done todos
 //   { type: 'update', key: [], value: 3 },
-//   { type: 'update', key: [], value: 4 },
-//   { type: 'update', key: [], value: 3 },
-//   { type: 'update', key: [], value: 2 } ]
+//   { type: 'update', key: [], value: 2 },
+//   { type: 'update', key: [], value: 1 } ]
 ```
 
 ### Rendering to the DOM

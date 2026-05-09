@@ -3,6 +3,7 @@ import { deepStrictEqual as same } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { length } from './index.ts'
+import { filter } from '../filter/index.ts'
 
 test('length - object', () => {
   const obj = $({ 10: 'a' })
@@ -24,6 +25,31 @@ test('length - array', () => {
   delete arr[0]
   delete arr[value]
   same(count[value], 0)
+})
+
+// Regression: filter on an array source produces a sparse array (holes for
+// excluded rows). Previously LengthValue.XU0 returned `value.length` for
+// arrays, which counted holes — so `arr.filter(...).length()` reported the
+// source size instead of the kept count, contradicting the README quickstart.
+test('length - filter(array) skips holes', () => {
+  const todos = $([
+    { task: 'foo', done: false },
+    { task: 'bar', done: true  },
+    { task: 'baz', done: false },
+  ])
+  const remaining = filter(todos, 'done', false)
+  const remainingCount = length(remaining)
+  const events = remainingCount.connect([])
+  same(remainingCount[value], 2)
+  todos.insert({ task: 'qux', done: false })
+  todos[0].done = true
+  delete todos[2]
+  same(events, [
+    { type: 'update', key: [], value: 2 },
+    { type: 'update', key: [], value: 3 },
+    { type: 'update', key: [], value: 2 },
+    { type: 'update', key: [], value: 1 },
+  ])
 })
 
 test('length fn - group counting', () => {

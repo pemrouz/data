@@ -20,12 +20,11 @@ export class LengthValue extends Operator {
   }
   XU0(value){
     this.view.value = 0
-    if (isArray(value)) {
-      this.view.XU0(this.view.value = value.length)
-    } else {
-      iter(value, () => this.view.value++)
-      this.view.XU0(this.view.value)
-    }
+    // Holes / undefined slots represent excluded rows in derived sparse arrays
+    // (RowOperator builds these in `XU0`), so skip them — otherwise filter →
+    // length would return the source's length instead of the kept count.
+    iter(value, (_, v) => { if (v !== undefined) this.view.value++ })
+    this.view.XU0(this.view.value)
   }
   BR1(R1){
     if (!R1.length) return
