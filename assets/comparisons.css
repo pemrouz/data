@@ -121,6 +121,32 @@ table.bench .notes {
 }
 .peer .summary b { color: var(--accent); font-weight: 500; }
 
+/* The answer-first callout above the bench table — same visual idiom as
+   .peer .summary but a touch more prominent (full border, larger text)
+   since it's leading the section, not closing it. */
+.headline-callout {
+  margin: 0.5rem 0 1.5rem;
+  padding: 1rem 1.25rem;
+  max-width: 64ch;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.headline-callout .headline-tag {
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.headline-callout b { color: var(--fg); font-weight: 600; }
+.headline-callout em {
+  color: var(--accent);
+  font-style: normal;
+}
+.headline-callout code.inline { font-size: 0.875em; }
+
 .codepair {
   display: grid;
   grid-template-columns: 1fr 1fr;

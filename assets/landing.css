@@ -91,29 +91,102 @@ p { margin: 0; }
 
 .hero .lede {
   font-size: 1.25rem;
+  line-height: 1.5;
   margin-top: 1.25rem;
-  max-width: 38ch;
+  max-width: 56ch;
   color: var(--fg);
 }
-.hero .ticker {
-  display: inline-block;
-  min-width: 1.6ch;
-  padding: 0 0.4em;
-  margin: 0 0.15em;
+.hero .lede em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+/* hero grid: code on the left, bench teaser on the right */
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+.hero-pane {
+  min-width: 0;          /* allow grid items to shrink instead of overflow */
+  display: flex;
+  flex-direction: column;
+}
+.hero-pane-label {
+  font: 500 0.75rem var(--mono);
+  color: var(--fg-dim);
+  text-transform: lowercase;
+  margin-bottom: 0.5rem;
+}
+.hero-pane > pre.code {
+  flex: 1;
+  margin: 0;
+  padding: 1rem 1.1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+.hero-pane-foot {
+  margin-top: 0.6rem;
+  font: 0.8125rem var(--mono);
+  color: var(--fg-dim);
+}
+.hero-pane-foot a { color: var(--fg-dim); border-bottom-color: var(--fg-faint); }
+.hero-pane-foot a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* compact bench chart used inside the hero pane — same row shape as section 8
+   but tighter and without the trailing × multiplier column */
+.bench-chart.hero-bench {
+  grid-template-columns: 4.5rem 1fr 4.25rem;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  padding: 1rem 1.1rem;
   background: var(--bg-2);
   border: 1px solid var(--rule);
   border-radius: 4px;
-  font-family: var(--mono);
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
+  flex: 1;
+  align-content: center;
 }
-.hero .sub {
-  margin-top: 1rem;
+.bench-chart.hero-bench .bench-row .bar { height: 1rem; }
+
+/* hero CTA bar: install command + nav links */
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+.hero-install {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.45rem 0.85rem;
+  font: 0.875rem var(--mono);
+  color: var(--fg);
+  user-select: all;
+}
+.hero-install .dim { color: var(--accent); margin-right: 0.35em; }
+.hero-cta-link {
+  font: 500 0.875rem var(--mono);
   color: var(--fg-dim);
-  font-family: var(--mono);
-  font-size: 0.875rem;
+  border-bottom: 1px solid var(--fg-faint);
+  padding-bottom: 1px;
 }
-.hero .sub b { color: var(--fg); font-weight: 500; }
+.hero-cta-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+@media (max-width: 760px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .hero-pane > pre.code { font-size: 0.75rem; }
+  .bench-chart.hero-bench {
+    grid-template-columns: 4rem 1fr 3.75rem;
+    font-size: 0.75rem;
+  }
+}
 
 /* ---------- blotter ---------- */
 
@@ -709,36 +782,11 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 
 /* ---------- devtools ---------- */
 
-.devtools .devtools-cols {
-  display: grid;
-  gap: 2rem;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 1rem;
-}
-@media (max-width: 720px) {
-  .devtools .devtools-cols { grid-template-columns: 1fr; }
-}
-.devtools h3 {
-  font-family: var(--mono);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--fg);
-  margin-bottom: 0.75rem;
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
-}
-.devtools h3::before { content: '// '; color: var(--fg-faint); }
-.devtools .devtools-bullets {
-  margin: 0.5rem 0 1rem;
-  padding-left: 1.25rem;
-  color: var(--fg);
-}
-.devtools .devtools-bullets li { margin-bottom: 0.5rem; }
-.devtools .devtools-bullets b { color: var(--accent); font-weight: 500; }
-
-/* Static mockup of the devtools panel — colors mirror the actual panel
-   styles in devtools/panel/styles.ts so the visual stays accurate even
-   if the live widget gets re-themed. Not interactive. */
+/* Mockup of the devtools panel — colors mirror the actual panel styles in
+   devtools/panel/styles.ts so the visual stays accurate even if the live
+   widget gets re-themed. Not interactive; the animated variant
+   (.dock-mock-animated) crossfades between graph / events / profile tabs
+   on a 12-second cycle so each surface gets airtime in the same chrome. */
 .dock-mock-wrap { margin-top: 1rem; margin-bottom: 1.5rem; }
 .dock-mock {
   width: 100%;
@@ -862,6 +910,163 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   margin-right: auto;
 }
 
+/* ---- animated mockup: tab + pane crossfade on a 12s cycle ----
+   Each tab and its corresponding pane share the same animation curve and
+   stagger by 4s via negative animation-delay so all three surfaces get
+   equal airtime in identical chrome. The keyframe runs:
+     0–30%   visible (3.6s)
+     30–33%  fade out (0.4s)
+     33–97%  hidden (7.6s)
+     97–100% fade in   (0.4s, wraps to next iteration)
+   so panes overlap during transitions instead of flashing the body bg. */
+.dock-mock-animated .dock-mock-body {
+  position: relative;
+  min-height: 230px;
+}
+.dock-mock-animated .dock-mock-pane {
+  position: absolute;
+  inset: 8px;                         /* match .dock-mock-body padding */
+  opacity: 0;
+  animation: dock-pane-cycle 12s ease-in-out infinite;
+}
+.dock-mock-animated .dock-pane-graph   { animation-delay:  0s;  opacity: 1; }
+.dock-mock-animated .dock-pane-events  { animation-delay: -8s; }
+.dock-mock-animated .dock-pane-profile { animation-delay: -4s; }
+
+@keyframes dock-pane-cycle {
+  0%, 30%        { opacity: 1; }
+  33.34%, 96.66% { opacity: 0; }
+  100%           { opacity: 1; }
+}
+
+/* Tab active-state cycles in lockstep. The default tab style (color/bg)
+   stays in the existing rule above; the keyframe overrides during the
+   visible window. */
+.dock-mock-animated .dock-mock-tab {
+  animation: dock-tab-cycle 12s ease-in-out infinite;
+}
+.dock-mock-animated .dock-mock-tab:nth-child(1) { animation-delay:  0s; }
+.dock-mock-animated .dock-mock-tab:nth-child(2) { animation-delay: -8s; }
+.dock-mock-animated .dock-mock-tab:nth-child(3) { animation-delay: -4s; }
+
+@keyframes dock-tab-cycle {
+  0%, 30%        { color: #9be3a8; background: #1f2a20; }
+  33.34%, 96.66% { color: #888;    background: transparent; }
+  100%           { color: #9be3a8; background: #1f2a20; }
+}
+
+/* ---- events pane content ---- */
+.dock-evt-list {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.dock-evt-row {
+  display: grid;
+  grid-template-columns: 3rem 3.6rem 1fr auto;
+  gap: 6px;
+  padding: 1px 4px;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dock-evt-time { color: #555; }
+.dock-evt-verb {
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 2px;
+  background: #2a2a2a;
+}
+.dock-evt-verb.dock-evt-update { background: #2d3447; color: #9bb3e3; }
+.dock-evt-verb.dock-evt-insert { background: #2d3a2d; color: #9be3a8; }
+.dock-evt-verb.dock-evt-remove { background: #3a2d2d; color: #e39b9b; }
+.dock-evt-path { color: #d8d8d8; overflow: hidden; text-overflow: ellipsis; }
+.dock-evt-val  { color: #9bb3e3; }
+
+/* The freshest row briefly highlights when the events pane comes into
+   view — a glance-cue that this is a live tail, not a static list. */
+.dock-mock-animated .dock-evt-fresh {
+  animation: dock-evt-flash 12s ease-out infinite;
+  animation-delay: -8s;
+  border-radius: 2px;
+}
+@keyframes dock-evt-flash {
+  0%       { background: rgba(155, 179, 227, 0.25); }
+  6%       { background: rgba(155, 179, 227, 0.10); }
+  12%, 100% { background: transparent; }
+}
+
+/* ---- profile pane content ---- */
+.dock-prof-head, .dock-prof-row {
+  display: grid;
+  grid-template-columns: 7rem 2.5rem 1fr 2.5rem;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.dock-prof-head {
+  color: #666;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+.dock-prof-head .dock-prof-totalh { text-align: right; }
+.dock-prof-row { line-height: 1.6; }
+.dock-prof-name  { color: #9bb3e3; }
+.dock-prof-calls { color: #888; font-variant-numeric: tabular-nums; }
+.dock-prof-bar {
+  position: relative;
+  height: 8px;
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dock-prof-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2d3447, #9bb3e3);
+  transform-origin: left center;
+}
+.dock-prof-total { color: #d8d8d8; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* When the profile pane comes into view, bars grow in from zero — gives
+   the impression they're being measured live. */
+.dock-mock-animated .dock-prof-fill {
+  animation: dock-prof-grow 12s cubic-bezier(.2, .9, .3, 1) infinite;
+  animation-delay: -4s;
+}
+@keyframes dock-prof-grow {
+  0%, 1%       { transform: scaleX(0); }
+  10%          { transform: scaleX(1); }
+  30%          { transform: scaleX(1); }
+  33.34%, 100% { transform: scaleX(1); }   /* stay full while pane fades */
+}
+
+/* Reduced motion: freeze the cycle on the graph pane so the section still
+   reads as "this is what the panel looks like" without the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .dock-mock-animated .dock-mock-pane,
+  .dock-mock-animated .dock-mock-tab,
+  .dock-mock-animated .dock-evt-fresh,
+  .dock-mock-animated .dock-prof-fill {
+    animation: none !important;
+  }
+  .dock-mock-animated .dock-pane-graph   { opacity: 1; }
+  .dock-mock-animated .dock-pane-events,
+  .dock-mock-animated .dock-pane-profile { opacity: 0; }
+  .dock-mock-animated .dock-mock-tab:nth-child(1) {
+    color: #9be3a8;
+    background: #1f2a20;
+  }
+}
+
 /* ---------- install ---------- */
 
 .install pre.code { margin-bottom: 1rem; }
@@ -877,9 +1082,9 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 }
 .install .install-cmd::before { content: '$ '; color: var(--accent); }
 
-/* ---------- comparisons preview chart ---------- */
+/* ---------- bench-chart (used by hero teaser AND .bench-preview section) ---------- */
 
-.bench-preview .bench-chart {
+.bench-chart {
   display: grid;
   grid-template-columns: 6.5rem 1fr 5rem 3rem;
   gap: 0.4rem 0.75rem;
@@ -887,44 +1092,42 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   font: 0.8125rem var(--mono);
   margin: 0.75rem 0 0.25rem;
 }
-.bench-preview .bench-row {
-  display: contents;
-}
-.bench-preview .bench-row .lib {
+.bench-chart .bench-row { display: contents; }
+.bench-chart .bench-row .lib {
   text-align: right;
   color: var(--fg-dim);
 }
-.bench-preview .bench-row .bar {
+.bench-chart .bench-row .bar {
   height: 1.25rem;
-  background: var(--bg-2);
+  background: var(--bg);
   border: 1px solid var(--rule);
   border-radius: 2px;
   overflow: hidden;
 }
-.bench-preview .bench-row .bar .fill {
+.bench-chart .bench-row .bar .fill {
   height: 100%;
   background: var(--fg-faint);
   min-width: 2px;
   transition: width 0.3s ease;
 }
-.bench-preview .bench-row .num {
+.bench-chart .bench-row .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
 }
-.bench-preview .bench-row .x {
+.bench-chart .bench-row .x {
   color: var(--fg-faint);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-.bench-preview .bench-row.self .lib { color: var(--accent); font-weight: 500; }
-.bench-preview .bench-row.self .bar .fill { background: var(--accent); }
-.bench-preview .bench-row.self .num { color: var(--accent); }
-.bench-preview .bench-row.self .x { color: var(--accent); }
+.bench-chart .bench-row.self .lib { color: var(--accent); font-weight: 500; }
+.bench-chart .bench-row.self .bar .fill { background: var(--accent); }
+.bench-chart .bench-row.self .num { color: var(--accent); }
+.bench-chart .bench-row.self .x { color: var(--accent); }
 
 @media (max-width: 720px) {
-  .bench-preview .bench-chart { grid-template-columns: 5rem 1fr 4.5rem 3rem; font-size: 0.75rem; }
-  .bench-preview .bench-row .bar { height: 1rem; }
+  .bench-chart { grid-template-columns: 5rem 1fr 4.5rem 3rem; font-size: 0.75rem; }
+  .bench-chart .bench-row .bar { height: 1rem; }
 }
 
 /* ---------- footer ---------- */
@@ -946,4 +1149,98 @@ footer .lic { color: var(--fg-faint); }
 @media (max-width: 720px) {
   .crossfilter iframe { height: 1400px; }
   .op-section pre.code { font-size: 0.75rem; padding: 0.5rem 0.75rem; }
+}
+
+/* ---------- rendering section ---------- */
+
+.rendering h3.rendering-h {
+  font: 500 0.875rem var(--mono);
+  color: var(--fg);
+  text-transform: lowercase;
+  margin: 0;
+}
+.rendering h3.rendering-h::before { content: '// '; color: var(--fg-faint); }
+.rendering pre.code { margin-top: 0.5rem; }
+
+/* ---------- operator tabs ---------- */
+
+.op-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  border-bottom: 1px solid var(--rule);
+}
+.op-tab {
+  appearance: none;
+  background: transparent;
+  color: var(--fg-dim);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: 500 0.875rem var(--mono);
+  padding: 0.55rem 0.9rem;
+  margin-bottom: -1px;        /* overlap parent border-bottom */
+  cursor: pointer;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.op-tab::before { content: ''; }   /* explicitly drop any inherited '// ' marker */
+.op-tab:hover { color: var(--fg); }
+.op-tab.on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* hide non-active operator panels but keep them in the DOM so subscriptions
+   stay live; switching is one class flip */
+.operators .op-section { display: none; border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+.operators .op-section.on { display: block; }
+
+@media (max-width: 720px) {
+  .op-tabs { gap: 0.2rem; }
+  .op-tab { padding: 0.5rem 0.6rem; font-size: 0.8125rem; }
+}
+
+/* ---------- TOC (sticky left rail, desktop-only) ---------- */
+
+/* Hidden by default; revealed only when the viewport is wide enough that
+   the rail won't collide with main (max-width 1080px + gutter). Below that
+   the page renders without it. */
+.toc { display: none; }
+
+@media (min-width: 1280px) {
+  .toc {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 4rem;
+    left: clamp(1rem, calc((100vw - 1080px) / 2 - 11rem), 3rem);
+    width: 9rem;
+    gap: 0.35rem;
+    font: 0.8125rem var(--mono);
+    z-index: 10;
+  }
+  .toc-label {
+    color: var(--fg-faint);
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.4rem;
+  }
+  .toc a {
+    color: var(--fg-dim);
+    border-bottom: 0;
+    padding: 0.15rem 0;
+    border-left: 2px solid transparent;
+    padding-left: 0.6rem;
+    margin-left: -0.6rem;
+    transition: color 120ms, border-color 120ms;
+  }
+  .toc a:hover { color: var(--fg); }
+  .toc a.on { color: var(--accent); border-left-color: var(--accent); }
+  .toc-sep {
+    height: 1px;
+    background: var(--rule);
+    margin: 0.6rem 0 0.4rem;
+  }
 }

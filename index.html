@@ -11,23 +11,96 @@
   <link rel="stylesheet" href="./assets/landing.css">
 </head>
 <body>
+
+<nav class="toc" aria-label="On this page">
+  <div class="toc-label">on this page</div>
+  <a href="#intro"      data-toc="intro">intro</a>
+  <a href="#blotter"    data-toc="blotter">blotter</a>
+  <a href="#why"        data-toc="why">why</a>
+  <a href="#operators"  data-toc="operators">operators</a>
+  <a href="#crossfilter" data-toc="crossfilter">crossfilter</a>
+  <a href="#devtools"   data-toc="devtools">devtools</a>
+  <a href="#compare"    data-toc="compare">compare</a>
+  <a href="#rendering"  data-toc="rendering">rendering</a>
+  <div class="toc-sep"></div>
+  <a href="https://github.com/pemrouz/data">github →</a>
+  <a href="https://www.npmjs.com/package/data">npm →</a>
+</nav>
+
 <main>
 
   <!-- 1. hero -->
-  <section class="hero">
+  <section class="hero" id="intro">
     <h1>data</h1>
     <p class="lede">
-      reactive data for typescript.
-      <span class="ticker" data-demo="ticker">0</span>
-      seconds since this page loaded.
+      reactive collections for typescript &mdash; <em>work proportional to the
+      path that changed</em>, not the dataset.
     </p>
-    <p class="sub">
-      that number is a <b>$(0)</b> · the &lt;span&gt; is bound via <b>tick.connect(el, 'textContent')</b> · this whole page is the library running on itself
-    </p>
+
+    <div class="hero-grid">
+      <div class="hero-pane">
+        <div class="hero-pane-label"><span class="dim">//</span> api</div>
+<pre class="code">import { $ } from 'data/full'
+
+const trades = $(rows)
+
+const top = trades
+  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+  .filter(t =&gt; t.spread &gt; 0.10)
+  .za('spread', 10)
+
+trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
+      </div>
+
+      <div class="hero-pane">
+        <div class="hero-pane-label">
+          <span class="dim">//</span> 1000 ticks, each settled
+          <span class="dim">— lower is faster</span>
+        </div>
+        <div class="bench-chart hero-bench" aria-label="Time to process 1000 sequential ticks across reactive libraries; lower is faster">
+          <div class="bench-row self">
+            <span class="lib">data</span>
+            <div class="bar"><div class="fill" style="width:0.47%"></div></div>
+            <span class="num">8.8&nbsp;ms</span>
+          </div>
+          <div class="bench-row">
+            <span class="lib">preact</span>
+            <div class="bar"><div class="fill" style="width:4.22%"></div></div>
+            <span class="num">79&nbsp;ms</span>
+          </div>
+          <div class="bench-row">
+            <span class="lib">solid</span>
+            <div class="bar"><div class="fill" style="width:6.85%"></div></div>
+            <span class="num">129&nbsp;ms</span>
+          </div>
+          <div class="bench-row">
+            <span class="lib">mobx</span>
+            <div class="bar"><div class="fill" style="width:18.96%"></div></div>
+            <span class="num">356&nbsp;ms</span>
+          </div>
+          <div class="bench-row">
+            <span class="lib">svelte</span>
+            <div class="bar"><div class="fill" style="width:100%"></div></div>
+            <span class="num">1,880&nbsp;ms</span>
+          </div>
+        </div>
+        <div class="hero-pane-foot">
+          <a href="./comparisons.html">full comparisons across 9 libraries →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-cta">
+      <code class="hero-install"><span class="dim">$</span> npm install data</code>
+      <a class="hero-cta-link" href="https://github.com/pemrouz/data">github</a>
+      <a class="hero-cta-link" href="./examples/crossfilter/">demo</a>
+      <a class="hero-cta-link" href="#rendering">rendering</a>
+      <a class="hero-cta-link" href="./comparisons.html">compare</a>
+    </div>
   </section>
 
   <!-- 2. blotter / path propagation -->
-  <section class="blotter-section">
+  <section class="blotter-section" id="blotter">
     <h2>watch one path propagate</h2>
     <p class="muted" style="max-width:62ch">
       A live blotter, ticking. Each update mutates exactly one path —
@@ -49,8 +122,8 @@
     </div>
   </section>
 
-  <!-- 3. why incremental -->
-  <section class="why stack" style="--gap:1rem">
+  <!-- 4. why incremental -->
+  <section class="why stack" id="why" style="--gap:1rem">
     <h2>why incremental?</h2>
     <p>
       Work is proportional to the <em>path</em> that changed — not the row, not the dataset, not anything broader. When you mutate a deeply-nested property:
@@ -70,15 +143,31 @@
     </p>
   </section>
 
-  <!-- 4. operators -->
-  <section class="operators">
+  <!-- 5. operators -->
+  <section class="operators" id="operators">
     <h2>operators</h2>
-    <p class="muted" style="max-width:62ch;margin-bottom:2rem">
+    <p class="muted" style="max-width:62ch;margin-bottom:1.5rem">
       Every operator below is a view derived from the same
       <code class="inline">trades</code> proxy backing the blotter above.
       Streaming bid/ask/pnl mutations propagate through each chain
-      incrementally — no recomputation outside the changed path.
+      incrementally — no recomputation outside the changed path. Click a tab
+      to switch; the stream keeps running across all of them.
     </p>
+
+    <div class="op-tabs" role="tablist" aria-label="operators">
+      <button class="op-tab on" role="tab" aria-selected="true"  data-target="op-filter">filter</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-between">between</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-za">za / az</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-length">length</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-aggregates">aggregates</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-intersect">intersect</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-setops">union / except</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-group">group</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-projections">projections</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-map">map</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-to">to / reduce</button>
+      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-tap">tap</button>
+    </div>
 
     <div class="op-section" id="op-filter">
       <h3>filter <span class="dim">— pick a tenor</span></h3>
@@ -207,8 +296,8 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
     </div>
   </section>
 
-  <!-- 5. crossfilter -->
-  <section class="crossfilter">
+  <!-- 6. crossfilter -->
+  <section class="crossfilter" id="crossfilter">
     <h2>live: crossfilter over 231,083 flight records</h2>
     <p class="muted" style="max-width:60ch">
       Brushable histograms across four dimensions. Every chart, the table, and the totals counter are reactive views derived from the same source via
@@ -225,18 +314,22 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
     <noscript><p class="muted">JavaScript is required to render the demo. Source: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
   </section>
 
-  <!-- 6. devtools -->
-  <section class="devtools stack" style="--gap:1rem">
+  <!-- 7. devtools -->
+  <section class="devtools stack" id="devtools" style="--gap:1rem">
     <h2>devtools</h2>
     <p class="muted" style="max-width:62ch">
-      Importing <code class="inline">data/devtools</code> attaches a handful of helpers to <code class="inline">$</code> for the browser console, and auto-mounts a draggable overlay panel into a closed Shadow DOM root. Append <code class="inline">?devtools</code> to either example below to try it; the panel itself ships as a separate ~30 KB chunk that's lazy-loaded only when you import the entry.
+      Import <code class="inline">data/devtools</code> and a draggable overlay
+      panel auto-mounts into a closed Shadow DOM root &mdash; three surfaces
+      over the live reactive graph, plus a DOM picker that walks any element
+      to the sink that bound it. The panel ships as a separate ~30 KB chunk,
+      lazy-loaded only when you import the entry.
     </p>
 
-    <!-- Static mockup of the panel (HTML + the panel's actual class names so
-         the styles in landing.css mirror the live widget). Not interactive;
-         click "todo with panel" below to drive the real one. -->
+    <!-- Animated mockup: chrome stays static while the active tab + body
+         pane crossfade through graph → events → profile on a 12-second
+         cycle. CSS keyframes only; no JS. Honors prefers-reduced-motion. -->
     <div class="dock-mock-wrap">
-      <div class="dock-mock">
+      <div class="dock-mock dock-mock-animated" aria-hidden="true">
         <div class="dock-mock-header">
           <span class="dock-mock-title">data devtools</span>
           <span class="dock-mock-actions">
@@ -245,64 +338,105 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
             <span class="dock-mock-btn">×</span>
           </span>
         </div>
+
         <div class="dock-mock-tabs">
-          <span class="dock-mock-tab dock-mock-tab-active">graph</span>
+          <span class="dock-mock-tab">graph</span>
           <span class="dock-mock-tab">events</span>
           <span class="dock-mock-tab">profile</span>
         </div>
+
         <div class="dock-mock-body">
-          <div class="dock-mock-toolbar">
-            <span class="dim">root:</span>
-            <span class="dock-mock-select">#0&nbsp; items&nbsp; { keys: 56 } ▾</span>
-            <span class="dock-mock-checkbox">☐ show internal</span>
+
+          <div class="dock-mock-pane dock-pane-graph">
+            <div class="dock-mock-toolbar">
+              <span class="dim">root:</span>
+              <span class="dock-mock-select">#0&nbsp; trades&nbsp; { keys: 10 } ▾</span>
+              <span class="dock-mock-checkbox">☐ show internal</span>
+            </div>
+            <div class="dock-mock-tree">
+              <div class="dock-mock-node"><span class="dock-mock-badge dock-mock-root">root</span> trades <span class="dim">= [ Array(10) ]</span></div>
+              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(3)</span></div>
+              <div class="dock-mock-node dock-mock-indent2"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> ZAValue <span class="dim">= Array(3)</span></div>
+              <div class="dock-mock-node dock-mock-indent3 dock-mock-picked"><span class="dock-mock-badge dock-mock-dom">dom</span> DOMSink&nbsp;&nbsp;<span class="dock-mock-pick-label">← picked</span></div>
+              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▸</span> <span class="dock-mock-badge dock-mock-operator">operator</span> LengthValue <span class="dim">= 10</span></div>
+              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-badge dock-mock-operator">operator</span> AvgValue <span class="dim">= 1.94</span></div>
+            </div>
           </div>
-          <div class="dock-mock-tree">
-            <div class="dock-mock-node"><span class="dock-mock-badge dock-mock-root">root</span> items <span class="dim">= { keys: 56 }</span></div>
-            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(44)</span></div>
-            <div class="dock-mock-node dock-mock-indent2"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> LengthValue <span class="dim">= 44</span></div>
-            <div class="dock-mock-node dock-mock-indent3 dock-mock-picked"><span class="dock-mock-badge dock-mock-dom">dom</span> DOMSink&nbsp;&nbsp;<span class="dock-mock-pick-label">← picked</span></div>
-            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▸</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(12)</span></div>
-            <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-badge dock-mock-operator">operator</span> ToValue <span class="dim">= false</span></div>
+
+          <div class="dock-mock-pane dock-pane-events">
+            <div class="dock-mock-toolbar">
+              <span class="dim">filter:</span>
+              <span class="dock-mock-select">verb=update · key~bid ▾</span>
+              <span class="dock-mock-checkbox">⏸ pause</span>
+            </div>
+            <div class="dock-evt-list">
+              <div class="dock-evt-row dock-evt-fresh"><span class="dock-evt-time">+0.012</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[3].bid</span><span class="dock-evt-val">→ 4.32</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.012</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">filtered[3].bid</span><span class="dock-evt-val">→ 4.32</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.013</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">top[1].bid</span><span class="dock-evt-val">→ 4.32</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.090</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[7].pnl</span><span class="dock-evt-val">→ -1,303</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.156</span><span class="dock-evt-verb dock-evt-insert">insert</span><span class="dock-evt-path">trades[10]</span><span class="dock-evt-val">= { id: …}</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.181</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[2].ask</span><span class="dock-evt-val">→ 5.27</span></div>
+              <div class="dock-evt-row"><span class="dock-evt-time">+0.214</span><span class="dock-evt-verb dock-evt-remove">remove</span><span class="dock-evt-path">trades[10]</span><span class="dock-evt-val"></span></div>
+            </div>
           </div>
+
+          <div class="dock-mock-pane dock-pane-profile">
+            <div class="dock-mock-toolbar">
+              <span class="dim">profiling:</span>
+              <span class="dock-mock-select">$.profile(trades) ▾</span>
+              <span class="dock-mock-checkbox">■ stop</span>
+            </div>
+            <div class="dock-prof-head">
+              <span>operator</span>
+              <span>calls</span>
+              <span class="dock-prof-totalh">total&nbsp;ms</span>
+            </div>
+            <div class="dock-prof-row">
+              <span class="dock-prof-name">FilterValue</span>
+              <span class="dock-prof-calls">247</span>
+              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:78%"></span></span>
+              <span class="dock-prof-total">4.21</span>
+            </div>
+            <div class="dock-prof-row">
+              <span class="dock-prof-name">ZAValue</span>
+              <span class="dock-prof-calls">247</span>
+              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:58%"></span></span>
+              <span class="dock-prof-total">3.12</span>
+            </div>
+            <div class="dock-prof-row">
+              <span class="dock-prof-name">LengthValue</span>
+              <span class="dock-prof-calls">247</span>
+              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:34%"></span></span>
+              <span class="dock-prof-total">1.83</span>
+            </div>
+            <div class="dock-prof-row">
+              <span class="dock-prof-name">AvgValue</span>
+              <span class="dock-prof-calls">247</span>
+              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:18%"></span></span>
+              <span class="dock-prof-total">0.97</span>
+            </div>
+            <div class="dock-prof-row">
+              <span class="dock-prof-name">DOMSink</span>
+              <span class="dock-prof-calls">247</span>
+              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:11%"></span></span>
+              <span class="dock-prof-total">0.61</span>
+            </div>
+          </div>
+
         </div>
       </div>
-      <p class="muted dock-mock-caption">Above: the Graph tab after a DOM pick — the matched <code class="inline">DOMSink</code> pulses green; ancestors auto-expand so you can see the chain at a glance.</p>
-    </div>
-
-    <div class="devtools-cols">
-      <div>
-        <h3>console api</h3>
-<pre class="code">import 'data/devtools'
-
-$.inspect(items)        // { key, value, parent, children, sinks }
-$.graph()               // every live root, recursive
-$.fromDOM($0)           // proxy for whichever view binds the
-                        // DOM element you picked in the inspector
-$.highlight(filtered)   // outline DOM regions bound to a view
-
-const stop = $.trace(items)         // log every notification
-const p    = $.profile(items)       // per-operator timing
-p.stop().byOperator                 // sorted by totalMs desc</pre>
-      </div>
-      <div>
-        <h3>overlay panel</h3>
-        <p>Four surfaces over the same hooks:</p>
-        <ul class="devtools-bullets">
-          <li><b>Graph</b> — collapsible tree for the selected root, with a "show internal" toggle for devtools-internal roots.</li>
-          <li><b>Events</b> — push-driven live tail of <code class="inline">$.trace</code> events, with pause/resume, clear, and verb/key substring filter.</li>
-          <li><b>Profile</b> — start/stop drives <code class="inline">$.profile()</code>; a 500ms-polled report renders as a sortable table.</li>
-          <li><b>DOM picker</b> — armed crosshair; click any page element to walk to its <code class="inline">__ripple_sink</code> and select that root in the Graph tab.</li>
-        </ul>
-        <p class="muted" style="font-size:0.875rem">
-          <a href="./examples/todo/?devtools">todo with panel →</a> ·
-          <a href="./examples/crossfilter/?devtools">crossfilter with panel →</a>
-        </p>
-      </div>
+      <p class="muted dock-mock-caption">
+        Three surfaces over the live graph: Graph (collapsible tree, picked
+        sink pulses green), Events (live tail of <code class="inline">$.trace</code>),
+        Profile (timed by <code class="inline">$.profile()</code>).
+        <a href="./examples/todo/?devtools">try it on todo →</a> ·
+        <a href="./examples/crossfilter/?devtools">on crossfilter →</a>
+      </p>
     </div>
   </section>
 
-  <!-- 7. comparisons -->
-  <section class="bench-preview stack" style="--gap:1rem">
+  <!-- 8. comparisons -->
+  <section class="bench-preview stack" id="compare" style="--gap:1rem">
     <h2>how it compares</h2>
     <p class="muted" style="max-width:60ch">
       Same source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
@@ -379,27 +513,17 @@ const avgBid      = trades.avg('bid')</pre>
     </p>
   </section>
 
-  <!-- 8. install -->
-  <section class="install stack" style="--gap:1rem">
-    <h2>install</h2>
-    <div class="install-cmd">npm install data</div>
-    <h2 style="margin-top:1rem">a reactive scalar</h2>
-<pre class="code">import { $, value } from 'data'
+  <!-- 9. rendering -->
+  <section class="rendering stack" id="rendering" style="--gap:1rem">
+    <h2>rendering</h2>
+    <p class="muted" style="max-width:62ch">
+      Two surfaces over the same NodeProxy AST. The builder DSL composes nodes
+      directly; the JSX adapter compiles to the same calls. <code class="inline">render()</code>
+      walks an identical tree either way, and DOMSink does per-key surgical
+      updates &mdash; element identity and focus survive across reactive changes.
+    </p>
 
-const count = $(0)
-const doubled = count.to(n =&gt; n * 2)
-
-const events = doubled.connect([])
-
-count[value] = 5
-count[value] = 7
-
-// events:
-// [ { type: 'update', key: [], value: 0  },
-//   { type: 'update', key: [], value: 10 },
-//   { type: 'update', key: [], value: 14 } ]
-</pre>
-    <h2 style="margin-top:1rem">rendering to the dom</h2>
+    <h3 class="rendering-h">builder dsl</h3>
 <pre class="code">import { $, render, HTML } from 'data'
 const { ul, li } = HTML
 
@@ -411,10 +535,8 @@ render(document.body,
 
 todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
 </pre>
-    <h2 style="margin-top:1rem">or in jsx</h2>
-    <p class="muted" style="max-width:60ch">
-      <code class="inline">h</code> returns the same NodeProxy AST the builder produces, so <code class="inline">render()</code> walks an identical tree and DOMSink keeps doing per-key surgical updates — element identity and focus survive across reactive changes. Worked examples: <a href="./examples/todo-jsx/">todo-jsx</a>, <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
-    </p>
+
+    <h3 class="rendering-h">jsx</h3>
 <pre class="code">/** @jsx h */
 import { $, render, h, For } from 'data/full'
 
@@ -430,6 +552,12 @@ render(document.body,
 
 todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
 </pre>
+    <p class="muted" style="font-size:0.875rem">
+      Worked examples: <a href="./examples/todo/">todo</a> ·
+      <a href="./examples/crossfilter/">crossfilter</a> ·
+      <a href="./examples/todo-jsx/">todo-jsx</a> ·
+      <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
+    </p>
   </section>
 
 </main>

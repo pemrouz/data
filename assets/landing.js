@@ -9,18 +9,7 @@ const fmtPnl = p => (p > 0 ? '+' : '') + Math.round(p).toLocaleString()
 const STR = s => `<span class="tok-str">'${s}'</span>`
 const NUM = n => `<span class="tok-num">${n}</span>`
 
-/* ---------- 1. hero ticker ---------- */
-
-const tick = $(0)
-tick.connect($$('[data-demo=ticker]'), 'textContent')
-let timer = setInterval(bump, 1000)
-function bump () { if (document.visibilityState !== 'hidden') tick[value] = tick[value] + 1 }
-document.addEventListener('visibilitychange', () => {
-  clearInterval(timer)
-  if (document.visibilityState !== 'hidden') timer = setInterval(bump, 1000)
-})
-
-/* ---------- 2. streaming blotter (now with tenor) ---------- */
+/* ---------- 1. streaming blotter (with tenor) ---------- */
 
 const TRADE_DEFS = [
   { id: 'USD-1Y',  tenor: '1Y'  },
@@ -569,7 +558,56 @@ window.addEventListener('message', e => {
   frame.style.height = e.data.height + 'px'
 })
 
-/* ---------- 5. syntax highlighter ---------- */
+/* ---------- 5. operator tabs ----------
+   The 8 operator panels are all rendered (so their reactive subscriptions
+   stay live), but only the active one is displayed. Clicking a tab is a
+   single class flip on both the tab and its target panel. */
+
+const opPanels = Array.from(document.querySelectorAll('.operators .op-section'))
+const opTabs   = Array.from(document.querySelectorAll('.op-tabs .op-tab'))
+function selectOp (id) {
+  opTabs  .forEach(t => t.classList.toggle('on', t.dataset.target === id))
+  opPanels.forEach(p => p.classList.toggle('on', p.id            === id))
+}
+opTabs.forEach(t => t.addEventListener('click', () => selectOp(t.dataset.target)))
+if (opPanels.length) {
+  // Pick up #op-foo deep links; otherwise default to the first tab.
+  const hashId = location.hash && location.hash.slice(1)
+  const initial = opPanels.find(p => p.id === hashId) ? hashId : opPanels[0].id
+  selectOp(initial)
+}
+
+/* ---------- 6. TOC active-section highlight ----------
+   IntersectionObserver picks the topmost intersecting section and marks the
+   matching TOC link. Hidden TOC (small viewports) → no observers attached. */
+
+const tocLinks = Array.from(document.querySelectorAll('.toc a[data-toc]'))
+if (tocLinks.length && 'IntersectionObserver' in window) {
+  const sections = tocLinks
+    .map(a => document.getElementById(a.dataset.toc))
+    .filter(Boolean)
+  // The rootMargin biases the observer toward "the section that's entered
+  // the upper third of the viewport" rather than first-pixel intersection,
+  // which matches a reader's eye position.
+  const visible = new Set()
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) visible.add(e.target)
+      else                  visible.delete(e.target)
+    }
+    if (!visible.size) return
+    let top = null, topY = Infinity
+    for (const el of visible) {
+      const y = el.getBoundingClientRect().top
+      if (y < topY) { topY = y; top = el }
+    }
+    if (!top) return
+    tocLinks.forEach(a => a.classList.toggle('on', a.dataset.toc === top.id))
+  }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 })
+  sections.forEach(s => io.observe(s))
+}
+
+/* ---------- 7. syntax highlighter ---------- */
 
 const KEYWORDS = /\b(import|from|const|let|var|function|return|new|if|else|for|of|in|true|false|null|undefined|delete|class|extends|export|default|async|await|typeof|instanceof|Infinity)\b/g
 
