@@ -90,4 +90,46 @@ export class TapValue extends Operator {
   }
 }
 
-export const tap = (source, fn) => createOperator(source, TapValue, fn)
+// "Bare" variant: when the supplied fn takes no arguments, the caller is
+// signalling "I don't read the change record, just tell me something
+// happened" — typically because the callback re-reads the live view value
+// directly (`proxy[value]`). Two wins versus TapValue:
+//   • no structuredClone of the change value (the big one for object/array
+//     payloads — bucket maps, top-K arrays).
+//   • no per-row record construction in batched verbs: BU1/BU2/BR1/BR2/BI0/
+//     BI2 fire fn ONCE per emit, not once per pair. This collapses
+//     histogram-bucket batches (one BU2 with N bucket updates → one redraw)
+//     to a single fn call.
+// Same lifetime semantics as TapValue — keep the returned view alive (e.g.
+// stashed in a chains array) and the tap stays subscribed. Don't use this
+// if your callback inspects which key changed or needs the change record
+// shape — use TapValue (the default) instead.
+export class TapBareValue extends Operator {
+  constructor(p, fn) {
+    super()
+    this.p = p
+    this.fn = fn
+    this.XU0(p.value)
+  }
+
+  XU0(value) { super.XU0(value); this.fn() }
+  XR0() {
+    if (this.view.value === undefined) return false
+    super.XR0()
+    this.fn()
+  }
+  BU1(U1) { super.BU1(U1); this.fn() }
+  BR1(R1) { super.BR1(R1); this.fn() }
+  BI0(I0) { super.BI0(I0); this.fn() }
+  BU2(U2) { super.BU2(U2); this.fn() }
+  BR2(R2) { super.BR2(R2); this.fn() }
+  BI2(I2) { super.BI2(I2); this.fn() }
+  BMV1(M1) { super.BMV1(M1); this.fn() }
+}
+
+// The standalone `tap(source, fn)` form mirrors the dispatch in full.ts:
+// 0-arg fn → TapBareValue (no clone, fires per emit), otherwise TapValue.
+// So `tap(src, () => redraw())` is cheap whether you reach for it via the
+// chainable proxy method or the standalone helper.
+export const tap = (source, fn) =>
+  createOperator(source, fn?.length === 0 ? TapBareValue : TapValue, fn)

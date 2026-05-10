@@ -235,7 +235,7 @@ For internals — the View / Sink / notification model — see [.claude/architec
 | `map` | per-row transform | [operators/map/](operators/map/) |
 | `to` | whole-value transform | [operators/to/](operators/to/) |
 | `reduce` | general fold — `(acc, row, key) => acc` (use aggregates for commutative cases) | [operators/reduce/](operators/reduce/) |
-| `tap` | passthrough that fires `fn(change)` per event for declarative side effects | [operators/tap/](operators/tap/) |
+| `tap` | passthrough that fires `fn(change)` per event for declarative side effects; 0-arg `fn` opts into a cheap "fire on any change" path (no clone, fires once per emit) | [operators/tap/](operators/tap/) |
 | `keys` / `values` | current `Object.keys` / `Object.values` as a reactive array | [operators/keys/](operators/keys/) |
 | `reverse` | array order flipped | [operators/reverse/](operators/reverse/) |
 
