@@ -8,3 +8,4 @@
 /experiments/wasm/build/
 *.js
 !**/flights.js
+!examples/multidim/**/*.js

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>multi-dimensional filtering — live comparisons — data</title>
+  <meta name="description" content="The crossfilter brushable-charts demo, rebuilt once per reactive library — data, crossfilter, MobX, RxJS, React, Solid, Preact-signals, Vue, Svelte/store — over the same 231k flight records, with live brush latency captured per row.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+  <div id="loader" class="loader">
+    <div class="loader-mark">multidim<span class="loader-cursor">_</span></div>
+    <div class="loader-status">streaming flight records</div>
+    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+    <div class="loader-meta">
+      <span class="loader-pct">0%</span>
+      <span class="loader-sep">·</span>
+      <span class="loader-bytes">0.0 / 35.6 MB</span>
+      <span class="loader-sep">·</span>
+      <span class="loader-rate">…</span>
+    </div>
+    <div class="loader-detail">231,083 records · January 2001 · ASA Data Expo</div>
+  </div>
+
+  <header class="mdf-hero">
+    <h1>multi-dim filtering — live</h1>
+    <p class="lede">
+      The crossfilter brushable-charts demo, rebuilt once per reactive
+      library, all over the same 231,083 flight records.
+    </p>
+    <p class="frame">
+      Each row has the same 4 brushable histograms (time, delay, distance,
+      date) wired to its library's reactive primitives. The chart UI
+      (drawing, pointer math, brush rendering) is shared across rows so the
+      only thing that differs is how the library propagates a filter change
+      to the four derived histograms. The strip on the right of each row
+      shows live brush latency — pointermove → next paint, rolling p50 / p95
+      over the last 100 events. Drag on any chart to feel the difference.
+    </p>
+  </header>
+
+  <main id="rows"></main>
+
+  <footer>
+    <span><a href="../../comparisons.html">← comparisons</a></span>
+    <span><a href="../crossfilter/">crossfilter (data only)</a></span>
+    <span><a href="../../">home</a></span>
+    <span class="spacer"></span>
+    <span class="lic">MIT</span>
+  </footer>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "data":      "../../dist/index.js",
+      "data/full": "../../dist/full.js"
+    }
+  }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
