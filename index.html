@@ -306,7 +306,7 @@ p.stop().byOperator                 // sorted by totalMs desc</pre>
     <h2>how it compares</h2>
     <p class="muted" style="max-width:60ch">
       Same source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
-      (count, top-10 by spread, running average) across eight reactive libraries.
+      (count, top-10 by spread, running average) across nine reactive libraries.
       Each tick settles all three views before the next tick arrives. No batching
       primitives.
     </p>
@@ -318,51 +318,57 @@ const avgBid      = trades.avg('bid')</pre>
     <div class="bench-chart" aria-label="Time to settle 3 derived views over 1000 sequential ticks, lower is faster">
       <div class="bench-row self">
         <span class="lib">data</span>
-        <div class="bar"><div class="fill" style="width:0.39%"></div></div>
-        <span class="num">8.8&nbsp;ms</span>
+        <div class="bar"><div class="fill" style="width:0.41%"></div></div>
+        <span class="num">12&nbsp;ms</span>
         <span class="x">1×</span>
       </div>
       <div class="bench-row">
         <span class="lib">preact</span>
-        <div class="bar"><div class="fill" style="width:10.45%"></div></div>
-        <span class="num">233&nbsp;ms</span>
-        <span class="x">27×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">solid</span>
-        <div class="bar"><div class="fill" style="width:11.69%"></div></div>
-        <span class="num">261&nbsp;ms</span>
-        <span class="x">30×</span>
+        <div class="bar"><div class="fill" style="width:9.62%"></div></div>
+        <span class="num">287&nbsp;ms</span>
+        <span class="x">24×</span>
       </div>
       <div class="bench-row">
         <span class="lib">crossfilter</span>
-        <div class="bar"><div class="fill" style="width:12.16%"></div></div>
-        <span class="num">271&nbsp;ms</span>
-        <span class="x">31×</span>
+        <div class="bar"><div class="fill" style="width:13.59%"></div></div>
+        <span class="num">405&nbsp;ms</span>
+        <span class="x">33×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">solid</span>
+        <div class="bar"><div class="fill" style="width:17.45%"></div></div>
+        <span class="num">521&nbsp;ms</span>
+        <span class="x">43×</span>
       </div>
       <div class="bench-row">
         <span class="lib">mobx</span>
-        <div class="bar"><div class="fill" style="width:29.29%"></div></div>
-        <span class="num">653&nbsp;ms</span>
-        <span class="x">75×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">rxjs</span>
-        <div class="bar"><div class="fill" style="width:67.85%"></div></div>
-        <span class="num">1,513&nbsp;ms</span>
-        <span class="x">173×</span>
+        <div class="bar"><div class="fill" style="width:45.04%"></div></div>
+        <span class="num">1,344&nbsp;ms</span>
+        <span class="x">110×</span>
       </div>
       <div class="bench-row">
         <span class="lib">svelte</span>
-        <div class="bar"><div class="fill" style="width:82.71%"></div></div>
-        <span class="num">1,844&nbsp;ms</span>
-        <span class="x">211×</span>
+        <div class="bar"><div class="fill" style="width:70.76%"></div></div>
+        <span class="num">2,111&nbsp;ms</span>
+        <span class="x">174×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">react</span>
+        <div class="bar"><div class="fill" style="width:82.32%"></div></div>
+        <span class="num">2,456&nbsp;ms</span>
+        <span class="x">202×</span>
+      </div>
+      <div class="bench-row">
+        <span class="lib">rxjs</span>
+        <div class="bar"><div class="fill" style="width:83.74%"></div></div>
+        <span class="num">2,498&nbsp;ms</span>
+        <span class="x">205×</span>
       </div>
       <div class="bench-row">
         <span class="lib">vue</span>
         <div class="bar"><div class="fill" style="width:100%"></div></div>
-        <span class="num">2,230&nbsp;ms</span>
-        <span class="x">255×</span>
+        <span class="num">2,983&nbsp;ms</span>
+        <span class="x">245×</span>
       </div>
     </div>
     <p class="muted" style="font-size:0.8125rem;max-width:60ch">
