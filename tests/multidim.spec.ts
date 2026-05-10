@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe.configure({ mode: 'serial' })
 
-const LIBS = ['data', 'crossfilter', 'mobx', 'rxjs', 'react', 'solid']
+const LIBS = ['data', 'crossfilter', 'mobx', 'rxjs', 'react', 'solid', 'preact-signals']
 
 for (const lib of LIBS) {
   test(`multidim — ${lib} row mounts, brush updates count, latency tracker records`, async ({ page }) => {
@@ -25,15 +25,16 @@ for (const lib of LIBS) {
     // returned. Without this, an earlier-row test would brush while later
     // libs were still synchronously building their reactive graphs, with
     // queued pointer events firing well after the assertion timeout.
-    await page.waitForFunction(() => {
+    // Wait for at least N rows then check each total. N is the lib count.
+    await page.waitForFunction((minRows) => {
       const rows = document.querySelectorAll('.mdf-row')
-      if (!rows.length) return false
+      if (rows.length < minRows) return false
       for (const r of rows) {
         const t = r.querySelector('[data-stat=total]')?.textContent
         if (!t || t === '—') return false
       }
       return true
-    }, null, { timeout: 120_000 })
+    }, LIBS.length, { timeout: 120_000 })
     // Brief settle — a fresh mount may still have rAF-coalesced writes in
     // flight on tap-chained rows. Without this, a test brushing immediately
     // after mount can race the first frame.
@@ -57,16 +58,20 @@ for (const lib of LIBS) {
     const time = charts.nth(0)
     await time.scrollIntoViewIfNeeded()
     const box = (await time.boundingBox())!
+    // Single sweep with `steps:5` — Playwright auto-interpolates 5 events.
+    // Fewer raw move events than the looped variant; doesn't lock up the
+    // slow rows for so long that the next round of pointer events can't get
+    // through. The brush ends well inside the chart's domain.
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6)
     await page.mouse.down()
-    for (let f = 0.31; f <= 0.7; f += 0.03) {
-      await page.mouse.move(box.x + box.width * f, box.y + box.height * 0.6, { steps: 1 })
-      await page.waitForTimeout(20)
-    }
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.6, { steps: 5 })
     await page.mouse.up()
-    await page.waitForTimeout(200)
+    await page.waitForTimeout(500)
 
-    await expect(active).not.toHaveText(initialActive!)
+    // 30s timeout — slow rows (mobx/rxjs synchronously walking 231k rows
+    // per filter change) can take seconds for the brush sequence's last
+    // change to settle, and headless CI has thinner CPU than dev box.
+    await expect(active).not.toHaveText(initialActive!, { timeout: 30_000 })
 
     const samples = await row.locator('[data-stat=count]').textContent()
     expect(Number(samples)).toBeGreaterThan(0)
