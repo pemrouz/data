@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test'
 // count and the rolling latency tracker records samples (proving the
 // dual-rAF post-paint measurement loop fires).
 
-const LIBS = ['data', 'crossfilter']
+const LIBS = ['data', 'crossfilter', 'mobx']
 
 for (const lib of LIBS) {
   test(`multidim — ${lib} row mounts, brush updates count, latency tracker records`, async ({ page }) => {
@@ -27,8 +27,11 @@ for (const lib of LIBS) {
     await expect(active).not.toHaveText(/^—$/, { timeout: 60_000 })
     const initialActive = await active.textContent()
 
-    // Brush the first chart (time of day).
+    // Brush the first chart (time of day). Scroll into view first — later
+    // rows can sit below the viewport on a tall stack and mouse events
+    // outside the viewport silently no-op.
     const time = charts.nth(0)
+    await time.scrollIntoViewIfNeeded()
     const box = (await time.boundingBox())!
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6)
     await page.mouse.down()
