@@ -29,7 +29,7 @@ import { IntersectValue } from './operators/intersect/index.ts'
 import { SumValue, AvgValue, MaxValue, MinValue, SomeValue, EveryValue } from './operators/aggregate/index.ts'
 import { TapValue, TapBareValue } from './operators/tap/index.ts'
 import { DistinctValue } from './operators/distinct/index.ts'
-import { ReduceValue } from './operators/reduce/index.ts'
+import { ReduceValue, ReduceIncrementalValue } from './operators/reduce/index.ts'
 import { UnionValue } from './operators/union/index.ts'
 import { ExceptValue } from './operators/except/index.ts'
 import { KeysValue, ValuesValue } from './operators/keys/index.ts'
@@ -81,7 +81,12 @@ Operators['tap']       = (fn) => typeof fn === 'function' && fn.length === 0 ? T
 // reduce: general fold over rows; rebuilds on change (use the dedicated
 // aggregates for commutative ops — they're O(1) per delta).
 Operators['distinct']  = () => DistinctValue
-Operators['reduce']    = () => ReduceValue
+// reduce(fn, init) — general fold, O(n) rebuild per change.
+// reduce(add, remove, init) — incremental, O(Δ) per insert/remove batch.
+// Dispatch key is `typeof second-arg === 'function'`: a function in the
+// second slot means the caller passed (add, remove, init); a non-function
+// (or undefined) means (fn, init) with init being a value or a thunk.
+Operators['reduce']    = (_, b) => typeof b === 'function' ? ReduceIncrementalValue : ReduceValue
 // Set algebra companions to intersect:
 //   union(...): rows in any source (value from first source containing it)
 //   except(other): rows in source but not in other

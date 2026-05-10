@@ -13,6 +13,9 @@ import { Operator, createOperator } from '../../core.ts'
 // `reduce` rebuilds from scratch on every upstream event because in the
 // general case `fn` is non-commutative (string concatenation, object
 // merging) and there's no safe way to "undo" a contribution.
+//
+// 3-arg form `reduce(add, remove, init)` opts into an incremental fold —
+// dispatched to ReduceIncrementalValue below.
 export class ReduceValue extends Operator {
   constructor(p, fn, init) {
     super()
@@ -46,4 +49,107 @@ export class ReduceValue extends Operator {
   BI2() { this._rebuild() }
 }
 
-export const reduce = (source, fn, init) => createOperator(source, ReduceValue, fn, init)
+// `proxy.reduce(add, remove, init)` — incremental fold. The caller supplies
+// both directions explicitly, signalling "my fold is invertible by row" so
+// inserts/removes can thread through O(Δ) instead of triggering a full
+// rebuild. This is the general primitive crossfilter-shaped workloads want
+// when `length(fn)` (count-by-bucket) isn't expressive enough — bucketed
+// sums, percentile sketches, top-K per group, anything where each row
+// contributes a known delta to the accumulator.
+//
+//   const totalByBucket = source.intersect(dims, 'delay').reduce(
+//     (acc, row) => { const k = bucket(row); acc[k] = (acc[k]||0) + row.x; return acc },
+//     (acc, row) => { const k = bucket(row); if ((acc[k] -= row.x) === 0) delete acc[k]; return acc },
+//     () => ({}),
+//   )
+//
+// `init` may be a value or a thunk: a thunk is called once per full rebuild
+// (XU0/XR0) so a fold that mutates its accumulator in place (the common
+// case for histograms) starts from a fresh object each time the source
+// resets. Plain-value init is fine for primitives.
+//
+// Limitations — opt out by sticking with the 2-arg form when these bite:
+//   • BU1/BU2 (row mutated in place) → falls back to full rebuild, since
+//     the framework doesn't preserve the old value at those entry points
+//     and there's no safe way to "undo" the prior contribution without it.
+//     Filter-driven workloads (intersect/between emitting BR1/BI0 as rows
+//     enter/leave the active set) never hit this path; it's a fallback for
+//     direct-on-source use where rows themselves change in place.
+//   • `remove` must invert `add`'s contribution for the row passed to it,
+//     using only the row + key — same contract as crossfilter's
+//     group.reduce(add, remove, init). Forgetting symmetry desyncs `acc`
+//     silently; a unit test that round-trips insert+remove catches it.
+export class ReduceIncrementalValue extends Operator {
+  constructor(p, add, remove, init) {
+    super()
+    this.p = p
+    this.add = add
+    this.remove = remove
+    this.init = init
+    this._rebuild()
+  }
+
+  matches(add, remove, init) {
+    return this.add === add && this.remove === remove && this.init === init
+  }
+
+  _seed() {
+    return typeof this.init === 'function' ? this.init() : this.init
+  }
+
+  _rebuild() {
+    let acc = this._seed()
+    const v = this.p.value
+    if (v && typeof v === 'object') {
+      iter(v, (k, row) => {
+        if (row === undefined) return
+        acc = this.add(acc, row, k)
+      })
+    }
+    this.view.XU0(this.view.value = acc)
+  }
+
+  XR0() { this._rebuild() }
+  XU0() { this._rebuild() }
+
+  BI0(I0) {
+    if (!I0.length) return
+    let acc = this.view.value
+    for (let i = 0; i < I0.length; i += 2) {
+      const v = I0[i + 1]
+      if (v === undefined) continue
+      acc = this.add(acc, v, I0[i])
+    }
+    this.view.XU0(this.view.value = acc)
+  }
+
+  BR1(R1) {
+    if (!R1.length) return
+    let acc = this.view.value
+    for (let i = 0; i < R1.length; i += 2) {
+      const v = R1[i + 1]
+      // RowOperator over an array emits [name, undefined] for shift-only
+      // events (see LengthValue.BR1) — the row was already excluded
+      // upstream so there's no contribution to remove. Same guard here.
+      if (v === undefined) continue
+      acc = this.remove(acc, v, R1[i])
+    }
+    this.view.XU0(this.view.value = acc)
+  }
+
+  // BU1: row's slot was overwritten with a new value, but the framework
+  // doesn't carry the old value at this entry point. Rebuild is the
+  // semantically safe fallback. Crossfilter-shaped workloads (rows
+  // immutable, filters mutate) don't hit this path.
+  BU1() { this._rebuild() }
+  BU2() { this._rebuild() }
+  BR2() { this._rebuild() }
+  BI2() { this._rebuild() }
+}
+
+// Standalone helper. `typeof remove === 'function'` is the dispatch key —
+// mirror it in full.ts so chainable and standalone forms agree.
+export const reduce = (source, fnOrAdd, removeOrInit, init) =>
+  typeof removeOrInit === 'function'
+    ? createOperator(source, ReduceIncrementalValue, fnOrAdd, removeOrInit, init)
+    : createOperator(source, ReduceValue, fnOrAdd, removeOrInit)
