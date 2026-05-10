@@ -2,10 +2,16 @@
 import { iter } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
-// Common per-row tracking for scalar aggregates. `tracked[name]` holds the
-// projected column value for each row currently included in the source;
-// undefined entries are removed from `tracked` rather than stored as
-// `undefined`, so `Object.values(this.tracked)` never includes holes.
+// Common per-row tracking for scalar aggregates. `tracked.get(name)` returns
+// the projected column value for each row currently included in the source;
+// rows whose projection is undefined are removed from the Map rather than
+// stored, so `tracked.values()` never yields undefined.
+//
+// `tracked` is a Map (not a plain object) so per-publish iteration via
+// `tracked.values()` walks the Map's internal storage directly without
+// allocating a fresh values array — `Object.values()` was the dominant
+// per-tick allocation in the previous implementation. See
+// experiments/wasm/README.md for the measurement that motivated the switch.
 //
 // Subclass contract:
 //   _afterReset()      — called after XU0/XR0 has rebuilt `tracked` wholesale.
@@ -30,7 +36,7 @@ class AggregateValue extends Operator {
     this.p = p
     this.col = col
     this.read = read || (typeof col === 'string' ? (r => r?.[col]) : (r => r))
-    this.tracked = {}
+    this.tracked = new Map()
     this.XU0(p.value)
   }
 
@@ -43,16 +49,20 @@ class AggregateValue extends Operator {
   }
 
   XR0() {
-    this.tracked = {}
+    this.tracked.clear()
     this._afterReset()
   }
 
   XU0(value) {
-    this.tracked = {}
+    this.tracked.clear()
     if (value && typeof value === 'object') {
       iter(value, (n, v) => {
         const x = this._project(v)
-        if (x !== undefined) this.tracked[n] = x
+        // Coerce keys to strings: notifications (BU1/BR1/BI0) carry stringified
+        // names regardless of source shape, so the Map's get/set/delete must
+        // see the same form for both XU0 init and incremental updates. The
+        // previous plain-object `tracked` coerced implicitly; Map does not.
+        if (x !== undefined) this.tracked.set('' + n, x)
       })
     }
     this._afterReset()
@@ -63,10 +73,10 @@ class AggregateValue extends Operator {
     let dirty = false
     for (let i = 0; i < U1.length; i += 2) {
       const n = U1[i]
-      const old = this.tracked[n]
+      const old = this.tracked.get(n)
       const x = this._project(U1[i + 1])
-      if (x === undefined) delete this.tracked[n]
-      else this.tracked[n] = x
+      if (x === undefined) this.tracked.delete(n)
+      else this.tracked.set(n, x)
       if (x !== old) { this._delta(old, x); dirty = true }
     }
     if (dirty) this._publish()
@@ -77,9 +87,9 @@ class AggregateValue extends Operator {
     let dirty = false
     for (let i = 0; i < R1.length; i += 2) {
       const n = R1[i]
-      const old = this.tracked[n]
+      const old = this.tracked.get(n)
       if (old === undefined) continue
-      delete this.tracked[n]
+      this.tracked.delete(n)
       this._delta(old, undefined)
       dirty = true
     }
@@ -93,7 +103,7 @@ class AggregateValue extends Operator {
       const n = I0[i]
       const x = this._project(I0[i + 1])
       if (x === undefined) continue
-      this.tracked[n] = x
+      this.tracked.set(n, x)
       this._delta(undefined, x)
       dirty = true
     }
@@ -112,10 +122,10 @@ class AggregateValue extends Operator {
     for (let i = 0; i < arr.length; i += stride) {
       const path = arr[i]
       const n = path[0]
-      const old = this.tracked[n]
+      const old = this.tracked.get(n)
       const x = this._project(this.p.value[n])
-      if (x === undefined) delete this.tracked[n]
-      else this.tracked[n] = x
+      if (x === undefined) this.tracked.delete(n)
+      else this.tracked.set(n, x)
       if (x !== old) { this._delta(old, x); dirty = true }
     }
     if (dirty) this._publish()
@@ -133,7 +143,7 @@ export class SumValue extends AggregateValue {
   // computed by _afterReset during construction.
   _afterReset() {
     this.total = 0
-    for (const v of Object.values(this.tracked)) this.total += +v
+    for (const v of this.tracked.values()) this.total += +v
     this._publish()
   }
   _delta(o, n) {
@@ -150,7 +160,7 @@ export class SumValue extends AggregateValue {
 export class AvgValue extends AggregateValue {
   _afterReset() {
     this.total = 0; this.count = 0
-    for (const v of Object.values(this.tracked)) { this.total += +v; this.count++ }
+    for (const v of this.tracked.values()) { this.total += +v; this.count++ }
     this._publish()
   }
   _delta(o, n) {
@@ -170,7 +180,7 @@ export class MaxValue extends AggregateValue {
   _afterReset() { this._publish() }
   _publish() {
     let m
-    for (const v of Object.values(this.tracked)) if (m === undefined || v > m) m = v
+    for (const v of this.tracked.values()) if (m === undefined || v > m) m = v
     if (m !== this.view.value) this.view.XU0(this.view.value = m)
   }
 }
@@ -179,7 +189,7 @@ export class MinValue extends AggregateValue {
   _afterReset() { this._publish() }
   _publish() {
     let m
-    for (const v of Object.values(this.tracked)) if (m === undefined || v < m) m = v
+    for (const v of this.tracked.values()) if (m === undefined || v < m) m = v
     if (m !== this.view.value) this.view.XU0(this.view.value = m)
   }
 }
@@ -194,7 +204,7 @@ export class SomeValue extends AggregateValue {
   constructor(p, fn) { super(p, fn, r => !!fn(r)) }
   _afterReset() {
     this.trueCount = 0
-    for (const v of Object.values(this.tracked)) if (v) this.trueCount++
+    for (const v of this.tracked.values()) if (v) this.trueCount++
     this._publish()
   }
   _delta(o, n) {
@@ -214,7 +224,7 @@ export class EveryValue extends AggregateValue {
     // all tracked rows are truthy. Empty set → true (matches Array#every).
     this.totalCount = 0
     this.trueCount = 0
-    for (const v of Object.values(this.tracked)) {
+    for (const v of this.tracked.values()) {
       this.totalCount++
       if (v) this.trueCount++
     }

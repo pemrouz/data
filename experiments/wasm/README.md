@@ -1,6 +1,8 @@
 # WASM experiment — would this library benefit from WebAssembly?
 
-**Short answer: yes, but most of the win is actually a data-structure fix that needs no WASM. WASM adds another 30–40% on top of that.**
+**Short answer: most of the available win is a data-structure fix that needs no WASM. WASM adds another ~1.6× on top of the data-structure fix at the workloads tested here.**
+
+**Status:** the smallest piece of the data-structure fix — switching `AggregateValue.tracked` from a sparse plain object to a `Map` so per-publish iteration stops allocating a fresh `Object.values()` array — has been landed in [operators/aggregate/index.ts](../../operators/aggregate/index.ts). That alone delivers ~2.5–3× on this workload (numbers below). A further switch to a packed `Float64Array` for `max`/`min` specifically would capture another ~1.6× but requires a behavior decision (see "Open follow-up" at the bottom).
 
 ## What this is
 
@@ -53,7 +55,9 @@ Three implementations:
 - **JS-typed aggregate** — same packed `Float64Array` layout as the WASM version, but the max scan happens in pure JS. Isolates the data-structure win.
 - **WASM aggregate** — packed `Float64Array` is a slice of wasm linear memory; `_publish` calls the WASM kernel.
 
-Per-tick latency (µs), median over 5 runs:
+Per-tick latency (µs), median over 5 runs.
+
+**Original measurements (pre-Map refactor, baseline = `Object.values(tracked)` per publish):**
 
 | N       | JS (existing) | JS-typed | WASM | typed/JS | WASM/typed (incremental WASM win) |
 |--------:|----:|----:|----:|----:|----:|
@@ -62,15 +66,24 @@ Per-tick latency (µs), median over 5 runs:
 | 50 000  | 736.6 | 86.8 | 66.1 | **8.5×** | 1.31× |
 | 100 000 | 2086.5 | 209.6 | 147.8 | **9.96×** | 1.42× |
 
+**Post-Map-refactor measurements (current `data.max('val')` uses `tracked.values()`):**
+
+| N       | JS (Map.values) | JS-typed | WASM | typed/JS | WASM/typed |
+|--------:|----:|----:|----:|----:|----:|
+| 50 000  | 292.4 | 68.3 | 43.8 | **4.28×** | 1.56× |
+| 100 000 | 661.0 | 127.1 | 86.5 | **5.20×** | 1.47× |
+
 All three paths produce identical max values (verified per run).
 
 ## What the numbers say
 
-**The 11× speedup at N=100k decomposes cleanly:**
+**The total available speedup at N=100k decomposes into three pieces:**
 
 ```
-JS existing  → JS-typed  : ~10× win  ←  data-structure fix (eliminating Object.values allocation)
-JS-typed     → WASM      : ~1.4× win ←  the WASM kernel
+Object.values   → Map.values        : ~3.2× win  ←  one-line data-structure fix (LANDED)
+Map.values      → packed Float64    : ~5.2× win  ←  second data-structure fix
+packed Float64  → packed Float64+WASM: ~1.5× win  ←  the WASM kernel
+                                                    (multiplicatively: 3.2 × 5.2 × 1.5 ≈ 25× total)
 ```
 
 **Why is `Object.values` so expensive?** Every `_publish` call allocates a fresh array containing all currently-tracked values. At 100k rows, that's a 100k-element allocation per tick. 1000 ticks × 100k allocations = 100M elements of GC pressure. The variance pattern in the raw runs (JS path: 1583–2305 ms, range 46%) vs WASM (110–283 ms, range 61% but lower median) is consistent with GC dominating the JS baseline.
@@ -79,28 +92,27 @@ JS-typed     → WASM      : ~1.4× win ←  the WASM kernel
 
 ## Implications for the library
 
-**Without changing the public API, this experiment surfaces a real ~10× improvement available at the aggregate operator** — but **WASM is not the load-bearing piece of it**. The data-structure refactor is.
+**Without changing the public API, this experiment surfaces a real ~25× improvement available at the aggregate operator** — but **WASM is not the load-bearing piece of it**. The data-structure refactor is.
 
-A pure-JS rewrite of [`operators/aggregate/index.ts`](../../operators/aggregate/index.ts) that replaces the `tracked: { [key]: number }` object with a packed `Float64Array` + `Map<key, slot>` would:
+[`operators/aggregate/index.ts`](../../operators/aggregate/index.ts) now uses `tracked: Map` instead of `tracked: {}` (one piece landed). The remaining headroom is the `Float64Array` mirror for `max`/`min` (see "Open follow-up" below) — that captures another ~5×, no WASM. WASM is a final ~1.5× on top, only meaningful if you've already done the other two fixes.
 
-- Remove the per-tick `Object.values()` allocation,
-- Eliminate the GC pressure,
-- Reach ~80–90% of the speedup demonstrated here,
-- Require **zero WASM toolchain**, no devDep, no build step.
-
-The same pattern likely applies to `Sum`/`Avg`/`Min`/`Some`/`Every`'s `_afterReset` (they all iterate `Object.values(this.tracked)`), although those run only on full reset, not per delta — so the win is concentrated in `Max` and `Min`'s `_publish`.
-
-WASM's incremental contribution after that fix is **1.3× at small N, 1.4× at large N**. That's a real win, but it's the kind of marginal optimization that doesn't usually justify a build-step + WASM toolchain dependency on its own.
+WASM's incremental contribution after the data-structure fixes is **1.5× at large N**. That's a real win, but it's the kind of marginal optimization that doesn't usually justify a build-step + WASM toolchain dependency on its own.
 
 ## Recommendation
 
-Three reasonable courses of action, in order of value:
+In order of value vs effort:
 
-1. **Fix the data structure (no WASM).** Refactor `AggregateValue` to use a packed `Float64Array` + slot map instead of a sparse object. ~10× speedup on the aggregate-heavy hot path. No public API change. No new dependencies. This is the actual answer to the question.
-2. **Land the data-structure fix, then consider WASM.** Once the column is packed, plugging in a WASM kernel is incremental — at large N, the extra 30–40% is real, and the wasm artifact is small (454 bytes for our three kernels). Worth doing only if a target user has a 100k+-row aggregate workload where the 30% matters.
-3. **Don't bother with WASM at all.** For the workloads currently in the perf suite (mostly ≤10 000 rows) and for the operators where the hot path is a user JS callback (filter/map/group/reduce/distinct/to/sort with comparator), WASM offers no meaningful benefit. The boundary cost dominates and you can't put user closures inside a WASM module.
+1. **(LANDED) Switch `tracked` to a `Map`.** ~3× win at N=100k, no behavior change, ~10 lines diff. See [operators/aggregate/index.ts](../../operators/aggregate/index.ts).
+2. **(Open follow-up) Maintain a packed `Float64Array` for `max`/`min`'s per-publish scan.** Another ~5× on top, but with one wrinkle — see "Open follow-up" below.
+3. **(Last) Plug in WASM.** Once the column is packed, the WASM kernel adds ~1.5×. Probably only worthwhile if a target user has a 100k+-row aggregate workload where 1.5× matters.
 
 The `between` operator and the `intersect`/`union` bitmask path (the other plausible WASM targets identified during planning) were not implemented in Layer 2, but Layer 1's `wasm-extract` numbers strongly suggest they'd land in the same place — break-even or modest win, dominated by the cost of getting JS-shaped data into wasm memory.
+
+## Open follow-up — Float64Array for max/min
+
+The `max`/`min` `_publish` is the only per-tick O(n) scan in the aggregate operator (`sum`/`avg`/`some`/`every` use O(1) `_delta`). A packed `Float64Array` mirroring `tracked.values()` would cut that scan ~5×. The complication is the `max - col accessor + Date values` test in [aggregate.test.ts:95–103](../../operators/aggregate/aggregate.test.ts#L95-L103): the operator currently returns the original `Date` instance, not its epoch-ms. A naive `Float64Array` rewrite would silently change the return type from `Date` to `number`. The existing assertion (`+m[value] === +new Date(...)`) happens to pass either way, but real user code calling `.toISOString()` would break.
+
+The minimal-risk path: keep the `Map` as the source of truth for type fidelity; additionally maintain a parallel `Float64Array` for `max`/`min` *only when all observed projected values are finite numbers*; on first non-numeric encounter, drop the parallel array and fall back to `Map.values()` iteration. About 50–80 lines on top of the current `MaxValue`/`MinValue`. Worth doing if anyone reports aggregate-bound workloads at 50k+ rows; not worth pre-emptively if the current ~3× from the Map fix is enough.
 
 ## Files
 

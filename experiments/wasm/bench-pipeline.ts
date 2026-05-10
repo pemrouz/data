@@ -110,7 +110,11 @@ console.log(`# node ${process.version}`)
 console.log()
 
 const paths = [
-  { label: 'JS aggregate (existing, Object.values scan)', make: (data: any) => data.max('val') },
+  // After the aggregate refactor `tracked` is a Map; iteration uses `.values()`
+  // which doesn't allocate a fresh array per call. Pre-refactor this path used
+  // `Object.values(tracked)` and was ~2.5–3.2× slower at N=50k–100k (see
+  // experiments/wasm/README.md).
+  { label: 'JS aggregate (current — Map.values scan)', make: (data: any) => data.max('val') },
   { label: 'JS-typed aggregate (packed Float64Array, JS scan)', make: (data: any) => typedMax(k)(data, 'val') },
   { label: 'WASM aggregate (packed Float64Array, wasm kernel)', make: (data: any) => wasmMax(k)(data, 'val') },
 ] as const
