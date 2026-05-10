@@ -13,6 +13,7 @@ const LIBS = [
   { src: './lib-data.js' },
   { src: './lib-crossfilter.js' },
   { src: './lib-mobx.js' },
+  { src: './lib-rxjs.js' },
 ]
 
 const grid = document.querySelector('#rows')

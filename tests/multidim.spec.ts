@@ -7,13 +7,37 @@ import { test, expect } from '@playwright/test'
 // the initial active/total counts populate, brushing updates the active
 // count and the rolling latency tracker records samples (proving the
 // dual-rAF post-paint measurement loop fires).
+//
+// Serial because each test loads 36MB and mounts 4 reactive libraries —
+// running 4 browsers in parallel saturates the CPU and makes the brush
+// → paint window non-deterministic.
 
-const LIBS = ['data', 'crossfilter', 'mobx']
+test.describe.configure({ mode: 'serial' })
+
+const LIBS = ['data', 'crossfilter', 'mobx', 'rxjs']
 
 for (const lib of LIBS) {
   test(`multidim — ${lib} row mounts, brush updates count, latency tracker records`, async ({ page }) => {
     test.setTimeout(180_000)
     await page.goto('http://127.0.0.1:3000/examples/multidim/', { timeout: 120_000 })
+
+    // Wait for all rows' totals to populate — proves every library's mount
+    // returned. Without this, an earlier-row test would brush while later
+    // libs were still synchronously building their reactive graphs, with
+    // queued pointer events firing well after the assertion timeout.
+    await page.waitForFunction(() => {
+      const rows = document.querySelectorAll('.mdf-row')
+      if (!rows.length) return false
+      for (const r of rows) {
+        const t = r.querySelector('[data-stat=total]')?.textContent
+        if (!t || t === '—') return false
+      }
+      return true
+    }, null, { timeout: 120_000 })
+    // Brief settle — a fresh mount may still have rAF-coalesced writes in
+    // flight on tap-chained rows. Without this, a test brushing immediately
+    // after mount can race the first frame.
+    await page.waitForTimeout(2_000)
 
     const row = page.locator(`.mdf-row[data-lib="${lib}"]`)
     await row.waitFor({ timeout: 60_000 })
