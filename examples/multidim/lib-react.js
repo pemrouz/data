@@ -9,7 +9,7 @@
 // for the brushed dim too, even though its body doesn't depend on its own
 // filter — there's no per-key dependency tracking in React's reactivity).
 
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createChart } from './chart.js'
 import { renderTopList } from './top-list.js'
@@ -111,7 +111,15 @@ function App({ rawFlights, tracker, chartsRoot, statsEls }) {
   const activeCount = useMemo(() => computeActive(filters, rawFlights), [filters])
   const top5 = useMemo(() => computeTop5(filters, rawFlights), [filters])
 
-  useEffect(() => {
+  // useLayoutEffect, not useEffect: useEffect runs *after* the browser
+  // paints, so the SVG mutation lands in the NEXT paint after the brush
+  // — the latency tracker (input → first post-input paint) would
+  // under-report by ~16ms because the chart update isn't in the paint it
+  // measures. useLayoutEffect runs synchronously between commit and paint,
+  // same window every other library row's effect runs in. Also what a real
+  // React app would use for any DOM mutation that has to be in the next
+  // paint — useEffect would flicker.
+  useLayoutEffect(() => {
     for (const def of CHART_DEFS) {
       const { bars, max } = histograms[def.name]
       charts.current[def.name].setBars(bars, max)
