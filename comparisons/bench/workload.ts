@@ -14,7 +14,10 @@
 // `bid` or `ask`. Each tick is its own settle point — no batching primitive is
 // used in any peer library. This is the workload `data` was designed for.
 
-export const N = 10_000
+// Default N is 10_000. Set BENCH_N=20000 to scale up — useful for showing how
+// each library's per-tick budget grows with row count.
+const _ENV_N = Number(process.env.BENCH_N)
+export const N: number = Number.isFinite(_ENV_N) && _ENV_N > 0 ? _ENV_N : 10_000
 export const TICK_COUNT = 1000
 export const THRESHOLD = 1.0
 export const TOP_K = 10

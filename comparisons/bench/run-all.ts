@@ -23,6 +23,7 @@ const benches: ReadonlyArray<{ path: string, label: string }> = [
   { path: './preact.bench.ts',       label: 'preact-signals' },
   { path: './vue.bench.ts',          label: 'vue-reactivity' },
   { path: './svelte.bench.ts',       label: 'svelte-store' },
+  { path: './react.bench.ts',        label: 'react' },
 ]
 
 const log = (msg: string) => process.stderr.write(msg + '\n')
