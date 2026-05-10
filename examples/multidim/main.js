@@ -11,6 +11,7 @@ const { min, max, floor } = Math
 // in its own commit; this list grows as we add peer rows.
 const LIBS = [
   { src: './lib-data.js' },
+  { src: './lib-crossfilter.js' },
 ]
 
 const grid = document.querySelector('#rows')
