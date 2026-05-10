@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe.configure({ mode: 'serial' })
 
-const LIBS = ['data', 'crossfilter', 'mobx', 'rxjs', 'react']
+const LIBS = ['data', 'crossfilter', 'mobx', 'rxjs', 'react', 'solid']
 
 for (const lib of LIBS) {
   test(`multidim — ${lib} row mounts, brush updates count, latency tracker records`, async ({ page }) => {
