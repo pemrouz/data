@@ -95,6 +95,7 @@ export default {
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => filters[def.name].set(range)
       unsubs.push(histograms[def.name].subscribe(({ bars, max }) => {
         chart.setBars(bars, max)

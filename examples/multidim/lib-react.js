@@ -94,6 +94,7 @@ function App({ rawFlights, tracker, chartsRoot, statsEls }) {
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => {
         setFilters(prev => ({ ...prev, [def.name]: range }))
       }

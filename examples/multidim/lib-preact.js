@@ -93,6 +93,7 @@ export default {
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => { sigs[def.name].value = range }
       disposers.push(effect(() => {
         const { bars, max } = histograms[def.name].value

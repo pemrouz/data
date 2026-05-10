@@ -115,6 +115,7 @@ export default {
       const chart = createChart(chartsRoot, def)
       charts[def.name] = chart
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => {
         runInAction(() => { filters[def.name] = range })
       }

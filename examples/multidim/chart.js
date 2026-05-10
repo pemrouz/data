@@ -184,11 +184,13 @@ export function createChart(parent, opts) {
     const path = barPath(bars, max, domain, width, height, bucketSize)
     bgPath.setAttribute('d', path)
     fgPath.setAttribute('d', path)
+    api.onUpdate?.()
   }
 
   const api = {
     onMarkInput: null,
     onRangeChange: null,
+    onUpdate: null,
     setBars,
     setRange(r) { fireRange(r) },
     setRangeSilent(r) { currentRange = r; drawRange(r) },

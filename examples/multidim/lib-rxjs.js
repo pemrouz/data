@@ -58,6 +58,7 @@ export default {
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => {
         subject.next({ ...subject.value, [def.name]: range })
       }

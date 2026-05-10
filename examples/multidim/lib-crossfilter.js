@@ -64,6 +64,7 @@ export default {
       charts.push({ chart, def })
 
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => {
         if (range.length === 2) dims[def.name].filterRange(range)
         else dims[def.name].filterAll()

@@ -61,6 +61,7 @@ export default {
 
       let writer = null
       chart.onMarkInput = () => tracker.markInput()
+      chart.onUpdate    = () => tracker.markUpdate()
       chart.onRangeChange = (range) => {
         if (!writer) writer = filters[def.name].raf()
         writer(range)
