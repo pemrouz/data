@@ -110,13 +110,14 @@ console.log(`# node ${process.version}`)
 console.log()
 
 const paths = [
-  // After the aggregate refactor `tracked` is a Map; iteration uses `.values()`
-  // which doesn't allocate a fresh array per call. Pre-refactor this path used
-  // `Object.values(tracked)` and was ~2.5–3.2× slower at N=50k–100k (see
-  // experiments/wasm/README.md).
-  { label: 'JS aggregate (current — Map.values scan)', make: (data: any) => data.max('val') },
-  { label: 'JS-typed aggregate (packed Float64Array, JS scan)', make: (data: any) => typedMax(k)(data, 'val') },
-  { label: 'WASM aggregate (packed Float64Array, wasm kernel)', make: (data: any) => wasmMax(k)(data, 'val') },
+  // Current `MaxValue` maintains a parallel `Float64Array` indexed by a
+  // `key→slot` map and scans contiguous f64 memory in `_publish`. Falls back
+  // to `Map.values()` iteration when any non-numeric value arrives. See
+  // experiments/wasm/README.md for the journey from `Object.values` (12-19×
+  // slower) and `Map.values()` (3-6× slower).
+  { label: 'JS aggregate (current — Float64Array + Map fallback)', make: (data: any) => data.max('val') },
+  { label: 'JS-typed aggregate (experiment, packed Float64Array, JS scan)', make: (data: any) => typedMax(k)(data, 'val') },
+  { label: 'WASM aggregate (experiment, packed Float64Array, wasm kernel)', make: (data: any) => wasmMax(k)(data, 'val') },
 ] as const
 
 for (let w = 0; w < WARMUP; w++) for (const p of paths) runWith(p.make)

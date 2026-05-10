@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { deepStrictEqual as same, strictEqual as eq } from 'node:assert'
+import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { sum, avg, max, min, some, every } from './index.ts'
@@ -105,6 +105,54 @@ test('max - col accessor + Date values (non-numeric comparison)', () => {
 test('max - empty set returns undefined', () => {
   const res = $([])
   eq(max(res)[value], undefined)
+})
+
+// MaxValue/MinValue maintain a parallel Float64Array fast path for numeric
+// data and fall back to Map iteration the moment a non-number arrives. The
+// flip is sticky within a snapshot (until XU0/XR0 re-evaluates). These
+// tests exercise the boundary so we know the fallback engages, stays
+// engaged for the rest of the batch, and produces the same answer the
+// old slow path would.
+
+test('max - fast→fallback flip when a non-numeric arrives mid-snapshot', () => {
+  const res = $([1, 2, 3])
+  const m = max(res)
+  eq(m[value], 3)        // initial all-numeric: fast path
+  res.insert(new Date(2001, 5, 1))
+  // After inserting a Date, max should still be the latest greater value.
+  // Date.valueOf() gives ms since epoch, which is larger than any small int,
+  // so the Date wins. Compare via valueOf to be type-agnostic.
+  eq(+m[value], +new Date(2001, 5, 1))
+  // Subsequent updates while in fallback mode still produce the right answer.
+  res.insert(new Date(2002, 0, 1))
+  eq(+m[value], +new Date(2002, 0, 1))
+})
+
+test('max - data swap re-enters fast mode (mode is reset on XU0)', () => {
+  const res = $([1, 2, 3])
+  const m = max(res)
+  res[0] = 'oops'           // poisons the fast path → fallback
+  // Sanity: still works in fallback. 'oops' > 2 > 3 is false (string compare),
+  // but for our purposes we just want max to not crash.
+  // (We don't assert m[value] here — string/number max is implementation-defined.)
+  // Wholesale data swap — the operator's XU0 re-runs _afterReset which
+  // re-evaluates numericMode. Now all-numeric again, so fast path.
+  res[value] = [10, 20, 30]
+  eq(m[value], 30)
+})
+
+test('min - fast→fallback flip when a non-numeric arrives mid-snapshot', () => {
+  const res = $([10, 20, 30])
+  const m = min(res)
+  eq(m[value], 10)
+  res.insert(new Date(1999, 0, 1))   // very small ms, smaller than 10? no, way bigger
+  // The Date's epoch ms (~915k+ million) is huge; 10 is still smaller.
+  eq(m[value], 10)
+  // But if we insert a Date that DOES win, fallback should still notice.
+  res[0] = new Date(1970, 0, 1)      // epoch 0 in local TZ ≈ small but positive
+  // Result depends on TZ but it's definitely smaller than any of {20, 30, Date(1999)}.
+  // Just check it changed and is a Date.
+  ok(m[value] instanceof Date)
 })
 
 // Dedup -----------------------------------------------------------------
