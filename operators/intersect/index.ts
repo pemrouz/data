@@ -30,6 +30,25 @@ const isDims = (v) =>
 // `vp` retains the first source so `this.p.value[name]` stays the canonical
 // row identity (downstream sees rows from the primary source even when
 // secondary sources have a divergent view of the same key).
+//
+// ── Tried-and-didn't-pay-off: shared bitmask across sibling intersects ──
+// A `SharedMembership` keyed by `dims` was prototyped (and reverted) to
+// fold the N independent bitmask tables — one per sibling
+// `intersect(dims, kX)` — into a single shared table. The idea: walk the
+// boundary rows once for any dim source change, then fan out (oldBits,
+// newBits) tuples to each subscriber so each does an O(1) visibility
+// check per affected row. Measured on a 4-leave-one-out × 1000-row
+// churn synthetic, this was ~16% **slower** than the per-instance
+// variadic baseline. Mechanism: the per-row N×K filter updates the
+// shared approach removes are paid back (and then some) by allocating
+// a 3K-entry tuples buffer per emit and iterating it N times. A
+// popcount filter on tuples (skip rows nowhere near any subscriber's
+// mask) might tilt it the other way, but the savings ceiling is ≤20%
+// on this shape — the real headroom to crossfilter parity lives in
+// fusing intersect with the downstream reducer step, not in deduping
+// the membership table. Documented here so the same refactor isn't
+// re-tried blindly. Implementation lives in git history if someone
+// wants to pick up the popcount-filtered variant.
 export class IntersectValue extends Operator {
   constructor(p, ...args) {
     super()
