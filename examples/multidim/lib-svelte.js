@@ -10,6 +10,7 @@
 
 import { writable, derived } from 'svelte/store'
 import { createChart } from './chart.js'
+import { renderTopList } from './top-list.js'
 
 const byHour       = d => Math.floor(d)
 const byTenMins    = d => Math.floor(d / 10) * 10
@@ -103,5 +104,21 @@ export default {
       statsEls.activeEl.textContent = n.toLocaleString()
     }))
     statsEls.totalEl.textContent = rawFlights.length.toLocaleString()
+
+    // Top 5 by delay desc — another derived store.
+    const top5 = derived(allStores, ranges => {
+      const passing = []
+      for (let i = 0; i < rawFlights.length; i++) {
+        const d = rawFlights[i]
+        let pass = true
+        for (let j = 0; j < NAMES.length; j++) {
+          if (!inRange(allAccs[j](d), ranges[j])) { pass = false; break }
+        }
+        if (pass) passing.push(d)
+      }
+      passing.sort((a, b) => b.delay - a.delay)
+      return passing.slice(0, 5)
+    })
+    unsubs.push(top5.subscribe(rows => renderTopList(statsEls.topListEl, rows)))
   },
 }

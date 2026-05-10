@@ -11,6 +11,7 @@
 
 import crossfilter from 'crossfilter2'
 import { createChart } from './chart.js'
+import { renderTopList } from './top-list.js'
 
 const byHour       = d => Math.floor(d)
 const byTenMins    = d => Math.floor(d / 10) * 10
@@ -51,6 +52,12 @@ export default {
     }
     const allCount = cf.groupAll()
 
+    // Sort dimension for the top-5 list. Negate so `dSort.top(K)` returns
+    // top-K by descending delay. Crucially this dim has no own filter set,
+    // so its `.top()` respects all 4 actual filters (crossfilter excludes
+    // each dim's own filter from its own .top result).
+    const dSort = cf.dimension(d => -d.delay)
+
     const charts = []
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
@@ -79,6 +86,7 @@ export default {
         chart.setBars(bars, max)
       }
       statsEls.activeEl.textContent = allCount.value().toLocaleString()
+      renderTopList(statsEls.topListEl, dSort.top(5))
     }
 
     statsEls.totalEl.textContent = rawFlights.length.toLocaleString()

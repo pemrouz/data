@@ -75,5 +75,8 @@ for (const lib of LIBS) {
 
     const samples = await row.locator('[data-stat=count]').textContent()
     expect(Number(samples)).toBeGreaterThan(0)
+
+    // Top 5 list renders 5 flights once the brush is settled.
+    await expect(row.locator('.mdf-top-flight')).toHaveCount(5, { timeout: 30_000 })
   })
 }

@@ -33,8 +33,9 @@ for (const { src } of LIBS) {
   const tracker = makeLatencyTracker(row)
   try {
     lib.mount(row.querySelector('.mdf-charts'), flights, tracker, {
-      activeEl: row.querySelector('[data-stat=active]'),
-      totalEl:  row.querySelector('[data-stat=total]'),
+      activeEl:   row.querySelector('[data-stat=active]'),
+      totalEl:    row.querySelector('[data-stat=total]'),
+      topListEl:  row.querySelector('.mdf-top-list'),
     })
   } catch (e) {
     console.error(`[${lib.name}] mount failed`, e)
@@ -55,6 +56,7 @@ function mountRow(lib) {
       <div class="mdf-tag">${escape(lib.tag || '')}</div>
     </div>
     <div class="mdf-charts"></div>
+    <div class="mdf-top"><ol class="mdf-top-list"></ol></div>
     <div class="mdf-stats">
       <div class="mdf-count">
         <span data-stat="active">—</span><span class="mdf-dim"> / </span><span data-stat="total">—</span>

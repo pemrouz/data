@@ -14,6 +14,7 @@
 
 import { observable, computed, autorun, runInAction, configure } from 'mobx'
 import { createChart } from './chart.js'
+import { renderTopList } from './top-list.js'
 
 // Suppress the action warning — we do mutate observables outside of action
 // functions briefly during the configure call's internal setup. The actual
@@ -132,5 +133,24 @@ export default {
       statsEls.activeEl.textContent = activeCount.get().toLocaleString()
     }))
     statsEls.totalEl.textContent = rawFlights.length.toLocaleString()
+
+    // Top 5 by delay desc — another full O(N) walk + O(K log K) sort per
+    // filter change, on top of the four histograms and the active count.
+    const top5 = computed(() => {
+      const ranges = NAMES.map(n => filters[n])
+      const accs   = NAMES.map(n => accessors[n])
+      const passing = []
+      for (let i = 0; i < rawFlights.length; i++) {
+        const d = rawFlights[i]
+        let pass = true
+        for (let j = 0; j < NAMES.length; j++) {
+          if (!inRange(accs[j](d), ranges[j])) { pass = false; break }
+        }
+        if (pass) passing.push(d)
+      }
+      passing.sort((a, b) => b.delay - a.delay)
+      return passing.slice(0, 5)
+    })
+    disposers.push(autorun(() => renderTopList(statsEls.topListEl, top5.get())))
   },
 }

@@ -7,6 +7,7 @@
 
 import { $, value } from 'data/full'
 import { createChart } from './chart.js'
+import { renderTopList } from './top-list.js'
 
 const byHour       = d => Math.floor(d.time)
 const byTenMins    = d => Math.floor(d.delay / 10) * 10
@@ -92,5 +93,14 @@ export default {
     chains.push(active.tap(renderCount))
     chains.push(total.tap(renderCount))
     renderCount()
+
+    // Top 5 by delay (desc). Incremental: za maintains a sorted index over
+    // the intersect output; on each filter change only the rows entering /
+    // leaving the K-window propagate. Sharing the upstream `intersect(dims)`
+    // graph with the active counter means this view is ~free on top of the
+    // existing chain — which is the structural advantage the dashboard case
+    // measures.
+    const top5 = source.intersect(dims).za('delay', 5)
+    chains.push(top5.tap(() => renderTopList(statsEls.topListEl, top5[value] || [])))
   },
 }

@@ -12,6 +12,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createChart } from './chart.js'
+import { renderTopList } from './top-list.js'
 
 const byHour       = d => Math.floor(d)
 const byTenMins    = d => Math.floor(d / 10) * 10
@@ -108,6 +109,7 @@ function App({ rawFlights, tracker, chartsRoot, statsEls }) {
   }, [filters])
 
   const activeCount = useMemo(() => computeActive(filters, rawFlights), [filters])
+  const top5 = useMemo(() => computeTop5(filters, rawFlights), [filters])
 
   useEffect(() => {
     for (const def of CHART_DEFS) {
@@ -115,9 +117,26 @@ function App({ rawFlights, tracker, chartsRoot, statsEls }) {
       charts.current[def.name].setBars(bars, max)
     }
     statsEls.activeEl.textContent = activeCount.toLocaleString()
+    renderTopList(statsEls.topListEl, top5)
   })
 
   return null
+}
+
+function computeTop5(filters, rawFlights) {
+  const ranges = NAMES.map(n => filters[n])
+  const accs   = NAMES.map(n => accessors[n])
+  const passing = []
+  for (let i = 0; i < rawFlights.length; i++) {
+    const d = rawFlights[i]
+    let pass = true
+    for (let j = 0; j < NAMES.length; j++) {
+      if (!inRange(accs[j](d), ranges[j])) { pass = false; break }
+    }
+    if (pass) passing.push(d)
+  }
+  passing.sort((a, b) => b.delay - a.delay)
+  return passing.slice(0, 5)
 }
 
 export default {
