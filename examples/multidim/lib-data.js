@@ -4,6 +4,18 @@
 // than a full O(N) re-aggregate. `intersect(dims, name)` is the dimension's
 // view with all *other* filters applied (the crossfilter idiom). `length(fn)`
 // is incremental too — adds/removes one bucket count per delta.
+//
+// Top-K shape: za the source by `delay` once at mount (231k rows pre-sorted
+// — paid once, never again because the source never mutates), then
+// `intersect(dims).limit(5)` is what runs per filter change. limit's per-
+// delta cost is O(1) amortised; if a row in the visible top-5 leaves the
+// active set, it walks `nextAfter` until it finds the next survivor and
+// emits one BR1A + one BI0A. The tempting alternative —
+// `intersect(dims).za('delay', 5)` — runs a sorted-index splice on every
+// row delta and is O(active-set) per delta because the za bookkeeping
+// re-keys all entries past the splice point. With ~1000 rows transitioning
+// per pointermove against an active set of ~100k, that path was O(N²) per
+// move and froze the page after a few brushes.
 
 import { $, value } from 'data/full'
 import { createChart } from './chart.js'
@@ -29,13 +41,13 @@ const CHART_DEFS = [
 export default {
   name: 'data',
   version: '1.0.0',
-  tag: 'incremental — between + intersect + length',
+  tag: 'incremental — between + intersect + length + limit',
 
   mount(chartsRoot, rawFlights, tracker, statsEls) {
-    // No need for za('date', Infinity) like the crossfilter example uses —
-    // we don't render a sorted flight list, only histograms aggregated by
-    // dimension. Skipping the sort saves ~50ms of setup over 231k rows.
-    const source = $(rawFlights)
+    // Sort by delay desc once. Source never mutates so this is a pure
+    // setup cost; downstream operators see a sorted index of indices, and
+    // `limit(5)` reads the highest-delay survivors directly off the front.
+    const source = $(rawFlights).za('delay', Infinity)
     const filters = $({
       delay:    [],
       distance: [],
@@ -84,24 +96,20 @@ export default {
       if (initial && initial.length === 2) chart.setRangeSilent(initial)
     }
 
-    // Selected count display
+    // Selected count + top-5: shared upstream `source.intersect(dims)` so the
+    // intersect dispatch dedups (matches() compares the dims arg) and one
+    // membership-update cascade feeds both views.
     const active = source.intersect(dims).length()
     const total = source.length()
+    const top5  = source.intersect(dims).limit(5)
+
     const renderCount = () => {
       if (statsEls.activeEl) statsEls.activeEl.textContent = (active[value] ?? 0).toLocaleString()
       if (statsEls.totalEl) statsEls.totalEl.textContent = (total[value] ?? 0).toLocaleString()
     }
     chains.push(active.tap(renderCount))
     chains.push(total.tap(renderCount))
-    renderCount()
-
-    // Top 5 by delay (desc). Incremental: za maintains a sorted index over
-    // the intersect output; on each filter change only the rows entering /
-    // leaving the K-window propagate. Sharing the upstream `intersect(dims)`
-    // graph with the active counter means this view is ~free on top of the
-    // existing chain — which is the structural advantage the dashboard case
-    // measures.
-    const top5 = source.intersect(dims).za('delay', 5)
     chains.push(top5.tap(() => renderTopList(statsEls.topListEl, top5[value] || [])))
+    renderCount()
   },
 }

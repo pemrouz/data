@@ -80,3 +80,43 @@ for (const lib of LIBS) {
     await expect(row.locator('.mdf-top-flight')).toHaveCount(5, { timeout: 30_000 })
   })
 }
+
+// Regression — repeated brushing on the data row used to balloon p95 due to
+// `intersect(dims).za('delay', 5)`'s O(N²) bookkeeping per pointermove.
+// Three sweeps over the date histogram (the worst case — widest chart,
+// highest row density) should keep p95 in the same magnitude as a single
+// brush. If a future change re-introduces an O(active-set) per-row delta
+// path, this test will catch it.
+test('multidim — data row stays responsive across repeated date brushes', async ({ page }) => {
+  test.setTimeout(180_000)
+  await page.goto('http://127.0.0.1:3000/examples/multidim/', { timeout: 120_000 })
+
+  await page.waitForFunction((minRows) => {
+    const rows = document.querySelectorAll('.mdf-row')
+    if (rows.length < minRows) return false
+    for (const r of rows) {
+      const t = r.querySelector('[data-stat=total]')?.textContent
+      if (!t || t === '—') return false
+    }
+    return true
+  }, LIBS.length, { timeout: 120_000 })
+  await page.waitForTimeout(2_000)
+
+  const row = page.locator('.mdf-row[data-lib=data]')
+  const date = row.locator('.mdf-chart').nth(3)
+  await date.scrollIntoViewIfNeeded()
+  const box = (await date.boundingBox())!
+
+  for (let i = 0; i < 3; i++) {
+    const startF = i % 2 === 0 ? 0.2 : 0.7
+    const endF   = i % 2 === 0 ? 0.7 : 0.2
+    await page.mouse.move(box.x + box.width * startF, box.y + box.height * 0.6)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * endF, box.y + box.height * 0.6, { steps: 6 })
+    await page.mouse.up()
+    await page.waitForTimeout(200)
+  }
+
+  const p95 = Number(await row.locator('[data-stat=p95]').textContent())
+  expect(p95).toBeLessThan(150)
+})
