@@ -71,13 +71,20 @@ export default {
       const histogram = source.intersect(dims, def.name).length(def.group)
       const maxV = histogram.max('value')
 
-      let writer = null
       chart.onMarkInput = () => tracker.markInput()
       chart.onUpdate    = () => tracker.markUpdate()
-      chart.onRangeChange = (range) => {
-        if (!writer) writer = filters[def.name].raf()
-        writer(range)
-      }
+      // Sync filter write. We *could* `filters[def.name].raf()` to coalesce
+      // a burst of pointermoves into one cascade per frame — the cross-
+      // filter example does, because its histogram-as-source approach has
+      // a heavier per-cascade cost. Here the cascade is between (O(Δ))
+      // + intersect (O(Δ)) + length(fn) (O(Δ)) + max (O(buckets)) + tap
+      // (O(1) bare), typically ~2-5ms for a brush move. Running it on
+      // every pointermove costs roughly the same as the rAF version
+      // (browser only paints at vsync anyway, so extra cascades between
+      // vsyncs are overwritten) and removes the per-input rAF wait that
+      // would otherwise show up in the latency tracker as 5-10ms of
+      // "delay" that the user doesn't actually perceive.
+      chart.onRangeChange = (range) => { filters[def.name][value] = range }
 
       const update = () => {
         const buckets = histogram[value]
