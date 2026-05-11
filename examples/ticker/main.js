@@ -14,6 +14,7 @@ const LIBS = [
   { src: './lib-crossfilter.js' },
   { src: './lib-mobx.js' },
   { src: './lib-rxjs.js' },
+  { src: './lib-react.js' },
 ]
 
 const grid = document.querySelector('#rows')
