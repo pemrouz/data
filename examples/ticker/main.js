@@ -17,6 +17,7 @@ const LIBS = [
   { src: './lib-react.js' },
   { src: './lib-solid.js' },
   { src: './lib-preact.js' },
+  { src: './lib-vue.js' },
 ]
 
 const grid = document.querySelector('#rows')
