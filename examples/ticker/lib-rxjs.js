@@ -61,6 +61,7 @@ export default {
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
+        const r0 = performance.now()
         const totals = {}
         for (let i = 0; i < latestWindow.length; i++) {
           const t = latestWindow[i]
@@ -71,7 +72,7 @@ export default {
         for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
         arr.sort((a, b) => b.pctChg - a.pctChg)
         renderTopMovers(topEl, arr)
-        tracker.markUpdate()
+        tracker.sampleRender(performance.now() - r0)
       })
     }
 

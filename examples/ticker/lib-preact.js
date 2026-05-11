@@ -55,15 +55,19 @@ export default {
 
     let scheduled = false
     const dispose = effect(() => {
-      const totals = sectorTotals.value
-      const movers = topMovers.value
+      // Subscribe to both computeds via reads (preact-signals tracks
+      // signal access inside an effect). Real .value read for the
+      // compute work happens inside the rAF body so it's captured by
+      // the timed block.
+      sectorTotals.value; topMovers.value
       if (scheduled) return
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
-        renderSectors(sectorEl, totals, sectorOrder)
-        renderTopMovers(topEl, movers)
-        tracker.markUpdate()
+        const r0 = performance.now()
+        renderSectors(sectorEl, sectorTotals.value, sectorOrder)
+        renderTopMovers(topEl, topMovers.value)
+        tracker.sampleRender(performance.now() - r0)
       })
     })
     row._preactDispose = dispose

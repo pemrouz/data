@@ -65,29 +65,23 @@ export default {
     // graph drops them. Stash on the row so they live as long as it does.
     const chains = row._chains = []
 
-    let topScheduled = false
-    const renderTop = () => {
-      if (topScheduled) return
-      topScheduled = true
+    // One rAF for both renders: keeps cycle accounting clean for the
+    // compute tracker (one render = one sample). Either tap can request
+    // the rAF; whichever runs second sees `scheduled === true` and skips.
+    let scheduled = false
+    const scheduleRender = () => {
+      if (scheduled) return
+      scheduled = true
       requestAnimationFrame(() => {
-        topScheduled = false
+        scheduled = false
+        const r0 = performance.now()
         renderTopMovers(topEl, topGainers[value] || [])
-        tracker.markUpdate()
-      })
-    }
-    chains.push(topGainers.tap(renderTop))
-
-    let secScheduled = false
-    const renderSec = () => {
-      if (secScheduled) return
-      secScheduled = true
-      requestAnimationFrame(() => {
-        secScheduled = false
         renderSectors(sectorEl, sectorTotals[value] || {}, opts.sectorOrder)
-        tracker.markUpdate()
+        tracker.sampleRender(performance.now() - r0)
       })
     }
-    chains.push(sectorTotals.tap(renderSec))
+    chains.push(topGainers.tap(scheduleRender))
+    chains.push(sectorTotals.tap(scheduleRender))
 
     // Seed empty.
     renderTopMovers(topEl, [])

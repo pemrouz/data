@@ -7,7 +7,7 @@
 import { makeTicker } from './gen.js'
 import { makeLatencyTracker } from './latency.js'
 
-const WINDOW_N = 50_000  // rolling-window size for sector volume aggregate
+const WINDOW_N = 500_000  // rolling-window size for sector volume aggregate
 
 const LIBS = [
   { src: './lib-data.js' },
@@ -89,11 +89,18 @@ for (const { src } of LIBS) {
 // Wire generator → every row's ingest. We send the same batch reference
 // to each lib; libs MUST NOT mutate it. (data's $() reads the array but
 // doesn't keep the reference; others either iterate or shallow-copy.)
+//
+// We time each lib.ingest call individually and hand the duration to the
+// row's tracker. Compute time is ordering-independent — measuring the
+// rAF-paint latency instead would charge the lib that runs first in this
+// loop for everyone else's work (they'd all paint in the same rAF) and
+// reduce later libs' samples to pure vsync wait. See latency.js.
 let lastTpsT = performance.now()
 ticker.onBatch((batch) => {
   for (const h of handles) {
-    h.tracker.markIngest()
+    const t0 = performance.now()
     try { h.handle.ingest(batch) } catch (e) { console.error(`[${h.lib.name}] ingest failed`, e); h.row.classList.add('tk-failed') }
+    h.tracker.sample(performance.now() - t0)
     h.ticks += batch.length
   }
 })
@@ -134,8 +141,8 @@ function mountRow(lib) {
     <div class="tk-stats">
       <div class="tk-st-row"><span class="tk-st-k">tps</span><span class="tk-st-v" data-stat="tps"><b>—</b></span></div>
       <div class="tk-st-divider"></div>
-      <div class="tk-st-row"><span class="tk-st-k">p50</span><span class="tk-st-v"><b data-stat="p50">—</b><span class="tk-st-u">ms</span></span></div>
-      <div class="tk-st-row"><span class="tk-st-k">p95</span><span class="tk-st-v"><b data-stat="p95">—</b><span class="tk-st-u">ms</span></span></div>
+      <div class="tk-st-row"><span class="tk-st-k" title="ingest p50">cpu p50</span><span class="tk-st-v"><b data-stat="p50">—</b><span class="tk-st-u">ms</span></span></div>
+      <div class="tk-st-row"><span class="tk-st-k" title="ingest p95">cpu p95</span><span class="tk-st-v"><b data-stat="p95">—</b><span class="tk-st-u">ms</span></span></div>
     </div>
   `
   grid.appendChild(row)

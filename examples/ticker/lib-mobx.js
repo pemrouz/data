@@ -69,9 +69,14 @@ export default {
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
+        const r0 = performance.now()
+        // .get() forces the mobx computed to recompute if its deps
+        // invalidated since the last read — that's the bulk of the
+        // work this lib does per cycle, and it MUST be inside the
+        // timed block to be counted.
         renderSectors(sectorEl, sectorTotals.get(), sectorOrder)
         renderTopMovers(topEl, topMovers.get())
-        tracker.markUpdate()
+        tracker.sampleRender(performance.now() - r0)
       })
     }
 

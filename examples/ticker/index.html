@@ -19,13 +19,15 @@
     <p class="frame">
       Each row receives identical batches of <code>{symbol, sector, price,
       volume, pctChg, time}</code> ticks and maintains the same three views
-      using its own reactive primitives: <b>top movers</b> (top 5 by
-      |%chg|), <b>sector volume</b> (rolling sum over the last
-      <span data-stat="window">—</span> ticks), and <b>throughput</b>
-      (ticks ingested per second). The strip on the right shows live ingest
-      latency — tick batch → next paint, rolling p50 / p95 over the last
-      100 batches. Drag the rate slider to push the libs harder; the ones
-      doing O(n) rebuilds per tick fall behind first.
+      using its own reactive primitives: <b>top 5 by % change</b>, <b>sector
+      volume</b> (rolling sum over the last
+      <span data-stat="window">—</span> ticks), and <b>throughput</b> (ticks
+      ingested per second). The strip on the right shows the wall-clock
+      cost of each library's <code>ingest(batch)</code> call, rolling p50 /
+      p95 over the last 100 batches — directly comparable across rows
+      because it's just the lib's reactive layer doing its work. Drag the
+      rate slider to push the libs harder; the ones doing O(n) rebuilds
+      per tick fall behind first.
     </p>
     <div class="tk-controls">
       <label class="tk-ctrl">

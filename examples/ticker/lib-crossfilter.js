@@ -51,30 +51,21 @@ export default {
 
     const sectorOrder = opts.sectorOrder
 
-    let topScheduled = false
-    function renderTop() {
-      if (topScheduled) return
-      topScheduled = true
+    let scheduled = false
+    function scheduleRender() {
+      if (scheduled) return
+      scheduled = true
       requestAnimationFrame(() => {
-        topScheduled = false
+        scheduled = false
+        const r0 = performance.now()
         const arr = []
         for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
         arr.sort((a, b) => b.pctChg - a.pctChg)
         renderTopMovers(topEl, arr)
-        tracker.markUpdate()
-      })
-    }
-
-    let secScheduled = false
-    function renderSec() {
-      if (secScheduled) return
-      secScheduled = true
-      requestAnimationFrame(() => {
-        secScheduled = false
         const totals = {}
         for (const { key, value } of sectorGroup.all()) totals[key] = value
         renderSectors(sectorEl, totals, sectorOrder)
-        tracker.markUpdate()
+        tracker.sampleRender(performance.now() - r0)
       })
     }
 
@@ -101,8 +92,7 @@ export default {
         // the documented window size, which would muddy the comparison.
         const cutoff = counter - WINDOW
         if (cutoff > 0) cf.remove(d => d.id < cutoff)
-        renderSec()
-        renderTop()
+        scheduleRender()
       },
     }
   },

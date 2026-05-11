@@ -51,6 +51,11 @@ export default {
       return arr
     })
 
+    // svelte/store fires derived callbacks eagerly during the subscriber
+    // notification path — which runs inside the `version.update(...)`
+    // call from ingest. That means the O(WINDOW) walk happens *inside*
+    // the ingest call's wall-clock, and main.js's sampleIngest already
+    // captures it. The rAF render below is just the DOM write.
     let latestTotals = {}
     let latestMovers = []
     let scheduled = false
@@ -59,9 +64,10 @@ export default {
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
+        const r0 = performance.now()
         renderSectors(sectorEl, latestTotals, sectorOrder)
         renderTopMovers(topEl, latestMovers)
-        tracker.markUpdate()
+        tracker.sampleRender(performance.now() - r0)
       })
     }
 

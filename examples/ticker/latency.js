@@ -1,57 +1,65 @@
-// Per-row ingest latency. Measures "tick batch arrived → next paint can
-// happen" — the same end-of-task pattern multidim uses, just keyed on a
-// batch instead of a pointermove.
+// Per-row compute tracker — total reactive work the lib does per render
+// cycle. Two halves to capture:
 //
-// Why the microtask trick (copied from examples/multidim/latency.js):
-//   Some libs run all their derived views synchronously inside the
-//   ingest call; some (vue-reactivity, mobx with scheduled reactions)
-//   push some work into microtasks within the same macrotask. Recording
-//   on the *first* downstream update would credit only the prompt path
-//   and under-report the others. By scheduling a microtask in markIngest
-//   and reading performance.now() then, we capture the full cascade
-//   regardless of internal scheduling.
+//   sampleIngest(ms)  — main.js times each lib.ingest(batch) call.
+//   sampleRender(ms)  — each lib's rAF render callback times itself
+//                        (including any lazy computed reads inside it).
 //
-// Two adapters vs multidim:
-//   1. The "input" is the moment the generator hands us a batch — we
-//      record one timestamp per batch, not per tick. The perceptually
-//      relevant number is "how long after the batch arrived was the page
-//      ready to paint", not "how long per individual tick".
-//   2. No coalescing of stale inputs — every batch is distinct (it's the
-//      lib's job to keep up). If markIngest never gets a corresponding
-//      cascade (lib silently dropped the work), we'll see queue depth
-//      growing in `pending`; we surface that as a separate "behind"
-//      indicator rather than poisoning the latency number with infinite
-//      samples.
+// On each sampleRender we close out a cycle: sample = (accumulated
+// ingest time since last render) + render time. The accumulator
+// matters because a rAF can coalesce multiple ingests — eager work
+// happens N times, lazy work once. Summing both halves prevents the
+// metric from quietly favouring "defer everything to rAF" patterns
+// (which would otherwise look free here even though they do the same
+// total CPU work).
+//
+// Bias notes:
+//
+//   The previous tracker measured "batch arrival → next paint" via an
+//   end-of-task microtask, like the brush metric in examples/multidim.
+//   That worked for multidim because each library responds to its own
+//   input (a pointermove on its own chart). For ticker every library
+//   sees the SAME batch in the same outer event loop and they all
+//   paint in the same shared rAF cycle — so whichever lib went first
+//   in the loop wore everyone's downstream wait as its own latency.
+//   Compute time per cycle is ordering-independent: each lib's
+//   ingest and each lib's render are isolated measurements of just
+//   that lib's reactive cascade.
+//
+//   The intermediate "ingest only" metric (one commit ago) flipped
+//   the bias the other way: libs that defer compute to rAF (mobx,
+//   solid, vue, preact-signals, react) reported near-zero ingest time
+//   while doing the actual O(WINDOW) walk inside the rAF callback
+//   where it wasn't being timed. data's eager cascade landed
+//   entirely inside ingest and looked expensive by comparison even
+//   when the total CPU per cycle was similar or smaller.
 
 export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   const samples = []
-  let pendingStart = -1       // perf.now() of the most recent ingest
-  let pendingCount = 0        // ingests not yet observed by a paint
-  let cascadeScheduled = false
+  let pendingIngest = 0   // accumulated ingest ms since the last render
 
   const p50El = rowEl.querySelector('[data-stat=p50]')
   const p95El = rowEl.querySelector('[data-stat=p95]')
 
-  function markIngest() {
-    pendingStart = performance.now()
-    pendingCount++
+  function sampleIngest(ms) { pendingIngest += ms }
+
+  function sampleRender(ms) {
+    samples.push(pendingIngest + ms)
+    if (samples.length > capacity) samples.shift()
+    pendingIngest = 0
+    renderStats()
   }
 
-  // Libraries call this once per render pass (any DOM-touching update is
-  // fine; the tap callback in lib-data.js, the React commit, etc.).
-  function markUpdate() {
-    if (pendingStart < 0 || cascadeScheduled) return
-    cascadeScheduled = true
-    queueMicrotask(() => {
-      const t = performance.now()
-      samples.push(t - pendingStart)
-      if (samples.length > capacity) samples.shift()
-      pendingStart = -1
-      pendingCount = 0
-      cascadeScheduled = false
-      renderStats()
-    })
-  }
+  // Back-compat aliases. The original API had `markIngest` / `markUpdate`
+  // (no-args) called from inside lib files; some rows still call them.
+  // Treat them as no-ops — the real measurement happens via
+  // sampleIngest (from main.js) and sampleRender (from each lib's rAF).
+  function markIngest() {}
+  function markUpdate() {}
+  // `sample(ms)` was the public name during the ingest-only phase;
+  // accept it as a synonym for sampleIngest so main.js doesn't
+  // accidentally drop measurements during the rename.
+  function sample(ms) { sampleIngest(ms) }
 
   function renderStats() {
     if (!samples.length) return
@@ -64,14 +72,12 @@ export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
 
   function reset() {
     samples.length = 0
-    pendingStart = -1
-    pendingCount = 0
-    cascadeScheduled = false
+    pendingIngest = 0
     if (p50El) p50El.textContent = '—'
     if (p95El) p95El.textContent = '—'
   }
 
-  return { markIngest, markUpdate, reset, samples, get behind() { return pendingCount } }
+  return { sampleIngest, sampleRender, sample, markIngest, markUpdate, reset, samples }
 }
 
 function fmt(n) {

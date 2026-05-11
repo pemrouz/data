@@ -70,10 +70,16 @@ const App = forwardRef(function App({ topEl, sectorEl, tracker, sectorOrder, win
     return arr
   })
 
+  // React doesn't go through requestAnimationFrame — the commit phase
+  // runs synchronously after setState resolves and useLayoutEffect runs
+  // between commit and paint, the same window every other peer's rAF
+  // callback runs in. Time it like a rAF render so the compute metric
+  // captures the per-cycle reactive work end-to-end.
   useLayoutEffect(() => {
+    const r0 = performance.now()
     renderSectors(sectorEl, sectorTotals, sectorOrder)
     renderTopMovers(topEl, topMovers)
-    tracker.markUpdate()
+    tracker.sampleRender(performance.now() - r0)
   })
 
   return null

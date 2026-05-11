@@ -53,15 +53,17 @@ export default {
 
     let scheduled = false
     const runner = effect(() => {
-      const totals = sectorTotals.value
-      const movers = topMovers.value
+      // Read computeds inside the effect to subscribe; real recompute
+      // work happens in the timed rAF body below.
+      sectorTotals.value; topMovers.value
       if (scheduled) return
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
-        renderSectors(sectorEl, totals, sectorOrder)
-        renderTopMovers(topEl, movers)
-        tracker.markUpdate()
+        const r0 = performance.now()
+        renderSectors(sectorEl, sectorTotals.value, sectorOrder)
+        renderTopMovers(topEl, topMovers.value)
+        tracker.sampleRender(performance.now() - r0)
       })
     })
     row._vueRunner = runner

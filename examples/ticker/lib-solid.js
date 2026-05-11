@@ -65,15 +65,21 @@ export default {
       // render strategy identical across rows.
       let scheduled = false
       createEffect(() => {
-        const totals = sectorTotals()
-        const movers = topMovers()
+        // Capturing the memo reads here forces solid to track them as
+        // deps — but the actual recompute happens inside the rAF body
+        // below (where the memo's .read() inside renderSectors et al
+        // would force it). We deliberately capture references outside
+        // the rAF and read them inside, so the work shows up in the
+        // timed block.
+        sectorTotals(); topMovers()
         if (scheduled) return
         scheduled = true
         requestAnimationFrame(() => {
           scheduled = false
-          renderSectors(sectorEl, totals, sectorOrder)
-          renderTopMovers(topEl, movers)
-          tracker.markUpdate()
+          const r0 = performance.now()
+          renderSectors(sectorEl, sectorTotals(), sectorOrder)
+          renderTopMovers(topEl, topMovers())
+          tracker.sampleRender(performance.now() - r0)
         })
       })
 
