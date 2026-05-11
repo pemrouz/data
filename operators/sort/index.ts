@@ -157,10 +157,17 @@ export class ZAValue extends Operator {
         super.BI0A([n - 1, p.value[sorted[n - 1]]])
       } else if (oidx < n && nidx < n) {
         // Both ranks fall inside the visible window: this is a rotation
-        // of the element from oidx to nidx. Emit a single move event so
-        // sinks that care about identity (DOMSink uses insertBefore on
-        // the same element) preserve it; sinks that don't fall back to
-        // BU1 over the affected range automatically.
+        // of the element from oidx to nidx. Refresh the value at oidx
+        // first — whole-row replacement (`p.value[name] = newObj` rather
+        // than nested mutation of an existing row) leaves view.value at
+        // the old reference, which would then ride the BMV1 splice to
+        // the new rank. The nested-mutation case (`row.col = …`) is
+        // unaffected: value === p.value[name] is the same reference
+        // that's already in view.value, the BU1 is a no-op shuffle. Then
+        // emit the move event so sinks that care about identity (DOMSink
+        // uses insertBefore on the same element) preserve it; sinks
+        // without BMV1 fall back to BU1 over the affected range.
+        super.BU1([oidx, value])
         super.BMV1([oidx, nidx])
       }
     }
