@@ -11,6 +11,7 @@ const WINDOW_N = 50_000  // rolling-window size for sector volume aggregate
 
 const LIBS = [
   { src: './lib-data.js' },
+  { src: './lib-crossfilter.js' },
 ]
 
 const grid = document.querySelector('#rows')
