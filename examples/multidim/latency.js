@@ -1,35 +1,40 @@
-// Per-row brush latency tracker. Measures `pointermove → first chart update
-// that reflects it` — i.e. how long the user waits between moving the mouse
-// and seeing the brush respond. Rolling p50 / p95 over the last `window`
-// samples; live-updates the row's stat displays.
+// Per-row brush latency tracker. Measures `latest pointermove → first chart
+// update that reflects it` — i.e. how stale is each paint relative to the
+// user's most recent input position. Rolling p50 / p95 over the last
+// `window` samples; live-updates the row's stat displays.
 //
-// Why this metric and not "input → next paint":
+// Why "latest input → paint" and not "every input → paint":
 //
-//   The earlier dual-rAF approach measured `pointermove → next post-paint
-//   frame`, which sounds right but two things bias it badly:
+//   An earlier version of this tracker recorded one sample *per pending
+//   pointermove* when a paint fired. For an rAF-coalesced library (data:
+//   `filters[name].raf()` defers the write to the next frame) that means
+//   a single paint records 2-16 samples — one per pointermove that
+//   piled up since the previous paint. The oldest sample in each batch
+//   carries `≈ rAF wait + cascade` of "wait time" even though the input
+//   it represents was *superseded* by newer pointermoves before any
+//   paint reflecting it could have rendered. The user only ever
+//   perceives the latest input being reflected (that's why the brush
+//   feels smooth), but the old p95 kept reporting the queue-depth tail.
 //
-//   1. requestAnimationFrame timing isn't anchored to vsync the way you'd
-//      hope — on high-refresh displays a nested rAF pair can complete in
-//      <5ms, dragging every measurement toward zero independent of what
-//      the library actually did.
+//   Synchronous libraries (crossfilter and friends) wrote filters on
+//   every pointermove, so K=1 per paint and the old metric matched
+//   per-paint freshness incidentally. The bias kicked in only for
+//   batched libraries — i.e. the comparison was unfair.
 //
-//   2. With high-rate pointer events (1000Hz mice / trackpads) and a slow
-//      library that batches updates per frame, many pointermoves arrive
-//      *late* in a batch — close to the eventual paint. They report sub-
-//      millisecond latency even though the brush is visibly stuttering,
-//      because the *individual* input did happen close to a paint, even
-//      if no chart update for that specific input ever rendered.
+//   The per-paint-freshness metric is honest for both: each paint
+//   records exactly one sample, `paint_time - newest_pending_input`.
+//   Sync libs see the same numbers as before (K=1). Batched libs no
+//   longer pay for inputs that were already overwritten before any
+//   paint could have shown them.
 //
-// Measuring `input → chart-update` instead is direct: the chart helper
-// notifies us via `markUpdate` every time `setBars` runs (which is
-// exactly when the SVG path mutates). Inputs that piled up behind a slow
-// reactive cascade get high latencies because they wait for their cascade
-// to fire. Sync libs that update on every pointermove get tiny latencies.
-// React's useLayoutEffect path goes through React's reconciler before
-// touching the chart, so its cost shows up here directly.
+// requestAnimationFrame timing notes: rAF doesn't anchor to vsync as
+// reliably as you'd hope on high-refresh displays. The metric here
+// doesn't depend on it — `markUpdate` fires when `setBars` actually
+// mutates the SVG path, which is direct.
 //
 // Multiple charts per row → each setBars notifies; we only credit the
-// first one in a batch (the rest are within microseconds anyway).
+// first one in a batch (subsequent setBars calls in the same cascade
+// find `pending` empty after the first one cleared it).
 
 export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   const samples = []
@@ -52,10 +57,14 @@ export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   function markUpdate() {
     if (!pending.length) return
     const t = performance.now()
-    for (const start of pending) {
-      samples.push(t - start)
-      if (samples.length > capacity) samples.shift()
-    }
+    // Per-paint freshness: only credit the most recent input. Older
+    // pendings were superseded — they never had a paint that reflected
+    // *them* specifically; the user moved on before that paint could
+    // have rendered. Charging them latency would be charging queue
+    // depth, not perceived responsiveness.
+    const latest = pending[pending.length - 1]
+    samples.push(t - latest)
+    if (samples.length > capacity) samples.shift()
     pending = []
     renderStats()
   }
