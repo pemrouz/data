@@ -161,12 +161,19 @@ export class Value {
   // index; surviving rows shift down. The downstream BR1 carries the original
   // (pre-shift) name so sinks can identify which element left, but the
   // underlying array is already spliced by the time the View dispatches.
+  //
+  // Splice only if this operator owns its view.value — when the value is a
+  // reference shared with the upstream (the common case for pass-through
+  // operators like tap, which point view.value at p.value via XU0),
+  // upstream has already spliced the array and re-splicing here shifts
+  // every survivor one position further than intended.
   BR1A(R1){
+    const owns = this.view.value !== this.p?.value
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i]
       const value = this.view.value?.[name]
-      this.view.value.splice(name, 1)
+      if (owns) this.view.value.splice(name, 1)
       NR1.push(name)
       NR1.push(value)
     }
@@ -288,14 +295,23 @@ export class Value {
   // we record the resulting index back into I0 so downstream sinks know
   // where the row landed. Defined `at` means splice — surviving elements at
   // that position and beyond shift up.
+  //
+  // Splice only if this operator owns its view.value (same shared-ref
+  // guard as BR1A / BMV1 — see comment on BR1A).
   BI0A(I0){
+    const owns = this.view.value !== this.p?.value
     for (let i = 0; i < I0.length; i+=2) {
       const at = I0[i]
       const value = I0[i+1]
-      if (at === undefined)
-        I0[i] = ''+(this.view.value.push(value)-1)
-      else
+      if (at === undefined) {
+        // For push we still need to record the resulting index; for the
+        // pass-through case the upstream has already pushed, so the
+        // post-push length minus 1 is the same index either way.
+        if (owns) I0[i] = ''+(this.view.value.push(value)-1)
+        else      I0[i] = ''+(this.view.value.length-1)
+      } else if (owns) {
         this.view.value.splice(at, 0, value)
+      }
     }
     this.view.BI0(I0)
   }
@@ -305,12 +321,17 @@ export class Value {
   // than emulating the rotation as N value-update events because sinks
   // that care about identity (DOMSink uses insertBefore on the same
   // <li>) keep the existing entity rather than tearing down + rebuilding.
+  //
+  // Splice only if this operator owns its view.value (same shared-ref
+  // guard as BR1A / BI0A — see comment on BR1A).
   BMV1(M1) {
-    for (let i = 0; i < M1.length; i += 2) {
-      const from = +M1[i]
-      const to = +M1[i + 1]
-      const [v] = this.view.value.splice(from, 1)
-      this.view.value.splice(to, 0, v)
+    if (this.view.value !== this.p?.value) {
+      for (let i = 0; i < M1.length; i += 2) {
+        const from = +M1[i]
+        const to = +M1[i + 1]
+        const [v] = this.view.value.splice(from, 1)
+        this.view.value.splice(to, 0, v)
+      }
     }
     this.view.BMV1(M1)
   }

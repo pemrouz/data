@@ -25,6 +25,29 @@ test('sort (za) - whole-row replacement inside window updates value at new rank'
   same(top[value], [{ pctChg: 5.0 }, { pctChg: 4.0 }, { pctChg: 3.0 }])
 })
 
+// With a tap operator subscribed (or any pass-through Operator
+// downstream), in-window rotations used to double-splice the
+// materialised view: the source operator (za) spliced its view.value
+// in Operator.BMV1, then dispatched view.BMV1 to the tap, whose
+// BMV1 → super.BMV1 spliced THE SAME ARRAY again (tap.view.value
+// shares the reference via Operator.XU0). The shared-ref guard in
+// Operator.BR1A/BI0A/BMV1 gates the splice on `view.value !== p.value`
+// so pass-through operators don't re-mutate the shared array.
+test('sort (za) - in-window rotation with tap downstream stays consistent', () => {
+  const data = $({})
+  for (const s of ['A', 'B', 'C', 'D', 'E']) data[s] = { pctChg: 'ABCDE'.indexOf(s) + 1 }
+  const top = data.za('pctChg', 5)
+  let observed = null
+  const sink = top.tap(() => { observed = top[value] })
+  same(top[value], [{ pctChg: 5 }, { pctChg: 4 }, { pctChg: 3 }, { pctChg: 2 }, { pctChg: 1 }])
+
+  // A jumps from rank 4 to rank 0.
+  data['A'] = { pctChg: 6 }
+  same(top[value], [{ pctChg: 6 }, { pctChg: 5 }, { pctChg: 4 }, { pctChg: 3 }, { pctChg: 2 }])
+  same(observed, top[value])
+  void sink
+})
+
 // Larger universe with limit < universe size. The previous (smaller)
 // test happened to have n >= universe so every BU1 stayed in-window
 // (the BU1+BMV1 branch). With 8 entries and n=3 we exercise out-to-in,
