@@ -1,44 +1,50 @@
-// Per-row brush latency tracker. Measures `latest pointermove → first chart
-// update that reflects it` — i.e. how stale is each paint relative to the
-// user's most recent input position. Rolling p50 / p95 over the last
-// `window` samples; live-updates the row's stat displays.
+// Per-row brush latency tracker. Measures `latest pointermove → end of the
+// JS task that contains the chart updates` — i.e. when the browser is
+// finally ready to paint everything the filter change caused. Rolling p50
+// / p95 over the last `window` samples; live-updates the row's stat
+// displays.
 //
-// Why "latest input → paint" and not "every input → paint":
+// Why end-of-task and not first-setBars:
 //
-//   An earlier version of this tracker recorded one sample *per pending
-//   pointermove* when a paint fired. For an rAF-coalesced library (data:
-//   `filters[name].raf()` defers the write to the next frame) that means
-//   a single paint records 2-16 samples — one per pointermove that
-//   piled up since the previous paint. The oldest sample in each batch
-//   carries `≈ rAF wait + cascade` of "wait time" even though the input
-//   it represents was *superseded* by newer pointermoves before any
-//   paint reflecting it could have rendered. The user only ever
-//   perceives the latest input being reflected (that's why the brush
-//   feels smooth), but the old p95 kept reporting the queue-depth tail.
+//   An earlier version recorded the sample on the first `markUpdate` call
+//   (= first setBars in the cascade). That works for libs where all
+//   chart updates happen close together — crossfilter (sub-ms per group),
+//   the data lib (incremental everything, ~5ms cascade), React (single
+//   commit phase under useLayoutEffect). It breaks for libs that
+//   re-evaluate each chart's histogram from scratch in sequence:
+//   vue-reactivity, mobx, preact-signals and rxjs all walk the 231k-row
+//   source once per histogram (4 histograms + active + top5 = 6 passes).
+//   The *first* chart's setBars fires after one pass (~10-20ms); the
+//   remaining 5 passes spill over another 50-100ms before the browser
+//   gets to paint. The user perceives the row as "slow" because they
+//   see the brush stutter through the remaining updates; the metric
+//   saw only the first update and reported a misleadingly fast number.
 //
-//   Synchronous libraries (crossfilter and friends) wrote filters on
-//   every pointermove, so K=1 per paint and the old metric matched
-//   per-paint freshness incidentally. The bias kicked in only for
-//   batched libraries — i.e. the comparison was unfair.
+//   Solution: on the first `markUpdate` of a cascade, schedule a
+//   microtask. Microtasks run *after* the current macrotask returns —
+//   i.e. after every synchronous setBars in this filter-change cascade,
+//   after React's commit phase, after vue's last effect, etc. The
+//   sample is recorded then. The window is `microtask_fire_time -
+//   latest_pending_input`, which captures the full per-cascade cost
+//   regardless of how many sequential setBars happened inside it.
 //
-//   The per-paint-freshness metric is honest for both: each paint
-//   records exactly one sample, `paint_time - newest_pending_input`.
-//   Sync libs see the same numbers as before (K=1). Batched libs no
-//   longer pay for inputs that were already overwritten before any
-//   paint could have shown them.
+//   For libs that do schedule their work onto a later frame
+//   (effectively async) — none in the current peer pool, but a future
+//   addition might — the microtask would fire before any setBars
+//   landed and miss the cascade entirely. If that becomes relevant
+//   we'd swap microtask for `requestAnimationFrame(() =>
+//   queueMicrotask(...))` to bridge across the next frame's task.
 //
-// requestAnimationFrame timing notes: rAF doesn't anchor to vsync as
-// reliably as you'd hope on high-refresh displays. The metric here
-// doesn't depend on it — `markUpdate` fires when `setBars` actually
-// mutates the SVG path, which is direct.
-//
-// Multiple charts per row → each setBars notifies; we only credit the
-// first one in a batch (subsequent setBars calls in the same cascade
-// find `pending` empty after the first one cleared it).
+// Per-paint freshness (the previous bias fix): we still credit only
+// the most recent pending input — older pointermoves were superseded
+// by newer ones before any paint could have reflected them. Charging
+// them latency would be charging queue depth, not perceived
+// responsiveness.
 
 export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   const samples = []
   let pending = []
+  let cascadeScheduled = false
 
   const p50El = rowEl.querySelector('[data-stat=p50]')
   const p95El = rowEl.querySelector('[data-stat=p95]')
@@ -55,18 +61,20 @@ export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   }
 
   function markUpdate() {
-    if (!pending.length) return
-    const t = performance.now()
-    // Per-paint freshness: only credit the most recent input. Older
-    // pendings were superseded — they never had a paint that reflected
-    // *them* specifically; the user moved on before that paint could
-    // have rendered. Charging them latency would be charging queue
-    // depth, not perceived responsiveness.
-    const latest = pending[pending.length - 1]
-    samples.push(t - latest)
-    if (samples.length > capacity) samples.shift()
-    pending = []
-    renderStats()
+    if (!pending.length || cascadeScheduled) return
+    cascadeScheduled = true
+    // Microtask: runs after this macrotask (the cascade) completes. By
+    // then every synchronous setBars / effect / commit in the cascade
+    // has finished — which is the moment the browser can paint.
+    queueMicrotask(() => {
+      const t = performance.now()
+      const latest = pending[pending.length - 1]
+      samples.push(t - latest)
+      if (samples.length > capacity) samples.shift()
+      pending = []
+      cascadeScheduled = false
+      renderStats()
+    })
   }
 
   function renderStats() {
@@ -82,6 +90,7 @@ export function makeLatencyTracker(rowEl, { window: capacity = 100 } = {}) {
   function reset() {
     samples.length = 0
     pending = []
+    cascadeScheduled = false
     if (p50El) p50El.textContent = '—'
     if (p95El) p95El.textContent = '—'
     if (cntEl) cntEl.textContent = '0'
