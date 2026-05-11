@@ -15,6 +15,7 @@ const LIBS = [
   { src: './lib-mobx.js' },
   { src: './lib-rxjs.js' },
   { src: './lib-react.js' },
+  { src: './lib-solid.js' },
 ]
 
 const grid = document.querySelector('#rows')
