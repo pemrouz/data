@@ -26,6 +26,7 @@
 
 import React, { useState, useRef, useMemo, useLayoutEffect, useImperativeHandle, forwardRef } from 'react'
 import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { renderTopMovers, renderSectors } from './views.js'
 
 const App = forwardRef(function App({ topEl, sectorEl, tracker, sectorOrder, windowSize }, ref) {
@@ -43,7 +44,24 @@ const App = forwardRef(function App({ topEl, sectorEl, tracker, sectorOrder, win
         w.push(t)
       }
       if (w.length > windowSize) w.splice(0, w.length - windowSize)
-      setVersion(v => v + 1)
+      // flushSync forces React to render synchronously inside this call.
+      // Without it, setVersion is auto-batched (React 18 default for any
+      // setState outside a React event handler — and our ingest is
+      // triggered from a setInterval, not a React event). The render
+      // phase, including useMemo's O(WINDOW) walk, would otherwise run
+      // in a microtask AFTER ingest returns, AFTER main.js's sampleIngest
+      // has already captured a near-zero "ingest sync" timing, and
+      // wouldn't show up in the cpu p50 metric. The useLayoutEffect body
+      // (timed by sampleRender) only covers the DOM writes — not the
+      // useMemo recompute that ran BEFORE it.
+      //
+      // Trade-off: a real React app would accept the batching (multiple
+      // batches → one render, smoother under load) rather than reach for
+      // flushSync. We force sync here so the per-batch CPU cost is
+      // measured the same way every other lib's per-batch CPU cost is
+      // measured. The number reported is what React's reactive layer
+      // ACTUALLY costs per batch — just made visible.
+      flushSync(() => setVersion(v => v + 1))
     },
   }), [windowSize])
 
@@ -70,11 +88,12 @@ const App = forwardRef(function App({ topEl, sectorEl, tracker, sectorOrder, win
     return arr
   })
 
-  // React doesn't go through requestAnimationFrame — the commit phase
-  // runs synchronously after setState resolves and useLayoutEffect runs
-  // between commit and paint, the same window every other peer's rAF
-  // callback runs in. Time it like a rAF render so the compute metric
-  // captures the per-cycle reactive work end-to-end.
+  // With flushSync above, the render phase + commit + useLayoutEffect
+  // all run inside the same `setVersion` call. main.js's sampleIngest
+  // captures all of that — useMemo recompute is between render() and
+  // useLayoutEffect, and useLayoutEffect itself runs synchronously
+  // before paint. So sampleRender here is just the DOM writes (cheap
+  // and parallel to every other peer's rAF body cost).
   useLayoutEffect(() => {
     const r0 = performance.now()
     renderSectors(sectorEl, sectorTotals, sectorOrder)
