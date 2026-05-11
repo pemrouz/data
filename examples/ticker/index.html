@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>streaming ticks — live comparisons — data</title>
+  <meta name="description" content="A streaming market-data tape demo, rebuilt once per reactive library — data, crossfilter, MobX, RxJS, React, Solid, Preact-signals, Vue, Svelte/store — fed the same synthetic tick stream, with live tick→paint latency captured per row.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+  <header class="tk-hero">
+    <h1>streaming ticks — live</h1>
+    <p class="lede">
+      A synthetic market-data tape, rebuilt once per reactive library, all
+      reading the same stream.
+    </p>
+    <p class="frame">
+      Each row receives identical batches of <code>{symbol, sector, price,
+      volume, pctChg, time}</code> ticks and maintains the same three views
+      using its own reactive primitives: <b>top movers</b> (top 5 by
+      |%chg|), <b>sector volume</b> (rolling sum over the last
+      <span data-stat="window">—</span> ticks), and <b>throughput</b>
+      (ticks ingested per second). The strip on the right shows live ingest
+      latency — tick batch → next paint, rolling p50 / p95 over the last
+      100 batches. Drag the rate slider to push the libs harder; the ones
+      doing O(n) rebuilds per tick fall behind first.
+    </p>
+    <div class="tk-controls">
+      <label class="tk-ctrl">
+        <span class="tk-ctrl-k">rate</span>
+        <input id="rate" type="range" min="2" max="5" step="0.05" value="3.7">
+        <span class="tk-ctrl-v"><b id="rate-out">—</b> ticks/s</span>
+      </label>
+      <label class="tk-ctrl">
+        <span class="tk-ctrl-k">symbols</span>
+        <span class="tk-ctrl-v"><b id="symbols-out">—</b></span>
+      </label>
+      <label class="tk-ctrl">
+        <span class="tk-ctrl-k">window</span>
+        <span class="tk-ctrl-v"><b id="window-out">—</b> ticks</span>
+      </label>
+      <button id="toggle" class="tk-btn">pause</button>
+    </div>
+  </header>
+
+  <main id="rows"></main>
+
+  <footer>
+    <span><a href="../../comparisons.html">← comparisons</a></span>
+    <span><a href="../multidim/">multidim (brushable)</a></span>
+    <span><a href="../../">home</a></span>
+    <span class="spacer"></span>
+    <span class="lic">MIT</span>
+  </footer>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "data":         "../../dist/index.js",
+      "data/full":    "../../dist/full.js",
+      "crossfilter2": "https://esm.sh/crossfilter2@1.5.4",
+      "mobx":         "https://esm.sh/mobx@6.15.3",
+      "rxjs":         "https://esm.sh/rxjs@7.8.2",
+      "rxjs/operators": "https://esm.sh/rxjs@7.8.2/operators",
+      "react":          "https://esm.sh/react@19.2.6",
+      "react-dom":      "https://esm.sh/react-dom@19.2.6",
+      "react-dom/client": "https://esm.sh/react-dom@19.2.6/client",
+      "solid-js":       "https://esm.sh/solid-js@1.9.12",
+      "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",
+      "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34",
+      "svelte/store":   "https://esm.sh/svelte@5.55.5/store"
+    }
+  }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
