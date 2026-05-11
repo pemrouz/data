@@ -355,10 +355,19 @@ export class Operator extends Value {}
 // `connect([])`'s return alive in a local var to observe events.
 export class View {
   constructor(res){
+    // Initialise *all* fields here, including ones only used by child views
+    // (`p`, `name`) and the data slot (`value`). Without this, root views
+    // and child views end up with different V8 hidden classes because the
+    // child-only fields are assigned post-construction in `View.child`,
+    // making every method on `View` (`XU0`, `BU1`, `BR1`, etc.) see at least
+    // two shapes at its call sites — polymorphic ICs, no inlining.
     this.res = res
     this.key = []
     this.sinks = new Set
     this.views = new Map
+    this.p = undefined
+    this.name = undefined
+    this.value = undefined
   }
 
   // Child views are produced lazily when ViewProxy.get sees a property access.
@@ -663,6 +672,7 @@ class LinkedView extends View {
   // `value` and `res` are read-through to the source — the LinkedView itself
   // never holds data, it's a transparent forwarder.
   get value(){ return this.src.value }
+  set value(v){ /* read-through getter; constructor's init falls here */ }
   get res(){ return this }
   set res(v){ }
 }
