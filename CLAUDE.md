@@ -73,13 +73,18 @@ Tests run TypeScript directly via `--experimental-strip-types` — no compile st
 
 ## Adding a new operator
 
-1. Extend `Operator` from [core.ts:233](core.ts#L233), or `RowOperator` from [row.ts:5](row.ts#L5) if it processes each row independently.
-2. For `RowOperator`: implement `process(value, name, old_val) → value | undefined` (return `undefined` to exclude the row). [operators/filter/index.ts:41](operators/filter/index.ts#L41) and [operators/map/index.ts](operators/map/index.ts) are the canonical examples.
-3. For `Operator`: implement the notification methods you care about (`XU0`, `BU1`, `BU2`, `BI0`, `BI2`, `XR0`, `BR1`, `BR2`) — see legend below.
-4. Implement a `matches(...args)` method so `createOperator` can dedup repeated calls — [core.ts:20-28](core.ts#L20-L28).
-5. Register the class in [full.ts:30-52](full.ts#L30-L52) so `proxy.<yourOp>(...)` dispatches to it (registrations live on `data/full`, not the lean `data` entry).
+The canonical, full checklist lives in [operators/README.md](operators/README.md#adding-an-operator--checklist) — follow it top-to-bottom. This is a summary so you don't miss any step at a glance:
+
+1. **Code:** `operators/<name>/index.ts` (class + factory; extend `Operator` from [core.ts:233](core.ts#L233) or `RowOperator` from [row.ts:5](row.ts#L5)); `matches(...args)` for dedup; `<name>.test.ts`; `<name>.perf.ts`.
+2. **Dispatch:** register in [full.ts](full.ts) so `proxy.<yourOp>(...)` works.
+3. **Per-operator docs:** `operators/<name>/README.md` covering signatures, examples, behaviour.
+4. **Catalog docs:** add the operator to [operators/README.md](operators/README.md) catalog + dispatch example, [README.md](README.md) operator table + opener blurb, and this file's `## What this is` paragraph and the dedup gotcha (if applicable).
+5. **Peer benchmark (optional):** `comparisons/bench/operators/<name>.bench.ts` mirroring [comparisons/bench/operators/filter.bench.ts](comparisons/bench/operators/filter.bench.ts); then regenerate [operators/BENCHMARK.md](operators/BENCHMARK.md) + the per-op BENCHMARK files via `npm run bench:ops > /tmp/bench.md && node comparisons/bench/operators/_gen-bench-md.mjs /tmp/bench.md`.
+6. **Verify & commit:** `npm test` + `npm run perf` must pass; commit per the working conventions below.
 
 For deeper internals — the View/Sink contract, when each notification method fires, parent/child propagation — see [.claude/architecture.md](.claude/architecture.md).
+
+> **Keep the two checklists in sync.** When the standard changes (e.g. a new doc location is added, like the recent per-op `BENCHMARK.md`), update both this summary AND the canonical list in [operators/README.md](operators/README.md#adding-an-operator--checklist) in the same change.
 
 ## Notification code legend (quick reference)
 

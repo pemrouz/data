@@ -53,13 +53,60 @@ Operators['za']      = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANumbe
 
 So `proxy.filter('done', true)` and `proxy.filter(row => row.done)` resolve to *different* classes via the same `filter` name. Each per-operator README documents the overloads it supports.
 
-## Adding an operator
+## Adding an operator — checklist
 
-1. Extend `Operator` from [../core.ts](../core.ts), or `RowOperator` from [../row.ts](../row.ts) if your operator processes each row independently.
-2. Implement the notification methods you care about (`XU0`, `BU1`, `BI0`, `BR1`, …) — see [.claude/architecture.md](../.claude/architecture.md) for the full code legend, propagation rules, and the **array-source shift contract** every key-indexed operator has to follow.
-3. Add a `matches(...args)` method if you want repeated calls with equivalent args to be deduplicated.
-4. Register the class in [../full.ts](../full.ts) so `proxy.<name>(...)` dispatches to it (registrations live on `data/full`, not the lean `data` entry).
-5. Add `<name>.test.ts` and `<name>.perf.ts` next to the source.
+This is the canonical list of everything that needs to land when a new operator is added. Follow it top-to-bottom; **code** first, then **dispatch**, then **docs**, then **benchmarks** (if applicable), then run the verification and commit per the working conventions in [../CLAUDE.md](../CLAUDE.md). [../CLAUDE.md](../CLAUDE.md)'s `## Adding a new operator` section is a summary that points back here.
+
+### Code — `operators/<name>/`
+
+1. **`index.ts`** — operator class(es) + standalone factory.
+   - Extend `Operator` from [../core.ts](../core.ts), or `RowOperator` from [../row.ts](../row.ts) if you process each row independently.
+   - `RowOperator`: implement `process(value, name, old_val) → value | undefined` (return `undefined` to exclude). Examples: [filter/index.ts](filter/index.ts), [map/index.ts](map/index.ts), [compare/index.ts](compare/index.ts).
+   - `Operator`: implement the notification methods you care about (`XU0`, `BU1`, `BU2`, `BI0`, `BI2`, `XR0`, `BR1`, `BR2`) — see [../.claude/architecture.md](../.claude/architecture.md) for the legend, propagation rules, and the **array-source shift contract** every key-indexed operator has to follow.
+   - Add a `matches(...args)` method if repeated calls with equivalent args should dedup (returns `true` when the cached op should be reused).
+   - Export the class(es) and a standalone factory: `export const opName = (source, ...args) => createOperator(source, OpClass, ...args)`.
+
+2. **`<name>.test.ts`** — unit tests covering: initial filter/transform, mutation paths (BU1/BU2/BI0/BR1 as relevant), edge cases (missing column, non-object source value, etc.), array-source shift if the operator is key-indexed, dedup behaviour if `matches()` is implemented. Use [filter/filter.test.ts](filter/filter.test.ts), [between/between.test.ts](between/between.test.ts), or [compare/compare.test.ts](compare/compare.test.ts) as templates.
+
+3. **`<name>.perf.ts`** — perf tests following the median-of-5 + `ok(elapsed < N)` shape from [filter/filter.perf.ts](filter/filter.perf.ts). Cover setup, single-row update, and batch update. Thresholds are guard rails — don't widen them to make a test pass.
+
+### Dispatch — repo root
+
+4. **[../full.ts](../full.ts)** — import the class(es), then add `Operators['<name>'] = (...) => OpClass` (or a closure that picks a class based on argument shape, like `filter` does). The lean [../index.ts](../index.ts) entry deliberately leaves dispatch empty; `data/full` is what populates it.
+
+### Docs — per-operator + cross-cutting
+
+5. **`<name>/README.md`** — operator-specific docs. Signatures, examples (static + dynamic if applicable), behaviour (mutation handling, dedup, fast paths), and a comparison to nearby operators if there's overlap. Templates: [between/README.md](between/README.md), [compare/README.md](compare/README.md).
+
+6. **[./README.md](README.md)** — add a catalog row to the operator table at the top, and a line to the dispatch example showing the routing.
+
+7. **[../README.md](../README.md)** — add a row to the operator table near the bottom, and mention in the top-of-file blurb if it's user-facing.
+
+8. **[../CLAUDE.md](../CLAUDE.md)** — update:
+   - The opener paragraph's operator list (`## What this is` section).
+   - The dedup gotcha line (in `## Common gotchas`) if the operator has `matches()`.
+   - Any other section that references the set of available operators.
+
+### Benchmarks — `comparisons/bench/operators/`
+
+9. **`<name>.bench.ts`** *(optional but encouraged)* — peer-library comparison harness. Mirror an existing file ([filter.bench.ts](../comparisons/bench/operators/filter.bench.ts) is the canonical template, ~400 lines). Pick peer-library equivalents (e.g. `arr.filter(d => d.col > t)` for a `gt`-shape operator) and run the same workload against each.
+
+10. **Regenerate the BENCHMARK summaries** — after adding `<name>.bench.ts`, run:
+    ```sh
+    npm run bench:ops > /tmp/bench.md
+    node comparisons/bench/operators/_gen-bench-md.mjs /tmp/bench.md
+    ```
+    This patches every `operators/<op>/BENCHMARK.md` in place AND refreshes the top-level [./BENCHMARK.md](BENCHMARK.md) summary.
+
+### Verify & commit
+
+11. **`npm test`** — full suite must pass. New tests in `<name>.test.ts` should be exercised.
+12. **`npm run perf`** — no regressions; new perf tests included.
+13. **Commit per CLAUDE.md's working conventions** — granular commits with detailed messages, presenting each change for review before running `git commit`.
+
+### When this checklist itself changes
+
+If a new step is added to the convention (e.g. the recent addition of per-operator `BENCHMARK.md` and the top-level summary), update this list AND the `## Adding a new operator` section of [../CLAUDE.md](../CLAUDE.md) in the **same change**. Stale checklists mislead future sessions; the two locations should never drift.
 
 ## `connect` (not an operator, but the read path)
 
