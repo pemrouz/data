@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>trades dashboard — live order book — data</title>
+  <meta name="description" content="A streaming trades dashboard rebuilt once per reactive library — data, mobx, crossfilter, rxjs, react, solid, preact-signals, vue-reactivity, svelte/store — fed the same synthetic tick stream over a 10k-row window. Per-row depth chart, price ladder, and live cpu wave.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='2' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%236ee7a8'%3E%E2%96%B2%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+  <header class="tr-hero">
+    <h1>trades dashboard — live</h1>
+    <p class="lede">
+      <b>10 000 limit orders</b> over a rolling window, each
+      <code>{ id, bid, ask }</code>. A drifting <b>regime</b> drives the tick
+      stream — mid-price wanders ±$2 around $75 on one sine wave, half-spread
+      bias cycles tight↔wide on another, bid/ask <b>imbalance</b> oscillates
+      on a third, all incommensurate. Each tick replaces one row's bid or ask
+      with a value drawn from the current regime. Four reactive views per
+      card — <code>liquidCount</code>, <code>avg bid</code>, plus an
+      <b>order book</b> driven by two <code>length(fn)</code> views grouping
+      trades by bid- and ask-price across 15 price levels. Depth chart
+      (cumulative staircase) on the left, price / qty / cum ladder on the
+      right. The cpu wave plots wall-clock per frame over the last 200 frames
+      (60-frame rolling average) against a shared y-axis. Same tick stream
+      fed to every lib; toggle libs on/off with the chips below.
+    </p>
+    <div class="tr-controls">
+      <label class="tr-ctrl">
+        <span class="tr-ctrl-k">rate</span>
+        <input id="rate" type="range" min="1" max="4" step="0.05" value="2.5">
+        <span class="tr-ctrl-v"><b id="rate-out">—</b> ticks/s</span>
+      </label>
+      <label class="tr-ctrl">
+        <span class="tr-ctrl-k">N</span>
+        <span class="tr-ctrl-v">10 000</span>
+      </label>
+      <button id="toggle" class="tr-btn" data-paused="false">pause</button>
+      <div id="lib-toggles" class="lib-toggles"></div>
+    </div>
+  </header>
+
+  <main id="cards" class="cards"></main>
+
+  <footer>
+    <span><a href="../../comparisons.html">← comparisons</a></span>
+    <span><a href="../ticker/">streaming ticks</a></span>
+    <span><a href="../multidim/">multidim (brushable)</a></span>
+    <span><a href="../../">home</a></span>
+    <span class="spacer"></span>
+    <span class="lic">MIT</span>
+  </footer>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "data":         "../../dist/index.js",
+      "data/full":    "../../dist/full.js",
+      "crossfilter2": "https://esm.sh/crossfilter2@1.5.4",
+      "mobx":         "https://esm.sh/mobx@6.15.3",
+      "rxjs":         "https://esm.sh/rxjs@7.8.2",
+      "rxjs/operators": "https://esm.sh/rxjs@7.8.2/operators",
+      "react":          "https://esm.sh/react@19.2.6",
+      "react-dom":      "https://esm.sh/react-dom@19.2.6",
+      "react-dom/client": "https://esm.sh/react-dom@19.2.6/client",
+      "solid-js":       "https://esm.sh/solid-js@1.9.12",
+      "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",
+      "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34",
+      "svelte/store":   "https://esm.sh/svelte@5.55.5/store"
+    }
+  }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
