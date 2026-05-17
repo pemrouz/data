@@ -1,24 +1,17 @@
-// mobx row. Same four derivations as data, but built from `computed`
-// observables that re-walk the full 10k window on every get. dataVersion
-// is an observable.box that ticks bump after each row replace —
-// `dataVersion.get()` is the dependency that invalidates every computed
-// when state changes.
-//
-// Whole-row replace (matches data's BU1 path) for apples-to-apples per-tick
-// work. Mutating in place would let mobx pay less; the replace keeps the
-// comparison honest. Same shape (plain Array<number>) returned from each
-// computed so renderOrderbook handles all libs identically.
+// preact-signals row. Same four derivations as mobx, expressed as
+// pull-based `computed` over a plain trades array + `signal<version>`.
+// `effect()` pulls the computeds to keep them subscribed; render is
+// rAF-coalesced so the comparison is the cost of the reactive walks,
+// not the cost of writing to the DOM.
 
-import { observable, computed, runInAction, configure } from 'mobx'
+import { signal, computed, effect } from '@preact/signals-core'
 import { N, THRESHOLD, PRICE_BINS, priceBucket } from './gen.js'
 import { renderOrderbook, setupOrderbook, setupWaveform, fmtCpu } from './views.js'
 
-configure({ enforceActions: 'never' })
-
 export default {
-  name: 'mobx',
-  version: '6.15.3',
-  tag: 'observable.box<version> + 4 computeds · each walks 10k per get',
+  name: 'preact-signals',
+  version: '1.14.1',
+  tag: 'signal<version> + 4 computed walks · O(N) per get',
 
   mount(card, opts) {
     const obEl   = card.querySelector('[data-target=ob]')
@@ -29,27 +22,27 @@ export default {
     const cpuEl  = card.querySelector('.card-cpu')
 
     const trades = structuredClone(opts.initial)
-    const dataVersion = observable.box(0)
+    const version = signal(0)
     const liquidCount = computed(() => {
-      dataVersion.get()
+      version.value
       let n = 0
       for (let i = 0; i < N; i++) { const t = trades[i]; if (t.ask - t.bid > THRESHOLD) n++ }
       return n
     })
     const avgBid = computed(() => {
-      dataVersion.get()
+      version.value
       let s = 0
       for (let i = 0; i < N; i++) s += trades[i].bid
       return s / N
     })
     const bids = computed(() => {
-      dataVersion.get()
+      version.value
       const out = new Array(PRICE_BINS).fill(0)
       for (let i = 0; i < N; i++) out[priceBucket(trades[i].bid)]++
       return out
     })
     const asks = computed(() => {
-      dataVersion.get()
+      version.value
       const out = new Array(PRICE_BINS).fill(0)
       for (let i = 0; i < N; i++) out[priceBucket(trades[i].ask)]++
       return out
@@ -59,27 +52,30 @@ export default {
     const wave = setupWaveform(waveEl, 'accent', peakEl)
 
     let scheduled = false
-    function scheduleRender() {
+    const dispose = effect(() => {
+      // Subscribe to all four — pulls happen inside the rAF body so the
+      // reads land in the timed window. Reads of computeds outside the
+      // effect's tracking context don't trigger recompute on the same
+      // version, but here the effect re-runs whenever any of them does.
+      liquidCount.value; avgBid.value; bids.value; asks.value
       if (scheduled) return
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
-        renderOrderbook(ob, bids.get(), asks.get())
-        liqEl.textContent = String(liquidCount.get())
-        avgEl.textContent = avgBid.get().toFixed(2)
+        renderOrderbook(ob, bids.value, asks.value)
+        liqEl.textContent = String(liquidCount.value)
+        avgEl.textContent = avgBid.value.toFixed(2)
       })
-    }
+    })
+    card._preactDispose = dispose
 
     return {
       ingest(tick) {
-        trades[tick.idx] = { ...trades[tick.idx], [tick.field]: tick.newValue }
-        runInAction(() => dataVersion.set(dataVersion.get() + 1))
-        scheduleRender()
+        const cur = trades[tick.idx]
+        trades[tick.idx] = { ...cur, [tick.field]: tick.newValue }
+        version.value = version.value + 1
       },
-      read() {
-        void liquidCount.get(); void avgBid.get()
-        void bids.get(); void asks.get()
-      },
+      read() { void liquidCount.value; void avgBid.value; void bids.value; void asks.value },
       pushSample(ms) { wave.push(ms); cpuEl.textContent = fmtCpu(wave.latest) },
       wave,
     }

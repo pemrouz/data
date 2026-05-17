@@ -17,7 +17,14 @@ import { makeInitial, makeTickStream, N } from './gen.js'
 
 const LIBS = [
   { src: './lib-data.js' },
+  { src: './lib-crossfilter.js' },
   { src: './lib-mobx.js' },
+  { src: './lib-rxjs.js' },
+  { src: './lib-react.js' },
+  { src: './lib-solid.js' },
+  { src: './lib-preact.js' },
+  { src: './lib-vue.js' },
+  { src: './lib-svelte.js' },
 ]
 
 const grid = document.querySelector('#cards')

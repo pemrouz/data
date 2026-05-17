@@ -20,7 +20,7 @@
 // (shared with mobx and the seven peers) handles all libs uniformly.
 
 import { $, value } from 'data/full'
-import { N, THRESHOLD, PRICE_BINS, priceBucket, makeInitial } from './gen.js'
+import { THRESHOLD, PRICE_BINS, priceBucket } from './gen.js'
 import { renderOrderbook, setupOrderbook, setupWaveform, fmtCpu } from './views.js'
 
 function flattenLenFnObj(obj) {
