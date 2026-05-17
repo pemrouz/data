@@ -14,6 +14,9 @@ export interface Kernels {
   sum_f64(ptr: number, len: number): number
   between_f64(srcPtr: number, srcLen: number, lo: number, hi: number, outPtr: number): number
   bitmask_and(aPtr: number, bPtr: number, len: number): number
+  filter_gt_f64(srcPtr: number, len: number, threshold: number, maskPtr: number): number
+  max_masked_f64(srcPtr: number, len: number, maskPtr: number): number
+  popcnt_bitmask(maskPtr: number, len: number): number
   ensureBytes(bytes: number): void
   f64View(): Float64Array
   u32View(): Uint32Array
@@ -43,6 +46,9 @@ export function loadKernels(wasmPath?: string): Kernels {
     sum_f64: exports.sum_f64,
     between_f64: exports.between_f64,
     bitmask_and: exports.bitmask_and,
+    filter_gt_f64: exports.filter_gt_f64,
+    max_masked_f64: exports.max_masked_f64,
+    popcnt_bitmask: exports.popcnt_bitmask,
     ensureBytes(bytes: number) {
       const have = memory.buffer.byteLength
       if (have >= bytes) return
