@@ -9,17 +9,18 @@ and **1-arg** (`tap(c => {})`, change-record form). CLAUDE.md notes the
 bare path is 40%+ faster on batch because it skips per-row record
 allocation.
 
-| Library | Setup (ms) | Single (ms) | Batch 1000 (ms) |
-|---|---:|---:|---:|
-| svelte-store | 0.64 | 0.008 | 11.34 |
-| **data** (bare) | 1.03 | **0.009** | **1.97** |
-| rxjs | 1.04 | 0.012 | 13.73 |
-| data (1-arg) | 14.80 | 0.016 | 2.90 |
-| react | 0.82 | 0.056 | 34.22 |
-| preact-signals | 1.87 | 0.409 | 32.32 |
-| solid | 5.33 | 2.12 | 181.33 |
-| mobx | 147.7 | 9.50 | 977.41 |
-| vue-reactivity | 49.89 | 18.28 | 2200.06 |
+| Library | Setup (ms) | Single (ms) | vs data | Batch 1000 (ms) | vs data |
+|---|---:|---:|---:|---:|---:|
+| **data** | 1.09 | **0.007** | — | **2.44** | — |
+| svelte-store | 0.790 | 0.010 | 1.4× | 12.13 | 5.0× |
+| rxjs | 0.732 | 0.010 | 1.4× | 12.03 | 4.9× |
+| data (1-arg) | 16.30 | 0.017 | — | 3.12 | — |
+| react | 1.02 | 0.076 | 10.9× | 46.48 | 19.0× |
+| preact-signals | 1.97 | 0.390 | 55.7× | 32.05 | 13.1× |
+| solid | 2.38 | 1.68 | 240× | 165.36 | 67.8× |
+| mobx | 142.84 | 9.73 | 1390× | 694.70 | 285× |
+| vue-reactivity | 49.12 | 21.97 | 3139× | 2373.72 | 973× |
+
 
 crossfilter omitted — no analog primitive.
 
