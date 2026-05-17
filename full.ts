@@ -20,6 +20,7 @@ import { isArray } from './utils.ts'
 import { Operators } from './core.ts'
 import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } from './operators/filter/index.ts'
 import { BetweenValue } from './operators/between/index.ts'
+import { GtValue, LtValue, GteValue, LteValue } from './operators/compare/index.ts'
 import { ZAColumnValue, ZANumberValue, AZColumnValue, AZNumberValue, LimitValue } from './operators/sort/index.ts'
 import { ToValue } from './operators/to/index.ts'
 import { MapValue } from './operators/map/index.ts'
@@ -45,6 +46,14 @@ Operators['filter']    = (a, b) => typeof a === 'function' ? FilterValue   // fi
                                  : isArray(a)              ? FilterColumnValue // filter(['k','sub'], val?)
                                  : FilterObjectValue                            // filter({k:v,...})
 Operators['between']   = () => BetweenValue
+// One-sided range filters — declarative analogue of `filter(r => r[c] > v)`,
+// but RowOperator-based so ticks are O(1) instead of paying the sort-index
+// maintenance that `between` does. Use when you need a single threshold and
+// don't need the two-sided bracketing `between` provides.
+Operators['gt']        = () => GtValue
+Operators['lt']        = () => LtValue
+Operators['gte']       = () => GteValue
+Operators['lte']       = () => LteValue
 Operators['to']        = () => ToValue
 Operators['map']       = () => MapValue
 // length() counts rows; length(fn) groups by fn(row) and counts each group.

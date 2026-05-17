@@ -1,6 +1,6 @@
 # data
 
-A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
+A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
 
 ```js
 import { $, value } from 'data/full'
@@ -225,7 +225,8 @@ For internals — the View / Sink / notification model — see [.claude/architec
 | Operator | One-liner | Reference |
 |---|---|---|
 | `filter` | rows matching a predicate | [operators/filter/](operators/filter/) |
-| `between` | rows where a column falls in a range | [operators/between/](operators/between/) |
+| `between` | rows where a column falls in a range (sort-indexed; reactive bounds) | [operators/between/](operators/between/) |
+| `gt` / `lt` / `gte` / `lte` | rows where a column compares against a literal threshold (RowOperator; O(1) per tick) | [operators/compare/](operators/compare/) |
 | `za` / `az` / `top` / `limit` | sort and/or limit | [operators/sort/](operators/sort/) |
 | `length` | row count, or grouped counts | [operators/length/](operators/length/) |
 | `sum` / `avg` / `max` / `min` | scalar aggregates over a column or row values | [operators/aggregate/](operators/aggregate/) |
