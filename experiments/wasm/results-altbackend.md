@@ -13,20 +13,23 @@ Scenarios:
 
 ## N = 10,000
 
-| Scenario | unit | lib (serializable args, JS-object rows) | js-columnar (typed) | wasm-columnar | js-cl/lib | wasm/js-cl |
-|---|---|---:|---:|---:|---:|---:|
-| setup | ms | 15.83 | 0.29 | 0.36 | 54.75× | 0.80× |
-| tick | µs/tick | 24.15 | 0.32 | 0.39 | 75.65× | 0.82× |
-| batch | ms | 13.38 | 0.14 | 0.14 | 94.88× | 0.97× |
-| threshold-change | ms | 22.68 | 0.19 | 0.22 | 119.12× | 0.87× |
+| Scenario | unit | lib-between (sort-indexed) | lib-gte (RowOperator) | js-columnar (typed) | wasm-columnar | between/gte | gte/js-cl | wasm/js-cl |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| setup | ms | 15.09 | 7.32 | 0.26 | 0.39 | 2.06× | 27.85× | 0.68× |
+| tick | µs/tick | 25.96 | 11.88 | 0.19 | 0.21 | 2.19× | 63.49× | 0.89× |
+| batch | ms | 11.12 | 11.28 | 0.13 | 0.17 | 0.99× | 84.27× | 0.81× |
+| threshold-change | ms | 21.63 | 5.87 | 0.12 | 0.77 | 3.68× | 48.46× | 0.16× |
 
 ## N = 100,000
 
-| Scenario | unit | lib (serializable args, JS-object rows) | js-columnar (typed) | wasm-columnar | js-cl/lib | wasm/js-cl |
-|---|---|---:|---:|---:|---:|---:|
-| setup | ms | 273.14 | 5.99 | 3.84 | 45.61× | 1.56× |
-| tick | µs/tick | 56.77 | 0.16 | 0.19 | 353.07× | 0.83× |
-| batch | ms | 73.68 | 0.14 | 0.24 | 517.02× | 0.58× |
-| threshold-change | ms | 366.62 | 1.33 | 2.67 | 275.49× | 0.50× |
+| Scenario | unit | lib-between (sort-indexed) | lib-gte (RowOperator) | js-columnar (typed) | wasm-columnar | between/gte | gte/js-cl | wasm/js-cl |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| setup | ms | 262.50 | 56.43 | 5.52 | 3.34 | 4.65× | 10.21× | 1.66× |
+| tick | µs/tick | 57.40 | 65.77 | 0.30 | 0.20 | 0.87× | 219.75× | 1.49× |
+| batch | ms | 57.78 | 58.81 | 0.12 | 0.13 | 0.98× | 499.62× | 0.89× |
+| threshold-change | ms | 255.61 | 86.91 | 1.18 | 2.31 | 2.94× | 73.59× | 0.51× |
 
-The two ratio columns isolate where the wins come from: `js-cl/lib` is the cost the lib's row-object storage imposes vs columnar layout, holding the algorithm fixed (declarative everywhere); `wasm/js-cl` is WASM's marginal contribution over the same algorithm written in JS.
+Ratio columns isolate where wins come from:
+- `between/gte` — the cost between's sorted-index maintenance imposes vs the row-operator gte.
+- `gte/js-cl` — the residual lib overhead after removing sort indexing (row-object storage, change-record machinery, etc.).
+- `wasm/js-cl` — WASM's marginal contribution over the same algorithm in JS.

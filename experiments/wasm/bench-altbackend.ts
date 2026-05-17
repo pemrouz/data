@@ -76,18 +76,26 @@ function makeTicks(count: number, n: number): Tick[] {
 }
 
 // --- Path: lib over JS row objects with serializable args ---
+//
+// Two flavours, both fully serializable:
+//   LibBetweenPath — uses `between(col, [T, Inf])` (sort-indexed; pays a
+//                    sorted[]-splice per BU2 on the watched column).
+//   LibGtPath      — uses `gt(col, T)` (RowOperator; O(1) per BU2).
+//
+// Same chain past the filter: `.length()` + `.max(col)`. The contrast between
+// these two paths is the "missing serializable range operator" story from the
+// experiment writeup.
 
-class LibPath {
+abstract class LibPath {
   src: any; filt: any; cnt: any; mx: any
-  rows: Row[]
   threshold: number
+  abstract _filter(threshold: number): any
   setup(rows: Row[], threshold: number) {
-    this.rows = rows
     this.threshold = threshold
     const obj: Record<number, Row> = {}
     for (let i = 0; i < rows.length; i++) obj[i] = rows[i]
     this.src = $(obj)
-    this.filt = this.src.between('spread', [threshold, Infinity])
+    this.filt = this._filter(threshold)
     this.cnt = this.filt.length()
     this.mx = this.filt.max('spread')
     void this.cnt[value]; void this.mx[value]
@@ -102,15 +110,23 @@ class LibPath {
   read() { return { count: this.cnt[value], max: this.mx[value] } }
   setThreshold(t: number) {
     this.threshold = t
-    // `between` with literal bounds captures them at creation — the way to
-    // "change threshold" is to rebuild the chain. (The reactive-bounds form
-    // exists for ViewProxy args; we keep the literal-args form because that's
-    // what's actually serializable.)
-    this.filt = this.src.between('spread', [t, Infinity])
+    // Literal-arg filters capture their bound at creation — the way to
+    // "change threshold" is to rebuild the chain. (Reactive-bound forms
+    // exist for ViewProxy args; we use literal args because that's what's
+    // actually serializable.)
+    this.filt = this._filter(t)
     this.cnt = this.filt.length()
     this.mx = this.filt.max('spread')
     void this.cnt[value]; void this.mx[value]
   }
+}
+
+class LibBetweenPath extends LibPath {
+  _filter(t: number) { return this.src.between('spread', [t, Infinity]) }
+}
+
+class LibGtPath extends LibPath {
+  _filter(t: number) { return this.src.gte('spread', t) }
 }
 
 // --- Timing helpers ---
@@ -153,11 +169,12 @@ function timeOnce(makeAndRun: () => number): number {
 
 // --- Build per-path scenario runners ---
 
-type Path = 'lib' | 'js-columnar' | 'wasm-columnar'
+type Path = 'lib-between' | 'lib-gte' | 'js-columnar' | 'wasm-columnar'
 type Scenario = 'setup' | 'tick' | 'batch' | 'threshold-change'
 
 function makeBackend(path: Path, kernels: ReturnType<typeof loadKernels>): AltBackend | LibPath {
-  if (path === 'lib') return new LibPath()
+  if (path === 'lib-between') return new LibBetweenPath()
+  if (path === 'lib-gte')     return new LibGtPath()
   if (path === 'js-columnar') return new ColumnarJsBackend()
   return new ColumnarWasmBackend(kernels)
 }
@@ -248,7 +265,7 @@ function correctness(n: number) {
   kernels.ensureBytes(n * 32 + 65536)
   const rows = makeRows(n)
   const ticks = makeTicks(TICKS, n)
-  const paths: Path[] = ['lib', 'js-columnar', 'wasm-columnar']
+  const paths: Path[] = ['lib-between', 'lib-gte', 'js-columnar', 'wasm-columnar']
   const results = paths.map(p => {
     const b = makeBackend(p, kernels)
     b.setup(rows, THRESHOLD)
@@ -277,10 +294,16 @@ console.log(`# node ${process.version}, N ∈ {${SIZES.map(n => n.toLocaleString
 for (const n of SIZES) correctness(n)
 console.log()
 
-interface Row2 { n: number, scenario: Scenario, lib: number, jsColumnar: number, wasmColumnar: number }
+interface Row2 { n: number, scenario: Scenario, libBetween: number, libGte: number, jsColumnar: number, wasmColumnar: number }
 const rows: Row2[] = []
-const PATHS: Path[] = ['lib', 'js-columnar', 'wasm-columnar']
+const PATHS: Path[] = ['lib-between', 'lib-gte', 'js-columnar', 'wasm-columnar']
 const SCENARIOS: Scenario[] = ['setup', 'tick', 'batch', 'threshold-change']
+const KEY: Record<Path, keyof Row2> = {
+  'lib-between': 'libBetween',
+  'lib-gte': 'libGte',
+  'js-columnar': 'jsColumnar',
+  'wasm-columnar': 'wasmColumnar',
+} as any
 
 for (const n of SIZES) {
   const ticks = makeTicks(TICKS, n)
@@ -288,7 +311,7 @@ for (const n of SIZES) {
     const r: any = { n, scenario: s }
     for (const p of PATHS) {
       const v = runScenario(p, s, n, ticks)
-      r[p === 'lib' ? 'lib' : p === 'js-columnar' ? 'jsColumnar' : 'wasmColumnar'] = v
+      r[KEY[p]] = v
       const unit = s === 'tick' ? 'µs/tick' : 'ms'
       console.log(`  N=${n.toLocaleString().padStart(8)}  ${s.padEnd(18)} ${p.padEnd(14)} ${v.toFixed(2)} ${unit}`)
     }
@@ -318,18 +341,21 @@ writeLine('')
 for (const n of SIZES) {
   writeLine(`## N = ${n.toLocaleString()}`)
   writeLine('')
-  writeLine(`| Scenario | unit | lib (serializable args, JS-object rows) | js-columnar (typed) | wasm-columnar | js-cl/lib | wasm/js-cl |`)
-  writeLine(`|---|---|---:|---:|---:|---:|---:|`)
+  writeLine(`| Scenario | unit | lib-between (sort-indexed) | lib-gte (RowOperator) | js-columnar (typed) | wasm-columnar | between/gte | gte/js-cl | wasm/js-cl |`)
+  writeLine(`|---|---|---:|---:|---:|---:|---:|---:|---:|`)
   for (const s of SCENARIOS) {
     const r = rows.find(x => x.n === n && x.scenario === s)!
     const unit = s === 'tick' ? 'µs/tick' : 'ms'
-    const lib = r.lib, jsc = r.jsColumnar, wsc = r.wasmColumnar
-    writeLine(`| ${s} | ${unit} | ${lib.toFixed(2)} | ${jsc.toFixed(2)} | ${wsc.toFixed(2)} | ${(lib / jsc).toFixed(2)}× | ${(jsc / wsc).toFixed(2)}× |`)
+    const lb = r.libBetween, lg = r.libGte, jsc = r.jsColumnar, wsc = r.wasmColumnar
+    writeLine(`| ${s} | ${unit} | ${lb.toFixed(2)} | ${lg.toFixed(2)} | ${jsc.toFixed(2)} | ${wsc.toFixed(2)} | ${(lb / lg).toFixed(2)}× | ${(lg / jsc).toFixed(2)}× | ${(jsc / wsc).toFixed(2)}× |`)
   }
   writeLine('')
 }
 
-writeLine(`The two ratio columns isolate where the wins come from: \`js-cl/lib\` is the cost the lib's row-object storage imposes vs columnar layout, holding the algorithm fixed (declarative everywhere); \`wasm/js-cl\` is WASM's marginal contribution over the same algorithm written in JS.`)
+writeLine(`Ratio columns isolate where wins come from:`)
+writeLine(`- \`between/gte\` — the cost between's sorted-index maintenance imposes vs the row-operator gte.`)
+writeLine(`- \`gte/js-cl\` — the residual lib overhead after removing sort indexing (row-object storage, change-record machinery, etc.).`)
+writeLine(`- \`wasm/js-cl\` — WASM's marginal contribution over the same algorithm in JS.`)
 writeLine('')
 
 const outPath = resolve(dirname(fileURLToPath(import.meta.url)), 'results-altbackend.md')
