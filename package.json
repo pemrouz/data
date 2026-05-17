@@ -71,6 +71,8 @@
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts devtools/*.perf.ts",
     "test:all": "npm run test && npm run test:render",
     "prepublishOnly": "npm run build && npm test",
+    "bench:compare": "node --experimental-strip-types --no-warnings comparisons/bench/run-all.ts",
+    "bench:ops": "node --experimental-strip-types --no-warnings comparisons/bench/operators/run-ops.ts",
     "bench:wasm:build": "asc experiments/wasm/assembly/index.ts --config experiments/wasm/asconfig.json --target release",
     "bench:wasm:kernels": "node --experimental-strip-types --no-warnings experiments/wasm/bench-kernels.ts",
     "bench:wasm:pipeline": "node --experimental-strip-types --no-warnings experiments/wasm/bench-pipeline.ts",
@@ -79,9 +81,18 @@
   "author": "pemrouz",
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@preact/signals-core": "^1.14.2",
     "@types/node": "^22.10.2",
+    "@vue/reactivity": "^3.5.34",
     "assemblyscript": "^0.27.37",
+    "crossfilter2": "^1.5.4",
+    "mobx": "^6.15.3",
+    "react": "^19.2.6",
+    "react-test-renderer": "^19.2.6",
+    "rxjs": "^7.8.2",
     "serve": "^14.2.4",
+    "solid-js": "^1.9.13",
+    "svelte": "^5.55.7",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }
