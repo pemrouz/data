@@ -32,6 +32,7 @@ const slugFor = (title) => {
   const t = title.toLowerCase()
   if (t.startsWith('aggregate')) return 'aggregate'
   if (t.startsWith('between')) return 'between'
+  if (t.startsWith('compare')) return 'compare'
   if (t.startsWith('distinct')) return 'distinct'
   if (t.startsWith('except')) return 'except'
   if (t.startsWith('filter')) return 'filter'

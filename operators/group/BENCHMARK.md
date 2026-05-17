@@ -7,15 +7,16 @@ Tick rewrites one row's `cat` (forces a bucket migration). Batch streams
 
 | Library | Setup (ms) | Single (ms) | vs data | Batch 1000 (ms) | vs data |
 |---|---:|---:|---:|---:|---:|
-| **data** | 1.99 | **0.005** | — | **1.35** | — |
-| svelte-store | 1.54 | 0.682 | 136× | 1574.05 | 1166× |
-| preact-signals | 2.90 | 0.913 | 183× | 69.79 | 51.7× |
-| rxjs | 1.44 | 0.972 | 194× | 714.83 | 530× |
-| react | 2.42 | 1.19 | 238× | 1210.51 | 897× |
-| crossfilter | 4.75 | 2.17 | 434× | 486.58 | 360× |
-| solid | 3.48 | 2.35 | 470× | 306.69 | 227× |
-| mobx | 132.74 | 7.27 | 1454× | 493.59 | 366× |
-| vue-reactivity | 30.90 | 16.75 | 3350× | 2778.21 | 2058× |
+| **data** | 1.80 | **0.005** | — | **1.04** | — |
+| preact-signals | 1.48 | 0.565 | 113× | 51.24 | 49.3× |
+| rxjs | 1.22 | 0.587 | 117× | 589.70 | 567× |
+| svelte-store | 1.42 | 0.693 | 139× | 847.13 | 815× |
+| react | 2.78 | 1.08 | 216× | 692.31 | 666× |
+| solid | 1.94 | 1.61 | 322× | 143.53 | 138× |
+| crossfilter | 4.23 | 2.12 | 424× | 461.54 | 444× |
+| mobx | 107.39 | 8.68 | 1736× | 551.64 | 530× |
+| vue-reactivity | 18.31 | 11.55 | 2310× | 1716.77 | 1651× |
+
 
 
 data is fastest on both single (179x over react) and batch (67x over
