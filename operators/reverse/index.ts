@@ -3,27 +3,50 @@ import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
 // `proxy.reverse()` materializes the source's array (or object's values)
-// in reverse order. Rebuilds on every upstream change — for arrays the
-// positional shifts under inserts/removes are tricky to map incrementally
-// (a remove at the front of the source is a remove at the END of the
-// output), so the simple-correct path is to rebuild. If a hot path needs
-// incremental, the BR1A / BI0A semantics are the right next step.
+// in reverse order. Incremental on inserts: a new key (BI0) prepends to
+// the cached output array; removes / updates fall back to rebuild
+// because finding the relevant position by value is O(N) and ambiguous
+// for duplicate values.
 export class ReverseValue extends Operator {
   constructor(p) {
     super()
     this.p = p
+    this.output = []
     this._rebuild()
   }
 
   _rebuild() {
     const v = this.p.value
-    let out
-    if (isArray(v)) {
-      out = v.filter(x => x !== undefined).reverse()
-    } else if (v && typeof v === 'object') {
-      out = Object.values(v).filter(x => x !== undefined).reverse()
-    } else {
-      out = []
+    const out = this.output
+    out.length = 0
+    if (v && typeof v === 'object') {
+      if (isArray(v)) {
+        for (let i = v.length - 1; i >= 0; i--) {
+          const val = v[i]
+          if (val !== undefined) out.push(val)
+        }
+      } else {
+        const ks = Object.keys(v)
+        for (let i = ks.length - 1; i >= 0; i--) {
+          const val = v[ks[i]]
+          if (val !== undefined) out.push(val)
+        }
+      }
+    }
+    this.view.value = out
+    this.view.XU0(out)
+  }
+
+  // BI0: each [name, value] pair in I0 was just inserted into the source.
+  // In source iteration order they sit at the END; in the reversed output
+  // they sit at the FRONT. Process I0 in reverse so the last-inserted in
+  // source becomes output[0].
+  BI0(I0) {
+    if (!I0.length) return
+    const out = this.output
+    for (let i = I0.length - 2; i >= 0; i -= 2) {
+      const val = I0[i + 1]
+      if (val !== undefined) out.unshift(val)
     }
     this.view.value = out
     this.view.XU0(out)
@@ -33,7 +56,6 @@ export class ReverseValue extends Operator {
   XU0() { this._rebuild() }
   BU1() { this._rebuild() }
   BR1() { this._rebuild() }
-  BI0() { this._rebuild() }
   BU2() { this._rebuild() }
   BR2() { this._rebuild() }
   BI2() { this._rebuild() }
