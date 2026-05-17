@@ -867,7 +867,7 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 }
 .dock-mock-graph {
   position: relative;
-  height: 240px;
+  height: 344px;
   background:
     radial-gradient(circle, #2a2a2a 1px, transparent 1px) 0 0 / 24px 24px,
     #141414;
@@ -958,7 +958,8 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 .dock-mock-insp-body {
   position: relative;
   padding: 8px;
-  height: 168px;
+  /* graph height (344) − header (~32) − tabs (~30) = 282 */
+  height: 282px;
   overflow: hidden;
 }
 .dock-mock-pane {
@@ -1101,24 +1102,23 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 /* ---- animated mockup: inspector tab + pane crossfade on a 12s cycle ----
    Graph pane stays static; only the inspector body cycles. Each tab and its
    corresponding pane share the same animation curve and stagger by 4s via
-   negative animation-delay so all three surfaces get equal airtime in
-   identical chrome. The keyframe runs:
-     0–30%   visible (3.6s)
-     30–33%  fade out (0.4s)
-     33–97%  hidden (7.6s)
-     97–100% fade in   (0.4s, wraps to next iteration)
-   so panes overlap during transitions instead of flashing the body bg. */
+   negative animation-delay so all three surfaces get equal airtime.
+   Keyframe shape (no overlap zone):
+     0–32%   visible (3.84s)
+     32–33%  fade out (0.12s)
+     33–100% hidden (8.04s, wraps with a hard cut back to opacity 1)
+   The next pane is hard-cut to 1 at its 0% (= the same moment this pane hits
+   33%) so exactly one pane is at full opacity at any time. */
 .dock-mock-animated .dock-mock-pane {
-  animation: dock-pane-cycle 12s ease-in-out infinite;
+  animation: dock-pane-cycle 12s linear infinite;
 }
 .dock-mock-animated .dock-pane-inspect { animation-delay:  0s; opacity: 1; }
 .dock-mock-animated .dock-pane-events  { animation-delay: -8s; }
 .dock-mock-animated .dock-pane-profile { animation-delay: -4s; }
 
 @keyframes dock-pane-cycle {
-  0%, 30%        { opacity: 1; }
-  33.34%, 96.66% { opacity: 0; }
-  100%           { opacity: 1; }
+  0%, 32%      { opacity: 1; }
+  33%, 100%    { opacity: 0; }
 }
 
 .dock-mock-animated .dock-mock-tab {
@@ -1129,9 +1129,8 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 .dock-mock-animated .dock-mock-tab:nth-child(3) { animation-delay: -4s; }
 
 @keyframes dock-tab-cycle {
-  0%, 30%        { color: #9be3a8; border-bottom-color: #9be3a8; }
-  33.34%, 96.66% { color: #888;    border-bottom-color: transparent; }
-  100%           { color: #9be3a8; border-bottom-color: #9be3a8; }
+  0%, 32%   { color: #9be3a8; border-bottom-color: #9be3a8; }
+  33%, 100% { color: #888;    border-bottom-color: transparent; }
 }
 
 /* ---- events pane content ---- */
@@ -1237,7 +1236,7 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   .dock-mock-animated .dock-prof-fill {
     animation: none !important;
   }
-  .dock-mock-animated .dock-pane-graph   { opacity: 1; }
+  .dock-mock-animated .dock-pane-inspect { opacity: 1; }
   .dock-mock-animated .dock-pane-events,
   .dock-mock-animated .dock-pane-profile { opacity: 0; }
   .dock-mock-animated .dock-mock-tab:nth-child(1) {

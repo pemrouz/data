@@ -357,28 +357,31 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
                .length() node highlighted (the inspector to the right is
                reading from this node). -->
           <div class="dock-mock-graph">
-            <svg class="dock-mock-edges" viewBox="0 0 220 200" preserveAspectRatio="none">
-              <path d="M110 30 C 110 50, 60 60, 60 80"/>
-              <path d="M110 30 C 110 50, 160 60, 160 80"/>
-              <path d="M60 110 C 60 130, 110 140, 110 160"/>
-              <path d="M160 110 C 160 130, 110 140, 110 160"/>
+            <!-- Edge endpoints meet node centers exactly: viewBox matches the
+                 pane's pixel dimensions (240×320) so 1 viewBox unit = 1 px,
+                 and each path lands on the node-edge midpoint. -->
+            <svg class="dock-mock-edges" viewBox="0 0 240 344" preserveAspectRatio="none">
+              <path d="M120 76 C 120 116, 68 116, 68 150"/>
+              <path d="M120 76 C 120 116, 172 116, 172 150"/>
+              <path d="M68 188 C 68 232, 120 232, 120 264"/>
+              <path d="M172 188 C 172 232, 120 232, 120 264"/>
             </svg>
-            <div class="dock-mock-dnode dock-mock-dnode-root" style="left:78px;top:14px">
+            <div class="dock-mock-dnode dock-mock-dnode-root" style="left:80px;top:44px">
               <div class="dock-mock-dnode-label">&lt;root&gt;</div>
               <div class="dock-mock-dnode-sub">items</div>
               <span class="dock-mock-chip">→4</span>
             </div>
-            <div class="dock-mock-dnode dock-mock-dnode-operator" style="left:28px;top:80px">
+            <div class="dock-mock-dnode dock-mock-dnode-operator" style="left:28px;top:150px">
               <div class="dock-mock-dnode-label">.filter()</div>
               <div class="dock-mock-dnode-sub">FilterStringValue</div>
               <span class="dock-mock-chip">→1</span>
             </div>
-            <div class="dock-mock-dnode dock-mock-dnode-operator dock-mock-dnode-selected" style="left:128px;top:80px">
+            <div class="dock-mock-dnode dock-mock-dnode-operator dock-mock-dnode-selected" style="left:132px;top:150px">
               <div class="dock-mock-dnode-label">.length()</div>
               <div class="dock-mock-dnode-sub">LengthValue</div>
               <span class="dock-mock-chip">→1</span>
             </div>
-            <div class="dock-mock-dnode dock-mock-dnode-dom" style="left:78px;top:158px">
+            <div class="dock-mock-dnode dock-mock-dnode-dom" style="left:80px;top:264px">
               <div class="dock-mock-dnode-label">.to()</div>
               <div class="dock-mock-dnode-sub">ToValue → DOM</div>
             </div>
