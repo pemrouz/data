@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>data devtools v2 — working prototype</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="demo">
+    <header class="demo-head">
+      <h1>data devtools v2 <span class="muted">working prototype</span></h1>
+      <p class="muted">
+        New shell powered by real <code>$.graph</code> / <code>$.trace</code> / <code>$.profile</code> /
+        <code>$.inspect</code>. Hold <kbd>Alt</kbd> for inline badges. Click any graph
+        node on the right to open the inspector. The dock is anchored to the
+        right edge — no drag, no tab strip. Existing panel suppressed via
+        <code>?nopanel</code>.
+      </p>
+    </header>
+
+    <section class="todos">
+      <h2>todos</h2>
+      <div id="todosMount"></div>
+    </section>
+
+    <section class="meta">
+      <h2>under the hood</h2>
+      <ul>
+        <li><code>items = $({...})</code> &mdash; the reactive root every panel pane reads from.</li>
+        <li><code>active = items.filter('completed', false).length()</code></li>
+        <li><code>done   = items.filter('completed', true).length()</code></li>
+        <li>Each <code>&lt;li&gt;</code> binds to <code>items[id]</code> via <code>render()</code> &mdash; sinks attach <code>__ripple_sink</code> on the host element, which the Alt-hover overlay walks to.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script type="importmap">
+  { "imports": {
+      "data":          "../../dist/index.js",
+      "data/full":     "../../dist/full.js",
+      "data/render":   "../../dist/render/index.js",
+      "data/devtools": "../../dist/devtools/index.js"
+  } }
+  </script>
+
+  <script type="module">
+    import { $, value, render, HTML } from 'data/full'
+    // Force ?nopanel so the existing panel doesn't auto-mount alongside the
+    // new one. We still want the console API ($.graph etc.) attached, so we
+    // do import 'data/devtools' — just suppress the auto-mounted UI.
+    if (!/(?:^|[?&])nopanel(?:[=&]|$)/.test(location.search)) {
+      const u = new URL(location.href)
+      u.searchParams.set('nopanel', '1')
+      history.replaceState(null, '', u)
+    }
+    await import('data/devtools')
+    // Belt-and-braces: if the existing panel auto-mounted despite ?nopanel
+    // (cached module state, prior interaction, etc.), tear it down before
+    // the new one comes up so we never have two docks on screen.
+    try { $.devtools.panel.close() } catch {}
+
+    // ---------------- demo app ----------------
+    const KEY = 'todos-devtools-v2'
+    const initial = JSON.parse(localStorage.getItem(KEY) || '{}')
+    const items = window.items = $(Object.keys(initial).length ? initial : {
+      a: { title: 'buy milk',      completed: false, price: 4.20 },
+      b: { title: 'write tests',   completed: true,  price: 0    },
+      c: { title: 'ship devtools', completed: false, price: 87.5 },
+      d: { title: 'read paper',    completed: true,  price: 12   },
+      e: { title: 'write blog',    completed: false, price: 0    },
+    })
+    window.value = value
+    const persist = () => {
+      const out = {}
+      for (const [k, v] of Object.entries(items[value])) out[k] = { ...v }
+      localStorage.setItem(KEY, JSON.stringify(out))
+    }
+
+    const active = items.filter('completed', false).length()
+    const done   = items.filter('completed', true).length()
+    const total  = items.length()
+
+    const { div, ul, li, input, label, span, strong, button, p } = HTML
+
+    const onNewKey = e => {
+      if (e.key !== 'Enter') return
+      const t = e.target.value.trim()
+      if (!t) return
+      items.insert({ title: t, completed: false, price: Math.random() * 50 })
+      e.target.value = ''
+      persist()
+    }
+
+    // Render the whole todos section via the builder DSL so that __ripple_sink
+    // is attached to the bound elements — this is what Alt-hover walks to.
+    render(document.getElementById('todosMount'),
+      div.todoroot(
+        input.new_todo['placeholder=What needs doing?']['autofocus='].on('keydown', onNewKey),
+        ul.list(
+          li(items, (row, item, id) => row
+            .class('done', item.completed)
+            .nodes(
+              input['type=checkbox']
+                .attr('checked', item.completed)
+                .on('change', e => { item.completed = e.target.checked; persist() }),
+              label.text(item.title),
+              span.price.text(item.price.to(pr => `$${pr.toFixed(2)}`)),
+              button.del.on('click', () => { delete items[id]; persist() }).text('×'),
+            )
+          )
+        ),
+        p.counts(
+          strong.text(active),
+          span.text(' active · '),
+          strong.text(done),
+          span.text(' done · '),
+          strong.text(total),
+          span.text(' total'),
+        ),
+      )
+    )
+
+    // ---------------- mount new panel ----------------
+    const { mountPanelV2 } = await import('./panel.js')
+    window.panel = mountPanelV2({ rootProxy: items })
+  </script>
+</body>
+</html>

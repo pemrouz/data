@@ -1,0 +1,61 @@
+html, body { margin: 0; padding: 0; background: #0f0f0f; color: #e6e6e6; }
+body { font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI"; }
+.muted { color: #888; }
+kbd { font: 11px/1 ui-monospace, monospace; background: #232323; border: 1px solid #2a2a2a; border-radius: 3px; padding: 1px 5px; }
+code { font: 12px/1 ui-monospace, monospace; background: #1f1f1f; padding: 1px 4px; border-radius: 2px; color: #9bb3e3; }
+
+.demo {
+  margin: 0;
+  padding: 32px 40px;
+  /* The dock is an overlay; do not reserve a fixed margin since the dock can
+     widen when the inspector opens. Demo content sits underneath when the
+     viewport is narrow — resize the browser for more room. */
+  max-width: 640px;
+}
+.demo-head h1 {
+  margin: 0 0 6px; font-size: 24px; font-weight: 600;
+}
+.demo-head h1 .muted { font-weight: 400; font-size: 14px; margin-left: 8px; }
+.demo-head p { margin: 4px 0 24px; }
+
+.todos {
+  background: #161616; border: 1px solid #2a2a2a; border-radius: 8px;
+  padding: 16px 20px; margin-bottom: 20px;
+}
+.todos h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #9be3a8; text-transform: uppercase; letter-spacing: .08em; }
+/* Scope the search-bar styling to ONLY the new-todo input so it doesn't bleed
+   onto the per-item checkboxes, which would otherwise inherit display:block,
+   width:100%, padding etc. and render as full-width gray bars. */
+.todos .new_todo {
+  display: block; width: 100%; box-sizing: border-box;
+  background: transparent; color: #e6e6e6;
+  border: 1px solid #2a2a2a; border-radius: 4px;
+  padding: 8px 10px; font: inherit;
+  margin-bottom: 12px;
+}
+.todos .new_todo:focus { border-color: #9be3a8; outline: none; }
+.todos ul { list-style: none; padding: 0; margin: 0; }
+.todos li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 6px; border-bottom: 1px solid #2a2a2a;
+}
+.todos li:last-child { border-bottom: none; }
+.todos li.done label { color: #666; text-decoration: line-through; }
+.todos li input[type="checkbox"] {
+  accent-color: #9be3a8;
+  width: auto; margin: 0; padding: 0;
+}
+.todos li label { flex: 1; }
+.todos li .price { color: #888; font-variant-numeric: tabular-nums; }
+.todos li button.del {
+  background: transparent; color: #555; border: none; cursor: pointer; font-size: 18px; line-height: 1;
+  padding: 0 4px;
+}
+.todos li button.del:hover { color: #e39b9b; }
+.counts { color: #888; font-size: 12px; margin: 12px 0 0; }
+.counts strong { color: #e6e6e6; font-variant-numeric: tabular-nums; }
+
+.meta { background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px 20px; }
+.meta h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #9bb3e3; text-transform: uppercase; letter-spacing: .08em; }
+.meta ul { list-style: square; color: #ccc; padding-left: 18px; margin: 0; }
+.meta li { margin: 4px 0; }

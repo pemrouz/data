@@ -10,3 +10,4 @@
 !**/flights.js
 !examples/multidim/**/*.js
 !examples/ticker/**/*.js
+!mockups/**/*.js
