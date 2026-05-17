@@ -210,26 +210,32 @@ $.devtools = {
     cascadeRecorders.clear()
     restoreInstrumentation()
   },
+  // `panel.open(proxy?)` opens the overlay rooted at `proxy` (or the first
+  // live root if omitted). `panel.close()` tears it down. `panel.shell`
+  // returns the live panel object — `{ host, root, dock, destroy }` — for
+  // tests / advanced scripting that need to reach into the closed shadow.
   panel: {
-    open() { return mountPanel() },
+    open(proxy) { return mountPanel(proxy) },
     close() { return unmountPanel() },
+    get shell() { return getPanelShell() },
   },
 }
 
-// Auto-mount the in-page overlay panel on import (collapsed by default in
-// the shell), unless the URL carries ?nopanel — useful for consumers who
-// import devtools just for the console API and don't want the visible UI.
-// Lazy-imported so the panel bundle is only fetched when this code runs;
-// when the consumer's bundler splits modules, the panel chunk is separable
-// from the read-side helpers above.
-let mountPanel: () => unknown = () => undefined
+// Auto-mount the in-page overlay panel on import, unless the URL carries
+// ?nopanel — useful for consumers who import devtools just for the console
+// API and don't want the visible UI. Lazy-imported so the panel bundle is
+// only fetched when this code runs; when the consumer's bundler splits
+// modules, the panel chunk is separable from the read-side helpers above.
+let mountPanel: (proxy?: unknown) => unknown = () => undefined
 let unmountPanel: () => void = () => {}
+let getPanelShell: () => unknown = () => null
 if (typeof document !== 'undefined') {
   const noPanel =
     typeof location !== 'undefined' && /(?:^|[?&])nopanel(?:[=&]|$)/.test(location.search)
   void import('./panel/index.ts').then((m) => {
     mountPanel = m.mount
     unmountPanel = m.unmount
+    getPanelShell = m.getShell
     if (!noPanel) m.mount()
   })
 }

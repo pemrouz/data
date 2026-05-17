@@ -4,9 +4,8 @@ Optional, opt-in inspection helpers for the reactive data library. Importing
 `data/devtools` (or, in source form, `./devtools/index.ts`) attaches a handful
 of methods to the canonical `$` so they're discoverable from the browser
 console — `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
-`$.profile` — and lazy-loads an in-page overlay panel that wraps the same
-helpers in a draggable dock with Graph / Events / Profile tabs and a DOM
-picker.
+`$.profile`, `$.cascades` — and lazy-loads a graph-first in-page overlay
+panel.
 
 ## Why opt-in
 
@@ -20,54 +19,80 @@ when you explicitly call `$.trace(p)` or `$.profile()`.
 
 ## Panel
 
-`import 'data/devtools'` auto-mounts a draggable overlay panel into a
+`import 'data/devtools'` auto-mounts a right-edge overlay panel into a
 closed Shadow DOM root attached to `document.body`. Append `?nopanel` to
 the URL to suppress the auto-mount (the console API is still attached);
-call `$.devtools.panel.open()` / `$.devtools.panel.close()` for explicit
-control.
+call `$.devtools.panel.open(proxy?)` / `$.devtools.panel.close()` for
+explicit control. `$.devtools.panel.shell` returns the live panel object
+(`{ host, root, dock, destroy }`) so tests / advanced scripting can reach
+into the closed shadow without going through `host.shadowRoot`.
 
-Tabs:
+The panel auto-discovers the first live root via `iterRoots()`. If the
+host page imports devtools BEFORE creating its first `$()` (which is the
+common case via the example importmaps), `mount()` polls iterRoots every
+50ms for ~5 s; the panel appears as soon as the first root materialises.
+Pass an explicit `proxy` to `panel.open(proxy)` to root the panel at a
+specific view.
 
-- **Graph** — collapsible tree of the View graph for the selected root.
-  Toolbar has a root selector populated from `iterRoots()`, a "show
-  internal" toggle (reveals `_devtoolsInternalRoots`, useful for debugging
-  the panel itself), and a **DAG** toggle that flips the renderer to a
-  layered node-link diagram. DAG mode dedupes by view identity (a fan-out
-  source appears once with multiple outgoing edges, vs. duplicated subtrees
-  in tree mode), uses BFS depth from the root for layering, and renders
-  edges as cubic SVG paths in a non-interactive layer below the nodes.
-- **Events** — push-driven live tail of `$.trace` events. Pause/resume,
-  clear, and a verb/key substring filter. Default ring-buffer size 500.
-- **Profile** — start/stop button drives `$.profile(selectedRoot)`; a
-  500ms-polled `report()` populates a sortable table (default sort by
-  totalMs desc).
-- **Replay** — start/stop button drives `$.cascades(selectedRoot,
-  { captureState: true })`. Each recorded cascade carries a `state`
-  field (deep-cloned post-cascade snapshot of the source view's value).
-  The slider scrubs through the recorded history; the snapshot pane
-  renders the JSON of the state at the scrubbed cascade. NOTE: this
-  is "time-travel-lite" — the live View graph is not rewound, only
-  historical snapshots are displayed. Reverse-execution / true
-  rewind is a future commit.
-- **Flame** — start/stop button drives `$.cascades(selectedRoot)`; a
-  500ms-polled `report()` populates a left-rail list of recorded
-  cascades, and the right pane renders the picked cascade as a flame
-  chart (one bar per patched-verb call, laid out by depth × time).
-  Hover a bar for full label + duration. Bar colour reflects verb
-  family (blue=update, green=insert, red=remove, amber=move).
-- **DOM picker** — toolbar `◎` button arms a crosshair overlay; click any
-  page element to walk to its `__ripple_sink` and select the matching root
-  in the Graph tab. Excludes the panel's own host so you can't pick into it.
-- **Hover inspector** — toolbar `⊙` button arms a sidecar that follows the
-  cursor and shows the bound view's chain (root › … › name), the owning
-  ctor (operator class or root Value), the value preview, and the live sink
-  count for whatever element is under the mouse. Click to pin (sidecar
-  freezes; click again to unpin); Esc to disarm. Mutually exclusive with
-  the DOM picker — arming one disarms the other.
+### Shell
 
-The panel ships as a separate chunk (`dist/devtools/panel/index.js`,
-~30 KB) lazy-loaded via dynamic import — consumers who only want the
-console API don't pay the panel's bytes upfront.
+- Right-edge dock, anchored to `top: 0; right: 0; bottom: 0`. Default
+  width 480 px (drag the left-edge handle to resize; width persists to
+  `localStorage` under `data-devtools-dock-width`). When the inspector
+  is open, the dock auto-widens to 840 px unless the user has set an
+  explicit inline width via the resize handle.
+- Header carries the brand, the Alt-hover (`⊙`), DOM picker (`◎`) and
+  close (`✕`) buttons.
+- A "layout:" segment toggles between **Tree** and **DAG** view of the
+  reactive graph. DAG is the default — graph-first geometry.
+
+### Graph (Tree or DAG)
+
+Both layouts render the reactive pipeline: chains of operators rooted at
+the source view, with terminal sinks (DOMSink / connect / linked-alias)
+summarised into a `→N` chip on each node. To see the DOM elements those
+chips represent, click the node and look at the **Bound DOM** section of
+the inspector.
+
+- **Tree** — indented outline. Click a row to open the inspector.
+- **DAG** — BFS-positioned node-link diagram with pan/zoom. The toolbar
+  toggles a `sinks` checkbox (off = terminals collapsed into chips,
+  on = each terminal is a leaf node) and a `🔥` heatmap (lights up nodes
+  by recent trace activity, decaying over 5 s). Shift-click a node to
+  focus its ancestor/descendant subtree (siblings dim); empty-canvas
+  click clears focus. `⛶` fits to view, `1:1` resets, `+/−` zooms.
+
+### Inspector (slide-in column, three tabs)
+
+- **Inspect** — four cards (IDENTITY, CURRENT VALUE, CONNECTIONS,
+  ACTIVITY) plus a **Bound DOM** section listing every DOM element the
+  selected view drives, with `flash` / `scroll` buttons per row.
+- **Events** — for scalar views (length, sum, aggregates, booleans,
+  primitives) renders a 60s step sparkline of the value plus a
+  most-recent-transitions list. For collection views (root / filter /
+  group / arrays / objects) renders a 60s insert/remove/update rollup,
+  a per-row "heat" bar, and the last 20 raw events. Pause/clear in the
+  toolbar. The event ring is shared with the Activity card (one global
+  `$.trace`, fan-out via subscribers).
+- **Profile** — start/stop button drives `$.profile(rootProxy)`; a
+  500ms-polled `report()` populates the operator table.
+
+### Interaction
+
+- **DOM picker** (`◎`) — armed; click any page element to walk to its
+  `__ripple_sink` and open the inspector at the matching view. Falls
+  back to a synthetic node when the picked view isn't in the panel's
+  current root's walk (e.g. a separate `$()` ViewProxy used as the source
+  of a `<For>`).
+- **Alt-hover** (hold `Alt` or click `⊙`) — outlines every reactive
+  element, badges each one with key + ctor, and renders a popover near
+  the cursor with key / ctor / sink count / value preview. Click an
+  outlined element to PIN the popover (click again or Esc to unpin).
+- **Esc** closes the inspector and unpins any Alt-hover popover.
+
+The panel ships as a separate chunk (`dist/devtools/panel/index.js`)
+lazy-loaded via dynamic import — consumers who only want the console API
+don't pay the panel's bytes upfront.
 
 ## Read-side helpers (always available once imported)
 
@@ -84,9 +109,9 @@ $.graph(proxy)
 $.graph(undefined, { internal? })
 //   → GraphNode[]
 //   With no proxy argument, walks every live root registered in
-//   _devtoolsRoots (now a Set<WeakRef<View>>; dead refs are pruned during
-//   iteration). Pass { internal: true } to also include devtools-internal
-//   roots (e.g. the panel's own state).
+//   _devtoolsRoots (a Set<WeakRef<View>>; dead refs are pruned during
+//   iteration). Pass { internal: true } to also include any roots a
+//   devtools surface has marked via _devtoolsInternalRoots.
 
 $.fromDOM(el)
 //   → ViewProxy | null
@@ -128,9 +153,9 @@ $.cascades(proxy?, opts?)
 //   opts.maxCascades caps the ring buffer (default 200; oldest evicted).
 //   opts.captureState:true populates a `state` field on each cascade —
 //   a structuredClone of the source view's value at cascade close (the
-//   post-cascade state). Used by the Replay tab. Off by default since
-//   structuredClone'ing the source value per cascade is meaningfully
-//   more expensive than the bare frame-recording path.
+//   post-cascade state). Off by default since structuredClone'ing the
+//   source value per cascade is meaningfully more expensive than the
+//   bare frame-recording path.
 //   Coalescing: sibling top-level patched-verb calls within one task
 //   tick merge into a single cascade — Value.BU1 splits into view.BU1 +
 //   view.BI0 internally, so without coalescing one user assignment
@@ -156,9 +181,8 @@ $.devtools.enable() / $.devtools.disable()
 
 ## Manual smoke tests
 
-After commit 7 wires devtools into the example pages, open
-`http://127.0.0.1:3000/examples/todo/?devtools` after `npm run serve`, then
-in the browser console:
+Open `http://127.0.0.1:3000/examples/todo-jsx/?devtools` after
+`npm run serve`, then in the browser console:
 
 1. `$.graph(items)` — tree shows root + the three filter operators + the
    length operators chained off them.

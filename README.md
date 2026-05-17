@@ -38,11 +38,14 @@ import { render, HTML, SVG } from 'data/render'
 
 // `data/devtools` — opt-in inspection helpers. Side-effecting: importing it
 // attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
-// `$.profile` onto the canonical `$`, AND auto-mounts a draggable overlay
-// panel into a closed Shadow DOM root with Graph / Events / Profile tabs and
-// a DOM picker. Append `?nopanel` to suppress the panel; only load this entry
-// when you want the helpers (gate behind a query param in production).
-// See [devtools/README.md](devtools/README.md).
+// `$.profile` onto the canonical `$`, AND auto-mounts a graph-first overlay
+// panel — right-edge dock with a Tree/DAG graph view and a slide-in
+// inspector (Inspect / Events / Profile tabs), Alt-hover badges, a DOM
+// picker, and a draggable left-edge resize handle. The shell is rendered
+// into a closed Shadow DOM root so page CSS can't leak in. Append `?nopanel`
+// to suppress the panel; only load this entry when you want the helpers
+// (gate behind a query param in production). See
+// [devtools/README.md](devtools/README.md).
 import 'data/devtools'
 ```
 
@@ -298,7 +301,7 @@ npm run serve
 │   ├── walk.ts       — pure graph walk + iterRoots + summarize + classify
 │   ├── instrument.ts — View.prototype monkey-patch (gated by trace/profile)
 │   ├── events.ts     — trace dispatch + profile bucketing + re-entrancy depth
-│   └── panel/        — overlay UI: shell, state, graph/events/profile tabs, DOM picker
+│   └── panel/        — overlay UI: single-file panel (right-edge dock, Tree/DAG graph, Inspect/Events/Profile inspector, picker, Alt-hover)
 └── examples/
     ├── todo/         and todo-jsx/         (same app, two authoring styles)
     └── crossfilter/  and crossfilter-jsx/
