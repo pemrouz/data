@@ -68,6 +68,7 @@ export class BetweenValue extends Operator {
   // previously aliased the source we have to fork it before mutating, or our
   // `value[ti] = undefined` writes would hit the user's data.
   set extent([a = -Infinity, b = Infinity]){
+    if (this.sortedDirty) this._resort()
     a = +a
     b = +b
     const new_lo = a < b ? a : b
@@ -205,15 +206,13 @@ export class BetweenValue extends Operator {
   _inRange(v) { return v >= this.lo_val && v <= this.hi_val }
 
   // Membership transition for a single row whose row-value or col-value
-  // changed. `name` may or may not currently be in `sorted`/view; we
-  // re-position it in `sorted` and emit BU1/BI0/BR1 based on the
-  // before/after membership.
+  // changed. `name` may or may not currently be in `sorted`/view; we emit
+  // BU1/BI0/BR1 based on the before/after membership and mark the sorted
+  // index dirty. The dirty flag is honoured the next time `set extent`
+  // runs (which is rare relative to BU2 ticks — bounds change on user
+  // brush, attribute updates happen on every data tick) so each BU2 stays
+  // O(1) instead of paying O(N) splice + indexOf to maintain `sorted`.
   _replaceRow(name, row, newCol) {
-    const oidx = this.sorted.indexOf(name)
-    if (oidx !== -1) this.sorted.splice(oidx, 1)
-    const nidx = this.find(this.sorted, newCol)
-    this.sorted.splice(nidx, 0, name)
-
     const wasIn = this.view.value[name] !== undefined
     const isIn = this._inRange(newCol)
     if (wasIn && isIn) {
@@ -229,8 +228,27 @@ export class BetweenValue extends Operator {
       this.view.BR1([name, oldVal])
     }
 
+    this.sortedDirty = true
     this.lo_index = undefined
     this.hi_index = undefined
+  }
+
+  // Rebuild `sorted` from the current `p.value`. Called lazily by
+  // `set extent` when `sortedDirty` is set — amortizes the cost of many
+  // BU2/BU1 attribute updates into a single O(N log N) sort that fires
+  // only when the user actually brushes new bounds.
+  _resort() {
+    const v = this.p.value
+    if (!v || typeof v !== 'object') return
+    this.sorted = []
+    iter(v, (i) => this.sorted.push('' + i))
+    const col = this.col
+    this.sorted.sort((a, b) => {
+      const va = v[a]?.[col]
+      const vb = v[b]?.[col]
+      return va > vb ? 1 : va < vb ? -1 : 0
+    })
+    this.sortedDirty = false
   }
 
   BU1(U1) {
@@ -265,6 +283,7 @@ export class BetweenValue extends Operator {
 
   BI0(I0) {
     if (this.view.value === this.p.value) return this.view.BI0(I0)
+    if (this.sortedDirty) this._resort()
 
     // Array source: a non-end insert at position `at` shifts every existing
     // upstream key >= at up by one. We have to translate `sorted` and the
@@ -302,6 +321,7 @@ export class BetweenValue extends Operator {
 
   BR1(R1) {
     if (this.view.value === this.p.value) return this.view.BR1(R1)
+    if (this.sortedDirty) this._resort()
 
     const NR1 = []
     const removedKeys = this.isArr ? [] : null
