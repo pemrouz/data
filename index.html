@@ -318,119 +318,197 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
   <section class="devtools stack" id="devtools" style="--gap:1rem">
     <h2>devtools</h2>
     <p class="muted" style="max-width:62ch">
-      Import <code class="inline">data/devtools</code> and a draggable overlay
-      panel auto-mounts into a closed Shadow DOM root &mdash; three surfaces
-      over the live reactive graph, plus a DOM picker that walks any element
-      to the sink that bound it. The panel ships as a separate ~30 KB chunk,
-      lazy-loaded only when you import the entry.
+      Import <code class="inline">data/devtools</code> and a graph-first overlay
+      panel auto-mounts into a closed Shadow DOM root &mdash; a right-edge dock
+      with a Tree/DAG view of the reactive graph and a slide-in inspector
+      (Inspect&nbsp;/&nbsp;Events&nbsp;/&nbsp;Profile tabs). Hold
+      <kbd class="dock-mock-kbd">Alt</kbd> for inline badges, click <code class="inline">◎</code>
+      to pick any DOM element back to the view that bound it. Drag the left
+      edge to resize; width persists in localStorage. Lazy-loaded chunk
+      &mdash; the console API alone (<code class="inline">$.inspect</code>,
+      <code class="inline">$.trace</code>, <code class="inline">$.profile</code>) doesn&rsquo;t pay the panel&rsquo;s bytes.
     </p>
 
-    <!-- Animated mockup: chrome stays static while the active tab + body
-         pane crossfade through graph → events → profile on a 12-second
-         cycle. CSS keyframes only; no JS. Honors prefers-reduced-motion. -->
+    <!-- Static-graph + animated-inspector mockup. The graph pane (left) stays
+         put; the inspector pane (right) crossfades through inspect / events /
+         profile on a 12-second cycle. CSS keyframes only; honors
+         prefers-reduced-motion. -->
     <div class="dock-mock-wrap">
       <div class="dock-mock dock-mock-animated" aria-hidden="true">
         <div class="dock-mock-header">
           <span class="dock-mock-title">data devtools</span>
           <span class="dock-mock-actions">
+            <span class="dock-mock-btn" title="Alt-hover">⊙</span>
             <span class="dock-mock-btn dock-mock-active" title="DOM picker (armed)">◎</span>
-            <span class="dock-mock-btn">—</span>
-            <span class="dock-mock-btn">×</span>
+            <span class="dock-mock-btn">✕</span>
           </span>
         </div>
 
-        <div class="dock-mock-tabs">
-          <span class="dock-mock-tab">graph</span>
-          <span class="dock-mock-tab">events</span>
-          <span class="dock-mock-tab">profile</span>
+        <div class="dock-mock-toolbar2">
+          <span class="dim">layout:</span>
+          <span class="dock-mock-seg">
+            <span class="dock-mock-seg-btn">Tree</span>
+            <span class="dock-mock-seg-btn dock-mock-seg-active">DAG</span>
+          </span>
         </div>
 
-        <div class="dock-mock-body">
-
-          <div class="dock-mock-pane dock-pane-graph">
-            <div class="dock-mock-toolbar">
-              <span class="dim">root:</span>
-              <span class="dock-mock-select">#0&nbsp; trades&nbsp; { keys: 10 } ▾</span>
-              <span class="dock-mock-checkbox">☐ show internal</span>
+        <div class="dock-mock-split">
+          <!-- Left: static DAG graph rooted at items, with the selected
+               .length() node highlighted (the inspector to the right is
+               reading from this node). -->
+          <div class="dock-mock-graph">
+            <svg class="dock-mock-edges" viewBox="0 0 220 200" preserveAspectRatio="none">
+              <path d="M110 30 C 110 50, 60 60, 60 80"/>
+              <path d="M110 30 C 110 50, 160 60, 160 80"/>
+              <path d="M60 110 C 60 130, 110 140, 110 160"/>
+              <path d="M160 110 C 160 130, 110 140, 110 160"/>
+            </svg>
+            <div class="dock-mock-dnode dock-mock-dnode-root" style="left:78px;top:14px">
+              <div class="dock-mock-dnode-label">&lt;root&gt;</div>
+              <div class="dock-mock-dnode-sub">items</div>
+              <span class="dock-mock-chip">→4</span>
             </div>
-            <div class="dock-mock-tree">
-              <div class="dock-mock-node"><span class="dock-mock-badge dock-mock-root">root</span> trades <span class="dim">= [ Array(10) ]</span></div>
-              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> FilterValue <span class="dim">= Array(3)</span></div>
-              <div class="dock-mock-node dock-mock-indent2"><span class="dock-mock-twist">▾</span> <span class="dock-mock-badge dock-mock-operator">operator</span> ZAValue <span class="dim">= Array(3)</span></div>
-              <div class="dock-mock-node dock-mock-indent3 dock-mock-picked"><span class="dock-mock-badge dock-mock-dom">dom</span> DOMSink&nbsp;&nbsp;<span class="dock-mock-pick-label">← picked</span></div>
-              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-twist">▸</span> <span class="dock-mock-badge dock-mock-operator">operator</span> LengthValue <span class="dim">= 10</span></div>
-              <div class="dock-mock-node dock-mock-indent"><span class="dock-mock-badge dock-mock-operator">operator</span> AvgValue <span class="dim">= 1.94</span></div>
+            <div class="dock-mock-dnode dock-mock-dnode-operator" style="left:28px;top:80px">
+              <div class="dock-mock-dnode-label">.filter()</div>
+              <div class="dock-mock-dnode-sub">FilterStringValue</div>
+              <span class="dock-mock-chip">→1</span>
             </div>
-          </div>
-
-          <div class="dock-mock-pane dock-pane-events">
-            <div class="dock-mock-toolbar">
-              <span class="dim">filter:</span>
-              <span class="dock-mock-select">verb=update · key~bid ▾</span>
-              <span class="dock-mock-checkbox">⏸ pause</span>
+            <div class="dock-mock-dnode dock-mock-dnode-operator dock-mock-dnode-selected" style="left:128px;top:80px">
+              <div class="dock-mock-dnode-label">.length()</div>
+              <div class="dock-mock-dnode-sub">LengthValue</div>
+              <span class="dock-mock-chip">→1</span>
             </div>
-            <div class="dock-evt-list">
-              <div class="dock-evt-row dock-evt-fresh"><span class="dock-evt-time">+0.012</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[3].bid</span><span class="dock-evt-val">→ 4.32</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.012</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">filtered[3].bid</span><span class="dock-evt-val">→ 4.32</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.013</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">top[1].bid</span><span class="dock-evt-val">→ 4.32</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.090</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[7].pnl</span><span class="dock-evt-val">→ -1,303</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.156</span><span class="dock-evt-verb dock-evt-insert">insert</span><span class="dock-evt-path">trades[10]</span><span class="dock-evt-val">= { id: …}</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.181</span><span class="dock-evt-verb dock-evt-update">update</span><span class="dock-evt-path">trades[2].ask</span><span class="dock-evt-val">→ 5.27</span></div>
-              <div class="dock-evt-row"><span class="dock-evt-time">+0.214</span><span class="dock-evt-verb dock-evt-remove">remove</span><span class="dock-evt-path">trades[10]</span><span class="dock-evt-val"></span></div>
+            <div class="dock-mock-dnode dock-mock-dnode-dom" style="left:78px;top:158px">
+              <div class="dock-mock-dnode-label">.to()</div>
+              <div class="dock-mock-dnode-sub">ToValue → DOM</div>
             </div>
           </div>
 
-          <div class="dock-mock-pane dock-pane-profile">
-            <div class="dock-mock-toolbar">
-              <span class="dim">profiling:</span>
-              <span class="dock-mock-select">$.profile(trades) ▾</span>
-              <span class="dock-mock-checkbox">■ stop</span>
+          <!-- Right: inspector. Tab strip animates active state; pane content
+               crossfades through the three tabs on the same 12s cycle. -->
+          <div class="dock-mock-inspector">
+            <div class="dock-mock-insp-header">
+              <span class="dock-mock-insp-title">.length() · operator</span>
+              <span class="dock-mock-btn dock-mock-close">Close ✕</span>
             </div>
-            <div class="dock-prof-head">
-              <span>operator</span>
-              <span>calls</span>
-              <span class="dock-prof-totalh">total&nbsp;ms</span>
+
+            <div class="dock-mock-tabs">
+              <span class="dock-mock-tab">inspect</span>
+              <span class="dock-mock-tab">events</span>
+              <span class="dock-mock-tab">profile</span>
             </div>
-            <div class="dock-prof-row">
-              <span class="dock-prof-name">FilterValue</span>
-              <span class="dock-prof-calls">247</span>
-              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:78%"></span></span>
-              <span class="dock-prof-total">4.21</span>
-            </div>
-            <div class="dock-prof-row">
-              <span class="dock-prof-name">ZAValue</span>
-              <span class="dock-prof-calls">247</span>
-              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:58%"></span></span>
-              <span class="dock-prof-total">3.12</span>
-            </div>
-            <div class="dock-prof-row">
-              <span class="dock-prof-name">LengthValue</span>
-              <span class="dock-prof-calls">247</span>
-              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:34%"></span></span>
-              <span class="dock-prof-total">1.83</span>
-            </div>
-            <div class="dock-prof-row">
-              <span class="dock-prof-name">AvgValue</span>
-              <span class="dock-prof-calls">247</span>
-              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:18%"></span></span>
-              <span class="dock-prof-total">0.97</span>
-            </div>
-            <div class="dock-prof-row">
-              <span class="dock-prof-name">DOMSink</span>
-              <span class="dock-prof-calls">247</span>
-              <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:11%"></span></span>
-              <span class="dock-prof-total">0.61</span>
+
+            <div class="dock-mock-insp-body">
+
+              <!-- Inspect tab: card stack -->
+              <div class="dock-mock-pane dock-pane-inspect">
+                <div class="dock-mock-card dock-mock-card-identity">
+                  <div class="dock-mock-card-title">IDENTITY</div>
+                  <div class="dock-mock-card-headline">items.filter().length()</div>
+                  <div class="dock-mock-card-sub">LengthValue · operator</div>
+                </div>
+                <div class="dock-mock-card">
+                  <div class="dock-mock-card-title">CURRENT VALUE</div>
+                  <div class="dock-mock-card-value">2</div>
+                  <div class="dock-mock-card-sub">Number · stable for 1.4s</div>
+                </div>
+                <div class="dock-mock-card">
+                  <div class="dock-mock-card-title">CONNECTIONS</div>
+                  <div class="dock-mock-conn-row"><span class="dock-mock-conn-dir">↑ in</span><span class="dock-mock-conn-detail">items.filter()</span></div>
+                  <div class="dock-mock-conn-row"><span class="dock-mock-conn-dir">↓ out</span><span class="dock-mock-conn-detail">1 DOM binding</span></div>
+                </div>
+                <div class="dock-mock-card">
+                  <div class="dock-mock-card-title">ACTIVITY</div>
+                  <div class="dock-mock-card-stat">3 events in last 60s</div>
+                  <div class="dock-mock-verbs">
+                    <span class="dock-mock-verb dock-mock-verb-update">XU0×3</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Events tab: sparkline + transitions (scalar variant) -->
+              <div class="dock-mock-pane dock-pane-events">
+                <div class="dock-mock-card">
+                  <div class="dock-mock-card-title">VALUE OVER TIME · LAST 60s <span class="dock-mock-card-current">now: 2</span></div>
+                  <svg class="dock-mock-spark" viewBox="0 0 300 70" preserveAspectRatio="none">
+                    <line class="dock-mock-spark-grid" x1="40" y1="15" x2="290" y2="15"/>
+                    <line class="dock-mock-spark-grid" x1="40" y1="55" x2="290" y2="55"/>
+                    <text class="dock-mock-spark-axis" x="36" y="18" text-anchor="end">3</text>
+                    <text class="dock-mock-spark-axis" x="36" y="58" text-anchor="end">1</text>
+                    <path class="dock-mock-spark-line" d="M40 55 L120 55 L120 35 L200 35 L200 15 L260 15 L260 35 L290 35"/>
+                    <circle class="dock-mock-spark-dot" cx="290" cy="35" r="3"/>
+                  </svg>
+                </div>
+                <div class="dock-mock-card">
+                  <div class="dock-mock-card-title">LAST CHANGES</div>
+                  <div class="dock-mock-trans">
+                    <span class="dock-mock-trans-time">just now</span>
+                    <span class="dock-mock-trans-delta">3 → 2</span>
+                    <span class="dock-mock-verb dock-mock-verb-update">updated</span>
+                  </div>
+                  <div class="dock-mock-trans">
+                    <span class="dock-mock-trans-time">5s ago</span>
+                    <span class="dock-mock-trans-delta">2 → 3</span>
+                    <span class="dock-mock-verb dock-mock-verb-insert">inserted</span>
+                  </div>
+                  <div class="dock-mock-trans">
+                    <span class="dock-mock-trans-time">12s ago</span>
+                    <span class="dock-mock-trans-delta">3 → 2</span>
+                    <span class="dock-mock-verb dock-mock-verb-update">updated</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Profile tab: operator table -->
+              <div class="dock-mock-pane dock-pane-profile">
+                <div class="dock-mock-toolbar">
+                  <span class="dim">profiling:</span>
+                  <span class="dock-mock-select">$.profile(items) ▾</span>
+                  <span class="dock-mock-checkbox">■ stop</span>
+                </div>
+                <div class="dock-prof-head">
+                  <span>operator</span>
+                  <span>calls</span>
+                  <span class="dock-prof-totalh">total&nbsp;ms</span>
+                </div>
+                <div class="dock-prof-row">
+                  <span class="dock-prof-name">FilterStringValue</span>
+                  <span class="dock-prof-calls">247</span>
+                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:78%"></span></span>
+                  <span class="dock-prof-total">4.21</span>
+                </div>
+                <div class="dock-prof-row">
+                  <span class="dock-prof-name">LengthValue</span>
+                  <span class="dock-prof-calls">247</span>
+                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:34%"></span></span>
+                  <span class="dock-prof-total">1.83</span>
+                </div>
+                <div class="dock-prof-row">
+                  <span class="dock-prof-name">ToValue</span>
+                  <span class="dock-prof-calls">247</span>
+                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:18%"></span></span>
+                  <span class="dock-prof-total">0.97</span>
+                </div>
+                <div class="dock-prof-row">
+                  <span class="dock-prof-name">DOMSink</span>
+                  <span class="dock-prof-calls">247</span>
+                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:11%"></span></span>
+                  <span class="dock-prof-total">0.61</span>
+                </div>
+              </div>
+
             </div>
           </div>
-
         </div>
       </div>
       <p class="muted dock-mock-caption">
-        Three surfaces over the live graph: Graph (collapsible tree, picked
-        sink pulses green), Events (live tail of <code class="inline">$.trace</code>),
-        Profile (timed by <code class="inline">$.profile()</code>).
-        <a href="./examples/todo/?devtools">try it on todo →</a> ·
-        <a href="./examples/crossfilter/?devtools">on crossfilter →</a>
+        Click a graph node to open the inspector. Three tabs over the live
+        view: <b>Inspect</b> (identity, value, connections, activity, bound
+        DOM), <b>Events</b> (sparkline + recent changes for scalars; insert/
+        remove/update rollups for collections), <b>Profile</b> (timed by
+        <code class="inline">$.profile()</code>).
+        <a href="./examples/todo-jsx/?devtools">try it on todo-jsx →</a> ·
+        <a href="./examples/crossfilter-jsx/?devtools">on crossfilter →</a>
       </p>
     </div>
   </section>

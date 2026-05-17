@@ -783,14 +783,15 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 /* ---------- devtools ---------- */
 
 /* Mockup of the devtools panel — colors mirror the actual panel styles in
-   devtools/panel/styles.ts so the visual stays accurate even if the live
-   widget gets re-themed. Not interactive; the animated variant
-   (.dock-mock-animated) crossfades between graph / events / profile tabs
-   on a 12-second cycle so each surface gets airtime in the same chrome. */
+   devtools/panel/index.ts so the visual stays accurate even if the live
+   widget gets re-themed. Layout matches the panel's two-pane shape: a
+   static graph on the left, an inspector on the right whose tab content
+   crossfades through inspect / events / profile on a 12-second cycle.
+   CSS keyframes only; honors prefers-reduced-motion. */
 .dock-mock-wrap { margin-top: 1rem; margin-bottom: 1.5rem; }
 .dock-mock {
   width: 100%;
-  max-width: 520px;
+  max-width: 720px;
   margin: 0 auto;
   background: #1a1a1a;
   border: 1px solid #333;
@@ -822,32 +823,255 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   line-height: 1;
 }
 .dock-mock-btn.dock-mock-active { color: #9be3a8; }
+.dock-mock-kbd {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: #232323;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 0 5px;
+  color: #ccc;
+}
+
+/* Toolbar 2: layout: Tree | DAG segment */
+.dock-mock-toolbar2 {
+  display: flex; align-items: center; gap: 8px;
+  background: #222;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.dock-mock-toolbar2 .dim { color: #888; }
+.dock-mock-seg {
+  margin-left: auto;
+  display: inline-flex;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dock-mock-seg-btn {
+  padding: 2px 10px;
+  color: #888;
+  font-size: 11px;
+}
+.dock-mock-seg-btn.dock-mock-seg-active {
+  background: #1a1a1a;
+  color: #9be3a8;
+}
+
+/* Two-pane body: graph on left, inspector on right */
+.dock-mock-split {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+.dock-mock-graph {
+  position: relative;
+  height: 240px;
+  background:
+    radial-gradient(circle, #2a2a2a 1px, transparent 1px) 0 0 / 24px 24px,
+    #141414;
+  border-right: 1px solid #2a2a2a;
+  overflow: hidden;
+}
+.dock-mock-edges {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+.dock-mock-edges path {
+  fill: none;
+  stroke: #5e7593;
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+.dock-mock-dnode {
+  position: absolute;
+  width: 80px; height: 32px;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  background: #1f1f1f;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 2px 6px;
+  font-size: 10px; line-height: 1.1;
+}
+.dock-mock-dnode-label { color: #e6e6e6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-mock-dnode-sub   { color: #888; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-mock-dnode-root      { background: #2d3a2d; border-color: #3a4f3a; }
+.dock-mock-dnode-root .dock-mock-dnode-label { color: #9be3a8; }
+.dock-mock-dnode-operator  { background: #2d3447; border-color: #3a4760; }
+.dock-mock-dnode-operator .dock-mock-dnode-label { color: #9bb3e3; }
+.dock-mock-dnode-dom       { background: #3a2d2d; border-color: #4d3a3a; }
+.dock-mock-dnode-dom .dock-mock-dnode-label { color: #e39b9b; }
+.dock-mock-dnode-selected {
+  box-shadow: 0 0 0 2px #9be3a8, 0 0 14px rgba(155, 227, 168, 0.55);
+  border-color: #9be3a8;
+  z-index: 2;
+}
+.dock-mock-chip {
+  position: absolute; right: -6px; top: -7px;
+  background: #5e7593; color: #0f0f0f;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font: 9px var(--mono);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Inspector pane */
+.dock-mock-inspector {
+  display: flex; flex-direction: column;
+  background: #161616;
+  min-width: 0;
+}
+.dock-mock-insp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.dock-mock-insp-title {
+  color: #9be3a8; font-weight: 600; font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dock-mock-close {
+  background: #2d3a2d; color: #9be3a8;
+  border: 1px solid #3a4f3a; border-radius: 3px;
+  padding: 2px 8px; font-size: 11px;
+}
 .dock-mock-tabs {
   display: flex;
   background: #181818;
   border-bottom: 1px solid #333;
 }
 .dock-mock-tab {
-  padding: 6px 12px;
+  flex: 1; padding: 6px 12px;
+  text-align: center;
   color: #888;
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border-right: 1px solid #2a2a2a;
+  border-bottom: 2px solid transparent;
 }
 .dock-mock-tab.dock-mock-tab-active {
   color: #9be3a8;
-  background: #1f2a20;
+  border-bottom-color: #9be3a8;
 }
-.dock-mock-body {
+.dock-mock-insp-body {
+  position: relative;
   padding: 8px;
-  max-height: 260px;
+  height: 168px;
   overflow: hidden;
 }
+.dock-mock-pane {
+  position: absolute;
+  inset: 8px;
+  opacity: 0;
+}
+
+/* Inspector card stack (Inspect tab) */
+.dock-mock-card {
+  background: #131313;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  margin: 0 0 6px;
+}
+.dock-mock-card-title {
+  padding: 4px 8px;
+  background: #181818;
+  border-bottom: 1px solid #2a2a2a;
+  color: #888;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dock-mock-card-current {
+  color: #9be3a8;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+}
+.dock-mock-card-headline {
+  color: #9be3a8;
+  font: 12px/1.3 var(--mono);
+  font-weight: 600;
+  padding: 6px 8px 0;
+}
+.dock-mock-card-sub {
+  color: #888; font-size: 10px;
+  padding: 0 8px 6px;
+}
+.dock-mock-card-value {
+  color: #e6e6e6;
+  font: 14px/1 var(--mono);
+  padding: 6px 8px 0;
+}
+.dock-mock-card-identity { border-color: #3a4f3a; }
+.dock-mock-card-identity .dock-mock-card-title { background: #1f2a20; color: #9be3a8; }
+.dock-mock-conn-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.dock-mock-conn-dir { color: #9bb3e3; font: 10px var(--mono); width: 38px; }
+.dock-mock-conn-detail { color: #ddd; font: 10px var(--mono); }
+.dock-mock-card-stat {
+  color: #e6e6e6;
+  font-size: 11px;
+  padding: 4px 8px 2px;
+}
+.dock-mock-verbs {
+  display: flex; gap: 4px;
+  padding: 0 8px 6px;
+}
+.dock-mock-verb {
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #2a2a2a;
+  color: #888;
+}
+.dock-mock-verb.dock-mock-verb-update { background: #2d3447; color: #9bb3e3; }
+.dock-mock-verb.dock-mock-verb-insert { background: #2d3a2d; color: #9be3a8; }
+.dock-mock-verb.dock-mock-verb-remove { background: #3a2d2d; color: #e39b9b; }
+
+/* Events tab — sparkline + transitions */
+.dock-mock-spark {
+  display: block;
+  width: 100%;
+  height: 70px;
+  padding: 4px 0;
+}
+.dock-mock-spark-grid {
+  stroke: #2a2a2a;
+  stroke-dasharray: 2 3;
+}
+.dock-mock-spark-axis {
+  fill: #666;
+  font: 9px var(--mono);
+}
+.dock-mock-spark-line {
+  fill: none;
+  stroke: #9be3a8;
+  stroke-width: 1.5;
+}
+.dock-mock-spark-dot { fill: #9be3a8; }
+.dock-mock-trans {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-top: 1px solid #1f1f1f;
+}
+.dock-mock-trans-time { color: #666; }
+.dock-mock-trans-delta { color: #ddd; font: 10px var(--mono); }
+
+/* Profile tab — toolbar + table (reused from previous design) */
 .dock-mock-toolbar {
   display: flex; gap: 8px; align-items: center;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #2a2a2a;
 }
 .dock-mock-toolbar .dim { color: #666; }
@@ -864,72 +1088,30 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   text-overflow: ellipsis;
 }
 .dock-mock-checkbox { color: #888; white-space: nowrap; }
-.dock-mock-tree { line-height: 1.6; }
-.dock-mock-node { display: block; }
-.dock-mock-indent  { padding-left: 16px; }
-.dock-mock-indent2 { padding-left: 32px; }
-.dock-mock-indent3 { padding-left: 48px; }
-.dock-mock-twist { color: #555; display: inline-block; width: 12px; }
-.dock-mock-node .dim { color: #888; }
-.dock-mock-badge {
-  display: inline-block;
-  padding: 0 4px;
-  margin-right: 4px;
-  border-radius: 2px;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: #2a2a2a;
-  color: #888;
-}
-.dock-mock-root     { background: #2d3a2d; color: #9be3a8; }
-.dock-mock-operator { background: #2d3447; color: #9bb3e3; }
-.dock-mock-dom      { background: #3a2d2d; color: #e39b9b; }
-
-.dock-mock-picked {
-  outline: 1px solid #9be3a8;
-  outline-offset: 2px;
-  border-radius: 2px;
-  animation: __landing_pulse 1.4s ease-out infinite;
-  background: rgba(155, 227, 168, 0.05);
-}
-.dock-mock-pick-label { color: #9be3a8; font-size: 10px; }
-
-@keyframes __landing_pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(155, 227, 168, 0.55); }
-  70%  { box-shadow: 0 0 0 10px rgba(155, 227, 168, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(155, 227, 168, 0); }
-}
 
 .dock-mock-caption {
   text-align: center;
   font-size: 0.8125rem;
   margin-top: 0.75rem;
-  max-width: 60ch;
+  max-width: 64ch;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* ---- animated mockup: tab + pane crossfade on a 12s cycle ----
-   Each tab and its corresponding pane share the same animation curve and
-   stagger by 4s via negative animation-delay so all three surfaces get
-   equal airtime in identical chrome. The keyframe runs:
+/* ---- animated mockup: inspector tab + pane crossfade on a 12s cycle ----
+   Graph pane stays static; only the inspector body cycles. Each tab and its
+   corresponding pane share the same animation curve and stagger by 4s via
+   negative animation-delay so all three surfaces get equal airtime in
+   identical chrome. The keyframe runs:
      0–30%   visible (3.6s)
      30–33%  fade out (0.4s)
      33–97%  hidden (7.6s)
      97–100% fade in   (0.4s, wraps to next iteration)
    so panes overlap during transitions instead of flashing the body bg. */
-.dock-mock-animated .dock-mock-body {
-  position: relative;
-  min-height: 230px;
-}
 .dock-mock-animated .dock-mock-pane {
-  position: absolute;
-  inset: 8px;                         /* match .dock-mock-body padding */
-  opacity: 0;
   animation: dock-pane-cycle 12s ease-in-out infinite;
 }
-.dock-mock-animated .dock-pane-graph   { animation-delay:  0s;  opacity: 1; }
+.dock-mock-animated .dock-pane-inspect { animation-delay:  0s; opacity: 1; }
 .dock-mock-animated .dock-pane-events  { animation-delay: -8s; }
 .dock-mock-animated .dock-pane-profile { animation-delay: -4s; }
 
@@ -939,9 +1121,6 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
   100%           { opacity: 1; }
 }
 
-/* Tab active-state cycles in lockstep. The default tab style (color/bg)
-   stays in the existing rule above; the keyframe overrides during the
-   visible window. */
 .dock-mock-animated .dock-mock-tab {
   animation: dock-tab-cycle 12s ease-in-out infinite;
 }
@@ -950,9 +1129,9 @@ code.inline { padding: 0.1em 0.4em; font-size: 0.875em; }
 .dock-mock-animated .dock-mock-tab:nth-child(3) { animation-delay: -4s; }
 
 @keyframes dock-tab-cycle {
-  0%, 30%        { color: #9be3a8; background: #1f2a20; }
-  33.34%, 96.66% { color: #888;    background: transparent; }
-  100%           { color: #9be3a8; background: #1f2a20; }
+  0%, 30%        { color: #9be3a8; border-bottom-color: #9be3a8; }
+  33.34%, 96.66% { color: #888;    border-bottom-color: transparent; }
+  100%           { color: #9be3a8; border-bottom-color: #9be3a8; }
 }
 
 /* ---- events pane content ---- */
