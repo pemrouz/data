@@ -120,6 +120,41 @@ setInterval(() => {
   lastTpsT = now
 }, 500)
 
+// Pre-fill each lib's rolling window with the same synthetic stream.
+// Without this peers walk a partially-empty window for the first ~100s
+// at default rate (window fills organically), hiding the perf gap that's
+// the whole point of this page. Both libs ingest the prefill untimed
+// (the tracker only samples post-prefill batches), so the comparison
+// starts at steady-state.
+//
+// Chunked + yielded so the page stays responsive — at 25k/chunk the
+// slowest lib spends ~250ms per chunk, and the rAF between chunks
+// repaints the progress label. ~5–10 s total wall-clock on a fresh load.
+const PREFILL_TICKS = WINDOW_N
+const PREFILL_CHUNK = 25_000
+
+$toggle.textContent = 'filling window…'
+$toggle.disabled = true
+const prefill = ticker.synthesize(PREFILL_TICKS)
+for (let i = 0; i < prefill.length; i += PREFILL_CHUNK) {
+  const chunk = prefill.slice(i, Math.min(i + PREFILL_CHUNK, prefill.length))
+  for (const h of handles) {
+    try { h.handle.ingest(chunk) }
+    catch (e) { console.error(`[${h.lib.name}] prefill failed`, e); h.row.classList.add('tk-failed') }
+  }
+  const done = Math.min(i + PREFILL_CHUNK, prefill.length)
+  $toggle.textContent = `filling window… ${(done / PREFILL_TICKS * 100).toFixed(0)}%`
+  await new Promise(r => setTimeout(r, 0))
+}
+$toggle.textContent = 'pause'
+$toggle.disabled = false
+$toggle.dataset.paused = 'false'
+
+// Reset tps accounting now that prefill is done — h.ticks accumulates
+// only from onBatch and prefill doesn't go through it, but lastTpsT is
+// the timer baseline for tps and needs to match "live stream start".
+lastTpsT = performance.now()
+
 ticker.start()
 
 function mountRow(lib) {
@@ -131,12 +166,23 @@ function mountRow(lib) {
       <div class="tk-name">${escape(lib.name)} <span class="tk-version">${escape(lib.version)}</span></div>
       <div class="tk-tag">${escape(lib.tag || '')}</div>
     </div>
-    <div class="tk-top">
-      <div class="tk-top-h">top movers</div>
+    <div class="tk-movers">
+      <div class="tk-movers-h">top 3 / bottom 3</div>
       <ol class="tk-top-list" data-target="top"></ol>
+      <div class="tk-movers-divider"></div>
+      <ol class="tk-top-list" data-target="bottom"></ol>
     </div>
     <div class="tk-sectors" data-target="sectors">
       <div class="tk-sectors-h">sector volume (rolling window)</div>
+    </div>
+    <div class="tk-hist" data-target="hist">
+      <div class="tk-hist-h">% change distribution</div>
+      <div class="tk-hist-bars"></div>
+      <div class="tk-hist-axis"><span>-5%</span><span>0</span><span>+5%</span></div>
+    </div>
+    <div class="tk-scalars" data-target="scalars">
+      <div class="tk-st-row"><span class="tk-st-k">tot vol</span><span class="tk-st-v"><b data-scalar="totvol">—</b></span></div>
+      <div class="tk-st-row"><span class="tk-st-k">avg %chg</span><span class="tk-st-v"><b data-scalar="avgpct">—</b><span class="tk-st-u">%</span></span></div>
     </div>
     <div class="tk-stats">
       <div class="tk-st-row"><span class="tk-st-k">tps</span><span class="tk-st-v" data-stat="tps"><b>—</b></span></div>

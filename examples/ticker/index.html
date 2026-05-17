@@ -18,16 +18,22 @@
     </p>
     <p class="frame">
       Each row receives identical batches of <code>{symbol, sector, price,
-      volume, pctChg, time}</code> ticks and maintains the same three views
-      using its own reactive primitives: <b>top 5 by % change</b>, <b>sector
-      volume</b> (rolling sum over the last
-      <span data-stat="window">—</span> ticks), and <b>throughput</b> (ticks
-      ingested per second). The strip on the right shows the wall-clock
-      cost of each library's <code>ingest(batch)</code> call, rolling p50 /
-      p95 over the last 100 batches — directly comparable across rows
-      because it's just the lib's reactive layer doing its work. Drag the
-      rate slider to push the libs harder; the ones doing O(n) rebuilds
-      per tick fall behind first.
+      volume, pctChg, time}</code> ticks and maintains the same six views
+      using its own reactive primitives: <b>top 3 / bottom 3 by % change</b>
+      (per-symbol LWW state, ~200 keys), <b>sector volume</b>, a
+      <b>10-bin % change distribution</b>, and two scalars (<b>total
+      volume</b>, <b>avg %change</b>) — all over a rolling window of the
+      last <span data-stat="window">—</span> ticks. The window is
+      pre-filled at startup so peer libs walk a full N from the first
+      timed batch (otherwise the gap stays hidden for the ~100 s it takes
+      the window to fill at 5k ticks/s). The strip on the right is the
+      wall-clock cost of each library's <code>ingest(batch)</code> +
+      render rollup, p50 / p95 over the last 100 batches — directly
+      comparable across rows because it's just the lib's reactive layer
+      doing its work. Drag the rate slider to push the libs harder; the
+      ones doing O(n) rebuilds per tick fall behind first, until very
+      high rates where data's per-tick reactive overhead overtakes them
+      in turn.
     </p>
     <div class="tk-controls">
       <label class="tk-ctrl">

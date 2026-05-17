@@ -139,9 +139,38 @@ export function makeTicker({ batchIntervalMs = 60 } = {}) {
     timer = setTimeout(nextBatch, batchIntervalMs)
   }
 
+  // Synchronous batch synthesis. Used by main.js to pre-fill each lib's
+  // rolling window before timing starts — running the same per-tick price
+  // walk that the live stream uses, but without any setTimeout cadence.
+  // The returned array reuses the same {symbol, sector, price, volume,
+  // pctChg, time} shape; libs MUST NOT mutate it (one reference is shared
+  // across every row). Advances the internal rng / price state, so live
+  // ticks after prefill continue the same trajectory.
+  function synthesize(count) {
+    const out = new Array(count)
+    const now = performance.now()
+    for (let i = 0; i < count; i++) {
+      const idx = (rng() * symbolCount) | 0
+      const ref = universe[idx]
+      last[idx] = last[idx] * (1 + DRIFT + VOL * gauss())
+      const price = last[idx]
+      const pctChg = (price - opens[idx]) / opens[idx] * 100
+      out[i] = {
+        symbol: ref.symbol,
+        sector: ref.sector,
+        price,
+        volume: nextVolume(),
+        pctChg,
+        time: now - (count - i),
+      }
+    }
+    return out
+  }
+
   return {
     universe,
     sectors: SECTORS,
+    synthesize,
     onBatch(cb) { listeners.push(cb); return () => { listeners = listeners.filter(l => l !== cb) } },
     setRate(r) { rate = Math.max(1, r | 0) },
     getRate() { return rate },

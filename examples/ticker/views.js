@@ -17,10 +17,25 @@
 //   bar fill. Keeps the bars from flickering when only one sector's
 //   value changes (which is the common case per tick).
 
+// renderTopMovers / renderBottomMovers share the same row layout; the
+// difference is only the visible count (and the data direction, sorted by
+// the caller). We keep two named exports rather than a `count` parameter
+// so peer-lib rows that still target the legacy `[data-target=top]`
+// continue to call the same function and just see the count change.
+const MOVERS_COUNT = 3
+
 export function renderTopMovers(el, items) {
+  renderMovers(el, items)
+}
+
+export function renderBottomMovers(el, items) {
+  renderMovers(el, items)
+}
+
+function renderMovers(el, items) {
   if (!el) return
   let html = ''
-  const n = Math.min(5, items.length)
+  const n = Math.min(MOVERS_COUNT, items.length)
   for (let i = 0; i < n; i++) {
     const m = items[i]
     if (!m) continue
@@ -63,6 +78,54 @@ export function renderSectors(el, totals, sectorOrder) {
     cache[k].fill.style.right = `${100 - pct}%`
     cache[k].val.textContent = fmtVol(v)
   }
+}
+
+// `renderHistogram(el, bins)` — bins is a 10-element array of counts. We
+// build the bar elements lazily on first call (cached on the host) so each
+// frame only mutates inline `height` % on existing nodes, mirroring how
+// renderSectors caches its row refs. Color split mid-axis: bins 0..4 are
+// negative %-change buckets (orange accent), 5..9 are positive (green).
+const HIST_BINS = 10
+const histCache = new WeakMap()
+
+export function renderHistogram(el, bins) {
+  if (!el) return
+  const barsEl = el.querySelector('.tk-hist-bars')
+  if (!barsEl) return
+  let cache = histCache.get(barsEl)
+  if (!cache) {
+    let html = ''
+    for (let i = 0; i < HIST_BINS; i++) {
+      const side = i < HIST_BINS / 2 ? 'neg' : 'pos'
+      html += `<div class="tk-hist-bar" data-side="${side}"></div>`
+    }
+    barsEl.innerHTML = html
+    cache = Array.from(barsEl.children)
+    histCache.set(barsEl, cache)
+  }
+  let max = 0
+  for (let i = 0; i < HIST_BINS; i++) if (bins[i] > max) max = bins[i]
+  for (let i = 0; i < HIST_BINS; i++) {
+    const v = bins[i] || 0
+    cache[i].style.height = max > 0 ? `${(v / max) * 100}%` : '0%'
+  }
+}
+
+// `renderScalars(el, totalVol, avgPct)` — updates two cached `<b>` elements.
+// undefined → em-dash so the cell stays the same width.
+const scalarCache = new WeakMap()
+export function renderScalars(el, totalVol, avgPct) {
+  if (!el) return
+  let cache = scalarCache.get(el)
+  if (!cache) {
+    cache = {
+      vol: el.querySelector('[data-scalar=totvol]'),
+      pct: el.querySelector('[data-scalar=avgpct]'),
+    }
+    scalarCache.set(el, cache)
+  }
+  if (cache.vol) cache.vol.textContent = totalVol == null ? '—' : fmtVol(totalVol)
+  if (cache.pct) cache.pct.textContent = avgPct  == null ? '—' : avgPct.toFixed(2)
 }
 
 // Throughput / latency stat cells. We write textContent directly; React /
