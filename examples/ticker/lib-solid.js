@@ -1,6 +1,6 @@
 // solid row — signal for the version counter, memos for the aggregates,
 // an effect drives the render. Same imperative-state-behind-a-signal
-// trick mobx and react use here: a 50k-tick window doesn't belong inside
+// trick mobx and react use here: a 500k-tick window doesn't belong inside
 // a reactive primitive (the per-element proxy overhead would dwarf the
 // per-batch cost) — observe a version counter and let memos walk plain
 // state when invalidated.
@@ -9,26 +9,48 @@
 //   prices = plain Map<symbol, …>           // mutated externally
 //   win    = plain Array<tick>              // mutated externally
 //
-//   sectorTotals = createMemo(() => { version(); walk(win) })
-//   topMovers    = createMemo(() => { version(); sort(prices) })
+//   sectorTotals = createMemo(() => walk(win))
+//   histogram    = createMemo(() => walk(win))
+//   totalVol     = createMemo(() => walk(win))
+//   avgPct       = createMemo(() => walk(win))
+//   topMovers    = createMemo(() => sort(prices))
+//   bottomMovers = createMemo(() => sort(prices))
 //
 // Solid's effect-runs-on-create plus its tight memo dispatch makes this
 // shape fast — fine-grained dep tracking means setVersion-triggered
-// invalidations short-circuit through exactly two memos and one effect.
-// The dominant cost remains the O(WINDOW) walk inside the sectorTotals
-// memo, same as mobx.
+// invalidations short-circuit through the memos and one effect. The
+// dominant cost remains the four O(WINDOW) walks inside the window-derived
+// memos, same as mobx.
 
 import { createSignal, createMemo, createEffect, createRoot } from 'solid-js'
-import { renderTopMovers, renderSectors } from './views.js'
+import {
+  renderTopMovers,
+  renderBottomMovers,
+  renderSectors,
+  renderHistogram,
+  renderScalars,
+} from './views.js'
+
+const HIST_BINS = 10
+const HIST_LO = -5
+const HIST_HI = 5
+function binIdx(pct) {
+  if (pct <= HIST_LO) return 0
+  if (pct >= HIST_HI) return HIST_BINS - 1
+  return Math.floor((pct - HIST_LO) / (HIST_HI - HIST_LO) * HIST_BINS)
+}
 
 export default {
   name: 'solid',
   version: '1.9.12',
-  tag: 'createSignal version + memos walking plain refs',
+  tag: 'createSignal version + 4 memos walking the window',
 
   mount(row, tracker, opts) {
-    const topEl = row.querySelector('[data-target=top]')
-    const sectorEl = row.querySelector('[data-target=sectors]')
+    const topEl     = row.querySelector('[data-target=top]')
+    const bottomEl  = row.querySelector('[data-target=bottom]')
+    const sectorEl  = row.querySelector('[data-target=sectors]')
+    const histEl    = row.querySelector('[data-target=hist]')
+    const scalarsEl = row.querySelector('[data-target=scalars]')
 
     const prices = new Map()
     const win = []
@@ -49,36 +71,60 @@ export default {
         return out
       })
 
+      const histogram = createMemo(() => {
+        version()
+        const bins = new Array(HIST_BINS).fill(0)
+        for (let i = 0; i < win.length; i++) bins[binIdx(win[i].pctChg)]++
+        return bins
+      })
+
+      const totalVol = createMemo(() => {
+        version()
+        let s = 0
+        for (let i = 0; i < win.length; i++) s += win[i].volume
+        return s
+      })
+
+      const avgPct = createMemo(() => {
+        version()
+        if (!win.length) return undefined
+        let s = 0
+        for (let i = 0; i < win.length; i++) s += win[i].pctChg
+        return s / win.length
+      })
+
       const topMovers = createMemo(() => {
         version()
         const arr = []
         for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
         arr.sort((a, b) => b.pctChg - a.pctChg)
-        return arr
+        return arr.slice(0, 3)
       })
 
-      // Effect runs on every memo invalidation. We rAF-coalesce inside so
-      // the actual DOM write happens at most once per frame, matching the
-      // rate every other row paints at. Solid would otherwise fire the
-      // effect once per setVersion call — at high tick rates that's once
-      // per ingest batch, which is fine, but the rAF gate keeps the
-      // render strategy identical across rows.
+      const bottomMovers = createMemo(() => {
+        version()
+        const arr = []
+        for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
+        arr.sort((a, b) => a.pctChg - b.pctChg)
+        return arr.slice(0, 3)
+      })
+
       let scheduled = false
       createEffect(() => {
-        // Capturing the memo reads here forces solid to track them as
-        // deps — but the actual recompute happens inside the rAF body
-        // below (where the memo's .read() inside renderSectors et al
-        // would force it). We deliberately capture references outside
-        // the rAF and read them inside, so the work shows up in the
-        // timed block.
-        sectorTotals(); topMovers()
+        // Capture memo reads here for dep tracking; actual recompute
+        // happens inside the rAF body so the work shows up in the timed
+        // block (the same idiom multidim uses).
+        sectorTotals(); histogram(); totalVol(); avgPct(); topMovers(); bottomMovers()
         if (scheduled) return
         scheduled = true
         requestAnimationFrame(() => {
           scheduled = false
           const r0 = performance.now()
           renderSectors(sectorEl, sectorTotals(), sectorOrder)
+          renderHistogram(histEl, histogram())
+          renderScalars(scalarsEl, totalVol(), avgPct())
           renderTopMovers(topEl, topMovers())
+          renderBottomMovers(bottomEl, bottomMovers())
           tracker.sampleRender(performance.now() - r0)
         })
       })
@@ -87,7 +133,10 @@ export default {
     })
 
     renderTopMovers(topEl, [])
+    renderBottomMovers(bottomEl, [])
     renderSectors(sectorEl, {}, sectorOrder)
+    renderHistogram(histEl, new Array(HIST_BINS).fill(0))
+    renderScalars(scalarsEl, undefined, undefined)
 
     return {
       ingest(batch) {

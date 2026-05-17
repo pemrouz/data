@@ -3,28 +3,45 @@
 // plain refs when the version changes; `effect(() => …)` pulls the
 // computeds and triggers rAF-coalesced render.
 //
-//   version = ref(0)
-//   prices  = plain Map<…>
-//   win     = plain Array<tick>
-//   sectorTotals = computed(() => { version.value; walk(win) })
-//   topMovers    = computed(() => { version.value; sort(prices) })
-//
-// Per-batch we bump version once after mutating the plain refs. vue's
-// reactivity batches the schedulers but we still gate the actual DOM
-// write inside the effect on a rAF flag for parity with every other
-// row.
+//   version      = ref(0)
+//   prices       = plain Map<…>
+//   win          = plain Array<tick>
+//   sectorTotals = computed(() => walk(win))
+//   histogram    = computed(() => walk(win))
+//   totalVol     = computed(() => walk(win))
+//   avgPct       = computed(() => walk(win))
+//   topMovers    = computed(() => sort(prices))
+//   bottomMovers = computed(() => sort(prices))
 
 import { ref, computed, effect } from '@vue/reactivity'
-import { renderTopMovers, renderSectors } from './views.js'
+import {
+  renderTopMovers,
+  renderBottomMovers,
+  renderSectors,
+  renderHistogram,
+  renderScalars,
+} from './views.js'
+
+const HIST_BINS = 10
+const HIST_LO = -5
+const HIST_HI = 5
+function binIdx(pct) {
+  if (pct <= HIST_LO) return 0
+  if (pct >= HIST_HI) return HIST_BINS - 1
+  return Math.floor((pct - HIST_LO) / (HIST_HI - HIST_LO) * HIST_BINS)
+}
 
 export default {
   name: 'vue-reactivity',
   version: '3.5.34',
-  tag: 'ref<version> + computed walks plain refs',
+  tag: 'ref<version> + 4 O(window) computed walks per render',
 
   mount(row, tracker, opts) {
-    const topEl = row.querySelector('[data-target=top]')
-    const sectorEl = row.querySelector('[data-target=sectors]')
+    const topEl     = row.querySelector('[data-target=top]')
+    const bottomEl  = row.querySelector('[data-target=bottom]')
+    const sectorEl  = row.querySelector('[data-target=sectors]')
+    const histEl    = row.querySelector('[data-target=hist]')
+    const scalarsEl = row.querySelector('[data-target=scalars]')
 
     const prices = new Map()
     const win = []
@@ -43,33 +60,68 @@ export default {
       return out
     })
 
+    const histogram = computed(() => {
+      version.value
+      const bins = new Array(HIST_BINS).fill(0)
+      for (let i = 0; i < win.length; i++) bins[binIdx(win[i].pctChg)]++
+      return bins
+    })
+
+    const totalVol = computed(() => {
+      version.value
+      let s = 0
+      for (let i = 0; i < win.length; i++) s += win[i].volume
+      return s
+    })
+
+    const avgPct = computed(() => {
+      version.value
+      if (!win.length) return undefined
+      let s = 0
+      for (let i = 0; i < win.length; i++) s += win[i].pctChg
+      return s / win.length
+    })
+
     const topMovers = computed(() => {
       version.value
       const arr = []
       for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
       arr.sort((a, b) => b.pctChg - a.pctChg)
-      return arr
+      return arr.slice(0, 3)
+    })
+
+    const bottomMovers = computed(() => {
+      version.value
+      const arr = []
+      for (const [symbol, info] of prices) arr.push({ symbol, price: info.price, pctChg: info.pctChg })
+      arr.sort((a, b) => a.pctChg - b.pctChg)
+      return arr.slice(0, 3)
     })
 
     let scheduled = false
     const runner = effect(() => {
-      // Read computeds inside the effect to subscribe; real recompute
-      // work happens in the timed rAF body below.
-      sectorTotals.value; topMovers.value
+      sectorTotals.value; histogram.value; totalVol.value; avgPct.value
+      topMovers.value; bottomMovers.value
       if (scheduled) return
       scheduled = true
       requestAnimationFrame(() => {
         scheduled = false
         const r0 = performance.now()
         renderSectors(sectorEl, sectorTotals.value, sectorOrder)
+        renderHistogram(histEl, histogram.value)
+        renderScalars(scalarsEl, totalVol.value, avgPct.value)
         renderTopMovers(topEl, topMovers.value)
+        renderBottomMovers(bottomEl, bottomMovers.value)
         tracker.sampleRender(performance.now() - r0)
       })
     })
     row._vueRunner = runner
 
     renderTopMovers(topEl, [])
+    renderBottomMovers(bottomEl, [])
     renderSectors(sectorEl, {}, sectorOrder)
+    renderHistogram(histEl, new Array(HIST_BINS).fill(0))
+    renderScalars(scalarsEl, undefined, undefined)
 
     return {
       ingest(batch) {
