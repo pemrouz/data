@@ -27,6 +27,50 @@ export function mountPanelV2({ rootProxy }) {
   const dock = el('aside', 'dock')
   root.appendChild(dock)
 
+  // Outer resize handle. The dock is anchored to the right edge of the
+  // viewport; the handle sits on its LEFT edge so dragging leftward widens
+  // the dock toward the page content. Persisted to localStorage so the user
+  // doesn't have to re-resize on every reload.
+  const DOCK_WIDTH_KEY = 'devtools-v2-dock-width'
+  const DOCK_MIN = 320
+  const dockMax = () => Math.max(DOCK_MIN, window.innerWidth - 60)
+  const savedWidth = (() => {
+    const raw = parseInt(localStorage.getItem(DOCK_WIDTH_KEY) || '', 10)
+    return Number.isFinite(raw) ? Math.max(DOCK_MIN, Math.min(dockMax(), raw)) : null
+  })()
+  if (savedWidth != null) dock.style.width = savedWidth + 'px'
+
+  const dockResize = el('div', 'dock-resize')
+  dockResize.title = 'drag to resize the dock'
+  dock.appendChild(dockResize)
+  // Pointer drag on the handle adjusts dock width. Dragging LEFT (negative dx)
+  // widens the dock because the right edge stays pinned. CSS keeps the dock's
+  // explicit inline width even after the inspector opens — the
+  // `.with-inspector` width rule only applies when no inline width is set
+  // (handled via a CSS variable fallback below).
+  let dockResizeDrag = null
+  dockResize.addEventListener('pointerdown', (e) => {
+    dockResizeDrag = { startX: e.clientX, startW: dock.getBoundingClientRect().width }
+    try { dockResize.setPointerCapture(e.pointerId) } catch {}
+    dockResize.classList.add('dragging')
+    e.preventDefault()
+  })
+  dockResize.addEventListener('pointermove', (e) => {
+    if (!dockResizeDrag) return
+    const dx = e.clientX - dockResizeDrag.startX
+    const w = Math.max(DOCK_MIN, Math.min(dockMax(), dockResizeDrag.startW - dx))
+    dock.style.width = w + 'px'
+  })
+  const endDockResize = (e) => {
+    if (!dockResizeDrag) return
+    dockResizeDrag = null
+    dockResize.classList.remove('dragging')
+    try { dockResize.releasePointerCapture(e.pointerId) } catch {}
+    localStorage.setItem(DOCK_WIDTH_KEY, String(Math.round(dock.getBoundingClientRect().width)))
+  }
+  dockResize.addEventListener('pointerup',     endDockResize)
+  dockResize.addEventListener('pointercancel', endDockResize)
+
   const header = el('div', 'dock-header')
   header.append(
     el('span', 'brand', { text: 'data devtools' }),
@@ -52,12 +96,15 @@ export function mountPanelV2({ rootProxy }) {
   const toolbar2 = el('div', 'dock-toolbar2')
   const layoutLabel = el('span', 'layout-pick-label', { text: 'layout:' })
   const seg = el('div', 'seg')
-  const treeBtn = el('button', 'active', { text: 'Tree' })
-  const dagBtn  = el('button', '',       { text: 'DAG'  })
+  const treeBtn = el('button', '',       { text: 'Tree' })
+  const dagBtn  = el('button', 'active', { text: 'DAG'  })
   seg.append(treeBtn, dagBtn)
   toolbar2.append(layoutLabel, seg)
   dock.appendChild(toolbar2)
-  let layout = 'tree'
+  // DAG is the default — it's the geometry the panel is designed around (the
+  // graph-first edge-anchored dock). Tree stays one click away for users who
+  // want the indented outline.
+  let layout = 'dag'
   const setLayout = (next) => {
     layout = next
     treeBtn.classList.toggle('active', next === 'tree')
@@ -1877,9 +1924,24 @@ function makeStyle() {
   font: 12px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI";
   display: flex; flex-direction: column;
   z-index: 2147483646;
-  transition: width .18s ease-out;
 }
 .dock.with-inspector { width: 840px; }
+/* Outer resize handle: a thin strip on the left edge. Inline width on .dock
+   (set by the drag handler) overrides both the default 480px and the
+   .with-inspector 840px — so once the user has resized, their choice
+   persists across inspector open/close. No width transition on .dock: a
+   .18s ease-out used to animate the auto-widen, but it also fired after
+   each drag-end (committing the new inline width counted as a transition
+   from the CSS-rule width), so the dock visibly snapped back partway after
+   release. Keeping resize crisp matters more than animating one open. */
+.dock-resize {
+  position: absolute; top: 0; bottom: 0; left: -3px; width: 7px;
+  cursor: col-resize; z-index: 5;
+  background: transparent;
+  transition: background .12s;
+}
+.dock-resize:hover,
+.dock-resize.dragging { background: rgba(155, 227, 168, 0.35); }
 .dock-body {
   flex: 1; min-height: 0;
   display: flex; flex-direction: row;

@@ -37,6 +37,20 @@ const setup = async (page) => {
   await waitForDock(page)
 }
 
+// Switch the panel to Tree layout. DAG is the default now, but several tests
+// rely on Tree-specific selectors (.tnode-row, .name text) for readability —
+// flipping the layout once at the top of those tests is cheaper than
+// rewriting every one to work against both shapes.
+const switchToTree = async (page) => {
+  await page.evaluate(() => {
+    const p: any = (window as any).panel
+    const tree = Array.from(p.root.querySelectorAll('.seg button')).find(
+      (b: any) => b.textContent === 'Tree',
+    ) as any
+    if (tree && !tree.classList.contains('active')) tree.click()
+  })
+}
+
 test.describe('v2 panel — shell', () => {
   test('mounts a host with a closed shadow and a dock inside', async ({ page }) => {
     await setup(page)
@@ -62,6 +76,75 @@ test.describe('v2 panel — shell', () => {
     expect(visible.tabBtns).toEqual(['inspect', 'events', 'profile'])
   })
 
+  test('DAG is the default layout on load', async ({ page }) => {
+    await setup(page)
+    // No layout switch — assert the initial state.
+    const state = await page.evaluate(() => {
+      const p: any = (window as any).panel
+      const active = Array.from(p.root.querySelectorAll('.seg button')).find(
+        (b: any) => b.classList.contains('active'),
+      ) as any
+      return {
+        activeLabel: active?.textContent,
+        dagNodes:    p.root.querySelectorAll('.dnode').length,
+        treeRows:    p.root.querySelectorAll('.tnode-row').length,
+      }
+    })
+    expect(state.activeLabel).toBe('DAG')
+    // DAG should have rendered nodes; Tree-specific selectors should not.
+    expect(state.dagNodes).toBeGreaterThan(0)
+    expect(state.treeRows).toBe(0)
+  })
+
+  test('dock resize handle widens the dock via pointer drag', async ({ page }) => {
+    await setup(page)
+    // Default dock width is 480px (closed). Drag the handle 160px to the
+    // LEFT — the dock is right-anchored so leftward drag widens it. We do
+    // the dispatch + read in ONE page.evaluate because splitting across
+    // multiple evaluates was getting flaky (Chromium occasionally batches
+    // the inline-style application across the round trip, so a 1ms-later
+    // getBoundingClientRect on a fresh evaluate sometimes returned the
+    // unmodified width).
+    const widths = await page.evaluate(() => {
+      const p: any = (window as any).panel
+      const dock: any = p.root.querySelector('.dock')
+      const handle: any = p.root.querySelector('.dock-resize')
+      const before = dock.getBoundingClientRect().width
+      const r = handle.getBoundingClientRect()
+      const dispatch = (type: string, x: number) => handle.dispatchEvent(
+        new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: 100, pointerId: 1 }),
+      )
+      dispatch('pointerdown', r.left + 3)
+      dispatch('pointermove', r.left + 3 - 160)
+      dispatch('pointerup',   r.left + 3 - 160)
+      const after = dock.getBoundingClientRect().width
+      const stored = Number(localStorage.getItem('devtools-v2-dock-width'))
+      return { before: Math.round(before), after: Math.round(after), stored }
+    })
+    // The dock should be ~160px wider, give or take rounding + clamping.
+    expect(widths.after - widths.before).toBeGreaterThanOrEqual(140)
+    expect(widths.after - widths.before).toBeLessThanOrEqual(180)
+    // Persisted to localStorage on pointerup.
+    expect(widths.stored).toBeGreaterThanOrEqual(widths.after - 2)
+    expect(widths.stored).toBeLessThanOrEqual(widths.after + 2)
+  })
+
+  test('dock width persists across reload', async ({ page }) => {
+    await setup(page)
+    await page.evaluate(() => localStorage.setItem('devtools-v2-dock-width', '720'))
+    await page.reload()
+    await page.waitForSelector('.todos li', { timeout: 10_000 })
+    await waitForDock(page)
+    const width = await page.evaluate(() => {
+      const p: any = (window as any).panel
+      return p.root.querySelector('.dock').getBoundingClientRect().width
+    })
+    // The dock has a 1px left border (border-left: 1px solid #2a2a2a), so the
+    // bounding rect is the inline width + 1. Accept a small margin.
+    expect(width).toBeGreaterThanOrEqual(720)
+    expect(width).toBeLessThanOrEqual(722)
+  })
+
   test('suppresses the legacy panel via ?nopanel=1 rewrite', async ({ page }) => {
     await setup(page)
     // Only the v2 host should be present — the older panel uses
@@ -78,6 +161,7 @@ test.describe('v2 panel — shell', () => {
 test.describe('v2 panel — graph', () => {
   test('Tree layout renders root + operator chain', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     const tree = await page.evaluate(() => {
       const p: any = (window as any).panel
       const rows = p.root.querySelectorAll('.tnode-row')
@@ -102,14 +186,8 @@ test.describe('v2 panel — graph', () => {
 
   test('DAG layout renders nodes + edges', async ({ page }) => {
     await setup(page)
-    await page.evaluate(() => {
-      const p: any = (window as any).panel
-      // Find the "DAG" button and click it.
-      const btns = p.root.querySelectorAll('.seg button')
-      const dag = Array.from(btns).find((b: any) => b.textContent === 'DAG') as any
-      dag.click()
-    })
-    // Wait for auto-fit (requestAnimationFrame inside renderDag).
+    // DAG is the default on load — no need to switch. Wait for auto-fit
+    // (requestAnimationFrame inside renderDag).
     await page.waitForTimeout(50)
     const dag = await page.evaluate(() => {
       const p: any = (window as any).panel
@@ -128,6 +206,7 @@ test.describe('v2 panel — graph', () => {
 
   test('rewalk on mutation — graph reflects new items', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     const before = await page.evaluate(() => {
       const p: any = (window as any).panel
       // Read the root's chip: terminal sinks under root.
@@ -155,6 +234,7 @@ test.describe('v2 panel — graph', () => {
 test.describe('v2 panel — inspector', () => {
   test('clicking a Tree node opens inspector with all four cards', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     await page.evaluate(() => {
       const p: any = (window as any).panel
       // Click the root row.
@@ -182,6 +262,7 @@ test.describe('v2 panel — inspector', () => {
 
   test('Inspect tab shows live value and refreshes on mutation', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     // Click the root node.
     await page.evaluate(() => {
       const p: any = (window as any).panel
@@ -214,6 +295,7 @@ test.describe('v2 panel — inspector', () => {
 
   test('Esc closes the inspector', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     await page.evaluate(() => {
       const p: any = (window as any).panel
       ;(p.root.querySelector('.tnode-row') as any).click()
@@ -232,6 +314,7 @@ test.describe('v2 panel — inspector', () => {
 test.describe('v2 panel — events tab', () => {
   test('Events tab on scalar view (length) shows sparkline + transitions on mutation', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     // Open the inspector on a length operator.
     await page.evaluate(() => {
       const p: any = (window as any).panel
@@ -271,6 +354,7 @@ test.describe('v2 panel — events tab', () => {
 
   test('pause button actually pauses UI updates', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     // Click root + switch to events tab so we're on the collection path.
     await page.evaluate(() => {
       const p: any = (window as any).panel
@@ -307,6 +391,7 @@ test.describe('v2 panel — events tab', () => {
 
   test('ring buffer survives overflow without dropping events on the events tab', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     await page.evaluate(() => {
       const p: any = (window as any).panel
       ;(p.root.querySelector('.tnode-row') as any).click()
@@ -338,6 +423,7 @@ test.describe('v2 panel — events tab', () => {
 test.describe('v2 panel — profile tab', () => {
   test('Profile tab starts/stops and tabulates operator calls', async ({ page }) => {
     await setup(page)
+    await switchToTree(page)
     await page.evaluate(() => {
       const p: any = (window as any).panel
       ;(p.root.querySelector('.tnode-row') as any).click()
