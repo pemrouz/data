@@ -1,6 +1,6 @@
 # WASM experiment — would this library benefit from WebAssembly?
 
-**Short answer: no. The available speedup was real (~12–19× on a max-aggregate-bound workload at N=50k–100k) but it all came from data-structure fixes in pure JS. With both fixes landed, the remaining WASM advantage is in the noise.**
+**Short answer: no. The available speedup was real (~12–19× on a max-aggregate-bound workload at N=50k–100k) but it all came from data-structure fixes in pure JS. With both fixes landed, the remaining WASM advantage is in the noise.** A follow-up that constrains the workload to fully serializable predicates and columnar-in-WASM storage (see [Follow-up](#follow-up--what-if-all-operator-args-were-serializable)) reaches the same verdict: WASM's marginal contribution over an optimal-JS columnar implementation is still ~0.7–1.5×.
 
 **Status:** both data-structure fixes have been landed in [operators/aggregate/index.ts](../../operators/aggregate/index.ts):
 - `AggregateValue.tracked` is now a `Map` (was a plain object). Per-publish iteration uses `tracked.values()` instead of allocating a fresh `Object.values()` array. ~2.5–3× win at N=50k–100k.
@@ -137,3 +137,34 @@ The `between`, `intersect`/`union`/`except` bitmask paths — the other plausibl
 - All measurements are on Node v25.9 / V8. Browser engines (especially Safari) may differ — V8 is generally one of the fastest JS engines for typed-array tight loops, so the WASM/JS gap could be wider on Safari or Firefox. Not tested.
 - The pipeline benchmark exercises `max('val')` with **no upstream filter**, so all N rows are tracked. A brushed scenario (e.g. `between(...).max(...)` where only a small subset is tracked) would have a smaller `nextSlot` and therefore a smaller WASM win in absolute terms — though the relative ratio should hold.
 - The experiment did not attempt SIMD-128 hand-tuning. AssemblyScript at `-O3` produces scalar f64 ops for `max_f64`; a hand-written WAT version using `f64x2.max`/`f64x2.pmax` could be ~2× faster on the kernel, possibly bumping the 1.4× pipeline win to 1.7–1.9×. Not pursued because the data-structure fix is the more impactful change.
+
+## Follow-up — what if all operator args were serializable?
+
+The original experiment compared kernels against the library's hot paths, which all take **function predicates** (`filter(fn)`, `map(fn)`). Function predicates lock the JS↔WASM boundary cost in place because each row's `fn(row)` call has to re-enter JS. The natural follow-up question is: if instead every operator took **serializable** args (`filter('col', val)`, `between('col', [lo, hi])`, `max('col')`), can a columnar-in-WASM backend skip that boundary tax and finally pay back the kernel speedup?
+
+The follow-up bench ([bench-altbackend.ts](./bench-altbackend.ts)) compares three paths over a Trades-shaped workload (`spread = ask - bid`, filter `spread >= 1.0`, observe `count` and `max(spread)`, 1000 single-row ticks):
+
+- **lib** — `src.between('spread', [T, Inf]).{length(), max('spread')}` over the existing library. All args literal/serializable; rows stored as JS objects.
+- **js-columnar** — hand-rolled columnar backend: 4 `Float64Array`s for `bid`/`ask`/`spread` and a `Uint32Array` bitmask. Incremental tick maintains the mask, the running count, and a running argmax (with O(N) rescan on holder drop). Pure JS.
+- **wasm-columnar** — same data layout but the typed-array slices live inside WASM linear memory. Bulk setup and bulk re-eval go through `filter_gt_f64` + `max_masked_f64` kernels. Per-tick work stays in JS — a single typed-array store is cheaper than a WASM crossing for an O(1) op.
+
+Run with `npm run bench:wasm:altbackend`. Latest output in [results-altbackend.md](./results-altbackend.md). At N = 100 000 (µs/tick or ms as noted):
+
+| Scenario | lib (serializable args, JS-object rows) | js-columnar | wasm-columnar | js-cl vs lib | wasm vs js-cl |
+|---|---:|---:|---:|---:|---:|
+| setup (ms)              | 273.1 | 5.99 | 3.84 | 46×  | **1.56×** |
+| tick (µs/tick)          | 56.8  | 0.16 | 0.19 | 353× | 0.83×     |
+| batch — 1000 ticks (ms) | 73.7  | 0.14 | 0.24 | 517× | 0.58×     |
+| threshold-change (ms)   | 366.6 | 1.33 | 2.67 | 275× | 0.50×     |
+
+Two findings, neither flattering to WASM:
+
+1. **The dominant cost is storage layout, not the JS↔WASM boundary.** `js-columnar` is 46–517× faster than the lib here. That gap has *nothing* to do with WASM — it's the cost of (a) the lib's `between(col,[lo,hi])` maintaining a sorted index per tick (the only serializable range operator currently available, and a sort-indexed one), and (b) JS row objects vs packed typed arrays.
+
+2. **WASM's marginal contribution over optimal-JS columnar is unchanged from the original verdict — 0.5–1.6×, depending on scenario.** It wins narrowly on bulk setup at N=100k (1.56×), ties on per-tick (the O(1) algorithm has nothing to vectorize), and *loses* on `threshold-change` because the single fused JS pass (filter + max + argmax) beats the two-kernel + JS-argmax dispatch chain. The WASM kernel itself is faster per-element (the Layer 1 numbers stand), but in any realistic pipeline the JS-side bookkeeping plus multi-pass cache effects erase that win.
+
+So the answer to "would there be a difference?" is: yes, there's a giant difference, but it's between storage layouts — not between JS and WASM. A pure-JS columnar refactor delivers ~all of the available gain. The implications for the library mirror the original recommendation:
+
+- **The lib's lack of a non-sort-indexed serializable range filter** (`filter_gt('col', v)` / `filter_lt('col', v)`) is a real bottleneck. `between` is the only declarative range operator and it's sort-based — at N=100k it costs ~57µs per tick on this workload (and >300ms for a full bound re-eval). A row-operator-style `filter_gt('col', v)` would close most of the gap to js-columnar with no WASM involvement.
+- **WASM is still not worth pursuing** for the steady-state tick path under any operator surface the library could plausibly expose. The kernel-level wins exist but they don't survive contact with end-to-end book-keeping.
+- The only realistic scenario where WASM would deliver a visible win is **bulk re-evaluation over a fully columnar source** (initial setup, or a brush-bound change rebuilding a large filtered set). And even there, the win is in the 1.5× range — well below the threshold where the build/ship cost and memory-management surface justify it.

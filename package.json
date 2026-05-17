@@ -76,6 +76,7 @@
     "bench:wasm:build": "asc experiments/wasm/assembly/index.ts --config experiments/wasm/asconfig.json --target release",
     "bench:wasm:kernels": "node --experimental-strip-types --no-warnings experiments/wasm/bench-kernels.ts",
     "bench:wasm:pipeline": "node --experimental-strip-types --no-warnings experiments/wasm/bench-pipeline.ts",
+    "bench:wasm:altbackend": "node --experimental-strip-types --no-warnings experiments/wasm/bench-altbackend.ts",
     "bench:wasm": "npm run bench:wasm:build && npm run bench:wasm:kernels"
   },
   "author": "pemrouz",
