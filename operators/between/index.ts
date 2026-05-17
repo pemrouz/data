@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isArray, iter, left } from '../../utils.ts'
+import { isArray, iter, left, right } from '../../utils.ts'
 import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
 
 // BetweenValue is the range filter. The user calls `data.between('col', [lo,
@@ -24,7 +24,10 @@ export class BetweenValue extends Operator {
     this.sorted = []
     // `sorted` holds source keys ordered by col-value. `find` does the
     // O(log n) bisect that lets us advance lo_index/hi_index incrementally.
+    // `findHi` is the right-bisect variant — see `set extent` for why
+    // hi_index needs "first sorted-position past hi_val" rather than "at".
     this.find = left(d => { return this.p.value[d][col] })
+    this.findHi = right(d => { return this.p.value[d][col] })
 
     // Three flavours of arg: a single ViewProxy that yields `[lo, hi]`
     // snapshots, a tuple of two separately-reactive bounds, or a tuple of
@@ -90,13 +93,24 @@ export class BetweenValue extends Operator {
     const I0 = [], R1 = []
     // lo/hi_index are the bisect positions of the current bounds in `sorted`.
     // First-pass after a fast-path reset they're undefined; recompute lazily.
+    //
+    // Convention: lo_index is the first sorted-position with col >= lo_val
+    // (i.e. first in-view row on the low side); hi_index is the first
+    // sorted-position with col > hi_val (first *out-of-view* row past the
+    // high side). The asymmetry matches what the narrow/widen loops below
+    // leave behind after running. Initialising hi_index via the left-bisect
+    // would land it ON the boundary row instead of past it, dropping the
+    // boundary row whenever a widen happens to terminate exactly on an
+    // existing row's col-value.
     this.lo_index ??= this.find(this.sorted, this.lo_val)
-    this.hi_index ??= this.find(this.sorted, this.hi_val)
+    this.hi_index ??= this.findHi(this.sorted, this.hi_val)
 
     // The four directions of bound motion. Each loop walks `sorted` from
     // the current boundary index toward the new one, emitting one event
     // per row crossed. `tv = p.value[ti]` is the row at that sorted slot;
-    // we test its `col` against the new bound to know when to stop.
+    // we test its `col` against the new bound to know when to stop. Bounds
+    // are inclusive on both ends, so the widen branches use `<=` / `>=`
+    // against the new bound to pull the boundary row in.
     let ti, tv
     if (new_hi < this.hi_val) {
       while (
@@ -125,7 +139,7 @@ export class BetweenValue extends Operator {
     if (new_hi > this.hi_val) {
       while (
         (tv = this.p.value[ti = this.sorted[this.hi_index]]) &&
-        (tv[this.col] < new_hi)
+        (tv[this.col] <= new_hi)
       ) {
         this.hi_index++
         I0.push(ti, tv)
@@ -136,7 +150,7 @@ export class BetweenValue extends Operator {
     if (new_lo < this.lo_val) {
       while (
         (tv = this.p.value[ti = this.sorted[this.lo_index - 1]]) &&
-        (tv[this.col] > new_lo)
+        (tv[this.col] >= new_lo)
       ) {
         this.lo_index--
         I0.push(ti, tv)

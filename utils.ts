@@ -32,6 +32,21 @@ export const left = prop => function bisect(a, v, lo = 0, hi = a.length) {
   return lo;
 }
 
+// `right(prop)` is the right-bisect counterpart — returns the first index `i`
+// such that `prop(a[i]) > v`. between uses this for `hi_index` so the index
+// represents "first sorted-position past the upper bound" (i.e. first NOT in
+// view), which matches the convention the narrow/widen loops leave it in
+// after running. Initialising hi_index via `left` instead landed on the
+// boundary row itself and caused the widen-onto-boundary bug.
+export const right = prop => function bisect(a, v, lo = 0, hi = a.length) {
+  while (lo < hi) {
+    const mid = lo + hi >>> 1;
+    if (prop(a[mid]) > v) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
 // Right-bisect for descending-sorted arrays, bound to the operator instance
 // so it can dereference `this.col(this.p.value[this.sorted[mid]])` inline.
 // Read on ZAValue.prototype.find and called from sort/index.ts.

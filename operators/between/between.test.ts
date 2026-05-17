@@ -62,6 +62,45 @@ test('between - insert/remove track membership', () => {
   same(inRange[value], { a: { price: 50 } })
 })
 
+// Regression: widening a bound onto a value that an existing row holds
+// exactly used to drop that row. The widen-up and widen-down branches in
+// `set extent` compared with strict `<` / `>` against the new bound, and
+// hi_index was initialised via the left-bisect — so when hi_val sat on a
+// row's col-value the bisect landed *on* the row instead of past it, and
+// the strict comparison then refused to (re)include the boundary row when
+// the bound moved out to a value that equaled another row.
+test('between - widen onto boundary row (hi)', () => {
+  const flights = $([
+    { dest: 'A', ts: 10 },
+    { dest: 'B', ts: 11 },
+    { dest: 'C', ts: 12 },
+    { dest: 'D', ts: 13 },
+    { dest: 'E', ts: 14 },
+    { dest: 'F', ts: 15 },
+  ])
+  const brush = $([10, 13])
+  const win = between(flights, 'ts', brush)
+  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D'])
+  brush[value] = [10, 15]
+  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
+})
+
+test('between - widen onto boundary row (lo)', () => {
+  const flights = $([
+    { dest: 'A', ts: 10 },
+    { dest: 'B', ts: 11 },
+    { dest: 'C', ts: 12 },
+    { dest: 'D', ts: 13 },
+    { dest: 'E', ts: 14 },
+    { dest: 'F', ts: 15 },
+  ])
+  const brush = $([11, 15])
+  const win = between(flights, 'ts', brush)
+  same(win[value].filter(Boolean).map(r => r.dest), ['B','C','D','E','F'])
+  brush[value] = [10, 15]
+  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
+})
+
 test('between - reactive bounds', async () => {
   const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
   const filters = $({ lo: 20, hi: 80 })
