@@ -20,6 +20,7 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 |---|---|---|---|
 | [filter](filter/) | rows matching a predicate (function, key/value, key path, or shape) | — | — |
 | [between](between/) | rows where a column falls in `[lo, hi]`; bounds may be reactive | bounds | column + range |
+| [gt / lt / gte / lte](compare/) | rows where a column compares against a literal threshold; RowOperator-based, O(1) per tick | — | column + value |
 | [sort](sort/) — `za` / `az` / `top` / `limit` | sort descending / ascending / limit (no sort) | — | column + n |
 | [length](length/) | scalar row count, or `{[key]: count}` grouped by a function | — | — |
 | [intersect](intersect/) | rows present in source AND every additional view passed | sources | — |
@@ -41,6 +42,10 @@ Operators['filter']  = (a, b) => typeof a === 'function' ? FilterValue
                               : isArray(a)              ? FilterColumnValue
                               : FilterObjectValue
 Operators['between'] = () => BetweenValue
+Operators['gt']      = () => GtValue
+Operators['lt']      = () => LtValue
+Operators['gte']     = () => GteValue
+Operators['lte']     = () => LteValue
 Operators['length']  = (fn) => typeof fn === 'function' ? LengthFnValue : LengthValue
 Operators['za']      = (a, b) => typeof a === 'string' ? ZAColumnValue : ZANumberValue
 // …etc
