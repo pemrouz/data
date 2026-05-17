@@ -1,0 +1,319 @@
+// @ts-nocheck
+// `keys` — per-operator comparison.
+//
+// Workload: 10_000 rows; reactive list of source keys. Tick inserts one
+// row at a fresh key (the key list grows by one). Batch streams TICK_COUNT
+// inserts.
+//
+// data.keys is sugar over `to(d => Object.keys(d))` — rebuilds on every
+// upstream event (operators/keys/index.ts). Peers do likewise. Useful to
+// document the rebuild-on-every-event class of operators against the peer
+// baseline.
+
+import { measure, pkgVersion } from '../measure.ts'
+import {
+  N, makeRows,
+  type Row, type Variant, type OpBench,
+} from './_shared.ts'
+
+const TICK_COUNT = 1000
+const newRow = (id: number): Row => ({ id, val: 0, val2: 0, cat: 'a', active: false })
+
+// --- data -----------------------------------------------------------------
+
+const data: Variant = {
+  name: 'data',
+  version: '1.0.0',
+  run: async () => {
+    const { $, value } = await import('../../../full.ts')
+    const toObj = (rows: Row[]) => {
+      const obj: Record<number, Row> = {}
+      for (let i = 0; i < rows.length; i++) obj[i] = rows[i]
+      return obj
+    }
+    const build = () => {
+      const src = $(toObj(makeRows()))
+      const k = src.keys()
+      return { src, k }
+    }
+    const setup = measure(() => { build() })
+    const single = (() => {
+      const { src, k } = build(); void k[value]
+      let next = N
+      return measure(() => { src[next] = newRow(next); void k[value]; next++ })
+    })()
+    const batch = (() => {
+      const { src, k } = build(); void k[value]
+      let next = N
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) { src[next] = newRow(next); void k[value]; next++ }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- mobx ----------------------------------------------------------------
+
+const mobxV: Variant = {
+  name: 'mobx',
+  version: pkgVersion('mobx'),
+  run: async () => {
+    const { observable, computed, runInAction, autorun } = await import('mobx')
+    const build = () => {
+      const rows = observable.array(makeRows().map(r => observable.object(r, {}, { deep: false })))
+      const k = computed(() => rows.map(r => r.id))
+      const dispose = autorun(() => { void k.get() })
+      return { rows, k, dispose }
+    }
+    const setup = measure(() => { const g = build(); g.dispose() })
+    const single = (() => {
+      const { rows, k } = build()
+      let next = N
+      return measure(() => {
+        runInAction(() => { rows.push(observable.object(newRow(next++), {}, { deep: false })) })
+        void k.get()
+      })
+    })()
+    const batch = (() => {
+      const { rows, k } = build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) {
+          runInAction(() => { rows.push(observable.object(newRow(N + j), {}, { deep: false })) })
+          void k.get()
+        }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- rxjs ----------------------------------------------------------------
+
+const rxjsV: Variant = {
+  name: 'rxjs',
+  version: pkgVersion('rxjs'),
+  run: async () => {
+    const { BehaviorSubject } = await import('rxjs')
+    const { map } = await import('rxjs/operators')
+    const build = () => {
+      const subj = new BehaviorSubject(makeRows())
+      const k$ = subj.pipe(map(rows => rows.map(r => r.id)))
+      const sub = k$.subscribe(() => {})
+      return { subj, sub }
+    }
+    const setup = measure(() => { const g = build(); g.sub.unsubscribe() })
+    const single = (() => {
+      const { subj } = build()
+      let next = N
+      return measure(() => {
+        const a = subj.value.slice(); a.push(newRow(next++)); subj.next(a)
+      })
+    })()
+    const batch = (() => {
+      const { subj } = build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) {
+          const a = subj.value.slice(); a.push(newRow(N + j)); subj.next(a)
+        }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- solid ----------------------------------------------------------------
+
+const solidV: Variant = {
+  name: 'solid',
+  version: pkgVersion('solid-js'),
+  run: async () => {
+    const { createSignal, createMemo, createRoot } = await import('solid-js/dist/solid.js')
+    let getRows: () => Row[] = () => []
+    let setRows: (fn: (prev: Row[]) => Row[]) => void = () => {}
+    let k: () => number[] = () => []
+    let dispose = () => {}
+    const build = () => {
+      dispose = createRoot(d => {
+        const [r, sr] = createSignal(makeRows(), { equals: false })
+        getRows = r; setRows = sr as any
+        k = createMemo(() => getRows().map(r => r.id))
+        void k()
+        return d
+      })
+    }
+    const setup = measure(() => { build(); dispose() })
+    build()
+    const single = (() => {
+      let next = N
+      return measure(() => {
+        setRows(prev => { const a = prev.slice(); a.push(newRow(next++)); return a })
+        void k()
+      })
+    })()
+    const batch = measure(() => {
+      for (let j = 0; j < TICK_COUNT; j++) {
+        setRows(prev => { const a = prev.slice(); a.push(newRow(N + j)); return a })
+        void k()
+      }
+    })
+    dispose()
+    return { setup, single, batch }
+  },
+}
+
+// --- preact-signals ------------------------------------------------------
+
+const preactV: Variant = {
+  name: 'preact-signals',
+  version: pkgVersion('@preact/signals-core'),
+  run: async () => {
+    const { signal, computed, effect } = await import('@preact/signals-core')
+    const build = () => {
+      const rows = signal(makeRows())
+      const k = computed(() => rows.value.map(r => r.id))
+      const stop = effect(() => { void k.value })
+      return { rows, k, stop }
+    }
+    const setup = measure(() => { const g = build(); g.stop() })
+    const single = (() => {
+      const { rows, k } = build()
+      let next = N
+      return measure(() => {
+        const a = rows.value.slice(); a.push(newRow(next++)); rows.value = a
+        void k.value
+      })
+    })()
+    const batch = (() => {
+      const { rows, k } = build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) {
+          const a = rows.value.slice(); a.push(newRow(N + j)); rows.value = a
+          void k.value
+        }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- vue-reactivity ------------------------------------------------------
+
+const vueV: Variant = {
+  name: 'vue-reactivity',
+  version: pkgVersion('@vue/reactivity'),
+  run: async () => {
+    const { reactive, computed, effect } = await import('@vue/reactivity')
+    const build = () => {
+      const rows = reactive(makeRows())
+      const k = computed(() => rows.map(r => r.id))
+      const stop = effect(() => { void k.value })
+      return { rows, k, stop }
+    }
+    const setup = measure(() => { const g = build(); g.stop() })
+    const single = (() => {
+      const { rows, k } = build()
+      let next = N
+      return measure(() => { rows.push(newRow(next++)); void k.value })
+    })()
+    const batch = (() => {
+      const { rows, k } = build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) { rows.push(newRow(N + j)); void k.value }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- svelte-store --------------------------------------------------------
+
+const svelteV: Variant = {
+  name: 'svelte-store',
+  version: pkgVersion('svelte'),
+  run: async () => {
+    const { writable, derived, get } = await import('svelte/store')
+    const build = () => {
+      const store = writable(makeRows())
+      const k = derived(store, rows => rows.map(r => r.id))
+      const unsub = k.subscribe(() => {})
+      return { store, k, unsub }
+    }
+    const setup = measure(() => { const g = build(); g.unsub() })
+    const single = (() => {
+      const { store, k } = build()
+      let next = N
+      return measure(() => {
+        store.update(rows => { const a = rows.slice(); a.push(newRow(next++)); return a })
+        void get(k)
+      })
+    })()
+    const batch = (() => {
+      const { store, k } = build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) {
+          store.update(rows => { const a = rows.slice(); a.push(newRow(N + j)); return a })
+          void get(k)
+        }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+// --- react ---------------------------------------------------------------
+
+const reactV: Variant = {
+  name: 'react',
+  version: pkgVersion('react'),
+  run: async () => {
+    await import('../react-act-env.ts')
+    const ReactMod: any = await import('react')
+    const React = ReactMod.default ?? ReactMod
+    const RTRMod: any = await import('react-test-renderer')
+    const TestRenderer = RTRMod.default ?? RTRMod
+    const { act, create } = TestRenderer
+    const h = React.createElement
+    const { useState, useMemo } = React
+    let setRowsRef: (fn: any) => void = () => {}
+    let kRef: any = null
+    function App() {
+      const [rows, setRows] = useState(makeRows)
+      const k = useMemo(() => rows.map(r => r.id), [rows])
+      setRowsRef = setRows
+      kRef = k
+      return null
+    }
+    const build = () => {
+      let renderer: any
+      act(() => { renderer = create(h(App)) })
+      return { renderer }
+    }
+    const setup = measure(() => { const g = build(); act(() => { g.renderer.unmount() }) })
+    const single = (() => {
+      build()
+      let next = N
+      return measure(() => {
+        act(() => { setRowsRef((prev: Row[]) => { const a = prev.slice(); a.push(newRow(next++)); return a }) })
+        void kRef
+      })
+    })()
+    const batch = (() => {
+      build()
+      return measure(() => {
+        for (let j = 0; j < TICK_COUNT; j++) {
+          act(() => { setRowsRef((prev: Row[]) => { const a = prev.slice(); a.push(newRow(N + j)); return a }) })
+          void kRef
+        }
+      })
+    })()
+    return { setup, single, batch }
+  },
+}
+
+const op: OpBench = {
+  operator: 'keys',
+  notes: 'src.keys() over 10k rows; tick inserts one row. data.keys rebuilds on every upstream event — same shape as peers',
+  variants: [data, mobxV, rxjsV, solidV, preactV, vueV, svelteV, reactV],
+}
+export default op
