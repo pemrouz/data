@@ -27,13 +27,16 @@
       numbers from a single workload run across every library.
     </p>
     <p class="frame">
-      Two live comparison pages run the same workload across nine
+      Three live comparison pages run the same workload across nine
       libraries in your browser:
       <a href="./examples/multidim/">multidim</a> for interaction-driven
-      filtering (brushable charts over 231k rows), and
+      filtering (brushable charts over 231k rows),
       <a href="./examples/ticker/">ticker</a> for insert-driven streaming
-      (a synthetic market-data tape at 1k–100k ticks/s). Per-row
-      latency / CPU-cost trackers expose where each library spends time.
+      (a synthetic market-data tape at 1k–100k ticks/s), and
+      <a href="./examples/trades/">trades</a> for row-update-driven
+      streaming (a live order book over 10k limit orders with a drifting
+      regime). Per-row latency / CPU-cost trackers expose where each
+      library spends time.
     </p>
   </section>
 
@@ -237,7 +240,8 @@
       same data, exposes a per-row CPU-cost tracker, and is interactive
       so you can <em>feel</em> the difference rather than read about it.
       The first hits <b>data</b>'s incremental-filter strength; the
-      second hits its insert-driven streaming strength.
+      second its insert-driven streaming strength; the third its
+      row-update / per-key reactivity strength against a live regime.
     </p>
     <div class="live-demos">
       <a class="live-demo" href="./examples/multidim/">
@@ -275,6 +279,26 @@
         </ul>
         <span class="demo-cta">open ticker</span>
       </a>
+      <a class="live-demo" href="./examples/trades/">
+        <p class="demo-kicker">row-update-driven</p>
+        <h3 class="demo-title">trades — live order book</h3>
+        <p class="demo-blurb">
+          A streaming tick replaces one of 10,000 limit orders' bid or
+          ask per emission. Each row maintains four reactive views — bid-
+          and ask-bucket depths, liquid count, avg bid — rendered as a
+          cumulative depth chart + price ladder. A drifting regime
+          (mid, spread bias, imbalance on three incommensurate sine
+          waves) keeps the shape evolving. <b>data</b>'s O(1)-per-tick
+          <code class="inline">length(fn)</code> + aggregate cascade
+          against peers' O(N) walks per get.
+        </p>
+        <ul class="demo-tags">
+          <li>length(fn) · filter→length · avg</li>
+          <li>10k rows · row updates</li>
+          <li>9 libraries · lib toggles</li>
+        </ul>
+        <span class="demo-cta">open trades</span>
+      </a>
     </div>
   </section>
 
@@ -298,6 +322,7 @@
   <span><a href="https://www.npmjs.com/package/data">npm</a></span>
   <span><a href="./examples/multidim/">multidim — live</a></span>
   <span><a href="./examples/ticker/">ticker — live</a></span>
+  <span><a href="./examples/trades/">trades — live</a></span>
   <span><a href="./examples/crossfilter/">crossfilter</a></span>
   <span><a href="./examples/todo/">todo</a></span>
   <span><a href="./operators/README.md">operators</a></span>
