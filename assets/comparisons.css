@@ -73,6 +73,35 @@ table.matrix td.partial { color: var(--ten-10y); }
   table.matrix th, table.matrix td { padding: 0.4rem 0.5rem; }
 }
 
+/* ---------- per-operator bench table ---------- */
+
+.bench-ops-h {
+  font: 500 0.875rem var(--mono);
+  color: var(--fg-dim);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  margin: 1.25rem 0 0.5rem;
+}
+table.matrix.bench-ops th.num,
+table.matrix.bench-ops td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+table.matrix.bench-ops td:nth-child(3),
+table.matrix.bench-ops td:nth-child(4) {
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+table.matrix.bench-ops td:first-child a {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--rule);
+}
+table.matrix.bench-ops td:first-child a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* ---------- live-demo cards ---------- */
 /* Two large cards linking to the live comparison pages. Replaces the
    prior static-numbers section — the live pages run the same comparison
