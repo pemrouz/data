@@ -3,25 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>data — reactive data for TypeScript</title>
-  <meta name="description" content="A small reactive data library. $() wraps values; chainable operators derive views; render binds to the DOM. No virtual DOM, no diffing — work proportional to the path that changed.">
+  <title>data — work proportional to the path that changed</title>
+  <meta name="description" content="A small reactive data library for TypeScript. $() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — no virtual DOM, no diffing.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
-  <meta property="og:title" content="data — reactive data for TypeScript">
-  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. No virtual DOM, no diffing — work proportional to the path that changed.">
+  <meta property="og:title" content="data — work proportional to the path that changed">
+  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — no virtual DOM, no diffing.">
   <link rel="stylesheet" href="./assets/landing.css">
 </head>
 <body>
 
 <nav class="toc" aria-label="On this page">
   <div class="toc-label">on this page</div>
-  <a href="#intro"      data-toc="intro">intro</a>
-  <a href="#blotter"    data-toc="blotter">blotter</a>
-  <a href="#why"        data-toc="why">why</a>
-  <a href="#operators"  data-toc="operators">operators</a>
-  <a href="#crossfilter" data-toc="crossfilter">crossfilter</a>
-  <a href="#devtools"   data-toc="devtools">devtools</a>
-  <a href="#compare"    data-toc="compare">compare</a>
-  <a href="#rendering"  data-toc="rendering">rendering</a>
+  <a href="#intro"     data-toc="intro">intro</a>
+  <a href="#how"       data-toc="how">how</a>
+  <a href="#proof"     data-toc="proof">proof</a>
+  <a href="#operators" data-toc="operators">operators</a>
+  <a href="#quickstart" data-toc="quickstart">quickstart</a>
+  <a href="#devtools"  data-toc="devtools">devtools</a>
   <div class="toc-sep"></div>
   <a href="https://github.com/pemrouz/data">github →</a>
   <a href="https://www.npmjs.com/package/data">npm →</a>
@@ -29,129 +27,201 @@
 
 <main>
 
-  <!-- 1. hero -->
+  <!-- ============ S1 · hero ============ -->
   <section class="hero" id="intro">
-    <h1>data</h1>
-    <p class="lede">
-      reactive collections for typescript &mdash; <em>work proportional to the
-      path that changed</em>, not the dataset.
-    </p>
-
-    <div class="hero-grid">
-      <div class="hero-pane">
-        <div class="hero-pane-label"><span class="dim">//</span> api</div>
-<pre class="code">import { $ } from 'data/full'
-
-const trades = $(rows)
-
-const top = trades
-  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-  .filter(t =&gt; t.spread &gt; 0.10)
-  .za('spread', 10)
-
-trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
-      </div>
-
-      <div class="hero-pane">
-        <div class="hero-pane-label">
-          <span class="dim">//</span> 1000 ticks, each settled
-          <span class="dim">— lower is faster</span>
-        </div>
-        <div class="bench-chart hero-bench" aria-label="Time to process 1000 sequential ticks across reactive libraries; lower is faster">
-          <div class="bench-row self">
-            <span class="lib">data</span>
-            <div class="bar"><div class="fill" style="width:0.47%"></div></div>
-            <span class="num">8.8&nbsp;ms</span>
-          </div>
-          <div class="bench-row">
-            <span class="lib">preact</span>
-            <div class="bar"><div class="fill" style="width:4.22%"></div></div>
-            <span class="num">79&nbsp;ms</span>
-          </div>
-          <div class="bench-row">
-            <span class="lib">solid</span>
-            <div class="bar"><div class="fill" style="width:6.85%"></div></div>
-            <span class="num">129&nbsp;ms</span>
-          </div>
-          <div class="bench-row">
-            <span class="lib">mobx</span>
-            <div class="bar"><div class="fill" style="width:18.96%"></div></div>
-            <span class="num">356&nbsp;ms</span>
-          </div>
-          <div class="bench-row">
-            <span class="lib">svelte</span>
-            <div class="bar"><div class="fill" style="width:100%"></div></div>
-            <span class="num">1,880&nbsp;ms</span>
-          </div>
-        </div>
-        <div class="hero-pane-foot">
-          <a href="./comparisons.html">full comparisons across 9 libraries →</a>
-        </div>
-      </div>
+    <div class="hero-head">
+      <h1>data</h1>
+      <p class="lede">
+        work proportional to the <em>path that changed</em> — not the dataset.
+      </p>
+      <p class="hero-sub">
+        Wrap a value in <code class="inline">$()</code>, chain operators, bind to
+        the DOM. One edit walks one path. No virtual DOM, no diffing.
+      </p>
     </div>
+
+    <figure class="hero-stage">
+      <svg id="hero-diagram" aria-label="A reactive pipeline: one edit to one row of 10,000 walks a single path through filter, map and sort to one DOM node."></svg>
+      <figcaption class="hero-stage-cap">
+        <span class="hero-stage-edit">one edit</span>
+        <span class="dim">·</span>
+        <span class="hero-stage-path">one path</span>
+        <span class="dim">·</span>
+        <span class="hero-ops-wrap">ops since load: <b id="hero-ops">0</b></span>
+        <span class="hero-stage-note dim">— the other 9,999 rows are never visited</span>
+      </figcaption>
+    </figure>
 
     <div class="hero-cta">
-      <code class="hero-install"><span class="dim">$</span> npm install data</code>
+      <code class="hero-install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
       <a class="hero-cta-link" href="https://github.com/pemrouz/data">github</a>
-      <a class="hero-cta-link" href="./examples/crossfilter/">demo</a>
-      <a class="hero-cta-link" href="#rendering">rendering</a>
-      <a class="hero-cta-link" href="./comparisons.html">compare</a>
+      <a class="hero-cta-link" href="#proof">live benchmarks ↓</a>
+      <a class="hero-cta-link" href="#quickstart">quickstart</a>
+    </div>
+    <noscript><p class="muted" style="margin-top:1.5rem">This page's demos need JavaScript. Source &amp; docs: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
+  </section>
+
+  <!-- ============ S2 · explainer ============ -->
+  <section class="explainer" id="how">
+    <h2>what just happened</h2>
+    <div class="explain-grid">
+      <div class="explain-step">
+        <span class="explain-num">1</span>
+        <h3>wrap</h3>
+        <p><code class="inline">$(value)</code> turns any value or array into a reactive proxy. Mutate it like a plain object: <code class="inline">rows[42].v = 99.5</code>.</p>
+      </div>
+      <div class="explain-step">
+        <span class="explain-num">2</span>
+        <h3>derive</h3>
+        <p>Chainable operators build views: <code class="inline">.filter().map().za()</code>. Each layer subscribes only to what flows into it.</p>
+      </div>
+      <div class="explain-step">
+        <span class="explain-num">3</span>
+        <h3>propagate</h3>
+        <p>A mutation carries its exact path <code class="inline">['42','v']</code>. Every layer does O(path) work — one predicate, one remap, one reposition — never O(N).</p>
+      </div>
+    </div>
+
+    <figure class="explain-stage">
+      <svg id="explainer-diagram" aria-label="The same pipeline, stepped one edit at a time."></svg>
+      <figcaption class="explain-stage-cap">
+        <button id="explainer-step" type="button" class="step-btn">mutate one row ▸</button>
+        <code class="inline" id="explainer-path" data-hl="off">src[—].v = —</code>
+        <span class="explain-stage-ops">ops this run: <b id="explainer-ops">0</b></span>
+      </figcaption>
+      <p class="muted explain-foot">
+        Click repeatedly. The pulse is the change-event walking the chain; the
+        counter is each operator's <code class="inline">.tap()</code> firing once.
+        A typical Redux + virtual-DOM stack re-runs the whole selector chain over
+        all 10,000 rows on every tick — here, work tracks the path, not the dataset.
+      </p>
+    </figure>
+  </section>
+
+  <!-- ============ S3 · proof ============ -->
+  <section class="proof" id="proof">
+    <h2>not a screenshot — run it</h2>
+    <p class="muted proof-lede">
+      The same workload, rebuilt once per library and fed an identical stream —
+      <b>data</b> alongside crossfilter, MobX, RxJS, React, Solid, Preact,
+      Vue and Svelte. Each demo runs all nine live in your browser with a
+      per-row latency tracker. Open one and watch the gap.
+    </p>
+
+    <div class="proof-cards">
+      <a class="proof-card" href="./examples/multidim/" target="_blank" rel="noopener">
+        <div class="proof-poster" data-demo="multidim" aria-hidden="true">
+          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
+            <rect class="pp-brush" x="58" y="8" width="46" height="74"/>
+            <g class="pp-bars">
+              <rect x="8"  y="50" width="10" height="32"/><rect x="22" y="38" width="10" height="44"/>
+              <rect x="36" y="26" width="10" height="56"/><rect x="50" y="18" width="10" height="64"/>
+              <rect x="64" y="22" width="10" height="60"/><rect x="78" y="34" width="10" height="48"/>
+              <rect x="92" y="44" width="10" height="38"/><rect x="106" y="30" width="10" height="52"/>
+              <rect x="120" y="40" width="10" height="42"/><rect x="134" y="52" width="10" height="30"/>
+              <rect x="148" y="46" width="10" height="36"/><rect x="162" y="58" width="10" height="24"/>
+              <rect x="176" y="64" width="10" height="18"/>
+            </g>
+          </svg>
+        </div>
+        <div class="proof-card-body">
+          <h3>multidim</h3>
+          <p class="proof-tag">interaction-driven filtering</p>
+          <p class="proof-desc">Brushable histograms over <b>231,083</b> flight records, four dimensions, nine libraries.</p>
+          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">p50 / p95 per brush · 35.6 MB first load</span></p>
+        </div>
+      </a>
+
+      <a class="proof-card" href="./examples/ticker/" target="_blank" rel="noopener">
+        <div class="proof-poster" data-demo="ticker" aria-hidden="true">
+          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
+            <polyline class="pp-line" points="4,70 24,52 44,58 64,34 84,40 104,20 124,30 144,14 164,24 184,8"/>
+            <g class="pp-ticks">
+              <circle cx="44" cy="58" r="2.5"/><circle cx="104" cy="20" r="2.5"/><circle cx="164" cy="24" r="2.5"/>
+            </g>
+          </svg>
+        </div>
+        <div class="proof-card-body">
+          <h3>ticker</h3>
+          <p class="proof-tag">insert-driven streaming</p>
+          <p class="proof-desc">A synthetic market tape at <b>1k–100k ticks/s</b> feeding six parallel views over a 500k-tick window.</p>
+          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">per-tick CPU cost, rate slider</span></p>
+        </div>
+      </a>
+
+      <a class="proof-card" href="./examples/trades/" target="_blank" rel="noopener">
+        <div class="proof-poster" data-demo="trades" aria-hidden="true">
+          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
+            <g class="pp-ladder pp-ask">
+              <rect x="104" y="8"  width="70" height="6"/><rect x="104" y="18" width="54" height="6"/>
+              <rect x="104" y="28" width="40" height="6"/><rect x="104" y="38" width="24" height="6"/>
+            </g>
+            <g class="pp-ladder pp-bid">
+              <rect x="104" y="50" width="30" height="6"/><rect x="104" y="60" width="48" height="6"/>
+              <rect x="104" y="70" width="62" height="6"/><rect x="104" y="80" width="78" height="6"/>
+            </g>
+            <line class="pp-mid" x1="100" y1="2" x2="100" y2="88"/>
+          </svg>
+        </div>
+        <div class="proof-card-body">
+          <h3>trades</h3>
+          <p class="proof-tag">row-update-driven streaming</p>
+          <p class="proof-desc">A live order book over <b>10,000</b> limit orders — depth chart + price ladder, nine libraries.</p>
+          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">per-frame CPU wave</span></p>
+        </div>
+      </a>
+    </div>
+
+    <div class="proof-bench">
+      <p class="muted" style="max-width:62ch">
+        One source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
+        (liquid count, top-10 by spread, running average) across nine libraries.
+        Each tick settles all three before the next arrives; no batching.
+      </p>
+<pre class="code" style="font-size:0.8125rem">const liquidCount = trades.filter(t =&gt; t.ask - t.bid &gt; THRESHOLD).length()
+const top10       = trades.map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+                          .filter(t =&gt; t.spread &gt; THRESHOLD)
+                          .za('spread', 10)
+const avgBid      = trades.avg('bid')</pre>
+      <div class="bench-chart" aria-label="Time to settle 3 derived views over 1000 sequential ticks, lower is faster">
+        <div class="bench-row self"><span class="lib">data</span><div class="bar"><div class="fill" style="width:0.41%"></div></div><span class="num">12&nbsp;ms</span><span class="x">1×</span></div>
+        <div class="bench-row"><span class="lib">preact</span><div class="bar"><div class="fill" style="width:9.62%"></div></div><span class="num">287&nbsp;ms</span><span class="x">24×</span></div>
+        <div class="bench-row"><span class="lib">crossfilter</span><div class="bar"><div class="fill" style="width:13.59%"></div></div><span class="num">405&nbsp;ms</span><span class="x">33×</span></div>
+        <div class="bench-row"><span class="lib">solid</span><div class="bar"><div class="fill" style="width:17.45%"></div></div><span class="num">521&nbsp;ms</span><span class="x">43×</span></div>
+        <div class="bench-row"><span class="lib">mobx</span><div class="bar"><div class="fill" style="width:45.04%"></div></div><span class="num">1,344&nbsp;ms</span><span class="x">110×</span></div>
+        <div class="bench-row"><span class="lib">svelte</span><div class="bar"><div class="fill" style="width:70.76%"></div></div><span class="num">2,111&nbsp;ms</span><span class="x">174×</span></div>
+        <div class="bench-row"><span class="lib">react</span><div class="bar"><div class="fill" style="width:82.32%"></div></div><span class="num">2,456&nbsp;ms</span><span class="x">202×</span></div>
+        <div class="bench-row"><span class="lib">rxjs</span><div class="bar"><div class="fill" style="width:83.74%"></div></div><span class="num">2,498&nbsp;ms</span><span class="x">205×</span></div>
+        <div class="bench-row"><span class="lib">vue</span><div class="bar"><div class="fill" style="width:100%"></div></div><span class="num">2,983&nbsp;ms</span><span class="x">245×</span></div>
+      </div>
+      <p class="muted proof-repro">
+        Per-operator speedups range from <b>36×</b> to <b>29,000×</b> — each links to its reproducible run.
+        <code class="inline">npm run bench:ops</code> regenerates every number from source.
+      </p>
+      <div class="proof-badges">
+        <a class="op-bench" href="./operators/filter/BENCHMARK.md">filter · 1671×</a>
+        <a class="op-bench" href="./operators/between/BENCHMARK.md">between · 547×</a>
+        <a class="op-bench" href="./operators/sort/BENCHMARK.md">za · 420×</a>
+        <a class="op-bench" href="./operators/length/BENCHMARK.md">length · 447×</a>
+        <a class="op-bench" href="./operators/aggregate/BENCHMARK.md">aggregates · 723×</a>
+        <a class="op-bench" href="./operators/intersect/BENCHMARK.md">intersect · 441×</a>
+        <a class="op-bench" href="./operators/group/BENCHMARK.md">group · 2310×</a>
+        <a class="op-bench" href="./operators/map/BENCHMARK.md">map · 1902×</a>
+        <a class="op-bench" href="./comparisons.html">full comparisons →</a>
+      </div>
     </div>
   </section>
 
-  <!-- 2. blotter / path propagation -->
-  <section class="blotter-section" id="blotter">
-    <h2>watch one path propagate</h2>
-    <p class="muted" style="max-width:62ch">
-      A live blotter, ticking. Each update mutates exactly one path —
-      <code class="inline">trades[i].field = value</code> — and only the affected
-      cell flashes. Sibling fields are never visited; work is proportional to the
-      path that changed, not the row.
-    </p>
-    <div class="blotter">
-      <div class="blotter-status">
-        <span class="dim">last:</span>
-        <code class="inline" id="last-tick" data-hl="off">—</code>
-        <span class="spacer"></span>
-        <button id="stream-toggle" type="button">⏸ pause</button>
-      </div>
-      <div class="blotter-head">
-        <span>id</span><span>tenor</span><span>bid</span><span>ask</span><span>last</span><span>pnl</span>
-      </div>
-      <div class="blotter-body" id="blotter-body"></div>
-    </div>
-  </section>
-
-  <!-- 4. why incremental -->
-  <section class="why stack" id="why" style="--gap:1rem">
-    <h2>why incremental?</h2>
-    <p>
-      Work is proportional to the <em>path</em> that changed — not the row, not the dataset, not anything broader. When you mutate a deeply-nested property:
-    </p>
-    <pre class="code">trades[1234].bid = 99.85</pre>
-    <p>
-      …the underlying notification carries the exact path <code class="inline">['1234', 'bid']</code> and the new value. Each layer in the pipeline does work scoped only to that path:
-      <code class="inline">filter</code> reruns its predicate for one row,
-      <code class="inline">between</code> does a single bisect step,
-      <code class="inline">intersect</code> flips one bitmask entry per source,
-      <code class="inline">za</code> repositions one entry in its sorted index,
-      and the DOM updates the single binding tied to the changed path.
-      No diff pass, no list re-render, no key reconciliation.
-    </p>
-    <p class="muted" style="font-size:0.875rem">
-      A typical Redux + virtual-DOM stack re-runs the entire selector chain over all 5,000 trades on every tick. With one tick per millisecond, that doesn't scale at all. Operators here are written for minimum-work propagation by construction.
-    </p>
-  </section>
-
-  <!-- 5. operators -->
+  <!-- ============ S4 · operators ============ -->
   <section class="operators" id="operators">
-    <h2>operators</h2>
-    <p class="muted" style="max-width:62ch;margin-bottom:1.5rem">
-      Every operator below is a view derived from the same
-      <code class="inline">trades</code> proxy backing the blotter above.
-      Streaming bid/ask/pnl mutations propagate through each chain
-      incrementally — no recomputation outside the changed path. Click a tab
-      to switch; the stream keeps running across all of them.
+    <h2>the operator surface</h2>
+    <p class="muted op-intro" style="max-width:64ch">
+      A live feed of rate trades — bid/ask/pnl ticking. Every panel below is a
+      view derived from the same <code class="inline">$(trades)</code> proxy;
+      mutations propagate through each chain incrementally, no recomputation
+      outside the changed path. Click a tab; the stream keeps running across all
+      of them.
+      <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button>
     </p>
 
     <div class="op-tabs" role="tablist" aria-label="operators">
@@ -170,7 +240,7 @@ trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
     </div>
 
     <div class="op-section" id="op-filter">
-      <h3>filter <span class="dim">— pick a tenor</span></h3>
+      <h3>filter <span class="dim">— pick a tenor</span> <a class="op-bench" href="./operators/filter/BENCHMARK.md" title="See per-peer benchmark">up to 1671× vs peers →</a></h3>
       <p class="desc">Rows matching a predicate. Click a chip to switch.</p>
       <pre class="code" data-hl="off"></pre>
       <div class="op-controls" id="filter-chips"></div>
@@ -178,7 +248,7 @@ trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
     </div>
 
     <div class="op-section" id="op-between">
-      <h3>between <span class="dim">— brush by pnl</span></h3>
+      <h3>between <span class="dim">— brush by pnl</span> <a class="op-bench" href="./operators/between/BENCHMARK.md" title="See per-peer benchmark">up to 547× vs peers →</a></h3>
       <p class="desc">Rows where a column falls in a range. Each dot is one
         trade at its current pnl; the orange band is the active range.</p>
       <pre class="code" data-hl="off"></pre>
@@ -190,7 +260,7 @@ trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
     </div>
 
     <div class="op-section" id="op-za">
-      <h3>za / az <span class="dim">— top / bottom by pnl</span></h3>
+      <h3>za / az <span class="dim">— top / bottom by pnl</span> <a class="op-bench" href="./operators/sort/BENCHMARK.md" title="See per-peer benchmark">up to 420× vs peers →</a></h3>
       <p class="desc">Sort descending (<code class="inline">za</code>) or ascending
         (<code class="inline">az</code>), optionally limited. Top 5 winners and
         bottom 5 losers, re-ranking live as pnl ticks.</p>
@@ -201,7 +271,7 @@ trades.az('pnl', 5)</pre>
     </div>
 
     <div class="op-section" id="op-length">
-      <h3>length <span class="dim">— count, total or grouped</span></h3>
+      <h3>length <span class="dim">— count, total or grouped</span> <a class="op-bench" href="./operators/length/BENCHMARK.md" title="See per-peer benchmark">up to 447× vs peers →</a></h3>
       <p class="desc">Total row count, or counts under a key.</p>
       <pre class="code">trades.length()
 trades.length(d =&gt; d.tenor)</pre>
@@ -209,7 +279,7 @@ trades.length(d =&gt; d.tenor)</pre>
     </div>
 
     <div class="op-section" id="op-aggregates">
-      <h3>sum / avg / max / min / some / every <span class="dim">— scalar aggregates</span></h3>
+      <h3>sum / avg / max / min / some / every <span class="dim">— scalar aggregates</span> <a class="op-bench" href="./operators/aggregate/BENCHMARK.md" title="See per-peer benchmark">up to 723× vs peers →</a></h3>
       <p class="desc">Each returns one number (or boolean) derived from every
         row, updated incrementally — sum / avg are O(1) per delta, max / min
         are O(n) per publish, some / every flip when their counter crosses.</p>
@@ -222,7 +292,7 @@ trades.every(t =&gt; t.pnl &gt; 0)</pre>
     </div>
 
     <div class="op-section" id="op-intersect">
-      <h3>intersect <span class="dim">— filter ∩ filter</span></h3>
+      <h3>intersect <span class="dim">— filter ∩ filter</span> <a class="op-bench" href="./operators/intersect/BENCHMARK.md" title="See per-peer benchmark">up to 441× vs peers →</a></h3>
       <p class="desc">Rows present in every source view. Profitable trades at
         the chosen tenor.</p>
       <pre class="code" data-hl="off"></pre>
@@ -231,7 +301,7 @@ trades.every(t =&gt; t.pnl &gt; 0)</pre>
     </div>
 
     <div class="op-section" id="op-setops">
-      <h3>union / except <span class="dim">— set algebra companions</span></h3>
+      <h3>union / except <span class="dim">— set algebra companions</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 250× vs peers →</a></h3>
       <p class="desc">Same bitmask machinery as <code class="inline">intersect</code>:
         <code class="inline">union</code> keeps rows in <em>any</em> source,
         <code class="inline">except</code> keeps rows in the source but not
@@ -242,7 +312,7 @@ trades.every(t =&gt; t.pnl &gt; 0)</pre>
     </div>
 
     <div class="op-section" id="op-group">
-      <h3>group <span class="dim">— nest by tenor</span></h3>
+      <h3>group <span class="dim">— nest by tenor</span> <a class="op-bench" href="./operators/group/BENCHMARK.md" title="See per-peer benchmark">up to 2310× vs peers →</a></h3>
       <p class="desc">Rows nested under a computed key. Each tenor becomes its
         own bucket, with its trades indented underneath.</p>
       <pre class="code">trades.group(d =&gt; d.tenor)</pre>
@@ -250,7 +320,7 @@ trades.every(t =&gt; t.pnl &gt; 0)</pre>
     </div>
 
     <div class="op-section" id="op-projections">
-      <h3>distinct / keys / values / reverse <span class="dim">— collection projections</span></h3>
+      <h3>distinct / keys / values / reverse <span class="dim">— collection projections</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 7621× vs peers →</a></h3>
       <p class="desc">Reactive views over the shape of the data:
         <code class="inline">distinct</code> dedups rows by a projection,
         <code class="inline">keys</code>/<code class="inline">values</code>
@@ -264,7 +334,7 @@ trades.za('pnl', 5).reverse()</pre>
     </div>
 
     <div class="op-section" id="op-map">
-      <h3>map <span class="dim">— derive bid-ask spread</span></h3>
+      <h3>map <span class="dim">— derive bid-ask spread</span> <a class="op-bench" href="./operators/map/BENCHMARK.md" title="See per-peer benchmark">up to 1902× vs peers →</a></h3>
       <p class="desc">Per-row transform. The new <code class="inline">spread</code>
         column is computed from each row's bid &amp; ask; it updates whenever
         either field ticks.</p>
@@ -273,7 +343,7 @@ trades.za('pnl', 5).reverse()</pre>
     </div>
 
     <div class="op-section" id="op-to">
-      <h3>to / reduce <span class="dim">— aggregate pnl</span></h3>
+      <h3>to / reduce <span class="dim">— aggregate pnl</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 29556× vs peers →</a></h3>
       <p class="desc"><code class="inline">to</code> rebuilds a derived value
         from the whole snapshot on every tick.
         <code class="inline">reduce</code> folds row-by-row through
@@ -286,7 +356,7 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
     </div>
 
     <div class="op-section" id="op-tap">
-      <h3>tap <span class="dim">— side effects in a chain</span></h3>
+      <h3>tap <span class="dim">— side effects in a chain</span> <a class="op-bench" href="./operators/tap/BENCHMARK.md" title="See per-peer benchmark">up to 1875× vs peers →</a></h3>
       <p class="desc">Passthrough that fires <code class="inline">fn(change)</code>
         for every event flowing through it AND propagates the same event
         downstream. Below: tap'd into the live top-5 so you see the
@@ -296,315 +366,44 @@ trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
     </div>
   </section>
 
-  <!-- 6. crossfilter -->
-  <section class="crossfilter" id="crossfilter">
-    <h2>live: crossfilter over 231,083 flight records</h2>
-    <p class="muted" style="max-width:60ch">
-      Brushable histograms across four dimensions. Every chart, the table, and the totals counter are reactive views derived from the same source via
-      <code class="inline">between → intersect → length(group) → za → limit</code>.
-      Brushing mutates a filter range; views recompute incrementally and the DOM catches up on its own.
-    </p>
-    <div class="frame-wrap">
-      <iframe class="cf" src="./examples/crossfilter/" loading="lazy" title="Brushable crossfilter over flight records"></iframe>
+  <!-- ============ S5 · quickstart ============ -->
+  <section class="quickstart" id="quickstart">
+    <h2>from zero</h2>
+    <code class="hero-install qs-install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
+
+    <div class="qs-entries">
+      <div class="qs-entry"><code class="inline">data</code><span>lean core — <code class="inline">$</code>, <code class="inline">render</code>, <code class="inline">HTML</code>, <code class="inline">SVG</code></span></div>
+      <div class="qs-entry"><code class="inline">data/full</code><span>core + every operator + JSX helpers</span></div>
+      <div class="qs-entry"><code class="inline">data/render</code><span>just the DOM render layer</span></div>
+      <div class="qs-entry"><code class="inline">data/devtools</code><span>opt-in reactive-graph inspector</span></div>
     </div>
-    <div class="meta">
-      <span><a href="./examples/crossfilter/">open in own tab →</a></span>
-      <span class="dim">first load is slow — 35.6 MB · 231,083 records</span>
-    </div>
-    <noscript><p class="muted">JavaScript is required to render the demo. Source: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
-  </section>
 
-  <!-- 7. devtools -->
-  <section class="devtools stack" id="devtools" style="--gap:1rem">
-    <h2>devtools</h2>
-    <p class="muted" style="max-width:62ch">
-      Import <code class="inline">data/devtools</code> and a graph-first overlay
-      panel auto-mounts into a closed Shadow DOM root &mdash; a right-edge dock
-      with a Tree/DAG view of the reactive graph and a slide-in inspector
-      (Inspect&nbsp;/&nbsp;Events&nbsp;/&nbsp;Profile tabs). Hold
-      <kbd class="dock-mock-kbd">Alt</kbd> for inline badges, click <code class="inline">◎</code>
-      to pick any DOM element back to the view that bound it. Drag the left
-      edge to resize; width persists in localStorage. Lazy-loaded chunk
-      &mdash; the console API alone (<code class="inline">$.inspect</code>,
-      <code class="inline">$.trace</code>, <code class="inline">$.profile</code>) doesn&rsquo;t pay the panel&rsquo;s bytes.
-    </p>
+    <div class="qs-steps">
+      <div class="qs-step">
+        <h3>a scalar</h3>
+<pre class="code">import { $ } from 'data'
 
-    <!-- Static-graph + animated-inspector mockup. The graph pane (left) stays
-         put; the inspector pane (right) crossfades through inspect / events /
-         profile on a 12-second cycle. CSS keyframes only; honors
-         prefers-reduced-motion. -->
-    <div class="dock-mock-wrap">
-      <div class="dock-mock dock-mock-animated" aria-hidden="true">
-        <div class="dock-mock-header">
-          <span class="dock-mock-title">data devtools</span>
-          <span class="dock-mock-actions">
-            <span class="dock-mock-btn" title="Alt-hover">⊙</span>
-            <span class="dock-mock-btn dock-mock-active" title="DOM picker (armed)">◎</span>
-            <span class="dock-mock-btn">✕</span>
-          </span>
-        </div>
-
-        <div class="dock-mock-toolbar2">
-          <span class="dim">layout:</span>
-          <span class="dock-mock-seg">
-            <span class="dock-mock-seg-btn">Tree</span>
-            <span class="dock-mock-seg-btn dock-mock-seg-active">DAG</span>
-          </span>
-        </div>
-
-        <div class="dock-mock-split">
-          <!-- Left: static DAG graph rooted at items, with the selected
-               .length() node highlighted (the inspector to the right is
-               reading from this node). -->
-          <div class="dock-mock-graph">
-            <!-- Edge endpoints meet node centers exactly: viewBox matches the
-                 pane's pixel dimensions (240×320) so 1 viewBox unit = 1 px,
-                 and each path lands on the node-edge midpoint. -->
-            <svg class="dock-mock-edges" viewBox="0 0 240 344" preserveAspectRatio="none">
-              <path d="M120 76 C 120 116, 68 116, 68 150"/>
-              <path d="M120 76 C 120 116, 172 116, 172 150"/>
-              <path d="M68 188 C 68 232, 120 232, 120 264"/>
-              <path d="M172 188 C 172 232, 120 232, 120 264"/>
-            </svg>
-            <div class="dock-mock-dnode dock-mock-dnode-root" style="left:80px;top:44px">
-              <div class="dock-mock-dnode-label">&lt;root&gt;</div>
-              <div class="dock-mock-dnode-sub">items</div>
-              <span class="dock-mock-chip">→4</span>
-            </div>
-            <div class="dock-mock-dnode dock-mock-dnode-operator" style="left:28px;top:150px">
-              <div class="dock-mock-dnode-label">.filter()</div>
-              <div class="dock-mock-dnode-sub">FilterStringValue</div>
-              <span class="dock-mock-chip">→1</span>
-            </div>
-            <div class="dock-mock-dnode dock-mock-dnode-operator dock-mock-dnode-selected" style="left:132px;top:150px">
-              <div class="dock-mock-dnode-label">.length()</div>
-              <div class="dock-mock-dnode-sub">LengthValue</div>
-              <span class="dock-mock-chip">→1</span>
-            </div>
-            <div class="dock-mock-dnode dock-mock-dnode-dom" style="left:80px;top:264px">
-              <div class="dock-mock-dnode-label">.to()</div>
-              <div class="dock-mock-dnode-sub">ToValue → DOM</div>
-            </div>
-          </div>
-
-          <!-- Right: inspector. Tab strip animates active state; pane content
-               crossfades through the three tabs on the same 12s cycle. -->
-          <div class="dock-mock-inspector">
-            <div class="dock-mock-insp-header">
-              <span class="dock-mock-insp-title">.length() · operator</span>
-              <span class="dock-mock-btn dock-mock-close">Close ✕</span>
-            </div>
-
-            <div class="dock-mock-tabs">
-              <span class="dock-mock-tab">inspect</span>
-              <span class="dock-mock-tab">events</span>
-              <span class="dock-mock-tab">profile</span>
-            </div>
-
-            <div class="dock-mock-insp-body">
-
-              <!-- Inspect tab: card stack -->
-              <div class="dock-mock-pane dock-pane-inspect">
-                <div class="dock-mock-card dock-mock-card-identity">
-                  <div class="dock-mock-card-title">IDENTITY</div>
-                  <div class="dock-mock-card-headline">items.filter().length()</div>
-                  <div class="dock-mock-card-sub">LengthValue · operator</div>
-                </div>
-                <div class="dock-mock-card">
-                  <div class="dock-mock-card-title">CURRENT VALUE</div>
-                  <div class="dock-mock-card-value">2</div>
-                  <div class="dock-mock-card-sub">Number · stable for 1.4s</div>
-                </div>
-                <div class="dock-mock-card">
-                  <div class="dock-mock-card-title">CONNECTIONS</div>
-                  <div class="dock-mock-conn-row"><span class="dock-mock-conn-dir">↑ in</span><span class="dock-mock-conn-detail">items.filter()</span></div>
-                  <div class="dock-mock-conn-row"><span class="dock-mock-conn-dir">↓ out</span><span class="dock-mock-conn-detail">1 DOM binding</span></div>
-                </div>
-                <div class="dock-mock-card">
-                  <div class="dock-mock-card-title">ACTIVITY</div>
-                  <div class="dock-mock-card-stat">3 events in last 60s</div>
-                  <div class="dock-mock-verbs">
-                    <span class="dock-mock-verb dock-mock-verb-update">XU0×3</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Events tab: sparkline + transitions (scalar variant) -->
-              <div class="dock-mock-pane dock-pane-events">
-                <div class="dock-mock-card">
-                  <div class="dock-mock-card-title">VALUE OVER TIME · LAST 60s <span class="dock-mock-card-current">now: 2</span></div>
-                  <svg class="dock-mock-spark" viewBox="0 0 300 70" preserveAspectRatio="none">
-                    <line class="dock-mock-spark-grid" x1="40" y1="15" x2="290" y2="15"/>
-                    <line class="dock-mock-spark-grid" x1="40" y1="55" x2="290" y2="55"/>
-                    <text class="dock-mock-spark-axis" x="36" y="18" text-anchor="end">3</text>
-                    <text class="dock-mock-spark-axis" x="36" y="58" text-anchor="end">1</text>
-                    <path class="dock-mock-spark-line" d="M40 55 L120 55 L120 35 L200 35 L200 15 L260 15 L260 35 L290 35"/>
-                    <circle class="dock-mock-spark-dot" cx="290" cy="35" r="3"/>
-                  </svg>
-                </div>
-                <div class="dock-mock-card">
-                  <div class="dock-mock-card-title">LAST CHANGES</div>
-                  <div class="dock-mock-trans">
-                    <span class="dock-mock-trans-time">just now</span>
-                    <span class="dock-mock-trans-delta">3 → 2</span>
-                    <span class="dock-mock-verb dock-mock-verb-update">updated</span>
-                  </div>
-                  <div class="dock-mock-trans">
-                    <span class="dock-mock-trans-time">5s ago</span>
-                    <span class="dock-mock-trans-delta">2 → 3</span>
-                    <span class="dock-mock-verb dock-mock-verb-insert">inserted</span>
-                  </div>
-                  <div class="dock-mock-trans">
-                    <span class="dock-mock-trans-time">12s ago</span>
-                    <span class="dock-mock-trans-delta">3 → 2</span>
-                    <span class="dock-mock-verb dock-mock-verb-update">updated</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Profile tab: operator table -->
-              <div class="dock-mock-pane dock-pane-profile">
-                <div class="dock-mock-toolbar">
-                  <span class="dim">profiling:</span>
-                  <span class="dock-mock-select">$.profile(items) ▾</span>
-                  <span class="dock-mock-checkbox">■ stop</span>
-                </div>
-                <div class="dock-prof-head">
-                  <span>operator</span>
-                  <span>calls</span>
-                  <span class="dock-prof-totalh">total&nbsp;ms</span>
-                </div>
-                <div class="dock-prof-row">
-                  <span class="dock-prof-name">FilterStringValue</span>
-                  <span class="dock-prof-calls">247</span>
-                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:78%"></span></span>
-                  <span class="dock-prof-total">4.21</span>
-                </div>
-                <div class="dock-prof-row">
-                  <span class="dock-prof-name">LengthValue</span>
-                  <span class="dock-prof-calls">247</span>
-                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:34%"></span></span>
-                  <span class="dock-prof-total">1.83</span>
-                </div>
-                <div class="dock-prof-row">
-                  <span class="dock-prof-name">ToValue</span>
-                  <span class="dock-prof-calls">247</span>
-                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:18%"></span></span>
-                  <span class="dock-prof-total">0.97</span>
-                </div>
-                <div class="dock-prof-row">
-                  <span class="dock-prof-name">DOMSink</span>
-                  <span class="dock-prof-calls">247</span>
-                  <span class="dock-prof-bar"><span class="dock-prof-fill" style="width:11%"></span></span>
-                  <span class="dock-prof-total">0.61</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
+const count = $(0)
+count.connect(document.title, 'textContent')
+count[value]++          // the title updates</pre>
       </div>
-      <p class="muted dock-mock-caption">
-        Click a graph node to open the inspector. Three tabs over the live
-        view: <b>Inspect</b> (identity, value, connections, activity, bound
-        DOM), <b>Events</b> (sparkline + recent changes for scalars; insert/
-        remove/update rollups for collections), <b>Profile</b> (timed by
-        <code class="inline">$.profile()</code>).
-        <a href="./examples/todo-jsx/?devtools">try it on todo-jsx →</a> ·
-        <a href="./examples/crossfilter-jsx/?devtools">on crossfilter →</a>
-      </p>
-    </div>
-  </section>
+      <div class="qs-step">
+        <h3>a collection</h3>
+<pre class="code">import { $ } from 'data/full'
 
-  <!-- 8. comparisons -->
-  <section class="bench-preview stack" id="compare" style="--gap:1rem">
-    <h2>how it compares</h2>
-    <p class="muted" style="max-width:60ch">
-      Same source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
-      (count, top-10 by spread, running average) across nine reactive libraries.
-      Each tick settles all three views before the next tick arrives. No batching
-      primitives.
-    </p>
-<pre class="code" style="font-size:0.8125rem">const liquidCount = trades.filter(t =&gt; t.ask - t.bid &gt; THRESHOLD).length()
-const top10       = trades.map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-                          .filter(t =&gt; t.spread &gt; THRESHOLD)
-                          .za('spread', 10)
-const avgBid      = trades.avg('bid')</pre>
-    <div class="bench-chart" aria-label="Time to settle 3 derived views over 1000 sequential ticks, lower is faster">
-      <div class="bench-row self">
-        <span class="lib">data</span>
-        <div class="bar"><div class="fill" style="width:0.41%"></div></div>
-        <span class="num">12&nbsp;ms</span>
-        <span class="x">1×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">preact</span>
-        <div class="bar"><div class="fill" style="width:9.62%"></div></div>
-        <span class="num">287&nbsp;ms</span>
-        <span class="x">24×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">crossfilter</span>
-        <div class="bar"><div class="fill" style="width:13.59%"></div></div>
-        <span class="num">405&nbsp;ms</span>
-        <span class="x">33×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">solid</span>
-        <div class="bar"><div class="fill" style="width:17.45%"></div></div>
-        <span class="num">521&nbsp;ms</span>
-        <span class="x">43×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">mobx</span>
-        <div class="bar"><div class="fill" style="width:45.04%"></div></div>
-        <span class="num">1,344&nbsp;ms</span>
-        <span class="x">110×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">svelte</span>
-        <div class="bar"><div class="fill" style="width:70.76%"></div></div>
-        <span class="num">2,111&nbsp;ms</span>
-        <span class="x">174×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">react</span>
-        <div class="bar"><div class="fill" style="width:82.32%"></div></div>
-        <span class="num">2,456&nbsp;ms</span>
-        <span class="x">202×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">rxjs</span>
-        <div class="bar"><div class="fill" style="width:83.74%"></div></div>
-        <span class="num">2,498&nbsp;ms</span>
-        <span class="x">205×</span>
-      </div>
-      <div class="bench-row">
-        <span class="lib">vue</span>
-        <div class="bar"><div class="fill" style="width:100%"></div></div>
-        <span class="num">2,983&nbsp;ms</span>
-        <span class="x">245×</span>
+const trades = $(rows)
+const top = trades
+  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+  .filter(t =&gt; t.spread &gt; 0.10)
+  .za('spread', 10)
+
+trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
       </div>
     </div>
-    <p class="muted" style="font-size:0.8125rem;max-width:60ch">
-      In <b>data</b>, one tick walks one path that fans out to all three views — adding
-      a view costs O(per-tick path), not O(N). For everyone else, each derived view
-      is its own <code class="inline">computed</code> body that walks the source on every change.
-      <a href="./comparisons.html">full comparisons →</a>
-    </p>
-  </section>
 
-  <!-- 9. rendering -->
-  <section class="rendering stack" id="rendering" style="--gap:1rem">
-    <h2>rendering</h2>
-    <p class="muted" style="max-width:62ch">
-      Two surfaces over the same NodeProxy AST. The builder DSL composes nodes
-      directly; the JSX adapter compiles to the same calls. <code class="inline">render()</code>
-      walks an identical tree either way, and DOMSink does per-key surgical
-      updates &mdash; element identity and focus survive across reactive changes.
-    </p>
-
-    <h3 class="rendering-h">builder dsl</h3>
+    <div class="qs-render">
+      <div class="qs-step">
+        <h3 class="rendering-h">builder dsl</h3>
 <pre class="code">import { $, render, HTML } from 'data'
 const { ul, li } = HTML
 
@@ -614,10 +413,10 @@ render(document.body,
   ul(todos, (node, item) =&gt; node.text(item.task))
 )
 
-todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
-</pre>
-
-    <h3 class="rendering-h">jsx</h3>
+todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears</pre>
+      </div>
+      <div class="qs-step">
+        <h3 class="rendering-h">jsx</h3>
 <pre class="code">/** @jsx h */
 import { $, render, h, For } from 'data/full'
 
@@ -631,14 +430,60 @@ render(document.body,
   &lt;/ul&gt;
 )
 
-todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
-</pre>
+todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears</pre>
+      </div>
+    </div>
     <p class="muted" style="font-size:0.875rem">
+      <code class="inline">render()</code> does per-key surgical updates — element identity and focus survive across reactive changes.
       Worked examples: <a href="./examples/todo/">todo</a> ·
       <a href="./examples/crossfilter/">crossfilter</a> ·
       <a href="./examples/todo-jsx/">todo-jsx</a> ·
       <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
     </p>
+
+    <div class="qs-cta">
+      <a class="qs-cta-link" href="./README.md">read the readme →</a>
+      <a class="qs-cta-link" href="./operators/README.md">browse operators →</a>
+      <a class="qs-cta-link" href="./examples/crossfilter/">open a live demo →</a>
+      <a class="qs-cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+    </div>
+  </section>
+
+  <!-- ============ S6 · devtools ============ -->
+  <section class="devtools-section" id="devtools">
+    <h2>see your graph</h2>
+    <p class="muted" style="max-width:64ch">
+      The graph you watched light up at the top — here's the live inspector over
+      it. Import <code class="inline">data/devtools</code> and a graph-first
+      overlay auto-mounts: a right-edge dock with a Tree/DAG view of the reactive
+      graph and a slide-in inspector (Inspect / Events / Profile). Hold
+      <kbd>Alt</kbd> for inline badges, click <code class="inline">◎</code> to
+      pick any DOM element back to the view that bound it. Lazy-loaded — the
+      console API alone (<code class="inline">$.inspect</code>,
+      <code class="inline">$.trace</code>, <code class="inline">$.profile</code>)
+      doesn't pay the panel's bytes.
+    </p>
+    <div class="devtools-actions">
+      <button id="devtools-mount" type="button" class="step-btn">mount the inspector on this page ▸</button>
+      <span class="dim" id="devtools-status"></span>
+    </div>
+    <p class="muted" style="font-size:0.875rem;margin-top:0.75rem">
+      Or try it on a worked example:
+      <a href="./examples/todo-jsx/?devtools">todo-jsx ?devtools →</a> ·
+      <a href="./examples/crossfilter-jsx/?devtools">crossfilter ?devtools →</a>
+    </p>
+  </section>
+
+  <!-- ============ S7 · this page runs on data ============ -->
+  <section class="closer" id="closer">
+    <h2>this page runs on data</h2>
+    <p class="closer-line">
+      Everything that ticks above is a view derived from a <code class="inline">$()</code>
+      proxy and bound to the DOM with <code class="inline">render</code> — the
+      hero pipeline, every operator panel, this counter. Reactive change-events
+      processed since you arrived:
+    </p>
+    <div class="closer-count"><b id="page-updates">0</b> <span class="dim">and counting</span></div>
   </section>
 
 </main>
@@ -648,8 +493,9 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears
   <span><a href="https://www.npmjs.com/package/data">npm</a></span>
   <span><a href="./examples/crossfilter/">crossfilter</a></span>
   <span><a href="./examples/todo/">todo</a></span>
-  <span><a href="./examples/crossfilter-jsx/">crossfilter-jsx</a></span>
-  <span><a href="./examples/todo-jsx/">todo-jsx</a></span>
+  <span><a href="./examples/multidim/">multidim</a></span>
+  <span><a href="./examples/ticker/">ticker</a></span>
+  <span><a href="./examples/trades/">trades</a></span>
   <span><a href="./operators/README.md">operators</a></span>
   <span><a href="./comparisons.html">comparisons</a></span>
   <span><a href="./README.md">readme</a></span>

@@ -8,6 +8,7 @@
 /experiments/wasm/build/
 *.js
 !**/flights.js
+!assets/*.js
 !examples/multidim/**/*.js
 !examples/ticker/**/*.js
 !examples/trades/**/*.js
