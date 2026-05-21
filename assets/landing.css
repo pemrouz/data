@@ -1635,6 +1635,7 @@ section + section::before {
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
+.qs-step { min-width: 0; }   /* let pre.code scroll instead of blowing out the grid track */
 .qs-step h3 { font: 500 0.875rem var(--mono); color: var(--fg); text-transform: lowercase; margin: 0 0 0.5rem; }
 .qs-step h3::before { content: '// '; color: var(--fg-faint); }
 .qs-step pre.code { margin: 0; }
