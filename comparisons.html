@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>comparisons — data</title>
-  <meta name="description" content="How `data` compares to crossfilter, MobX, RxJS, and the modern signal libraries — feature matrix plus two live in-browser side-by-side demos: brushable filtering across 231k flight records and streaming tape at 100k ticks/s, with per-row reactive-cost trackers.">
+  <meta name="description" content="How `data` compares to crossfilter, MobX, RxJS, and the modern signal libraries — feature matrix plus two live in-browser side-by-side demos: brushable filtering across 231k flight records and a streaming order book over 10k limit orders, with per-row reactive-cost trackers.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="./assets/landing.css">
   <link rel="stylesheet" href="./assets/comparisons.css">
@@ -27,12 +27,10 @@
       numbers from a single workload run across every library.
     </p>
     <p class="frame">
-      Three live comparison pages run the same workload across nine
+      Two live comparison pages run the same workload across nine
       libraries in your browser:
       <a href="./examples/multidim/">multidim</a> for interaction-driven
-      filtering (brushable charts over 231k rows),
-      <a href="./examples/ticker/">ticker</a> for insert-driven streaming
-      (a synthetic market-data tape at 1k–100k ticks/s), and
+      filtering (brushable charts over 231k rows), and
       <a href="./examples/trades/">trades</a> for row-update-driven
       streaming (a live order book over 10k limit orders with a drifting
       regime). Per-row latency / CPU-cost trackers expose where each
@@ -261,24 +259,6 @@
         </ul>
         <span class="demo-cta">open multidim</span>
       </a>
-      <a class="live-demo" href="./examples/ticker/" target="_blank" rel="noopener">
-        <p class="demo-kicker">insert-driven</p>
-        <h3 class="demo-title">ticker — streaming tape</h3>
-        <p class="demo-blurb">
-          A synthetic market-data tape at 1k–100k ticks/s pushed
-          identically into every library. Each row maintains top
-          movers + sector volume rolling over a 500k-tick window,
-          with per-batch CPU cost tracked across both ingest and
-          render. <b>data</b>'s O(Δ) cascade pulls clearly ahead of
-          peers' O(window) rebuilds at high rates.
-        </p>
-        <ul class="demo-tags">
-          <li>za · reduce(add, remove, init) · sum</li>
-          <li>rate slider</li>
-          <li>9 libraries</li>
-        </ul>
-        <span class="demo-cta">open ticker</span>
-      </a>
       <a class="live-demo" href="./examples/trades/" target="_blank" rel="noopener">
         <p class="demo-kicker">row-update-driven</p>
         <h3 class="demo-title">trades — live order book</h3>
@@ -321,7 +301,6 @@
   <span><a href="https://github.com/pemrouz/data">github</a></span>
   <span><a href="https://www.npmjs.com/package/data">npm</a></span>
   <span><a href="./examples/multidim/">multidim — live</a></span>
-  <span><a href="./examples/ticker/">ticker — live</a></span>
   <span><a href="./examples/trades/">trades — live</a></span>
   <span><a href="./examples/crossfilter/">crossfilter</a></span>
   <span><a href="./examples/todo/">todo</a></span>

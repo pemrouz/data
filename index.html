@@ -3,391 +3,178 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>data — work proportional to the path that changed</title>
-  <meta name="description" content="A small reactive data library for TypeScript. $() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — no virtual DOM, no diffing.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
-  <meta property="og:title" content="data — work proportional to the path that changed">
-  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — no virtual DOM, no diffing.">
-  <link rel="stylesheet" href="./assets/landing.css">
+  <title>data — only do the work that changed</title>
+  <meta name="description" content="A small reactive data library for TypeScript. $() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — work scales with the change, not the dataset.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230c0c0d'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <meta property="og:title" content="data — only do the work that changed">
+  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. Work scales with the change, not the dataset.">
+  <link rel="stylesheet" href="./assets/v2.css">
 </head>
 <body>
 
-<nav class="toc" aria-label="On this page">
-  <div class="toc-label">on this page</div>
-  <a href="#intro"     data-toc="intro">intro</a>
-  <a href="#how"       data-toc="how">how</a>
-  <a href="#proof"     data-toc="proof">proof</a>
-  <a href="#operators" data-toc="operators">operators</a>
-  <a href="#quickstart" data-toc="quickstart">quickstart</a>
-  <a href="#devtools"  data-toc="devtools">devtools</a>
-  <div class="toc-sep"></div>
-  <a href="https://github.com/pemrouz/data">github →</a>
-  <a href="https://www.npmjs.com/package/data">npm →</a>
-</nav>
+<div class="wrap">
 
-<main>
+  <header class="masthead">
+    <a class="mark" href="./index.html"><b>$</b> data</a>
+    <span class="rule"></span>
+    <span class="date">incremental computation for typescript</span>
+    <nav class="mast-nav">
+      <a href="https://github.com/pemrouz/data">github</a>
+      <a href="https://www.npmjs.com/package/data">npm</a>
+      <a href="./comparisons.html">comparisons</a>
+    </nav>
+  </header>
 
-  <!-- ============ S1 · hero ============ -->
-  <section class="hero" id="intro">
-    <div class="hero-head">
-      <h1>data</h1>
-      <p class="lede">
-        work proportional to the <em>path that changed</em> — not the dataset.
-      </p>
-      <p class="hero-sub">
-        Wrap a value in <code class="inline">$()</code>, chain operators, bind to
-        the DOM. One edit walks one path. No virtual DOM, no diffing.
-      </p>
-    </div>
-
-    <figure class="hero-stage">
-      <svg id="hero-diagram" aria-label="A reactive pipeline: one edit to one row of 10,000 walks a single path through filter, map and sort to one DOM node."></svg>
-      <figcaption class="hero-stage-cap">
-        <span class="hero-stage-edit">one edit</span>
-        <span class="dim">·</span>
-        <span class="hero-stage-path">one path</span>
-        <span class="dim">·</span>
-        <span class="hero-ops-wrap">ops since load: <b id="hero-ops">0</b></span>
-        <span class="hero-stage-note dim">— the other 9,999 rows are never visited</span>
-      </figcaption>
-    </figure>
-
-    <div class="hero-cta">
-      <code class="hero-install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
-      <a class="hero-cta-link" href="https://github.com/pemrouz/data">github</a>
-      <a class="hero-cta-link" href="#proof">live benchmarks ↓</a>
-      <a class="hero-cta-link" href="#quickstart">quickstart</a>
+  <!-- ===== lede ===== -->
+  <section class="lede">
+    <p class="kicker">the original sin of reactive UI</p>
+    <h1 class="headline">Only do the work that <em>changed</em>.</h1>
+    <p class="standfirst">
+      Almost every reactive system re-runs the whole computation when a single
+      value changes. <b>data</b> re-runs only the path that changed — work scales
+      with the edit, not the dataset. Wrap a value in <code>$()</code>, chain
+      operators, bind to the DOM. No virtual DOM, no diffing.
+    </p>
+    <div class="cta">
+      <code class="install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
+      <a class="cta-link" href="#quickstart">quickstart ↓</a>
+      <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
     </div>
     <noscript><p class="muted" style="margin-top:1.5rem">This page's demos need JavaScript. Source &amp; docs: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
   </section>
 
-  <!-- ============ S2 · explainer ============ -->
-  <section class="explainer" id="how">
-    <h2>what just happened</h2>
-    <div class="explain-grid">
-      <div class="explain-step">
-        <span class="explain-num">1</span>
-        <h3>wrap</h3>
-        <p><code class="inline">$(value)</code> turns any value or array into a reactive proxy. Mutate it like a plain object: <code class="inline">rows[42].v = 99.5</code>.</p>
-      </div>
-      <div class="explain-step">
-        <span class="explain-num">2</span>
-        <h3>derive</h3>
-        <p>Chainable operators build views: <code class="inline">.filter().map().za()</code>. Each layer subscribes only to what flows into it.</p>
-      </div>
-      <div class="explain-step">
-        <span class="explain-num">3</span>
-        <h3>propagate</h3>
-        <p>A mutation carries its exact path <code class="inline">['42','v']</code>. Every layer does O(path) work — one predicate, one remap, one reposition — never O(N).</p>
+  <!-- ===== the race ===== -->
+  <section class="race" id="race">
+    <div class="race-head">
+      <span class="race-title">a demonstration · one order book · two engines · 200,000 live orders</span>
+      <div class="race-ctrl">
+        <label>rate</label>
+        <input id="race-rate" type="range" min="2.5" max="4.3" step="0.05" value="3.8">
+        <span class="rate" id="race-rate-out">—</span>
+        <button id="race-toggle">⏸ pause</button>
       </div>
     </div>
 
-    <figure class="explain-stage">
-      <svg id="explainer-diagram" aria-label="The same pipeline, stepped one edit at a time."></svg>
-      <figcaption class="explain-stage-cap">
-        <button id="explainer-step" type="button" class="step-btn">mutate one row ▸</button>
-        <code class="inline" id="explainer-path" data-hl="off">src[—].v = —</code>
-        <span class="explain-stage-ops">ops this run: <b id="explainer-ops">0</b></span>
-      </figcaption>
-      <p class="muted explain-foot">
-        Click repeatedly. The pulse is the change-event walking the chain; the
-        counter is each operator's <code class="inline">.tap()</code> firing once.
-        A typical Redux + virtual-DOM stack re-runs the whole selector chain over
-        all 10,000 rows on every tick — here, work tracks the path, not the dataset.
-      </p>
-    </figure>
-  </section>
+    <div class="race-grid">
+      <div class="race-side is-data">
+        <div class="side-head">
+          <div class="side-name">data<span class="lib">length(bucket) · filter→length · avg — O(1) per tick</span></div>
+          <div class="side-cost"><span class="cost-num" id="data-big">—</span><span class="cost-lab">ms / frame (p50)</span></div>
+        </div>
+        <canvas class="side-meter" id="data-meter"></canvas>
+        <div id="data-panel"></div>
+      </div>
+      <div class="race-side is-peer">
+        <div class="side-head">
+          <div class="side-name">MobX<span class="lib">computeds re-walk 200,000 orders — O(N) per frame</span></div>
+          <div class="side-cost"><span class="cost-num" id="peer-big">—</span><span class="cost-lab">ms / frame (p50)</span></div>
+        </div>
+        <canvas class="side-meter" id="peer-meter"></canvas>
+        <div id="peer-panel"></div>
+      </div>
+    </div>
 
-  <!-- ============ S3 · proof ============ -->
-  <section class="proof" id="proof">
-    <h2>not a screenshot — run it</h2>
-    <p class="muted proof-lede">
-      The same workload, rebuilt once per library and fed an identical stream —
-      <b>data</b> alongside crossfilter, MobX, RxJS, React, Solid, Preact,
-      Vue and Svelte. Each demo runs all nine live in your browser with a
-      per-row latency tracker. Open one and watch the gap.
+    <p class="race-status" id="race-status"></p>
+    <p class="race-caption">
+      Both sides maintain the same four views — liquid-order count, average bid,
+      and the bid/ask depth ladder — and render through the <b>same</b> function.
+      The only difference is the engine: <b>data</b> moves two bucket counters per
+      tick; MobX re-walks all 200,000 orders every frame. The dashed line is the
+      60fps frame budget (16ms). Drag the rate down and the gap widens — the book
+      is bounded, so there's no rate at which the walk gets cheap. MobX is a real,
+      respected library doing the idiomatic thing.
+      <a href="./comparisons.html">See it across nine libraries →</a>
     </p>
-
-    <div class="proof-cards">
-      <a class="proof-card" href="./examples/multidim/" target="_blank" rel="noopener">
-        <div class="proof-poster" data-demo="multidim" aria-hidden="true">
-          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
-            <rect class="pp-brush" x="58" y="8" width="46" height="74"/>
-            <g class="pp-bars">
-              <rect x="8"  y="50" width="10" height="32"/><rect x="22" y="38" width="10" height="44"/>
-              <rect x="36" y="26" width="10" height="56"/><rect x="50" y="18" width="10" height="64"/>
-              <rect x="64" y="22" width="10" height="60"/><rect x="78" y="34" width="10" height="48"/>
-              <rect x="92" y="44" width="10" height="38"/><rect x="106" y="30" width="10" height="52"/>
-              <rect x="120" y="40" width="10" height="42"/><rect x="134" y="52" width="10" height="30"/>
-              <rect x="148" y="46" width="10" height="36"/><rect x="162" y="58" width="10" height="24"/>
-              <rect x="176" y="64" width="10" height="18"/>
-            </g>
-          </svg>
-        </div>
-        <div class="proof-card-body">
-          <h3>multidim</h3>
-          <p class="proof-tag">interaction-driven filtering</p>
-          <p class="proof-desc">Brushable histograms over <b>231,083</b> flight records, four dimensions, nine libraries.</p>
-          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">p50 / p95 per brush · 35.6 MB first load</span></p>
-        </div>
-      </a>
-
-      <a class="proof-card" href="./examples/ticker/" target="_blank" rel="noopener">
-        <div class="proof-poster" data-demo="ticker" aria-hidden="true">
-          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
-            <polyline class="pp-line" points="4,70 24,52 44,58 64,34 84,40 104,20 124,30 144,14 164,24 184,8"/>
-            <g class="pp-ticks">
-              <circle cx="44" cy="58" r="2.5"/><circle cx="104" cy="20" r="2.5"/><circle cx="164" cy="24" r="2.5"/>
-            </g>
-          </svg>
-        </div>
-        <div class="proof-card-body">
-          <h3>ticker</h3>
-          <p class="proof-tag">insert-driven streaming</p>
-          <p class="proof-desc">A synthetic market tape at <b>1k–100k ticks/s</b> feeding six parallel views over a 500k-tick window.</p>
-          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">per-tick CPU cost, rate slider</span></p>
-        </div>
-      </a>
-
-      <a class="proof-card" href="./examples/trades/" target="_blank" rel="noopener">
-        <div class="proof-poster" data-demo="trades" aria-hidden="true">
-          <svg viewBox="0 0 200 90" preserveAspectRatio="none">
-            <g class="pp-ladder pp-ask">
-              <rect x="104" y="8"  width="70" height="6"/><rect x="104" y="18" width="54" height="6"/>
-              <rect x="104" y="28" width="40" height="6"/><rect x="104" y="38" width="24" height="6"/>
-            </g>
-            <g class="pp-ladder pp-bid">
-              <rect x="104" y="50" width="30" height="6"/><rect x="104" y="60" width="48" height="6"/>
-              <rect x="104" y="70" width="62" height="6"/><rect x="104" y="80" width="78" height="6"/>
-            </g>
-            <line class="pp-mid" x1="100" y1="2" x2="100" y2="88"/>
-          </svg>
-        </div>
-        <div class="proof-card-body">
-          <h3>trades</h3>
-          <p class="proof-tag">row-update-driven streaming</p>
-          <p class="proof-desc">A live order book over <b>10,000</b> limit orders — depth chart + price ladder, nine libraries.</p>
-          <p class="proof-meta"><span class="proof-open">open live →</span> <span class="dim">per-frame CPU wave</span></p>
-        </div>
-      </a>
-    </div>
-
-    <div class="proof-bench">
-      <p class="muted" style="max-width:62ch">
-        One source — <b>10,000 trades</b> ticking — feeding <b>three derived views</b>
-        (liquid count, top-10 by spread, running average) across nine libraries.
-        Each tick settles all three before the next arrives; no batching.
-      </p>
-<pre class="code" style="font-size:0.8125rem">const liquidCount = trades.filter(t =&gt; t.ask - t.bid &gt; THRESHOLD).length()
-const top10       = trades.map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
-                          .filter(t =&gt; t.spread &gt; THRESHOLD)
-                          .za('spread', 10)
-const avgBid      = trades.avg('bid')</pre>
-      <div class="bench-chart" aria-label="Time to settle 3 derived views over 1000 sequential ticks, lower is faster">
-        <div class="bench-row self"><span class="lib">data</span><div class="bar"><div class="fill" style="width:0.41%"></div></div><span class="num">12&nbsp;ms</span><span class="x">1×</span></div>
-        <div class="bench-row"><span class="lib">preact</span><div class="bar"><div class="fill" style="width:9.62%"></div></div><span class="num">287&nbsp;ms</span><span class="x">24×</span></div>
-        <div class="bench-row"><span class="lib">crossfilter</span><div class="bar"><div class="fill" style="width:13.59%"></div></div><span class="num">405&nbsp;ms</span><span class="x">33×</span></div>
-        <div class="bench-row"><span class="lib">solid</span><div class="bar"><div class="fill" style="width:17.45%"></div></div><span class="num">521&nbsp;ms</span><span class="x">43×</span></div>
-        <div class="bench-row"><span class="lib">mobx</span><div class="bar"><div class="fill" style="width:45.04%"></div></div><span class="num">1,344&nbsp;ms</span><span class="x">110×</span></div>
-        <div class="bench-row"><span class="lib">svelte</span><div class="bar"><div class="fill" style="width:70.76%"></div></div><span class="num">2,111&nbsp;ms</span><span class="x">174×</span></div>
-        <div class="bench-row"><span class="lib">react</span><div class="bar"><div class="fill" style="width:82.32%"></div></div><span class="num">2,456&nbsp;ms</span><span class="x">202×</span></div>
-        <div class="bench-row"><span class="lib">rxjs</span><div class="bar"><div class="fill" style="width:83.74%"></div></div><span class="num">2,498&nbsp;ms</span><span class="x">205×</span></div>
-        <div class="bench-row"><span class="lib">vue</span><div class="bar"><div class="fill" style="width:100%"></div></div><span class="num">2,983&nbsp;ms</span><span class="x">245×</span></div>
-      </div>
-      <p class="muted proof-repro">
-        Per-operator speedups range from <b>36×</b> to <b>29,000×</b> — each links to its reproducible run.
-        <code class="inline">npm run bench:ops</code> regenerates every number from source.
-      </p>
-      <div class="proof-badges">
-        <a class="op-bench" href="./operators/filter/BENCHMARK.md">filter · 1671×</a>
-        <a class="op-bench" href="./operators/between/BENCHMARK.md">between · 547×</a>
-        <a class="op-bench" href="./operators/sort/BENCHMARK.md">za · 420×</a>
-        <a class="op-bench" href="./operators/length/BENCHMARK.md">length · 447×</a>
-        <a class="op-bench" href="./operators/aggregate/BENCHMARK.md">aggregates · 723×</a>
-        <a class="op-bench" href="./operators/intersect/BENCHMARK.md">intersect · 441×</a>
-        <a class="op-bench" href="./operators/group/BENCHMARK.md">group · 2310×</a>
-        <a class="op-bench" href="./operators/map/BENCHMARK.md">map · 1902×</a>
-        <a class="op-bench" href="./comparisons.html">full comparisons →</a>
-      </div>
-    </div>
   </section>
 
-  <!-- ============ S4 · operators ============ -->
+  <!-- ===== §1 the argument ===== -->
+  <section class="essay" id="why">
+    <div class="sec-head"><span class="sec-no">01</span><h2>The argument</h2></div>
+    <p class="lead-para">
+      A change is small. You set one field on one row. Yet most reactive stacks
+      respond by re-running everything downstream — re-filtering the whole list,
+      re-summing every number, diffing an entire tree — and then trusting a
+      memoiser to paper over the waste.
+    </p>
+    <p>
+      <b>data</b> takes the change literally. A mutation carries its exact path,
+      and each operator in the chain does work scoped to that path alone:
+    </p>
+    <pre class="code">orders[42].bid = 99.85</pre>
+    <ul class="prop-list">
+      <li><span class="op">filter</span> re-tests the predicate for <em>one</em> row</li>
+      <li><span class="op">length(bucket)</span> moves <em>one</em> bucket counter</li>
+      <li><span class="op">avg</span> nudges a running mean in O(1)</li>
+      <li><span class="op">render</span> rewrites only the single bound cell</li>
+    </ul>
+    <p class="muted">
+      No diff pass. No list re-render. No selector re-run over 200,000 rows. The
+      cost of an update is the length of the path it travels — which is why the
+      race above holds at any rate, and why it scales to datasets that make
+      recompute-everything systems stall.
+    </p>
+  </section>
+
+  <!-- ===== §2 the operators ===== -->
   <section class="operators" id="operators">
-    <h2>the operator surface</h2>
-    <p class="muted op-intro" style="max-width:64ch">
-      A live feed of rate trades — bid/ask/pnl ticking. Every panel below is a
-      view derived from the same <code class="inline">$(trades)</code> proxy;
-      mutations propagate through each chain incrementally, no recomputation
-      outside the changed path. Click a tab; the stream keeps running across all
-      of them.
-      <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button>
+    <div class="sec-head"><span class="sec-no">02</span><h2>The operator surface</h2></div>
+    <p class="lead-para">
+      One source, many derived views. Wrap a collection in <code>$()</code> and
+      chain operators; each returns a reactive view that updates incrementally as
+      the source changes. The full catalogue:
     </p>
 
-    <div class="op-tabs" role="tablist" aria-label="operators">
-      <button class="op-tab on" role="tab" aria-selected="true"  data-target="op-filter">filter</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-between">between</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-za">za / az</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-length">length</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-aggregates">aggregates</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-intersect">intersect</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-setops">union / except</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-group">group</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-projections">projections</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-map">map</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-to">to / reduce</button>
-      <button class="op-tab"    role="tab" aria-selected="false" data-target="op-tap">tap</button>
+    <div class="catalogue">
+      <div class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><span class="cat-x">1671×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/between/BENCHMARK.md">between</a><span class="cat-desc">rows where a column falls in a range (sort-indexed, reactive bounds)</span><span class="cat-x">547×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/compare/BENCHMARK.md">gt / lt / gte / lte</a><span class="cat-desc">single-threshold comparison, O(1) per tick</span><span class="cat-x">343×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/sort/BENCHMARK.md">za / az / top / limit</a><span class="cat-desc">sort and / or limit (incremental top-K)</span><span class="cat-x">420×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/length/BENCHMARK.md">length</a><span class="cat-desc">row count, or counts grouped under a key</span><span class="cat-x">447×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">sum / avg / max / min</a><span class="cat-desc">scalar aggregates over a column or row values</span><span class="cat-x">723×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">some / every</a><span class="cat-desc">scalar booleans — any / all rows matching</span><span class="cat-x">723×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/intersect/BENCHMARK.md">intersect</a><span class="cat-desc">rows present in all source views</span><span class="cat-x">441×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/union/BENCHMARK.md">union / except</a><span class="cat-desc">set algebra over views (bitmask machinery)</span><span class="cat-x">250×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/group/BENCHMARK.md">group</a><span class="cat-desc">rows nested under a computed key</span><span class="cat-x">2310×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/distinct/BENCHMARK.md">distinct</a><span class="cat-desc">first-seen unique rows by a projection</span><span class="cat-x">1241×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/map/BENCHMARK.md">map</a><span class="cat-desc">per-row transform</span><span class="cat-x">1902×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/to/BENCHMARK.md">to / reduce</a><span class="cat-desc">whole-value transform / incremental fold</span><span class="cat-x">29556×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/tap/BENCHMARK.md">tap</a><span class="cat-desc">declarative side effects in a chain</span><span class="cat-x">1875×</span></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape of the data</span><span class="cat-x">7621×</span></div>
     </div>
+    <p class="cat-foot muted">×-figures are peak speedup vs. the fastest of eight peer libraries on each operator's batch benchmark — each links to its reproducible run. <a href="./comparisons.html">Full comparison →</a></p>
 
-    <div class="op-section" id="op-filter">
-      <h3>filter <span class="dim">— pick a tenor</span> <a class="op-bench" href="./operators/filter/BENCHMARK.md" title="See per-peer benchmark">up to 1671× vs peers →</a></h3>
-      <p class="desc">Rows matching a predicate. Click a chip to switch.</p>
-      <pre class="code" data-hl="off"></pre>
-      <div class="op-controls" id="filter-chips"></div>
-      <div class="live-panel" id="filter-result"></div>
-    </div>
-
-    <div class="op-section" id="op-between">
-      <h3>between <span class="dim">— brush by pnl</span> <a class="op-bench" href="./operators/between/BENCHMARK.md" title="See per-peer benchmark">up to 547× vs peers →</a></h3>
-      <p class="desc">Rows where a column falls in a range. Each dot is one
-        trade at its current pnl; the orange band is the active range.</p>
-      <pre class="code" data-hl="off"></pre>
-      <div class="live-panel" id="between-result"></div>
-      <div class="op-controls">
-        <label>lo<input type="number" class="lo" step="100"></label>
-        <label>hi<input type="number" class="hi" step="100"></label>
+    <p class="lead-para demos-intro">A few, live. Below is one feed of rate trades — bid/ask/pnl ticking — with three views derived from the same <code>$(trades)</code> proxy. <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button></p>
+    <div class="demos">
+      <div class="demo">
+        <h3>filter <span class="demo-sig">trades.filter('tenor', t)</span></h3>
+        <div class="demo-chips" id="filter-chips"></div>
+        <div class="demo-panel" id="filter-result"></div>
       </div>
-    </div>
-
-    <div class="op-section" id="op-za">
-      <h3>za / az <span class="dim">— top / bottom by pnl</span> <a class="op-bench" href="./operators/sort/BENCHMARK.md" title="See per-peer benchmark">up to 420× vs peers →</a></h3>
-      <p class="desc">Sort descending (<code class="inline">za</code>) or ascending
-        (<code class="inline">az</code>), optionally limited. Top 5 winners and
-        bottom 5 losers, re-ranking live as pnl ticks.</p>
-      <pre class="code">trades.za('pnl', 5)
-trades.az('pnl', 5)</pre>
-      <div class="live-panel" id="za-result"></div>
-      <div class="live-panel" id="az-result" style="margin-top:0.5rem"></div>
-    </div>
-
-    <div class="op-section" id="op-length">
-      <h3>length <span class="dim">— count, total or grouped</span> <a class="op-bench" href="./operators/length/BENCHMARK.md" title="See per-peer benchmark">up to 447× vs peers →</a></h3>
-      <p class="desc">Total row count, or counts under a key.</p>
-      <pre class="code">trades.length()
-trades.length(d =&gt; d.tenor)</pre>
-      <div class="live-panel" id="length-result"></div>
-    </div>
-
-    <div class="op-section" id="op-aggregates">
-      <h3>sum / avg / max / min / some / every <span class="dim">— scalar aggregates</span> <a class="op-bench" href="./operators/aggregate/BENCHMARK.md" title="See per-peer benchmark">up to 723× vs peers →</a></h3>
-      <p class="desc">Each returns one number (or boolean) derived from every
-        row, updated incrementally — sum / avg are O(1) per delta, max / min
-        are O(n) per publish, some / every flip when their counter crosses.</p>
-      <pre class="code">trades.sum('pnl')             // total exposure
-trades.avg('pnl')             // mean
-trades.max('pnl'), trades.min('pnl')
-trades.some(t =&gt; t.pnl &gt; 1000)
-trades.every(t =&gt; t.pnl &gt; 0)</pre>
-      <div class="live-panel" id="aggregates-result"></div>
-    </div>
-
-    <div class="op-section" id="op-intersect">
-      <h3>intersect <span class="dim">— filter ∩ filter</span> <a class="op-bench" href="./operators/intersect/BENCHMARK.md" title="See per-peer benchmark">up to 441× vs peers →</a></h3>
-      <p class="desc">Rows present in every source view. Profitable trades at
-        the chosen tenor.</p>
-      <pre class="code" data-hl="off"></pre>
-      <div class="op-controls" id="intersect-chips"></div>
-      <div class="live-panel" id="intersect-result"></div>
-    </div>
-
-    <div class="op-section" id="op-setops">
-      <h3>union / except <span class="dim">— set algebra companions</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 250× vs peers →</a></h3>
-      <p class="desc">Same bitmask machinery as <code class="inline">intersect</code>:
-        <code class="inline">union</code> keeps rows in <em>any</em> source,
-        <code class="inline">except</code> keeps rows in the source but not
-        the other.</p>
-      <pre class="code" data-hl="off"></pre>
-      <div class="op-controls" id="setops-chips"></div>
-      <div class="live-panel" id="setops-result"></div>
-    </div>
-
-    <div class="op-section" id="op-group">
-      <h3>group <span class="dim">— nest by tenor</span> <a class="op-bench" href="./operators/group/BENCHMARK.md" title="See per-peer benchmark">up to 2310× vs peers →</a></h3>
-      <p class="desc">Rows nested under a computed key. Each tenor becomes its
-        own bucket, with its trades indented underneath.</p>
-      <pre class="code">trades.group(d =&gt; d.tenor)</pre>
-      <div class="live-panel" id="group-result"></div>
-    </div>
-
-    <div class="op-section" id="op-projections">
-      <h3>distinct / keys / values / reverse <span class="dim">— collection projections</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 7621× vs peers →</a></h3>
-      <p class="desc">Reactive views over the shape of the data:
-        <code class="inline">distinct</code> dedups rows by a projection,
-        <code class="inline">keys</code>/<code class="inline">values</code>
-        unzip an object-shaped view, <code class="inline">reverse</code>
-        flips order.</p>
-      <pre class="code">trades.distinct(t =&gt; t.tenor)
-trades.length(t =&gt; t.tenor).keys()
-trades.length(t =&gt; t.tenor).values()
-trades.za('pnl', 5).reverse()</pre>
-      <div class="live-panel" id="projections-result"></div>
-    </div>
-
-    <div class="op-section" id="op-map">
-      <h3>map <span class="dim">— derive bid-ask spread</span> <a class="op-bench" href="./operators/map/BENCHMARK.md" title="See per-peer benchmark">up to 1902× vs peers →</a></h3>
-      <p class="desc">Per-row transform. The new <code class="inline">spread</code>
-        column is computed from each row's bid &amp; ask; it updates whenever
-        either field ticks.</p>
-      <pre class="code">trades.map(d =&gt; ({ ...d, spread: d.ask - d.bid }))</pre>
-      <div class="live-panel" id="map-result"></div>
-    </div>
-
-    <div class="op-section" id="op-to">
-      <h3>to / reduce <span class="dim">— aggregate pnl</span> <a class="op-bench" href="./operators/BENCHMARK.md" title="See per-peer benchmark">up to 29556× vs peers →</a></h3>
-      <p class="desc"><code class="inline">to</code> rebuilds a derived value
-        from the whole snapshot on every tick.
-        <code class="inline">reduce</code> folds row-by-row through
-        <code class="inline">(acc, row, key) =&gt; acc</code> — a more
-        readable shape for the same kind of aggregation, especially with
-        non-commutative folds (string concat, object merge).</p>
-      <pre class="code">trades.to(arr =&gt; arr.reduce((s, t) =&gt; s + t.pnl, 0))
-trades.reduce((s, t) =&gt; s + t.pnl, 0)</pre>
-      <div class="live-panel" id="to-result"></div>
-    </div>
-
-    <div class="op-section" id="op-tap">
-      <h3>tap <span class="dim">— side effects in a chain</span> <a class="op-bench" href="./operators/tap/BENCHMARK.md" title="See per-peer benchmark">up to 1875× vs peers →</a></h3>
-      <p class="desc">Passthrough that fires <code class="inline">fn(change)</code>
-        for every event flowing through it AND propagates the same event
-        downstream. Below: tap'd into the live top-5 so you see the
-        per-tick rank-change events as they happen.</p>
-      <pre class="code">trades.za('pnl', 5).tap(change =&gt; log.unshift(change))</pre>
-      <div class="live-panel" id="tap-result"></div>
+      <div class="demo">
+        <h3>za <span class="demo-sig">trades.za('pnl', 5)</span></h3>
+        <div class="demo-panel" id="za-result"></div>
+      </div>
+      <div class="demo">
+        <h3>group <span class="demo-sig">trades.group(d =&gt; d.tenor)</span></h3>
+        <div class="demo-panel" id="group-result"></div>
+      </div>
     </div>
   </section>
 
-  <!-- ============ S5 · quickstart ============ -->
+  <!-- ===== §3 quickstart ===== -->
   <section class="quickstart" id="quickstart">
-    <h2>from zero</h2>
-    <code class="hero-install qs-install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
+    <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
+    <code class="install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
 
-    <div class="qs-entries">
-      <div class="qs-entry"><code class="inline">data</code><span>lean core — <code class="inline">$</code>, <code class="inline">render</code>, <code class="inline">HTML</code>, <code class="inline">SVG</code></span></div>
-      <div class="qs-entry"><code class="inline">data/full</code><span>core + every operator + JSX helpers</span></div>
-      <div class="qs-entry"><code class="inline">data/render</code><span>just the DOM render layer</span></div>
-      <div class="qs-entry"><code class="inline">data/devtools</code><span>opt-in reactive-graph inspector</span></div>
+    <div class="entries">
+      <div class="entry"><code>data</code><span>lean core — <code>$</code>, <code>render</code>, <code>HTML</code>, <code>SVG</code></span></div>
+      <div class="entry"><code>data/full</code><span>core + every operator + JSX helpers</span></div>
+      <div class="entry"><code>data/render</code><span>just the DOM render layer</span></div>
+      <div class="entry"><code>data/devtools</code><span>opt-in reactive-graph inspector</span></div>
     </div>
 
-    <div class="qs-steps">
-      <div class="qs-step">
-        <h3>a scalar</h3>
-<pre class="code">import { $ } from 'data'
-
-const count = $(0)
-count.connect(document.title, 'textContent')
-count[value]++          // the title updates</pre>
-      </div>
-      <div class="qs-step">
+    <div class="snips">
+      <div class="snip">
         <h3>a collection</h3>
 <pre class="code">import { $ } from 'data/full'
 
@@ -399,11 +186,8 @@ const top = trades
 
 trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
       </div>
-    </div>
-
-    <div class="qs-render">
-      <div class="qs-step">
-        <h3 class="rendering-h">builder dsl</h3>
+      <div class="snip">
+        <h3>bound to the DOM</h3>
 <pre class="code">import { $, render, HTML } from 'data'
 const { ul, li } = HTML
 
@@ -413,102 +197,79 @@ render(document.body,
   ul(todos, (node, item) =&gt; node.text(item.task))
 )
 
-todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears</pre>
-      </div>
-      <div class="qs-step">
-        <h3 class="rendering-h">jsx</h3>
-<pre class="code">/** @jsx h */
-import { $, render, h, For } from 'data/full'
-
-const todos = $([{ task: 'foo' }, { task: 'bar' }])
-
-render(document.body,
-  &lt;ul&gt;
-    &lt;For each={todos} tag="li"&gt;
-      {(item) =&gt; &lt;li&gt;{item.task}&lt;/li&gt;}
-    &lt;/For&gt;
-  &lt;/ul&gt;
-)
-
-todos.insert({ task: 'baz' })   // a new &lt;li&gt;baz&lt;/li&gt; appears</pre>
+todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
       </div>
     </div>
-    <p class="muted" style="font-size:0.875rem">
-      <code class="inline">render()</code> does per-key surgical updates — element identity and focus survive across reactive changes.
-      Worked examples: <a href="./examples/todo/">todo</a> ·
-      <a href="./examples/crossfilter/">crossfilter</a> ·
-      <a href="./examples/todo-jsx/">todo-jsx</a> ·
-      <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
+    <p class="muted" style="font-size:0.9rem">
+      JSX works too (<code>jsxImportSource: "data"</code>). <code>render()</code> does per-key surgical
+      updates — element identity and focus survive across changes. Worked examples:
+      <a href="./examples/todo/">todo</a> · <a href="./examples/crossfilter/">crossfilter</a> ·
+      <a href="./examples/todo-jsx/">todo-jsx</a> · <a href="./examples/crossfilter-jsx/">crossfilter-jsx</a>.
     </p>
-
-    <div class="qs-cta">
-      <a class="qs-cta-link" href="./README.md">read the readme →</a>
-      <a class="qs-cta-link" href="./operators/README.md">browse operators →</a>
-      <a class="qs-cta-link" href="./examples/crossfilter/">open a live demo →</a>
-      <a class="qs-cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+    <div class="cta">
+      <a class="cta-link" href="./README.md">read the readme →</a>
+      <a class="cta-link" href="./operators/README.md">browse operators →</a>
+      <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
     </div>
   </section>
 
-  <!-- ============ S6 · devtools ============ -->
+  <!-- ===== §4 devtools ===== -->
   <section class="devtools-section" id="devtools">
-    <h2>see your graph</h2>
-    <p class="muted" style="max-width:64ch">
-      The graph you watched light up at the top — here's the live inspector over
-      it. Import <code class="inline">data/devtools</code> and a graph-first
-      overlay auto-mounts: a right-edge dock with a Tree/DAG view of the reactive
-      graph and a slide-in inspector (Inspect / Events / Profile). Hold
-      <kbd>Alt</kbd> for inline badges, click <code class="inline">◎</code> to
-      pick any DOM element back to the view that bound it. Lazy-loaded — the
-      console API alone (<code class="inline">$.inspect</code>,
-      <code class="inline">$.trace</code>, <code class="inline">$.profile</code>)
+    <div class="sec-head"><span class="sec-no">04</span><h2>See your graph</h2></div>
+    <p class="lead-para">
+      Import <code>data/devtools</code> and a graph-first overlay auto-mounts: a
+      right-edge dock with a Tree/DAG view of the reactive graph and a slide-in
+      inspector (Inspect / Events / Profile). Hold <kbd>Alt</kbd> for inline
+      badges, click <code>◎</code> to pick any DOM element back to the view that
+      bound it. Lazy-loaded — the console API alone
+      (<code>$.inspect</code>, <code>$.trace</code>, <code>$.profile</code>)
       doesn't pay the panel's bytes.
     </p>
-    <div class="devtools-actions">
-      <button id="devtools-mount" type="button" class="step-btn">mount the inspector on this page ▸</button>
-      <span class="dim" id="devtools-status"></span>
+    <div class="dt-actions">
+      <button id="devtools-mount" type="button" class="stream-btn">mount the inspector on this page ▸</button>
+      <span class="muted" id="devtools-status"></span>
     </div>
-    <p class="muted" style="font-size:0.875rem;margin-top:0.75rem">
+    <p class="muted" style="font-size:0.9rem;margin-top:0.75rem">
       Or try it on a worked example:
       <a href="./examples/todo-jsx/?devtools">todo-jsx ?devtools →</a> ·
       <a href="./examples/crossfilter-jsx/?devtools">crossfilter ?devtools →</a>
     </p>
   </section>
 
-  <!-- ============ S7 · this page runs on data ============ -->
+  <!-- ===== closer ===== -->
   <section class="closer" id="closer">
-    <h2>this page runs on data</h2>
     <p class="closer-line">
-      Everything that ticks above is a view derived from a <code class="inline">$()</code>
-      proxy and bound to the DOM with <code class="inline">render</code> — the
-      hero pipeline, every operator panel, this counter. Reactive change-events
-      processed since you arrived:
+      Everything that ticks on this page — the race, the live operator views,
+      this counter — is a <code>$()</code> proxy bound to the DOM with
+      <code>render</code>. Reactive change-events processed since you arrived:
     </p>
-    <div class="closer-count"><b id="page-updates">0</b> <span class="dim">and counting</span></div>
+    <div class="closer-count"><b id="page-updates">0</b></div>
+    <div class="closer-and muted">and counting</div>
   </section>
 
-</main>
+  <footer>
+    <a href="https://github.com/pemrouz/data">github</a>
+    <a href="https://www.npmjs.com/package/data">npm</a>
+    <a href="./comparisons.html">comparisons</a>
+    <a href="./examples/crossfilter/">crossfilter</a>
+    <a href="./examples/trades/">trades</a>
+    <a href="./examples/multidim/">multidim</a>
+    <a href="./examples/todo/">todo</a>
+    <a href="./operators/README.md">operators</a>
+    <a href="./README.md">readme</a>
+    <span class="spacer"></span>
+    <span class="lic">MIT</span>
+  </footer>
 
-<footer>
-  <span><a href="https://github.com/pemrouz/data">github</a></span>
-  <span><a href="https://www.npmjs.com/package/data">npm</a></span>
-  <span><a href="./examples/crossfilter/">crossfilter</a></span>
-  <span><a href="./examples/todo/">todo</a></span>
-  <span><a href="./examples/multidim/">multidim</a></span>
-  <span><a href="./examples/ticker/">ticker</a></span>
-  <span><a href="./examples/trades/">trades</a></span>
-  <span><a href="./operators/README.md">operators</a></span>
-  <span><a href="./comparisons.html">comparisons</a></span>
-  <span><a href="./README.md">readme</a></span>
-  <span class="spacer"></span>
-  <span class="lic">MIT</span>
-</footer>
+</div>
 
 <script type="importmap">
 { "imports": {
     "data":          "./dist/index.js",
     "data/full":     "./dist/full.js",
     "data/render":   "./dist/render/index.js",
-    "data/devtools": "./dist/devtools/index.js"
+    "data/devtools": "./dist/devtools/index.js",
+    "mobx":          "https://esm.sh/mobx@6.15.3"
 } }
 </script>
 <script type="module" src="./assets/landing.js"></script>
