@@ -362,23 +362,36 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
   let paused = false
   toggleBtn.addEventListener('click', () => { if (running) { paused = true; stop(); toggleBtn.textContent = '▶ resume' } else { paused = false; start() } })
 
-  /* ---------- second panel: the 231k brushing comparison, lazy-loaded inline ---------- */
-  // It's ~36MB across nine libraries, so don't pay for it on first paint — build
-  // the iframe only once the panel nears the viewport, behind a loading bar.
+  /* ---------- second panel: the 231k brushing comparison, inlined ---------- */
+  // ~36MB across nine libraries, so don't pay for it on first paint — mount it
+  // natively (no iframe) the first time the panel nears the viewport, with a
+  // real determinate progress bar driven by the dataset stream.
   let mdLoaded = false
-  function loadMultidim () {
+  async function loadMultidim () {
     if (mdLoaded) return
     mdLoaded = true
     multidimHost.innerHTML = `
       <div class="md-loading" data-k="mdload">
-        <div class="md-loading-txt">loading the full 231,083-row comparison — ~36&nbsp;MB across nine libraries…</div>
-        <div class="md-bar"><div class="md-bar-fill"></div></div>
-      </div>`
-    const f = document.createElement('iframe')
-    f.className = 'md-frame'; f.loading = 'lazy'; f.src = './examples/multidim/'
-    f.title = 'multidim — brushable charts over 231k flight records across nine libraries'
-    f.addEventListener('load', () => { const n = multidimHost.querySelector('[data-k=mdload]'); if (n) n.remove() })
-    multidimHost.appendChild(f)
+        <div class="md-loading-txt">streaming 231,083 flight records — <b data-k="mdpct">0%</b> · <span data-k="mdbytes">0.0 / 35.6 MB</span></div>
+        <div class="md-bar"><div class="md-bar-fill" data-k="mdfill"></div></div>
+      </div>
+      <div class="mdf-rows" id="md-rows"></div>`
+    const fill = multidimHost.querySelector('[data-k=mdfill]')
+    const pct = multidimHost.querySelector('[data-k=mdpct]')
+    const bytes = multidimHost.querySelector('[data-k=mdbytes]')
+    const txt = () => multidimHost.querySelector('.md-loading-txt')
+    try {
+      const { mountMultidim } = await import('../examples/multidim/main.js')
+      await mountMultidim({
+        rowsEl: multidimHost.querySelector('#md-rows'),
+        onProgress (p, recMB, totMB) { fill.style.width = (p * 100) + '%'; pct.textContent = ((p * 100) | 0) + '%'; bytes.textContent = `${recMB.toFixed(1)} / ${totMB.toFixed(1)} MB` },
+        onStatus (s) { const t = txt(); if (t) t.textContent = s === 'parsing' ? 'parsing 231,083 flight records…' : 'building nine reactive graphs…' },
+      })
+      const l = multidimHost.querySelector('[data-k=mdload]'); if (l) l.remove()
+    } catch (e) {
+      console.error('[multidim] inline mount failed', e)
+      const l = multidimHost.querySelector('.md-loading-txt'); if (l) l.textContent = 'failed to load the brushing comparison'
+    }
   }
 
   if ('IntersectionObserver' in window) {

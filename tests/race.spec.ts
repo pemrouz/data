@@ -71,14 +71,18 @@ test('race — prev / next buttons cycle the carousel', async ({ page }) => {
   await expect(page.locator('.rcard-name')).toContainText('data')
 })
 
-test('race — multidim panel lazy-loads on scroll, behind a loading bar', async ({ page }) => {
-  test.setTimeout(120_000)
+test('race — multidim panel inlines natively on scroll', async ({ page }) => {
+  test.setTimeout(180_000)
   await page.goto(HOME, { timeout: 90_000 })
   await page.waitForSelector('.rcard', { timeout: 60_000 })
   // not built on first paint — it's ~36MB, deferred until it nears the viewport
-  await expect(page.locator('iframe.md-frame')).toHaveCount(0)
+  await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(0)
+  await expect(page.locator('iframe.md-frame')).toHaveCount(0) // no iframe — mounted inline
   await page.locator('#race-multidim').scrollIntoViewIfNeeded()
-  // once scrolled near, the iframe is created pointing at the multidim app
-  // (the loading bar shows behind it until the iframe's load event fires)
-  await expect(page.locator('iframe.md-frame')).toHaveAttribute('src', './examples/multidim/', { timeout: 10_000 })
+  // the loading bar shows, then real .mdf-row sections mount into the page DOM
+  await expect(page.locator('#race-multidim .md-bar-fill')).toBeVisible({ timeout: 10_000 })
+  const dataRow = page.locator('#race-multidim .mdf-row[data-lib=data]')
+  await expect(dataRow).toBeVisible({ timeout: 120_000 })
+  await expect(dataRow.locator('.mdf-chart')).toHaveCount(4)
+  await expect(dataRow.locator('[data-stat=total]')).not.toHaveText(/^—$/, { timeout: 30_000 })
 })

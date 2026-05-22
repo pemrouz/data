@@ -133,15 +133,14 @@ kbd { font: 0.85em var(--mono); background: var(--bg-3); border: 1px solid var(-
 .fstat-v { font: 500 1.15rem var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 .fstat-base { color: var(--pos); }
 
-/* second panel — the heavyweight brushing comparison, lazy-loaded inline */
+/* second panel — the heavyweight brushing comparison, inlined natively */
 .race-md-head { display: flex; align-items: baseline; gap: 0.5rem 1.5rem; margin: 3rem 0 1.25rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
 .race-multidim { border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; min-height: 240px; }
-.md-frame { width: 100%; height: 82vh; min-height: 600px; border: 0; display: block; background: var(--bg); }
 .md-loading { padding: 3rem 2.5rem; text-align: center; color: var(--dim); font: 0.85rem var(--mono); }
-.md-loading-txt { margin-bottom: 1.1rem; }
-.md-bar { height: 4px; max-width: 320px; margin: 0 auto; background: var(--bg-3); border-radius: 4px; overflow: hidden; }
-.md-bar-fill { height: 100%; width: 40%; background: var(--accent); border-radius: 4px; animation: md-indeterminate 1.3s ease-in-out infinite; }
-@keyframes md-indeterminate { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+.md-loading-txt { margin-bottom: 1.1rem; font-variant-numeric: tabular-nums; }
+.md-loading-txt b { color: var(--accent); font-weight: 500; }
+.md-bar { height: 5px; max-width: 360px; margin: 0 auto; background: var(--bg-3); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.md-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 4px; transition: width 180ms ease-out; box-shadow: 0 0 10px var(--accent); }
 
 .race-status { text-align: center; font: 0.85rem var(--mono); color: var(--accent); padding: 0.5rem 0 0; min-height: 1.2rem; }
 .race-caption { max-width: 70ch; margin: 1.5rem 0 0; color: var(--dim); font-size: 0.95rem; }
@@ -258,5 +257,5 @@ footer .lic { color: var(--faint); }
 }
 @media (prefers-reduced-motion: reduce) {
   .mrow { transition: none; animation: none; }
-  .md-bar-fill { animation: none; width: 100%; }
+  .md-bar-fill { transition: none; }
 }

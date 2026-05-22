@@ -2,13 +2,17 @@
 // then mounts a row per library — each does the same brushable 4-chart
 // crossfilter view using its own reactive primitives. Per-row latency tracker
 // records pointermove → next paint, displays rolling p50 / p95.
+//
+// `mountMultidim` is the reusable entry point: the standalone page (below) and
+// the landing-page second panel both call it. Progress is reported through
+// callbacks rather than touching a fixed loader, so the host owns the chrome.
 
 import { makeLatencyTracker } from './latency.js'
 
-const { min, max, floor } = Math
+const { min, max } = Math
 
-// Library modules in the order they should appear on the page. Each is added
-// in its own commit; this list grows as we add peer rows.
+// Library modules in the order they should appear. Each is added in its own
+// commit; this list grows as we add peer rows.
 const LIBS = [
   { src: './lib-data.js' },
   { src: './lib-crossfilter.js' },
@@ -21,32 +25,33 @@ const LIBS = [
   { src: './lib-svelte.js' },
 ]
 
-const grid = document.querySelector('#rows')
-const loader = document.querySelector('#loader')
-
-const flights = await loadFlights()
-
-for (const { src } of LIBS) {
-  const mod = await import(src)
-  const lib = mod.default
-  const row = mountRow(lib)
-  const tracker = makeLatencyTracker(row)
-  try {
-    lib.mount(row.querySelector('.mdf-charts'), flights, tracker, {
-      activeEl:   row.querySelector('[data-stat=active]'),
-      totalEl:    row.querySelector('[data-stat=total]'),
-      topListEl:  row.querySelector('.mdf-top-list'),
-    })
-  } catch (e) {
-    console.error(`[${lib.name}] mount failed`, e)
-    row.querySelector('.mdf-tag').textContent = `failed to mount: ${e?.message ?? e}`
-    row.classList.add('mdf-failed')
+// Mount one row per library into `rowsEl`. onProgress(pct, receivedMB, totalMB,
+// rateMB) and onStatus(text) report dataset streaming/parsing; both optional.
+export async function mountMultidim ({ rowsEl, onProgress, onStatus } = {}) {
+  const flights = await loadFlights({ onProgress, onStatus })
+  for (const { src } of LIBS) {
+    const mod = await import(src)
+    const lib = mod.default
+    const row = mountRow(rowsEl, lib)
+    const tracker = makeLatencyTracker(row)
+    try {
+      lib.mount(row.querySelector('.mdf-charts'), flights, tracker, {
+        activeEl:  row.querySelector('[data-stat=active]'),
+        totalEl:   row.querySelector('[data-stat=total]'),
+        topListEl: row.querySelector('.mdf-top-list'),
+      })
+    } catch (e) {
+      console.error(`[${lib.name}] mount failed`, e)
+      row.querySelector('.mdf-tag').textContent = `failed to mount: ${e?.message ?? e}`
+      row.classList.add('mdf-failed')
+    }
+    // yield between rows so the page stays responsive while nine reactive
+    // graphs over 231k rows come up (matters when embedded inline)
+    await new Promise(r => requestAnimationFrame(r))
   }
 }
 
-dismissLoader()
-
-function mountRow(lib) {
+function mountRow (grid, lib) {
   const row = document.createElement('section')
   row.className = 'mdf-row'
   row.dataset.lib = lib.name
@@ -72,29 +77,22 @@ function mountRow(lib) {
   return row
 }
 
-function escape(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+function escape (s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }
 
-// Stream-fetch the dataset with live progress; identical loader UX to the
-// crossfilter example. The script is large (~36 MB) and parsing it is slow,
-// so we yield to the event loop after streaming completes so the bar paints.
-async function loadFlights() {
-  const $bar   = loader.querySelector('.loader-bar-fill')
-  const $pct   = loader.querySelector('.loader-pct')
-  const $bytes = loader.querySelector('.loader-bytes')
-  const $rate  = loader.querySelector('.loader-rate')
-  const $stat  = loader.querySelector('.loader-status')
-  const fmtMB  = b => (b / 1048576).toFixed(1)
-
+// Stream-fetch the dataset with live progress. The script is large (~36 MB) and
+// parsing is slow, so we yield to the event loop after streaming so the host's
+// progress bar paints. The dataset lives next to the crossfilter example; we
+// resolve it relative to THIS module so the fetch works regardless of which
+// page imported us.
+async function loadFlights ({ onProgress, onStatus } = {}) {
+  const fmtMB = b => b / 1048576
   const t0 = performance.now()
-  const res = await fetch('../crossfilter/flights.js')
+  const res = await fetch(new URL('../crossfilter/flights.js', import.meta.url))
   const total = +res.headers.get('Content-Length') || 37313858
 
-  if (!res.body || !res.body.getReader) {
-    const text = await res.text()
-    return parse(text)
-  }
+  if (!res.body || !res.body.getReader) return parse((await import(URL.createObjectURL(new Blob([await res.text()], { type: 'application/javascript' })))).data)
 
   const reader = res.body.getReader()
   const chunks = []
@@ -104,36 +102,27 @@ async function loadFlights() {
     if (done) break
     chunks.push(value)
     received += value.byteLength
-    const pct = received / total
     const elapsed = (performance.now() - t0) / 1000
-    $bar.style.width = `${(pct * 100).toFixed(1)}%`
-    $pct.textContent = `${(pct * 100) | 0}%`
-    $bytes.textContent = `${fmtMB(received)} / ${fmtMB(total)} MB`
-    $rate.textContent = elapsed > 0.05 ? `${fmtMB(received / elapsed)} MB/s` : '…'
+    onProgress?.(received / total, fmtMB(received), fmtMB(total), elapsed > 0.05 ? fmtMB(received / elapsed) : 0)
   }
-  $bar.style.width = '100%'
-  $pct.textContent = '100%'
-  $stat.textContent = 'parsing'
+  onProgress?.(1, fmtMB(total), fmtMB(total), 0)
+  onStatus?.('parsing')
   await new Promise(r => requestAnimationFrame(r))
 
   const url = URL.createObjectURL(new Blob(chunks, { type: 'application/javascript' }))
   const { data } = await import(url)
   URL.revokeObjectURL(url)
 
-  $stat.textContent = 'projecting flights'
+  onStatus?.('projecting flights')
   await new Promise(r => requestAnimationFrame(r))
   return parse(data)
 }
 
-// Shared parse — every library row receives the same array of plain objects.
-// The fields match the existing crossfilter example: date (Date), time (hours),
-// delay (clamped), distance (clamped), origin, destination.
-//
-// flights.js exports `data` as an OBJECT keyed by index, not an array — the
-// existing crossfilter example wraps that directly in `$()`. We materialise
-// to a dense array here so peer libraries (which mostly want a real array)
-// don't have to handle the keyed-object shape.
-function parse(rows) {
+// Shared parse — every library row receives the same array of plain objects:
+// date (Date), time (hours), delay (clamped), distance (clamped), origin,
+// destination. flights.js exports `data` as an OBJECT keyed by index; we
+// materialise to a dense array so peer libraries get a real array.
+function parse (rows) {
   const flights = []
   for (const k in rows) {
     const d = rows[k]
@@ -147,16 +136,32 @@ function parse(rows) {
   return flights
 }
 
-function parseDate(d) {
-  return new Date(2001,
-    d.substring(0, 2) - 1,
-    d.substring(2, 4),
-    d.substring(4, 6),
-    d.substring(6, 8))
+function parseDate (d) {
+  return new Date(2001, d.substring(0, 2) - 1, d.substring(2, 4), d.substring(4, 6), d.substring(6, 8))
 }
 
-function dismissLoader() {
-  if (!loader) return
-  loader.classList.add('done')
-  setTimeout(() => loader.remove(), 360)
+// ---- standalone page bootstrap (examples/multidim/index.html) ----
+// Only runs when the standalone loader/rows markup is present; the embedded
+// landing-page path calls mountMultidim() directly with its own chrome.
+const standaloneRows = document.querySelector('#rows')
+const standaloneLoader = document.querySelector('#loader')
+if (standaloneRows && standaloneLoader) {
+  const $bar = standaloneLoader.querySelector('.loader-bar-fill')
+  const $pct = standaloneLoader.querySelector('.loader-pct')
+  const $bytes = standaloneLoader.querySelector('.loader-bytes')
+  const $rate = standaloneLoader.querySelector('.loader-rate')
+  const $stat = standaloneLoader.querySelector('.loader-status')
+  mountMultidim({
+    rowsEl: standaloneRows,
+    onProgress: (pct, recMB, totMB, rateMB) => {
+      $bar.style.width = `${(pct * 100).toFixed(1)}%`
+      $pct.textContent = `${(pct * 100) | 0}%`
+      $bytes.textContent = `${recMB.toFixed(1)} / ${totMB.toFixed(1)} MB`
+      $rate.textContent = rateMB > 0 ? `${rateMB.toFixed(1)} MB/s` : '…'
+    },
+    onStatus: s => { $stat.textContent = s },
+  }).then(() => {
+    standaloneLoader.classList.add('done')
+    setTimeout(() => standaloneLoader.remove(), 360)
+  })
 }
