@@ -71,7 +71,7 @@ test('race — prev / next buttons cycle the carousel', async ({ page }) => {
   await expect(page.locator('.rcard-name')).toContainText('data')
 })
 
-test('race — multidim panel inlines natively on scroll', async ({ page }) => {
+test('race — second workload inlines one brushing row, mirroring the carousel', async ({ page }) => {
   test.setTimeout(180_000)
   await page.goto(HOME, { timeout: 90_000 })
   await page.waitForSelector('.rcard', { timeout: 60_000 })
@@ -79,10 +79,15 @@ test('race — multidim panel inlines natively on scroll', async ({ page }) => {
   await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(0)
   await expect(page.locator('iframe.md-frame')).toHaveCount(0) // no iframe — mounted inline
   await page.locator('#race-multidim').scrollIntoViewIfNeeded()
-  // the loading bar shows, then real .mdf-row sections mount into the page DOM
+  // loading bar shows, then ONE row mounts inline — the selected engine (data)
   await expect(page.locator('#race-multidim .md-bar-fill')).toBeVisible({ timeout: 10_000 })
   const dataRow = page.locator('#race-multidim .mdf-row[data-lib=data]')
   await expect(dataRow).toBeVisible({ timeout: 120_000 })
+  await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(1) // one at a time, not all nine
   await expect(dataRow.locator('.mdf-chart')).toHaveCount(4)
   await expect(dataRow.locator('[data-stat=total]')).not.toHaveText(/^—$/, { timeout: 30_000 })
+  // flip the shared carousel → the brushing row follows the selected engine
+  await page.selectOption('#race-lib', 'mobx')
+  await expect(page.locator('#race-multidim .mdf-row[data-lib=mobx]')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(1)
 })

@@ -307,6 +307,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     tickAcc = 0; tickT0 = performance.now()
     if (statusEl) statusEl.textContent = ''
     reduceMotion ? settleOnce() : start()
+    showMultidim(lib.id) // mirror the selection in the brushing panel (no-op until its data is loaded)
   }
 
   function drawCard () {
@@ -362,14 +363,17 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
   let paused = false
   toggleBtn.addEventListener('click', () => { if (running) { paused = true; stop(); toggleBtn.textContent = '▶ resume' } else { paused = false; start() } })
 
-  /* ---------- second panel: the 231k brushing comparison, inlined ---------- */
-  // ~36MB across nine libraries, so don't pay for it on first paint — mount it
-  // natively (no iframe) the first time the panel nears the viewport, with a
-  // real determinate progress bar driven by the dataset stream.
-  let mdLoaded = false
-  async function loadMultidim () {
-    if (mdLoaded) return
-    mdLoaded = true
+  /* ---------- second workload: the 231k brushing row for the selected engine ---------- */
+  // The dataset is ~36MB, so don't pay for it on first paint — stream it (with a
+  // determinate bar) the first time the panel nears the viewport, then show ONE
+  // row: whichever engine the shared carousel has selected. Switching engines
+  // re-mounts that single row over the cached flights (no re-fetch).
+  let flights = null, mdReady = false, mdBusy = false, mdRowsEl = null, mdShownId = null, mdSeq = 0
+  const labelOf = id => (LIBS.find(l => l.id === id) || {}).label || id
+
+  async function loadMultidimData () {
+    if (mdReady || mdBusy) return
+    mdBusy = true
     multidimHost.innerHTML = `
       <div class="md-loading" data-k="mdload">
         <div class="md-loading-txt">streaming 231,083 flight records — <b data-k="mdpct">0%</b> · <span data-k="mdbytes">0.0 / 35.6 MB</span></div>
@@ -380,27 +384,43 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     const pct = multidimHost.querySelector('[data-k=mdpct]')
     const bytes = multidimHost.querySelector('[data-k=mdbytes]')
     const txt = () => multidimHost.querySelector('.md-loading-txt')
+    mdRowsEl = multidimHost.querySelector('#md-rows')
     try {
-      const { mountMultidim } = await import('../examples/multidim/main.js')
-      await mountMultidim({
-        rowsEl: multidimHost.querySelector('#md-rows'),
+      const { loadFlights } = await import('../examples/multidim/main.js')
+      flights = await loadFlights({
         onProgress (p, recMB, totMB) { fill.style.width = (p * 100) + '%'; pct.textContent = ((p * 100) | 0) + '%'; bytes.textContent = `${recMB.toFixed(1)} / ${totMB.toFixed(1)} MB` },
-        onStatus (s) { const t = txt(); if (t) t.textContent = s === 'parsing' ? 'parsing 231,083 flight records…' : 'building nine reactive graphs…' },
+        onStatus (s) { const t = txt(); if (t) t.textContent = s === 'parsing' ? 'parsing 231,083 flight records…' : 'projecting flights…' },
       })
+      mdReady = true
       const l = multidimHost.querySelector('[data-k=mdload]'); if (l) l.remove()
+      await showMultidim(LIBS[idx].id) // mount the engine selected by now
     } catch (e) {
-      console.error('[multidim] inline mount failed', e)
-      const l = multidimHost.querySelector('.md-loading-txt'); if (l) l.textContent = 'failed to load the brushing comparison'
-    }
+      console.error('[multidim] dataset load failed', e)
+      const t = txt(); if (t) t.textContent = 'failed to load the flight dataset'
+    } finally { mdBusy = false }
+  }
+
+  async function showMultidim (id) {
+    if (!mdReady || !flights || !mdRowsEl || mdShownId === id) return
+    mdShownId = id
+    const seq = ++mdSeq
+    mdRowsEl.innerHTML = `<div class="md-row-building">building the ${labelOf(id)} row over 231,083 rows…</div>`
+    try {
+      const { mountLibRow } = await import('../examples/multidim/main.js')
+      if (seq !== mdSeq) return // superseded by a newer selection
+      mdRowsEl.innerHTML = ''
+      await mountLibRow({ rowsEl: mdRowsEl, src: `./lib-${id}.js`, flights })
+      if (seq !== mdSeq) mdRowsEl.innerHTML = '' // a newer selection landed mid-mount; it owns the row now
+    } catch (e) { console.error(`[multidim ${id}] row mount failed`, e) }
   }
 
   if ('IntersectionObserver' in window) {
     // order-book loop only runs while its card is on screen
     new IntersectionObserver(es => { if (es[0].isIntersecting) { if (!paused) start() } else stop() }, { threshold: 0.05 }).observe(grid)
-    // multidim loads a little before it enters the viewport
-    new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { loadMultidim(); ob.disconnect() } }, { rootMargin: '400px' }).observe(multidimHost)
+    // multidim dataset loads a little before its panel enters the viewport
+    new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { loadMultidimData(); ob.disconnect() } }, { rootMargin: '400px' }).observe(multidimHost)
   } else {
-    loadMultidim()
+    loadMultidimData()
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (!paused) start() })
 

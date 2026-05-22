@@ -25,30 +25,39 @@ const LIBS = [
   { src: './lib-svelte.js' },
 ]
 
-// Mount one row per library into `rowsEl`. onProgress(pct, receivedMB, totalMB,
-// rateMB) and onStatus(text) report dataset streaming/parsing; both optional.
+// Mount one row per library into `rowsEl` — the standalone all-nine page.
+// onProgress(pct, receivedMB, totalMB, rateMB) and onStatus(text) report dataset
+// streaming/parsing; both optional.
 export async function mountMultidim ({ rowsEl, onProgress, onStatus } = {}) {
   const flights = await loadFlights({ onProgress, onStatus })
   for (const { src } of LIBS) {
-    const mod = await import(src)
-    const lib = mod.default
-    const row = mountRow(rowsEl, lib)
-    const tracker = makeLatencyTracker(row)
-    try {
-      lib.mount(row.querySelector('.mdf-charts'), flights, tracker, {
-        activeEl:  row.querySelector('[data-stat=active]'),
-        totalEl:   row.querySelector('[data-stat=total]'),
-        topListEl: row.querySelector('.mdf-top-list'),
-      })
-    } catch (e) {
-      console.error(`[${lib.name}] mount failed`, e)
-      row.querySelector('.mdf-tag').textContent = `failed to mount: ${e?.message ?? e}`
-      row.classList.add('mdf-failed')
-    }
+    await mountLibRow({ rowsEl, src, flights })
     // yield between rows so the page stays responsive while nine reactive
     // graphs over 231k rows come up (matters when embedded inline)
     await new Promise(r => requestAnimationFrame(r))
   }
+}
+
+// Mount a SINGLE library's row into `rowsEl`, over an already-loaded `flights`
+// array. The landing page uses this to show one engine at a time, driven by the
+// shared carousel; `src` resolves relative to this module (e.g. './lib-mobx.js').
+export async function mountLibRow ({ rowsEl, src, flights }) {
+  const mod = await import(src)
+  const lib = mod.default
+  const row = mountRow(rowsEl, lib)
+  const tracker = makeLatencyTracker(row)
+  try {
+    lib.mount(row.querySelector('.mdf-charts'), flights, tracker, {
+      activeEl:  row.querySelector('[data-stat=active]'),
+      totalEl:   row.querySelector('[data-stat=total]'),
+      topListEl: row.querySelector('.mdf-top-list'),
+    })
+  } catch (e) {
+    console.error(`[${lib.name}] mount failed`, e)
+    row.querySelector('.mdf-tag').textContent = `failed to mount: ${e?.message ?? e}`
+    row.classList.add('mdf-failed')
+  }
+  return row
 }
 
 function mountRow (grid, lib) {
@@ -86,7 +95,7 @@ function escape (s) {
 // progress bar paints. The dataset lives next to the crossfilter example; we
 // resolve it relative to THIS module so the fetch works regardless of which
 // page imported us.
-async function loadFlights ({ onProgress, onStatus } = {}) {
+export async function loadFlights ({ onProgress, onStatus } = {}) {
   const fmtMB = b => b / 1048576
   const t0 = performance.now()
   const res = await fetch(new URL('../crossfilter/flights.js', import.meta.url))

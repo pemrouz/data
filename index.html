@@ -48,7 +48,7 @@
   <!-- ===== the race ===== -->
   <section class="race" id="race">
     <div class="race-head">
-      <span class="race-title">streaming order book · 150k · nine engines · flip through them</span>
+      <span class="race-title">one engine · two workloads · flip through nine</span>
       <div class="race-ctrl">
         <span class="ctrl carousel">
           <button id="race-prev" title="previous engine">‹</button>
@@ -64,29 +64,22 @@
       </div>
     </div>
 
+    <!-- workload 1: streaming order book (carousel-selected engine) -->
     <div class="race-grid" id="race-grid"></div>
-
     <p class="race-status" id="race-status"></p>
-    <p class="race-caption">
-      One realistic order-book tick stream, rendered through the <b>same</b>
-      depth-chart-and-ladder viz — only the reactive engine changes as you flip.
-      <b>data</b> moves a couple of bucket counters per tick (O(1)); every peer
-      re-walks all 150,000 orders once per frame (O(N)). The green line is
-      <b>data</b>, always running as the baseline; the orange wave is whichever
-      engine you've selected, against the 16ms / 60fps budget. The book is
-      bounded, so there's no rate at which the walk gets cheap.
-    </p>
 
-    <!-- second panel: the heavyweight brushing comparison, lazy-loaded inline -->
-    <div class="race-md-head">
-      <span class="race-title">interactive brushing · 231k flight rows · the same nine engines, side by side</span>
-    </div>
+    <!-- workload 2: the same engine, brushing 231k rows — co-located below -->
+    <div class="race-md-label">↓ same engine · interactive brushing · 231,083 flight rows — drag any chart</div>
     <div class="race-multidim" id="race-multidim"></div>
+
     <p class="race-caption">
-      Below: the full 231,083-row brushing comparison — all nine libraries at
-      once, each filtering the same dataset live as you drag a brush. Every
-      implementation is the real library doing the idiomatic thing. It loads
-      when it scrolls into view (~36&nbsp;MB).
+      The <b>same engine</b> you pick above, doing two jobs. Top: one realistic
+      order-book tick stream through the same depth-chart-and-ladder viz —
+      <b>data</b> moves a couple of bucket counters per tick (O(1)); every peer
+      re-walks all 150,000 orders once per frame (O(N)), and the green baseline
+      is <b>data</b> against the 16ms budget. Bottom: the same library filtering
+      231,083 flight rows live as you brush, with its real per-interaction
+      latency. Every implementation is the real library doing the idiomatic thing.
     </p>
   </section>
 

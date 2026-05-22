@@ -133,9 +133,10 @@ kbd { font: 0.85em var(--mono); background: var(--bg-3); border: 1px solid var(-
 .fstat-v { font: 500 1.15rem var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 .fstat-base { color: var(--pos); }
 
-/* second panel — the heavyweight brushing comparison, inlined natively */
-.race-md-head { display: flex; align-items: baseline; gap: 0.5rem 1.5rem; margin: 3rem 0 1.25rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
-.race-multidim { border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; min-height: 240px; }
+/* second workload — the same engine, brushing 231k rows, co-located below */
+.race-md-label { margin: 0.85rem 0 0.6rem; font: 0.72rem var(--mono); letter-spacing: 0.04em; color: var(--faint); text-transform: uppercase; }
+.race-multidim { border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; min-height: 132px; }
+.md-row-building { padding: 2.25rem 1.5rem; text-align: center; color: var(--dim); font: 0.8rem var(--mono); }
 .md-loading { padding: 3rem 2.5rem; text-align: center; color: var(--dim); font: 0.85rem var(--mono); }
 .md-loading-txt { margin-bottom: 1.1rem; font-variant-numeric: tabular-nums; }
 .md-loading-txt b { color: var(--accent); font-weight: 500; }
