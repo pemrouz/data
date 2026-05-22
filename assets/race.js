@@ -369,6 +369,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
   // row: whichever engine the shared carousel has selected. Switching engines
   // re-mounts that single row over the cached flights (no re-fetch).
   let flights = null, mdReady = false, mdBusy = false, mdRowsEl = null, mdShownId = null, mdSeq = 0
+  const mdRows = new Map() // id -> mounted .mdf-row (kept alive, toggled by [hidden]) so switching back stays warm
   const labelOf = id => (LIBS.find(l => l.id === id) || {}).label || id
 
   async function loadMultidimData () {
@@ -400,18 +401,25 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     } finally { mdBusy = false }
   }
 
+  function showOnly (id) { for (const [k, el] of mdRows) el.hidden = k !== id; const ph = mdRowsEl.querySelector('.md-row-building'); if (ph) ph.hidden = mdRows.has(id) }
+
   async function showMultidim (id) {
     if (!mdReady || !flights || !mdRowsEl || mdShownId === id) return
     mdShownId = id
+    if (mdRows.has(id)) { showOnly(id); return } // already mounted — just reveal it (stays warm)
+    // first visit to this engine: mount its row once, then keep it alive
     const seq = ++mdSeq
-    mdRowsEl.innerHTML = `<div class="md-row-building">building the ${labelOf(id)} row over 231,083 rows…</div>`
+    let ph = mdRowsEl.querySelector('.md-row-building')
+    if (!ph) { ph = document.createElement('div'); ph.className = 'md-row-building'; mdRowsEl.appendChild(ph) }
+    ph.hidden = false; ph.textContent = `building the ${labelOf(id)} row over 231,083 rows…`
+    for (const [, el] of mdRows) el.hidden = true
     try {
       const { mountLibRow } = await import('../examples/multidim/main.js')
       if (seq !== mdSeq) return // superseded by a newer selection
-      mdRowsEl.innerHTML = ''
-      await mountLibRow({ rowsEl: mdRowsEl, src: `./lib-${id}.js`, flights })
-      if (seq !== mdSeq) mdRowsEl.innerHTML = '' // a newer selection landed mid-mount; it owns the row now
-    } catch (e) { console.error(`[multidim ${id}] row mount failed`, e) }
+      const row = await mountLibRow({ rowsEl: mdRowsEl, src: `./lib-${id}.js`, flights })
+      mdRows.set(id, row)
+      if (mdShownId === id) { ph.hidden = true; showOnly(id) } else { row.hidden = true } // a newer selection landed mid-mount
+    } catch (e) { console.error(`[multidim ${id}] row mount failed`, e); ph.hidden = true }
   }
 
   if ('IntersectionObserver' in window) {

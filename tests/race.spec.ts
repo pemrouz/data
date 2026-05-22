@@ -83,11 +83,15 @@ test('race — second workload inlines one brushing row, mirroring the carousel'
   await expect(page.locator('#race-multidim .md-bar-fill')).toBeVisible({ timeout: 10_000 })
   const dataRow = page.locator('#race-multidim .mdf-row[data-lib=data]')
   await expect(dataRow).toBeVisible({ timeout: 120_000 })
-  await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(1) // one at a time, not all nine
+  await expect(page.locator('#race-multidim .mdf-row:visible')).toHaveCount(1) // one engine shown at a time
   await expect(dataRow.locator('.mdf-chart')).toHaveCount(4)
   await expect(dataRow.locator('[data-stat=total]')).not.toHaveText(/^—$/, { timeout: 30_000 })
-  // flip the shared carousel → the brushing row follows the selected engine
+  // flip the shared carousel → the brushing row follows; data row stays mounted but hidden (kept warm)
   await page.selectOption('#race-lib', 'mobx')
   await expect(page.locator('#race-multidim .mdf-row[data-lib=mobx]')).toBeVisible({ timeout: 90_000 })
-  await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(1)
+  await expect(dataRow).toBeHidden()
+  await expect(page.locator('#race-multidim .mdf-row:visible')).toHaveCount(1)
+  // switching back reuses the warm row — no rebuild, so it reveals fast
+  await page.selectOption('#race-lib', 'data')
+  await expect(dataRow).toBeVisible({ timeout: 5_000 })
 })

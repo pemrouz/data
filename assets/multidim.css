@@ -11,6 +11,7 @@
 .race-multidim .mdf-rows { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem 1.1rem 1.2rem; }
 
 .race-multidim .mdf-row { display: grid; grid-template-columns: 130px 1fr 140px 90px; gap: 0.85rem; align-items: center; padding: 0.75rem 0.85rem; border: 1px solid var(--rule); background: var(--bg-2); border-radius: 6px; }
+.race-multidim .mdf-row[hidden] { display: none; } /* cached-but-inactive rows (grid display would otherwise override [hidden]) */
 .race-multidim .mdf-row.mdf-failed { opacity: 0.5; }
 .race-multidim .mdf-meta { min-width: 0; }
 .race-multidim .mdf-name { font: 500 0.95rem var(--mono); color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
