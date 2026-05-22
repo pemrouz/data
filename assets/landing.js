@@ -12,14 +12,13 @@ import './demos.js'
 const { span } = HTML
 
 /* ---------- the race ---------- */
-if (document.getElementById('data-panel')) {
+if (document.getElementById('race-grid')) {
   createRace({
-    dataPanel: $$('#data-panel'), peerPanel: $$('#peer-panel'),
-    dataMeter: $$('#data-meter'), dataBig: $$('#data-big'),
-    peerMeter: $$('#peer-meter'), peerBig: $$('#peer-big'),
+    grid: $$('#race-grid'), multidimHost: $$('#race-multidim'),
+    workloadSel: $$('#race-workload'), peerSel: $$('#race-peer'),
     rateInput: $$('#race-rate'), rateOut: $$('#race-rate-out'),
-    statusEl: $$('#race-status'), toggleBtn: $$('#race-toggle'),
-  })
+    toggleBtn: $$('#race-toggle'), statusEl: $$('#race-status'),
+  }).catch(e => console.error('[race] init failed', e))
 }
 
 /* ---------- stream toggle (drives the demo feed) ---------- */

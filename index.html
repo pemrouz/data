@@ -19,9 +19,10 @@
     <span class="rule"></span>
     <span class="date">incremental computation for typescript</span>
     <nav class="mast-nav">
+      <a href="#race">demo</a>
+      <a href="#operators">operators</a>
       <a href="https://github.com/pemrouz/data">github</a>
       <a href="https://www.npmjs.com/package/data">npm</a>
-      <a href="./comparisons.html">comparisons</a>
     </nav>
   </header>
 
@@ -46,44 +47,37 @@
   <!-- ===== the race ===== -->
   <section class="race" id="race">
     <div class="race-head">
-      <span class="race-title">a demonstration · one order book · two engines · 200,000 live orders</span>
+      <span class="race-title">a demonstration · the same workload, two engines</span>
       <div class="race-ctrl">
-        <label>rate</label>
-        <input id="race-rate" type="range" min="2.5" max="4.3" step="0.05" value="3.8">
-        <span class="rate" id="race-rate-out">—</span>
+        <label class="ctrl">workload
+          <select id="race-workload">
+            <option value="orderbook">order book · streaming 10k</option>
+            <option value="multidim">multidim · brushing 231k</option>
+          </select>
+        </label>
+        <label class="ctrl">data&nbsp;vs
+          <select id="race-peer"></select>
+        </label>
+        <label class="ctrl rate-ctrl">rate
+          <input id="race-rate" type="range" min="2.3" max="4" step="0.05" value="3.4">
+          <span class="rate" id="race-rate-out">—</span>
+        </label>
         <button id="race-toggle">⏸ pause</button>
       </div>
     </div>
 
-    <div class="race-grid">
-      <div class="race-side is-data">
-        <div class="side-head">
-          <div class="side-name">data<span class="lib">length(bucket) · filter→length · avg — O(1) per tick</span></div>
-          <div class="side-cost"><span class="cost-num" id="data-big">—</span><span class="cost-lab">ms / frame (p50)</span></div>
-        </div>
-        <canvas class="side-meter" id="data-meter"></canvas>
-        <div id="data-panel"></div>
-      </div>
-      <div class="race-side is-peer">
-        <div class="side-head">
-          <div class="side-name">MobX<span class="lib">computeds re-walk 200,000 orders — O(N) per frame</span></div>
-          <div class="side-cost"><span class="cost-num" id="peer-big">—</span><span class="cost-lab">ms / frame (p50)</span></div>
-        </div>
-        <canvas class="side-meter" id="peer-meter"></canvas>
-        <div id="peer-panel"></div>
-      </div>
-    </div>
+    <div class="race-grid" id="race-grid"></div>
+    <div class="race-multidim" id="race-multidim" hidden></div>
 
     <p class="race-status" id="race-status"></p>
     <p class="race-caption">
-      Both sides maintain the same four views — liquid-order count, average bid,
-      and the bid/ask depth ladder — and render through the <b>same</b> function.
-      The only difference is the engine: <b>data</b> moves two bucket counters per
-      tick; MobX re-walks all 200,000 orders every frame. The dashed line is the
-      60fps frame budget (16ms). Drag the rate down and the gap widens — the book
-      is bounded, so there's no rate at which the walk gets cheap. MobX is a real,
-      respected library doing the idiomatic thing.
-      <a href="./comparisons.html">See it across nine libraries →</a>
+      The same tick stream feeds both engines, and both render through the
+      <b>same</b> function — only the reactive engine differs. <b>data</b> moves a
+      couple of bucket counters per tick (O(1)); the peer re-walks all 10,000
+      orders on every read (O(N)). The cpu-per-frame wave (shared scale) is the
+      result. The book is bounded, so there's no rate at which the walk gets
+      cheap. Switch the peer or load the full 231k-row brushing comparison —
+      every implementation is the real library doing the idiomatic thing.
     </p>
   </section>
 
@@ -141,7 +135,7 @@
       <div class="cat-row"><a class="cat-op" href="./operators/tap/BENCHMARK.md">tap</a><span class="cat-desc">declarative side effects in a chain</span><span class="cat-x">1875×</span></div>
       <div class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape of the data</span><span class="cat-x">7621×</span></div>
     </div>
-    <p class="cat-foot muted">×-figures are peak speedup vs. the fastest of eight peer libraries on each operator's batch benchmark — each links to its reproducible run. <a href="./comparisons.html">Full comparison →</a></p>
+    <p class="cat-foot muted">×-figures are peak speedup vs. the fastest of eight peer libraries on each operator's benchmark — each links to its reproducible run (<code>npm run bench:ops</code> regenerates them). <a href="./operators/BENCHMARK.md">Summary table →</a></p>
 
     <p class="lead-para demos-intro">A few, live. Below is one feed of rate trades — bid/ask/pnl ticking — with three views derived from the same <code>$(trades)</code> proxy. <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button></p>
     <div class="demos">
@@ -250,7 +244,6 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
   <footer>
     <a href="https://github.com/pemrouz/data">github</a>
     <a href="https://www.npmjs.com/package/data">npm</a>
-    <a href="./comparisons.html">comparisons</a>
     <a href="./examples/crossfilter/">crossfilter</a>
     <a href="./examples/trades/">trades</a>
     <a href="./examples/multidim/">multidim</a>
@@ -269,7 +262,10 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
     "data/full":     "./dist/full.js",
     "data/render":   "./dist/render/index.js",
     "data/devtools": "./dist/devtools/index.js",
-    "mobx":          "https://esm.sh/mobx@6.15.3"
+    "mobx":          "https://esm.sh/mobx@6.15.3",
+    "solid-js":      "https://esm.sh/solid-js@1.9.12",
+    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",
+    "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34"
 } }
 </script>
 <script type="module" src="./assets/landing.js"></script>
