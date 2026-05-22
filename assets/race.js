@@ -24,7 +24,7 @@
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 
 import { $, value } from 'data/full'
-import { PRICE_BINS, priceBucket, setupOrderbook, renderOrderbook, makeWave } from './race-views.js'
+import { PRICE_BINS, priceBucket, setupOrderbook, renderOrderbook, makeWave, fmtRatio } from './race-views.js'
 
 const N = 150000
 const THRESHOLD = 24
@@ -312,12 +312,19 @@ export async function createRace ({ grid, multidimHost, workloadSel, libSel, pre
     renderOrderbook(refs.ob, v.bids, v.asks)
   }
 
+  // baseline footer: data's per-frame cost, with the selected-vs-data multiplier
+  // in brackets (skipped when data itself is selected — the ratio is 1×)
+  const fmtMs = ms => ms < 1 ? (ms * 1000).toFixed(0) + ' µs' : ms.toFixed(2) + ' ms'
+  function setBase (dms, ratio) {
+    refs.base.textContent = (!isDataSelected && ratio > 0) ? `${fmtMs(dms)} (${fmtRatio(ratio)})` : fmtMs(dms)
+  }
+
   function settleOnce () {
     for (let i = 0; i < 600; i++) { const t = nextTick(); dataEng.ingest(t); if (!isDataSelected) peerEng.ingest(t) }
     let s = performance.now(); dataEng.settle(); const dms = performance.now() - s
     let pms = dms
     if (!isDataSelected) { s = performance.now(); peerEng.settle(); pms = performance.now() - s }
-    wave.push(pms, dms); refs.base.textContent = dms < 1 ? (dms * 1000).toFixed(0) + ' µs' : dms.toFixed(2) + ' ms'
+    setBase(dms, wave.push(pms, dms))
     drawCard()
   }
 
@@ -335,8 +342,7 @@ export async function createRace ({ grid, multidimHost, workloadSel, libSel, pre
     let pms = dms
     if (!isDataSelected) { s = performance.now(); for (let i = 0; i < k; i++) peerEng.ingest(batch[i]); peerEng.settle(); pms = performance.now() - s }
 
-    wave.push(pms, dms)
-    refs.base.textContent = dms < 1 ? (dms * 1000).toFixed(0) + ' µs' : dms.toFixed(2) + ' ms'
+    setBase(dms, wave.push(pms, dms))
     drawCard()
 
     if (now - tickT0 >= 500) { refs.tps.textContent = ((tickAcc / (now - tickT0)) * 1000 | 0).toLocaleString(); tickAcc = 0; tickT0 = now }

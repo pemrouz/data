@@ -199,12 +199,16 @@ export function makeWave (canvas, cpuEl, ratioEl) {
 
   return {
     // mainMs = selected engine's frame cost; baseMs = data baseline (may equal main when data is selected)
+    // returns the smoothed selected-vs-data ratio (p50/p50) so the caller can
+    // show the same multiplier elsewhere (e.g. next to the baseline footer)
     push (mainMs, baseMs) {
       smooth(main, mainMs); smooth(base, baseMs)
       const pm = p50(main), pb = p50(base)
       if (cpuEl) { cpuEl.textContent = fmtCpu(pm); cpuEl.classList.toggle('over', pm > 16) }
-      if (ratioEl) ratioEl.textContent = pb > 0.0005 ? (pm / pb >= 10 ? Math.round(pm / pb) : (pm / pb).toFixed(1)) + '× data' : '—'
+      const ratio = pb > 0.0005 ? pm / pb : 0
+      if (ratioEl) ratioEl.textContent = ratio > 0 ? fmtRatio(ratio) + ' data' : '—'
       draw()
+      return ratio
     },
     reset () { main.samples.length = main.raw.length = base.samples.length = base.raw.length = 0; draw() },
   }
@@ -215,3 +219,6 @@ export function fmtCpu (ms) {
   if (ms < 1) return (ms * 1000).toFixed(0) + ' µs/frame'
   return ms.toFixed(2) + ' ms/frame'
 }
+
+// "89×" / "3.4×" / "1.0×" — integer once it's into double digits
+export function fmtRatio (r) { return (r >= 10 ? Math.round(r) : r.toFixed(1)) + '×' }
