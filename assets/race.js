@@ -21,6 +21,10 @@
  * heavy ones (react/rxjs/svelte/crossfilter) don't stall on the first frames,
  * then let you push the slider back up.
  *
+ * A second panel below the carousel inlines the full 231k-row multidim
+ * brushing comparison (all nine libraries at once) — lazy-loaded in an iframe
+ * when it nears the viewport so the page doesn't pay ~36MB on first paint.
+ *
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 
 import { $, value } from 'data/full'
@@ -255,7 +259,7 @@ function buildCard (lib) {
 }
 
 /* ---------- driver ---------- */
-export async function createRace ({ grid, multidimHost, workloadSel, libSel, prevBtn, nextBtn, rateInput, rateOut, toggleBtn, statusEl, posEl }) {
+export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn, rateInput, rateOut, toggleBtn, statusEl, posEl }) {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   for (const lib of LIBS) { const o = document.createElement('option'); o.value = lib.id; o.textContent = lib.label; libSel.appendChild(o) }
 
@@ -302,7 +306,7 @@ export async function createRace ({ grid, multidimHost, workloadSel, libSel, pre
     drawCard()
     tickAcc = 0; tickT0 = performance.now()
     if (statusEl) statusEl.textContent = ''
-    if (workloadSel.value === 'orderbook') { reduceMotion ? settleOnce() : start() }
+    reduceMotion ? settleOnce() : start()
   }
 
   function drawCard () {
@@ -348,45 +352,44 @@ export async function createRace ({ grid, multidimHost, workloadSel, libSel, pre
     if (now - tickT0 >= 500) { refs.tps.textContent = ((tickAcc / (now - tickT0)) * 1000 | 0).toLocaleString(); tickAcc = 0; tickT0 = now }
     raf = requestAnimationFrame(frame)
   }
-  function start () { if (!running && nextTick && workloadSel.value === 'orderbook' && !reduceMotion) { running = true; lastT = performance.now(); raf = requestAnimationFrame(frame); if (toggleBtn) toggleBtn.textContent = '⏸ pause' } }
+  function start () { if (!running && nextTick && !reduceMotion) { running = true; lastT = performance.now(); raf = requestAnimationFrame(frame); if (toggleBtn) toggleBtn.textContent = '⏸ pause' } }
   function stop () { running = false; if (raf) cancelAnimationFrame(raf) }
 
   libSel.addEventListener('change', () => mount(LIBS.findIndex(l => l.id === libSel.value)))
   prevBtn.addEventListener('click', () => mount(idx - 1))
   nextBtn.addEventListener('click', () => mount(idx + 1))
-  toggleBtn.addEventListener('click', () => { if (running) { stop(); toggleBtn.textContent = '▶ resume' } else start() })
+  // explicit pause/resume — paused stays paused even if the card scrolls back in
+  let paused = false
+  toggleBtn.addEventListener('click', () => { if (running) { paused = true; stop(); toggleBtn.textContent = '▶ resume' } else { paused = false; start() } })
 
-  /* ---------- multidim workload: lazy iframe + loading bar ---------- */
+  /* ---------- second panel: the 231k brushing comparison, lazy-loaded inline ---------- */
+  // It's ~36MB across nine libraries, so don't pay for it on first paint — build
+  // the iframe only once the panel nears the viewport, behind a loading bar.
   let mdLoaded = false
-  workloadSel.addEventListener('change', () => {
-    const peerCtrls = [libSel, prevBtn, nextBtn]
-    if (workloadSel.value === 'multidim') {
-      stop(); grid.hidden = true; multidimHost.hidden = false
-      for (const c of peerCtrls) c.disabled = true; rateInput.disabled = toggleBtn.disabled = true
-      if (!mdLoaded) {
-        mdLoaded = true
-        multidimHost.innerHTML = `
-          <div class="md-loading" data-k="mdload">
-            <div class="md-loading-txt">loading the full 231,083-row comparison — ~36&nbsp;MB across nine libraries…</div>
-            <div class="md-bar"><div class="md-bar-fill"></div></div>
-          </div>`
-        const f = document.createElement('iframe')
-        f.className = 'md-frame'; f.loading = 'lazy'; f.src = './examples/multidim/'
-        f.title = 'multidim — brushable charts over 231k flight records across nine libraries'
-        f.addEventListener('load', () => { const n = multidimHost.querySelector('[data-k=mdload]'); if (n) n.remove() })
-        multidimHost.appendChild(f)
-      }
-    } else {
-      multidimHost.hidden = true; grid.hidden = false
-      for (const c of peerCtrls) c.disabled = false; rateInput.disabled = toggleBtn.disabled = false
-      start()
-    }
-  })
+  function loadMultidim () {
+    if (mdLoaded) return
+    mdLoaded = true
+    multidimHost.innerHTML = `
+      <div class="md-loading" data-k="mdload">
+        <div class="md-loading-txt">loading the full 231,083-row comparison — ~36&nbsp;MB across nine libraries…</div>
+        <div class="md-bar"><div class="md-bar-fill"></div></div>
+      </div>`
+    const f = document.createElement('iframe')
+    f.className = 'md-frame'; f.loading = 'lazy'; f.src = './examples/multidim/'
+    f.title = 'multidim — brushable charts over 231k flight records across nine libraries'
+    f.addEventListener('load', () => { const n = multidimHost.querySelector('[data-k=mdload]'); if (n) n.remove() })
+    multidimHost.appendChild(f)
+  }
 
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver(es => { if (es[0].isIntersecting && workloadSel.value === 'orderbook') start(); else stop() }, { threshold: 0.05 }).observe(grid)
+    // order-book loop only runs while its card is on screen
+    new IntersectionObserver(es => { if (es[0].isIntersecting) { if (!paused) start() } else stop() }, { threshold: 0.05 }).observe(grid)
+    // multidim loads a little before it enters the viewport
+    new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { loadMultidim(); ob.disconnect() } }, { rootMargin: '400px' }).observe(multidimHost)
+  } else {
+    loadMultidim()
   }
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (workloadSel.value === 'orderbook') start() })
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (!paused) start() })
 
   await mount(0)
 }

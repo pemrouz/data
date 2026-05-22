@@ -71,13 +71,14 @@ test('race — prev / next buttons cycle the carousel', async ({ page }) => {
   await expect(page.locator('.rcard-name')).toContainText('data')
 })
 
-test('race — multidim workload shows loading bar then iframe', async ({ page }) => {
+test('race — multidim panel lazy-loads on scroll, behind a loading bar', async ({ page }) => {
   test.setTimeout(120_000)
   await page.goto(HOME, { timeout: 90_000 })
   await page.waitForSelector('.rcard', { timeout: 60_000 })
-  await page.selectOption('#race-workload', 'multidim')
-  await expect(page.locator('#race-grid')).toBeHidden()
-  await expect(page.locator('.md-bar-fill')).toBeVisible({ timeout: 5_000 })
-  // iframe is created immediately and points at the multidim app
-  await expect(page.locator('iframe.md-frame')).toHaveAttribute('src', './examples/multidim/')
+  // not built on first paint — it's ~36MB, deferred until it nears the viewport
+  await expect(page.locator('iframe.md-frame')).toHaveCount(0)
+  await page.locator('#race-multidim').scrollIntoViewIfNeeded()
+  // once scrolled near, the iframe is created pointing at the multidim app
+  // (the loading bar shows behind it until the iframe's load event fires)
+  await expect(page.locator('iframe.md-frame')).toHaveAttribute('src', './examples/multidim/', { timeout: 10_000 })
 })
