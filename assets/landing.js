@@ -15,7 +15,8 @@ const { span } = HTML
 if (document.getElementById('race-grid')) {
   createRace({
     grid: $$('#race-grid'), multidimHost: $$('#race-multidim'),
-    workloadSel: $$('#race-workload'), peerSel: $$('#race-peer'),
+    workloadSel: $$('#race-workload'), libSel: $$('#race-lib'),
+    prevBtn: $$('#race-prev'), nextBtn: $$('#race-next'), posEl: $$('#race-pos'),
     rateInput: $$('#race-rate'), rateOut: $$('#race-rate-out'),
     toggleBtn: $$('#race-toggle'), statusEl: $$('#race-status'),
   }).catch(e => console.error('[race] init failed', e))

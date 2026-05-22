@@ -47,19 +47,22 @@
   <!-- ===== the race ===== -->
   <section class="race" id="race">
     <div class="race-head">
-      <span class="race-title">a demonstration · the same workload, two engines</span>
+      <span class="race-title">one workload · nine engines · flip through them</span>
       <div class="race-ctrl">
         <label class="ctrl">workload
           <select id="race-workload">
-            <option value="orderbook">order book · streaming 10k</option>
+            <option value="orderbook">order book · streaming 150k</option>
             <option value="multidim">multidim · brushing 231k</option>
           </select>
         </label>
-        <label class="ctrl">data&nbsp;vs
-          <select id="race-peer"></select>
-        </label>
+        <span class="ctrl carousel">
+          <button id="race-prev" title="previous engine">‹</button>
+          <select id="race-lib"></select>
+          <button id="race-next" title="next engine">›</button>
+          <span class="race-pos" id="race-pos">1 / 9</span>
+        </span>
         <label class="ctrl rate-ctrl">rate
-          <input id="race-rate" type="range" min="2.3" max="4" step="0.05" value="3.4">
+          <input id="race-rate" type="range" min="1.8" max="3.5" step="0.05" value="3.4">
           <span class="rate" id="race-rate-out">—</span>
         </label>
         <button id="race-toggle">⏸ pause</button>
@@ -71,13 +74,15 @@
 
     <p class="race-status" id="race-status"></p>
     <p class="race-caption">
-      The same tick stream feeds both engines, and both render through the
-      <b>same</b> function — only the reactive engine differs. <b>data</b> moves a
-      couple of bucket counters per tick (O(1)); the peer re-walks all 10,000
-      orders on every read (O(N)). The cpu-per-frame wave (shared scale) is the
-      result. The book is bounded, so there's no rate at which the walk gets
-      cheap. Switch the peer or load the full 231k-row brushing comparison —
-      every implementation is the real library doing the idiomatic thing.
+      One realistic order-book tick stream, rendered through the <b>same</b>
+      depth-chart-and-ladder viz — only the reactive engine changes as you flip.
+      <b>data</b> moves a couple of bucket counters per tick (O(1)); every peer
+      re-walks all 150,000 orders once per frame (O(N)). The green line is
+      <b>data</b>, always running as the baseline; the orange wave is whichever
+      engine you've selected, against the 16ms / 60fps budget. The book is
+      bounded, so there's no rate at which the walk gets cheap. Or load the full
+      231k-row brushing comparison — every implementation is the real library
+      doing the idiomatic thing.
     </p>
   </section>
 
@@ -245,7 +250,6 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
     <a href="https://github.com/pemrouz/data">github</a>
     <a href="https://www.npmjs.com/package/data">npm</a>
     <a href="./examples/crossfilter/">crossfilter</a>
-    <a href="./examples/trades/">trades</a>
     <a href="./examples/multidim/">multidim</a>
     <a href="./examples/todo/">todo</a>
     <a href="./operators/README.md">operators</a>
@@ -265,7 +269,14 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
     "mobx":          "https://esm.sh/mobx@6.15.3",
     "solid-js":      "https://esm.sh/solid-js@1.9.12",
     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",
-    "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34"
+    "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34",
+    "crossfilter2":  "https://esm.sh/crossfilter2@1.5.4",
+    "rxjs":          "https://esm.sh/rxjs@7.8.2",
+    "rxjs/operators": "https://esm.sh/rxjs@7.8.2/operators",
+    "react":         "https://esm.sh/react@19.2.6",
+    "react-dom":     "https://esm.sh/react-dom@19.2.6",
+    "react-dom/client": "https://esm.sh/react-dom@19.2.6/client",
+    "svelte/store":  "https://esm.sh/svelte@5.55.5/store"
 } }
 </script>
 <script type="module" src="./assets/landing.js"></script>
