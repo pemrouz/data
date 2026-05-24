@@ -6,7 +6,7 @@
 
 import {
   trades, value, render, onTick, flashOperatorCell,
-  div, span, $$, fmtPnl, TENORS,
+  div, span, $$, fmt2, fmtPnl, fmtAvg, TENORS,
 } from './feed.js'
 
 const neg = p => p < 0
@@ -20,18 +20,29 @@ const pnlCell = t => span.pnl
   .class('neg', t.pnl.to(neg)).class('pos', t.pnl.to(pos))
   .text(t.pnl.to(fmtPnl))
 
-/* ---- filter: pick a tenor ---- */
+/* ---- filter: pick a tenor ----
+ * Rows render off a dense `.to(arr.filter)` snapshot, and the same view feeds a
+ * live `.length()` / `.avg('pnl')` summary line — so picking a chip and every
+ * downstream tick recompute the count and average reactively. The redundant
+ * tenor column is dropped (every row carries the tenor we just filtered to) and
+ * replaced by the live `last` rate, so the card reads like a real blotter. */
 let tenor = '5Y'
 function syncFilter () {
   const t = tenor
   const rows = trades.to(arr => arr.filter(r => r && r.tenor === t))
   const live = $$('#filter-result'); live.innerHTML = ''
   render(live, div(
-    div.mrow.f_row(rows, (node, r) => node.attr('data-trade-id', r.id)(
-      span.text(r.id),
-      span.attr('data-tenor', r.tenor).text(r.tenor),
-      pnlCell(r),
-    ))
+    div.demo_stat(
+      span.text(rows.length().to(n => `${n} trade${n === 1 ? '' : 's'}`)),
+      span.stat_avg.text(rows.avg('pnl').to(v => 'avg ' + fmtAvg(v))),
+    ),
+    div.f_rows(
+      div.mrow.f_row(rows, (node, r) => node.attr('data-trade-id', r.id)(
+        span.attr('data-tenor', tenor).text(r.id),
+        span.last.attr('data-fields', 'last').text(r.last.to(fmt2)),
+        pnlCell(r),
+      ))
+    ),
   ))
 }
 const chips = $$('#filter-chips')
