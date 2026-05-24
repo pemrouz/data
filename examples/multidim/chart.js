@@ -55,14 +55,18 @@ export function createChart(parent, opts) {
   const axis = el('g', { class: 'mdf-axis', transform: `translate(0, ${height})` })
   g.appendChild(axis)
   axis.appendChild(el('path', { d: `M0.5,6V0.5H${width - 0.5}V6` }))
-  for (const t of ticks) {
+  ticks.forEach((t, i) => {
     const tg = el('g', { transform: `translate(${x(t)}, 0)` })
     tg.appendChild(el('line', { y2: 6 }))
-    const txt = el('text', { y: 9, dy: '.71em', 'text-anchor': 'middle' })
+    // Inset the edge labels (first → left-aligned, last → right-aligned) so a
+    // centered label at x=0 / x=width doesn't overflow half its width past the
+    // chart edge and collide with the adjacent chart's boundary tick.
+    const anchor = i === 0 ? 'start' : i === ticks.length - 1 ? 'end' : 'middle'
+    const txt = el('text', { y: 9, dy: '.71em', 'text-anchor': anchor })
     txt.textContent = format(t)
     tg.appendChild(txt)
     axis.appendChild(tg)
-  }
+  })
 
   // brush
   const brush = el('g', { class: 'mdf-brush' })

@@ -79,8 +79,9 @@ test('race — second workload inlines one brushing row, mirroring the carousel'
   await expect(page.locator('#race-multidim .mdf-row')).toHaveCount(0)
   await expect(page.locator('iframe.md-frame')).toHaveCount(0) // no iframe — mounted inline
   await page.locator('#race-multidim').scrollIntoViewIfNeeded()
-  // loading bar shows, then ONE row mounts inline — the selected engine (data)
-  await expect(page.locator('#race-multidim .md-bar-fill')).toBeVisible({ timeout: 10_000 })
+  // then ONE row mounts inline — the selected engine (data). (The loading bar is
+  // too transient to assert: co-located under the order book, the dataset often
+  // starts streaming on first paint via the 400px rootMargin and is gone by now.)
   const dataRow = page.locator('#race-multidim .mdf-row[data-lib=data]')
   await expect(dataRow).toBeVisible({ timeout: 120_000 })
   await expect(page.locator('#race-multidim .mdf-row:visible')).toHaveCount(1) // one engine shown at a time
