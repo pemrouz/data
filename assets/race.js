@@ -28,7 +28,7 @@
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 
 import { $, value } from 'data/full'
-import { PRICE_BINS, priceBucket, setupOrderbook, renderOrderbook, makeWave, fmtRatio } from './race-views.js'
+import { PRICE_BINS, PRICE_LO, PRICE_HI, priceBucket, setupOrderbook, renderOrderbook, makeWave, fmtRatio } from './race-views.js'
 
 const N = 150000
 const THRESHOLD = 24
@@ -49,30 +49,58 @@ const LIBS = [
   { id: 'react',       label: 'React',          ver: '19.2.6', tag: 'useState + 4 useMemo + flushSync · O(N)/commit',   defRate: 2.2 },
 ]
 
-/* ---------- workload: a drifting order book (three incommensurate sines) ---------- */
+/* ---------- workload: a drifting order book (bounded random walk) ---------- */
+// The regime — mid, spread, bid/ask imbalance — is a mean-reverting (Ornstein–
+// Uhlenbeck) random walk, so the book wanders organically instead of tracing a
+// predictable sine. It's paced on a WALL CLOCK (advanced in fixed 0.1s steps,
+// idempotent within a step) with a few-second reversion horizon, so the mid
+// glides at a visible, watchable speed regardless of the slider rate, and every
+// tick reprices a random order around the CURRENT mid so fresh liquidity tracks
+// the drift. Reflecting bounds keep the mid (and so the whole book) inside
+// [PRICE_LO, PRICE_HI]: the workload stays exactly N rows every frame, which is
+// what keeps data's incremental O(1)/tick edge an honest comparison (no
+// crossover — the book never grows or empties).
 function lcg (seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 0x1_0000_0000 } }
-const biasedHalfSpread = (r1, r2, scale) => 4 + Math.min(r1, r2) * scale // mode near the mid; floor keeps bid/ask out of bucket 7
+const biasedHalfSpread = (r1, r2, scale) => 4 + Math.min(r1, r2) * scale // mode near the mid; floor keeps a clean bid/ask gap
 
 function makeWorkload (seed = 7) {
-  const r = lcg(seed), t0 = performance.now()
-  const regime = () => {
-    const t = (performance.now() - t0) / 1000
-    return {
-      mid: MID_TARGET + Math.sin(2 * Math.PI * t / 22) * 2,
-      spread: 6 + (Math.sin(2 * Math.PI * t / 17) + 1) / 2 * 12,
-      imbalance: Math.sin(2 * Math.PI * t / 13) * 0.25,
-    }
+  const r = lcg(seed)
+  const nz = lcg((Math.imul(seed, 2654435761)) >>> 0) // independent noise stream for the walk
+  const DT = 0.1, t0 = performance.now()
+  // theta = mean-reversion rate (per second); sigma set so the stationary std is
+  // the band width around the target. ~5s reversion horizon → the mid wanders
+  // visibly over a few seconds; a ±3 band keeps the line coherent with the book
+  // and clear of the chart edges even on a few-sigma excursion.
+  const MID_THETA = 0.2, MID_STD = 3, MID_SIGMA = MID_STD * Math.sqrt(2 * MID_THETA)
+  const SPR_THETA = 0.1, IMB_THETA = 0.1
+  let mid = MID_TARGET, spread = 12, imb = 0, z2 = null, step = 0
+  const gauss = () => { // Box–Muller off the seeded uniform stream (caches the pair)
+    if (z2 != null) { const z = z2; z2 = null; return z }
+    let u = 0, v = 0; while (u === 0) u = nz(); while (v === 0) v = nz()
+    const m = Math.sqrt(-2 * Math.log(u)); z2 = m * Math.sin(2 * Math.PI * v); return m * Math.cos(2 * Math.PI * v)
+  }
+  const sdt = Math.sqrt(DT)
+  const advance = () => {
+    mid += MID_THETA * (MID_TARGET - mid) * DT + MID_SIGMA * sdt * gauss()
+    mid = Math.max(PRICE_LO + 10, Math.min(PRICE_HI - 10, mid)) // stay inside the ladder
+    spread += SPR_THETA * (12 - spread) * DT + 3 * sdt * gauss(); spread = Math.max(6, Math.min(20, spread))
+    imb += IMB_THETA * (0 - imb) * DT + 0.25 * sdt * gauss(); imb = Math.max(-0.3, Math.min(0.3, imb))
+  }
+  const sync = () => { // catch the walk up to wall-clock time (idempotent within a 0.1s step)
+    const want = ((performance.now() - t0) / 1000 / DT) | 0
+    while (step < want) { step++; advance() }
   }
   const initial = () => {
-    const reg = regime(), out = {}
-    for (let i = 0; i < N; i++) { const hs = biasedHalfSpread(r(), r(), reg.spread); out[i] = { id: i, bid: reg.mid - hs, ask: reg.mid + hs } }
+    const out = {}
+    for (let i = 0; i < N; i++) { const hs = biasedHalfSpread(r(), r(), spread); out[i] = { id: i, bid: mid - hs, ask: mid + hs } }
     return out
   }
   const nextTick = () => {
-    const reg = regime(), idx = (r() * N) | 0
-    const field = r() < (0.5 + reg.imbalance) ? 'ask' : 'bid'
-    const hs = biasedHalfSpread(r(), r(), reg.spread)
-    return { idx, field, newValue: field === 'bid' ? reg.mid - hs : reg.mid + hs }
+    sync()
+    const idx = (r() * N) | 0
+    const field = r() < (0.5 + imb) ? 'ask' : 'bid'
+    const hs = biasedHalfSpread(r(), r(), spread)
+    return { idx, field, newValue: field === 'bid' ? mid - hs : mid + hs, mid }
   }
   return { initial, nextTick }
 }
@@ -265,7 +293,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
 
   let idx = 0
   let dataEng, peerEng, refs, wave, nextTick, isDataSelected = false
-  let running = false, raf = 0, lastT = 0, frac = 0, tickAcc = 0, tickT0 = 0
+  let running = false, raf = 0, lastT = 0, frac = 0, tickAcc = 0, tickT0 = 0, lastMid = MID_TARGET
 
   const rate = () => Math.round(Math.pow(10, +rateInput.value))
   const fmtRate = r => r >= 1e3 ? (r / 1e3).toFixed(1) + 'k' : '' + r
@@ -290,6 +318,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     const wl = makeWorkload(7)
     const init = wl.initial()
     nextTick = wl.nextTick
+    lastMid = MID_TARGET
     dataEng = makeDataEngine(init)
     let pe
     try { pe = isDataSelected ? dataEng : await loadEngine(lib.id, init) }
@@ -314,7 +343,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     const v = peerEng.view()
     refs.liquid.textContent = (v.liquid || 0).toLocaleString()
     refs.avg.textContent = (v.avg || 0).toFixed(2)
-    renderOrderbook(refs.ob, v.bids, v.asks)
+    renderOrderbook(refs.ob, v.bids, v.asks, lastMid)
   }
 
   // baseline footer: data's per-frame cost, with the selected-vs-data multiplier
@@ -325,7 +354,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
   }
 
   function settleOnce () {
-    for (let i = 0; i < 600; i++) { const t = nextTick(); dataEng.ingest(t); if (!isDataSelected) peerEng.ingest(t) }
+    for (let i = 0; i < 600; i++) { const t = nextTick(); lastMid = t.mid; dataEng.ingest(t); if (!isDataSelected) peerEng.ingest(t) }
     let s = performance.now(); dataEng.settle(); const dms = performance.now() - s
     let pms = dms
     if (!isDataSelected) { s = performance.now(); peerEng.settle(); pms = performance.now() - s }
@@ -339,6 +368,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     const owed = rate() * Math.max(0, dt) / 1000 + frac
     const k = Math.min(8000, Math.max(0, Math.floor(owed))); frac = owed - k
     const batch = new Array(k); for (let i = 0; i < k; i++) batch[i] = nextTick()
+    if (k > 0) lastMid = batch[k - 1].mid
     tickAcc += k
 
     // data baseline (always) — cheap O(Δ)
