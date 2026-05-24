@@ -18,6 +18,12 @@ export const PRICE_HI = 100
 export const PRICE_BINS = 15
 export const MID_TARGET = 75
 export const MID_BUCKET = priceBucket(MID_TARGET)
+const PRICE_STEP = (PRICE_HI - PRICE_LO) / PRICE_BINS // price width of one bucket
+// The depth chart plots an ABSOLUTE-price y-axis (not rank-from-center) so the
+// whole book — walls and the dashed mid line — visibly walks up and down as the
+// mid drifts. This is the price window it shows (the band the book actually
+// occupies); the live mid stays comfortably inside it.
+const VIEW_LO = 56, VIEW_HI = 94
 
 export function priceBucket (p) {
   if (p <= PRICE_LO) return 0
@@ -68,29 +74,31 @@ export function setupOrderbook (host) {
   }
 }
 
-export function renderOrderbook (state, bids, asks) {
+export function renderOrderbook (state, bids, asks, mid) {
   const { ctx, w, h, askRows, bidRows, midPriceEl, midSprEl, scaleRef } = state
 
-  let aCum = 0, aTotal = 0
+  let aCum = 0
   for (let i = askRows.length - 1; i >= 0; i--) {
     const r = askRows[i], v = asks[r.bucket] || 0
-    aCum += v; aTotal = aCum
+    aCum += v
     r.qtyEl.textContent = v > 0 ? v : '–'
     r.cumEl.textContent = aCum > 0 ? aCum : '–'
     const empty = v === 0
     if (r.el.classList.contains('is-empty') !== empty) r.el.classList.toggle('is-empty', empty)
   }
-  let bCum = 0, bTotal = 0
+  let bCum = 0
   for (let i = 0; i < bidRows.length; i++) {
     const r = bidRows[i], v = bids[r.bucket] || 0
-    bCum += v; bTotal = bCum
+    bCum += v
     r.qtyEl.textContent = v > 0 ? v : '–'
     r.cumEl.textContent = bCum > 0 ? bCum : '–'
     const empty = v === 0
     if (r.el.classList.contains('is-empty') !== empty) r.el.classList.toggle('is-empty', empty)
   }
 
-  // Live mid + spread, derived from the bucket distribution.
+  // Live mid: the drifting market mid passed in by the driver (a bounded random
+  // walk). Falls back to the book-derived weighted mid if none is supplied.
+  // Spread stays book-derived (distance between the bid and ask masses).
   let bWS = 0, bWP = 0, aWS = 0, aWP = 0
   for (let i = 0; i < PRICE_BINS; i++) {
     const b = bids[i] || 0, a = asks[i] || 0
@@ -99,42 +107,61 @@ export function renderOrderbook (state, bids, asks) {
   }
   const bidMode = bWS > 0 ? bWP / bWS : MID_TARGET
   const askMode = aWS > 0 ? aWP / aWS : MID_TARGET
-  midPriceEl.textContent = '$' + ((bidMode + askMode) / 2).toFixed(2)
-  midSprEl.textContent = 'spread $' + (askMode - bidMode).toFixed(2)
+  const liveMid = (mid == null || !isFinite(mid)) ? (bidMode + askMode) / 2 : mid
+  midPriceEl.textContent = '$' + liveMid.toFixed(2)
+  midSprEl.textContent = 'spread $' + Math.max(0, askMode - bidMode).toFixed(2)
 
-  // Depth chart: shared x-scale, sticky max so it doesn't jitter.
-  const maxCum = Math.max(aTotal, bTotal, 1)
+  // Depth chart on an ABSOLUTE-price y-axis: high price at top, low at bottom,
+  // the live mid as a dashed line that GLIDES as the book walks. Cumulative
+  // depth grows away from the mid on each side and extends left from the right
+  // edge. Sticky x-scale (over the mid-split totals, so it tracks the bands the
+  // chart actually draws) keeps widths from jittering frame-to-frame.
+  let aDepth = 0, bDepth = 0
+  for (let i = 0; i < PRICE_BINS; i++) {
+    const c = bucketPrice(i)
+    if (c > liveMid) aDepth += asks[i] || 0; else bDepth += bids[i] || 0
+  }
+  const maxCum = Math.max(aDepth, bDepth, 1)
   if (maxCum > scaleRef.v) scaleRef.v = maxCum
   else if (maxCum < scaleRef.v * 0.6) scaleRef.v = maxCum * 1.1 || 1
   const scale = scaleRef.v
 
   ctx.clearRect(0, 0, w, h)
-  const halfH = h / 2, inset = 6, usableW = w - inset
-  const askCum = []; let aSum = 0
-  for (let i = MID_BUCKET + 1; i < PRICE_BINS; i++) { aSum += asks[i] || 0; askCum.push(aSum) }
-  const bidCum = []; let bSum = 0
-  for (let i = MID_BUCKET - 1; i >= 0; i--) { bSum += bids[i] || 0; bidCum.push(bSum) }
+  const inset = 6, usableW = w - inset
+  const yFor = p => h * (1 - (Math.max(VIEW_LO, Math.min(VIEW_HI, p)) - VIEW_LO) / (VIEW_HI - VIEW_LO))
+  const yMid = yFor(liveMid)
 
+  // Asks: buckets priced above the mid, drawn upward from the mid line.
   ctx.fillStyle = 'rgba(255, 94, 58, 0.28)'; ctx.strokeStyle = '#ff5e3a'; ctx.lineWidth = 1.2
-  drawStair(ctx, askCum, scale, usableW, w, halfH, 0); ctx.fill()
-  drawStair(ctx, askCum, scale, usableW, w, halfH, 0, true); ctx.stroke()
+  drawSide(ctx, asks, 1, liveMid, yFor, yMid, scale, usableW, w)
   ctx.fillStyle = 'rgba(103, 219, 161, 0.28)'; ctx.strokeStyle = '#67dba1'
-  drawStair(ctx, bidCum, scale, usableW, w, halfH, 1); ctx.fill()
-  drawStair(ctx, bidCum, scale, usableW, w, halfH, 1, true); ctx.stroke()
+  drawSide(ctx, bids, -1, liveMid, yFor, yMid, scale, usableW, w)
 
-  ctx.strokeStyle = 'rgba(155, 155, 160, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4])
-  ctx.beginPath(); ctx.moveTo(0, halfH); ctx.lineTo(w, halfH); ctx.stroke(); ctx.setLineDash([])
+  // Dashed mid line — rides the live mid up and down.
+  ctx.strokeStyle = 'rgba(155, 155, 160, 0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4])
+  ctx.beginPath(); ctx.moveTo(0, yMid); ctx.lineTo(w, yMid); ctx.stroke(); ctx.setLineDash([])
 }
 
-function drawStair (ctx, cum, scale, usableW, w, halfH, side, outlineOnly) {
-  ctx.beginPath(); ctx.moveTo(w, halfH)
-  for (let i = 0; i < cum.length; i++) {
-    const x = w - (cum[i] / scale) * usableW
-    const yNear = side === 0 ? halfH - (i / cum.length) * halfH : halfH + (i / cum.length) * halfH
-    const yFar = side === 0 ? halfH - ((i + 1) / cum.length) * halfH : halfH + ((i + 1) / cum.length) * halfH
-    ctx.lineTo(x, yNear); ctx.lineTo(x, yFar)
+// Draw one side of the depth chart on a price axis. dir = +1 for asks (above
+// the mid, towards the top), -1 for bids (below, towards the bottom). Walks the
+// buckets outward from the mid accumulating depth; each bucket is a horizontal
+// step whose left edge x encodes cumulative size. Fills, then strokes the
+// outline so the staircase reads cleanly.
+function drawSide (ctx, counts, dir, mid, yFor, yMid, scale, usableW, w) {
+  const order = []
+  for (let i = 0; i < PRICE_BINS; i++) {
+    const lo = PRICE_LO + i * PRICE_STEP, hi = lo + PRICE_STEP
+    if (dir > 0 ? hi > mid : lo < mid) order.push({ near: dir > 0 ? Math.max(lo, mid) : Math.min(hi, mid), far: dir > 0 ? hi : lo, v: counts[i] || 0 })
   }
-  if (!outlineOnly) { ctx.lineTo(w, side === 0 ? 0 : halfH * 2); ctx.closePath() }
+  if (dir > 0) order.sort((a, b) => a.near - b.near); else order.sort((a, b) => b.near - a.near)
+
+  const trace = () => {
+    ctx.beginPath(); ctx.moveTo(w, yMid); let cum = 0
+    for (const seg of order) { cum += seg.v; const x = w - (cum / scale) * usableW; ctx.lineTo(x, yFor(seg.near)); ctx.lineTo(x, yFor(seg.far)) }
+    return order.length ? yFor(order[order.length - 1].far) : yMid
+  }
+  const lastY = trace(); ctx.lineTo(w, lastY); ctx.closePath(); ctx.fill()
+  trace(); ctx.stroke()
 }
 
 /* -------------------------------- cpu wave ------------------------------- */
