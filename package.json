@@ -60,11 +60,20 @@
   "license": "MIT",
   "keywords": [
     "reactive",
+    "reactivity",
+    "signals",
+    "fine-grained",
+    "state-management",
     "incremental",
     "crossfilter",
+    "dataframe",
+    "observable",
     "view",
     "operators",
     "dom",
+    "no-virtual-dom",
+    "frp",
+    "javascript",
     "typescript"
   ],
   "scripts": {
