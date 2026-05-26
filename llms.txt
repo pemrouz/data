@@ -1,0 +1,54 @@
+# data
+
+> A small, dependency-free reactive data library for TypeScript/JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators; bind them to the DOM with `render`. Like crossfilter's incremental aggregation with Solid-style fine-grained DOM updates. Work is proportional to the path that changed, not the size of the data.
+
+## Quick start
+
+Install: `npm install data`
+
+```js
+import { $, value, render, HTML } from 'data'   // default entry: operators registered
+
+const rows = $([{ name: 'a', n: 1 }, { name: 'b', n: 9 }])
+const big  = rows.filter(d => d.n > 3)          // derived reactive view
+console.log(big[value])                         // read raw value with the `value` symbol
+rows[0].n = 10                                  // mutate by assignment; views update incrementally
+```
+
+## Imports (pick one entry)
+
+- `data` — default. Core + `render`/`HTML`/`SVG` + every operator registered. Use this unless you have a reason not to.
+- `data/full` — `data` plus JSX authoring (`h`, `Fragment`, `For`, `jsx`). Use when writing views in JSX.
+- `data/lean` — registration-free core, for tree-shaking. Calling `.filter(...)` here throws; register operators onto `Operators` yourself.
+- `data/render` — just the DOM render layer.
+- `data/devtools` — opt-in inspection helpers + overlay panel (side-effecting import).
+
+## Core API
+
+- `$(value)` → a `ViewProxy`. Read the raw value with `proxy[value]` (the `value` symbol), NOT `proxy.value`.
+- Mutate by assignment: `proxy.foo = 1`, `proxy[2].done = true`, `delete proxy[1]`, `proxy[value] = next`. Nested mutation (`a.b.c = 1`) works and triggers the right update — no immutable spreads needed.
+- `proxy.connect(arr)` pushes change events into `arr`; `proxy.connect(obj, 'prop')` mirrors the value; `proxy.connect(obj, fn)` calls `fn(change)`.
+- `render(el, template)` binds a view to the DOM; build templates with `HTML.div(...)`, `SVG.path(...)`.
+
+## Operators (chain off any proxy)
+
+- Filter: `filter(fn | 'key', val | {k:v})`, `between('col', [lo, hi])`, `gt`/`lt`/`gte`/`lte('col', n)`.
+- Sort/limit: `az`/`za('col'?)` (ascending/descending), `top(n)`, `limit(n)`, `reverse`. (There is no `.sort()` method — use `az`/`za`.)
+- Aggregate (scalar): `length(fn?)`, `sum`/`avg`/`max`/`min(col?)`, `some`/`every(fn)`.
+- Transform: `map(fn)`, `to(fn)`, `reduce(fn, init)` or incremental `reduce(add, remove, init)`, `group(fn)`, `distinct(fn?)`.
+- Set algebra: `intersect`, `union`, `except`.
+- Misc: `keys`, `values`, `tap(fn)`.
+- Built-ins (not operators): `first()`, `last()`, `raf()` (coalescing writer).
+
+## Docs
+
+- [README.md](README.md): full usage, API, operator table, philosophy.
+- [operators/README.md](operators/README.md): operator catalog + how dispatch works.
+- [CLAUDE.md](CLAUDE.md): contributor/agent guide for working inside the repo.
+- [devtools/README.md](devtools/README.md): inspection helpers and the overlay panel.
+
+## Common gotchas
+
+- Use `proxy[value]` (the symbol), not `proxy.value`, to read raw data — `proxy.value` makes a child view named "value".
+- `gt`/`lt`/`gte`/`lte` take literal bounds only; for a moving threshold use `between` with reactive bounds.
+- Awaiting a proxy resolves to its current snapshot (synchronous sugar, not real async sequencing).
