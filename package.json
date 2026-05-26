@@ -1,6 +1,6 @@
 {
   "name": "data",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
   "type": "module",
   "sideEffects": false,
