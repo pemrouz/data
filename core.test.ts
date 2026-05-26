@@ -279,6 +279,35 @@ test('iterator', async () => {
   ])
 })
 
+// A ViewProxy is a callable Proxy, so any property read — including `then` —
+// returns a callable child view, which makes the runtime treat the proxy as a
+// thenable. Without the `apply` guard, `await proxy` would call the `then`
+// child view, hit the operator dispatch, and throw "Unknown operator 'then'".
+// We distinguish promise assimilation (calls `then` with a function arg) from
+// genuine `.then` data access (reads, never calls) at call time.
+test('thenable - await resolves to the current snapshot', async () => {
+  same(await $([1, 2, 3]), [1, 2, 3])
+  same(await $({ a: 1 }), { a: 1 })
+  // assimilation reads the live snapshot at await time
+  const res = $([1])
+  res.insert(2)
+  same(await res, [1, 2])
+  // survives Promise.all and async-return assimilation
+  same(await Promise.all([$([9]), $('x')]), [[9], 'x'])
+  same(await (async () => $({ ok: true }))(), { ok: true })
+})
+
+test('thenable - `.then` is still a real child-view key (read, not call)', async () => {
+  // Reading `.then` must keep working as data access — it only becomes a
+  // promise probe when *called* with a function. A key literally named "then"
+  // round-trips through await untouched.
+  const res = $({ a: 1, then: 99 })
+  same(res.then[value], 99)
+  res.then = 100
+  same(res.then[value], 100)
+  same(await res, { a: 1, then: 100 })
+})
+
 // `first()` / `last()` are sugar over `proxy[0]` / `proxy[lastKey]` — the
 // same child-view machinery, just discoverable as methods. Snapshot
 // semantics: `last()` reads the source's current last key at call time.

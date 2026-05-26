@@ -854,6 +854,21 @@ export class ViewProxy {
   apply(t, m, args){
     const { p, name: type } = this.view
     if (!p) throw new Error('cannot invoke a root value!')
+    // Promise assimilation (`await proxy`, `Promise.resolve(proxy)`,
+    // `Promise.all([...,proxy])`) detects a thenable by reading `.then` — a
+    // child view, callable like any ViewProxy — and *immediately* calling it
+    // with (onFulfilled, onRejected), both functions. A genuine `proxy.then`
+    // data access reads the child view but never calls it, so it never lands
+    // here. Distinguish purely by the call signature (leading function arg)
+    // and resolve with the current snapshot, so `await proxy === proxy[value]`
+    // instead of throwing "Unknown operator 'then'". `.then` stays usable as a
+    // real key via property access; only *calling* it is the promise probe.
+    if (type === 'then' && typeof args[0] === 'function') {
+      const [onFulfilled, onRejected] = args
+      try { onFulfilled(p.value) }
+      catch (e) { if (typeof onRejected === 'function') onRejected(e) }
+      return
+    }
     if (type === 'connect') return connect(p, ...args)
     if (type === 'raf')     return raf(p)
     if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
