@@ -3,7 +3,10 @@
   "version": "1.1.0",
   "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/full.js"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,6 +14,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./lean": {
+      "types": "./dist/lean.d.ts",
+      "import": "./dist/lean.js"
     },
     "./full": {
       "types": "./dist/full.d.ts",
@@ -67,7 +74,7 @@
     "test:render": "npx playwright test",
     "test:data": "node --experimental-strip-types --no-warnings --test index.test.ts",
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
-    "test": "node --experimental-strip-types --no-warnings --test core.test.ts index.test.ts operators/*/*.test.ts render/*.test.js render/*.test.ts jsx/*.test.ts devtools/*.test.ts devtools/panel/*.test.ts",
+    "test": "node --experimental-strip-types --no-warnings --test core.test.ts entry.test.ts index.test.ts operators/*/*.test.ts render/*.test.js render/*.test.ts jsx/*.test.ts devtools/*.test.ts devtools/panel/*.test.ts",
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts devtools/*.perf.ts",
     "test:all": "npm run test && npm run test:render",
     "prepublishOnly": "npm run build && npm test",

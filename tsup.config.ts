@@ -1,8 +1,9 @@
 import { defineConfig } from 'tsup'
 
-// Seven entries that line up with the "exports" map in package.json:
-//   data                  → ./dist/index.js              (lean core, no operator dispatch)
-//   data/full             → ./dist/full.js               (registers every operator on import)
+// Eight entries that line up with the "exports" map in package.json:
+//   data                  → ./dist/index.js              (default: core + render + all operators registered)
+//   data/lean             → ./dist/lean.js               (registration-free core, for tree-shaking)
+//   data/full             → ./dist/full.js               (data + JSX authoring layer)
 //   data/render           → ./dist/render/index.js
 //   data/devtools         → ./dist/devtools/index.js     (opt-in inspection helpers)
 //   data/devtools/panel   → ./dist/devtools/panel/index.js (overlay UI)
@@ -15,6 +16,7 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: [
     'index.ts',
+    'lean.ts',
     'full.ts',
     'render/index.ts',
     'devtools/index.ts',

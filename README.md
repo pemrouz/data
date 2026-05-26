@@ -3,7 +3,7 @@
 A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
 
 ```js
-import { $, value } from 'data/full'
+import { $, value } from 'data'
 
 const count = $(0)
 count.connect(document.body, 'textContent')   // body now mirrors count
@@ -18,19 +18,24 @@ count[value] = 42                              // body reads "42"
 npm install data
 ```
 
-Four sub-path entries:
+Five sub-path entries:
 
 ```js
-// `data/full` — chainable operators (.filter, .between, .length, …) registered.
-// Re-exports everything from `data` plus the JSX helpers (h, Fragment, For).
-// This is what most apps want.
+// `data` — the default entry. Core + render + every operator (.filter, .between,
+// .length, …) registered on import, so chaining works the moment you import `$`.
+// This is the one you want.
+import { $, value, render, HTML } from 'data'
+
+// `data/full` — everything in `data` plus the JSX helpers (h, Fragment, For).
+// Import this when you author views in JSX.
 import { $, value, render, HTML, h, For } from 'data/full'
 
-// `data` — lean core, no operator dispatch registered. Pick this if you care
-// about tree-shaking and only use the function-style operator API
-// (e.g. `import { filter } from 'data/operators/filter'` — coming in a future
-// release; for now use `data/full`).
-import { $, value, render, HTML } from 'data'
+// `data/lean` — registration-free core: same exports as `data` minus the
+// operator dispatch. Pick this only to tree-shake operators you don't use
+// (register a hand-picked subset onto `Operators` yourself, or call the
+// function-style operator API). Calling `.filter(...)` on a `data/lean` proxy
+// throws, pointing back at `data`.
+import { $, value, render, HTML } from 'data/lean'
 
 // `data/render` — just the DOM render layer (render, HTML, SVG). For consumers
 // who want the rendering primitives without pulling the reactive runtime.
@@ -49,17 +54,17 @@ import { render, HTML, SVG } from 'data/render'
 import 'data/devtools'
 ```
 
-`data/full` is a strict superset of `data`: it re-exports everything from the
-lean entry and additionally registers every operator on the dispatch table.
-The only reason to prefer bare `data` is bundle size when chainable operators
-aren't needed.
+`data` registers every operator on import, so `proxy.filter(...)` works out of
+the box — reach for it by default. `data/full` is a strict superset that adds
+the JSX authoring layer. `data/lean` is the same core with the registration
+omitted, for when bundle size matters more than out-of-the-box ergonomics.
 
 ## Quickstart
 
 ### A reactive scalar
 
 ```js
-import { $, value } from 'data/full'
+import { $, value } from 'data'
 
 const count = $(0)
 const doubled = count.to(n => n * 2)
@@ -80,7 +85,7 @@ events
 ### A reactive collection
 
 ```js
-import { $, value } from 'data/full'
+import { $, value } from 'data'
 
 const todos = $([
   { task: 'foo', done: false },
@@ -107,7 +112,7 @@ events
 ### Rendering to the DOM
 
 ```js
-import { $, render, HTML } from 'data/full'
+import { $, render, HTML } from 'data'
 const { ul, li } = HTML
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
@@ -277,8 +282,9 @@ npm run serve
 ```
 .
 ├── core.ts           — $, ViewProxy, View, Value, Sink (foundation)
-├── index.ts          — `data` entry: lean re-exports only, no operator dispatch
-├── full.ts           — `data/full` entry: index.ts + registers all operators
+├── lean.ts           — `data/lean` entry: core re-exports only, no operator dispatch
+├── index.ts          — `data` entry (default): lean.ts + registers all operators
+├── full.ts           — `data/full` entry: index.ts + JSX helpers (h, Fragment, For)
 ├── utils.ts          — small helpers
 ├── row.ts            — RowOperator base class (used by filter, map)
 ├── operators/

@@ -34,7 +34,7 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 
 ## How dispatch works
 
-The mapping from operator name to class lives in [../full.ts](../full.ts) (the lean `data` entry leaves the dispatch table empty; `data/full` is what populates it). Each entry is a function that picks a class based on argument shape:
+The mapping from operator name to class lives in [../index.ts](../index.ts) — the default `data` entry, which registers every operator on import (`data/full` inherits the registration via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves the dispatch table empty). Each entry is a function that picks a class based on argument shape:
 
 ```js
 Operators['filter']  = (a, b) => typeof a === 'function' ? FilterValue
@@ -72,7 +72,7 @@ This is the canonical list of everything that needs to land when a new operator 
 
 ### Dispatch — repo root
 
-4. **[../full.ts](../full.ts)** — import the class(es), then add `Operators['<name>'] = (...) => OpClass` (or a closure that picks a class based on argument shape, like `filter` does). The lean [../index.ts](../index.ts) entry deliberately leaves dispatch empty; `data/full` is what populates it.
+4. **[../index.ts](../index.ts)** — the default `data` entry. Import the class(es), then add `Operators['<name>'] = (...) => OpClass` (or a closure that picks a class based on argument shape, like `filter` does) to the registration block. `data/full` inherits it via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves dispatch empty.
 
 ### Docs — per-operator + cross-cutting
 

@@ -892,9 +892,11 @@ export class ViewProxy {
     if (type === 'update') return this.view.res.update(value, p.key)
     if (type === 'insert') return this.view.res.insert(value, p.key, at)
     throw new Error(`Unknown operator '${type}'. ` +
-      `Operators (.filter, .between, .length, etc.) are only registered when ` +
-      `'data/full' is imported — bare 'data' is the lean core. Import from ` +
-      `'data/full' to enable chainable operators.`)
+      `Chainable operators (.filter, .between, .length, etc.) register when you ` +
+      `import from 'data' (the default entry) or 'data/full' (adds JSX). You're ` +
+      `seeing this because the dispatch table is empty — likely an import from ` +
+      `'data/lean' (the registration-free core). Switch to 'data', or register ` +
+      `the operators you need onto the exported 'Operators' table yourself.`)
   }
 
   getPrototypeOf(target){
