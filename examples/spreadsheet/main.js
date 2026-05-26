@@ -47,95 +47,124 @@ function expandRange (a, b) {
   return out
 }
 
-function tokenize (s) {
-  const ts = []; let i = 0
-  const isD = c => c >= '0' && c <= '9'
-  const isL = c => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-  while (i < s.length) {
-    const c = s[i]
-    if (c === ' ') { i++; continue }
-    if (isD(c) || c === '.') { let j = i; while (j < s.length && (isD(s[j]) || s[j] === '.')) j++; ts.push({ t: 'num', v: parseFloat(s.slice(i, j)) }); i = j; continue }
-    if (isL(c)) {
-      let j = i; while (j < s.length && isL(s[j])) j++
-      const name = s.slice(i, j).toUpperCase()
-      if (j < s.length && isD(s[j])) { let k = j; while (k < s.length && isD(s[k])) k++; ts.push({ t: 'ref', v: name + s.slice(j, k) }); i = k; continue }
-      ts.push({ t: 'fn', v: name }); i = j; continue
+const isDigit = c => c >= '0' && c <= '9'
+const isLetter = c => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+
+// Split a formula into tokens: numbers, cell refs (B12), function names (SUM),
+// operators, and punctuation. A run of letters is a function name unless digits
+// follow, in which case it's a cell reference.
+function tokenize (formula) {
+  const tokens = []
+  let i = 0
+
+  const scan = test => { let j = i; while (j < formula.length && test(formula[j])) j++; const text = formula.slice(i, j); i = j; return text }
+
+  while (i < formula.length) {
+    const c = formula[i]
+    if (c === ' ') i++
+    else if (isDigit(c) || c === '.') tokens.push({ type: 'num', value: parseFloat(scan(ch => isDigit(ch) || ch === '.')) })
+    else if (isLetter(c)) {
+      const word = scan(isLetter).toUpperCase()
+      if (isDigit(formula[i])) tokens.push({ type: 'ref', value: word + scan(isDigit) })
+      else tokens.push({ type: 'fn', value: word })
     }
-    if ('+-*/'.includes(c)) { ts.push({ t: 'op', v: c }); i++; continue }
-    if (c === '(') { ts.push({ t: 'lp' }); i++; continue }
-    if (c === ')') { ts.push({ t: 'rp' }); i++; continue }
-    if (c === ',') { ts.push({ t: 'comma' }); i++; continue }
-    if (c === ':') { ts.push({ t: 'colon' }); i++; continue }
-    throw new Error('ERR')
+    else if ('+-*/'.includes(c)) tokens.push({ type: 'op', value: formula[i++] })
+    else if (c === '(') { tokens.push({ type: 'lp' }); i++ }
+    else if (c === ')') { tokens.push({ type: 'rp' }); i++ }
+    else if (c === ',') { tokens.push({ type: 'comma' }); i++ }
+    else if (c === ':') { tokens.push({ type: 'colon' }); i++ }
+    else throw new Error('ERR')
   }
-  return ts
+  return tokens
 }
 
-// Recursive-descent parser → an evaluator closure `fn(resolve)`. `resolve(id)`
-// returns a cell's numeric value (throws on error / propagates). References are
-// collected into `refs` as we go, so the dependency graph is exact.
+// Recursive-descent parser → an evaluator closure `fn(resolve)`, where
+// `resolve(id)` returns a cell's numeric value (and throws to propagate errors).
+// Cell references are collected into `refs` as we go, so the dependency graph is
+// exact. Grammar: expr → term (('+'|'-') term)*; term → factor (('*'|'/') …)*.
 function parse (tokens, refs) {
-  let p = 0
-  const peek = () => tokens[p]
-  const next = () => tokens[p++]
+  let pos = 0
+  const peek = () => tokens[pos]
+  const next = () => tokens[pos++]
+  const expect = type => { if (!peek() || peek().type !== type) throw new Error('ERR'); return next() }
+
   function expr () {
-    let a = term()
-    while (peek() && peek().t === 'op' && (peek().v === '+' || peek().v === '-')) { const op = next().v, b = term(), A = a, B = b; a = op === '+' ? r => A(r) + B(r) : r => A(r) - B(r) }
-    return a
+    let left = term()
+    while (peek()?.type === 'op' && (peek().value === '+' || peek().value === '-')) {
+      const op = next().value, right = term(), a = left
+      left = op === '+' ? r => a(r) + right(r) : r => a(r) - right(r)
+    }
+    return left
   }
+
   function term () {
-    let a = factor()
-    while (peek() && peek().t === 'op' && (peek().v === '*' || peek().v === '/')) { const op = next().v, b = factor(), A = a, B = b; a = op === '*' ? r => A(r) * B(r) : r => A(r) / B(r) }
-    return a
+    let left = factor()
+    while (peek()?.type === 'op' && (peek().value === '*' || peek().value === '/')) {
+      const op = next().value, right = factor(), a = left
+      left = op === '*' ? r => a(r) * right(r) : r => a(r) / right(r)
+    }
+    return left
   }
+
   function factor () {
-    const tk = peek()
-    if (!tk) throw new Error('ERR')
-    if (tk.t === 'op' && tk.v === '-') { next(); const f = factor(); return r => -f(r) }
-    if (tk.t === 'op' && tk.v === '+') { next(); return factor() }
-    if (tk.t === 'num') { next(); const v = tk.v; return () => v }
-    if (tk.t === 'lp') { next(); const e = expr(); if (!peek() || peek().t !== 'rp') throw new Error('ERR'); next(); return e }
-    if (tk.t === 'ref') { next(); validateRef(tk.v); refs.add(tk.v); const id = tk.v; return r => r(id) }
-    if (tk.t === 'fn') {
-      next(); if (!peek() || peek().t !== 'lp') throw new Error('ERR'); next()
+    const token = peek()
+    if (!token) throw new Error('ERR')
+    if (token.type === 'op' && token.value === '-') { next(); const operand = factor(); return r => -operand(r) }
+    if (token.type === 'op' && token.value === '+') { next(); return factor() }
+    if (token.type === 'num') { next(); return () => token.value }
+    if (token.type === 'lp') { next(); const inner = expr(); expect('rp'); return inner }
+    if (token.type === 'ref') { next(); validateRef(token.value); refs.add(token.value); return r => r(token.value) }
+    if (token.type === 'fn') {
+      next(); expect('lp')
       const args = []
-      if (peek() && peek().t !== 'rp') { args.push(arg()); while (peek() && peek().t === 'comma') { next(); args.push(arg()) } }
-      if (!peek() || peek().t !== 'rp') throw new Error('ERR'); next()
-      return makeFn(tk.v, args)
+      if (peek()?.type !== 'rp') { args.push(argument()); while (peek()?.type === 'comma') { next(); args.push(argument()) } }
+      expect('rp')
+      return makeFn(token.value, args)
     }
     throw new Error('ERR')
   }
-  function arg () {
-    if (peek() && peek().t === 'ref' && tokens[p + 1] && tokens[p + 1].t === 'colon') {
-      const first = next().v; next(); if (!peek() || peek().t !== 'ref') throw new Error('ERR'); const second = next().v
-      const ids = expandRange(first, second); ids.forEach(id => refs.add(id)); return { range: ids }
+
+  // An argument is either a range (B2:B5 → a list of cell ids) or an expression.
+  function argument () {
+    if (peek()?.type === 'ref' && tokens[pos + 1]?.type === 'colon') {
+      const from = next().value; next(); const to = expect('ref').value
+      const ids = expandRange(from, to)
+      ids.forEach(id => refs.add(id))
+      return { range: ids }
     }
-    return { fn: expr() }
+    return { expr: expr() }
   }
-  const e = expr()
-  if (p !== tokens.length) throw new Error('ERR')
-  return e
+
+  const evaluate = expr()
+  if (pos !== tokens.length) throw new Error('ERR')
+  return evaluate
 }
 
-function rangeVals (ids) {
+function rangeValues (ids) {
   const out = []
   for (const id of ids) { if (errored.has(id)) throw new Error('ERR'); const v = nums[id]; if (v === undefined || Number.isNaN(v)) continue; out.push(v) }
   return out
 }
+// A function call evaluates its arguments to a flat list of numbers (ranges
+// expand, skipping empty/text cells; expressions evaluate to one value each),
+// then reduces them.
 function makeFn (name, args) {
-  return r => {
-    const vals = []
-    for (const a of args) { if (a.range) vals.push(...rangeVals(a.range)); else vals.push(a.fn(r)) }
-    const sum = () => vals.reduce((s, x) => s + x, 0)
+  return resolve => {
+    const values = []
+    for (const arg of args) {
+      if (arg.range) values.push(...rangeValues(arg.range))
+      else values.push(arg.expr(resolve))
+    }
+    const sum = () => values.reduce((a, b) => a + b, 0)
     switch (name) {
       case 'SUM': return sum()
-      case 'AVG': case 'AVERAGE': return vals.length ? sum() / vals.length : 0
-      case 'MIN': return vals.length ? Math.min(...vals) : 0
-      case 'MAX': return vals.length ? Math.max(...vals) : 0
-      case 'COUNT': return vals.length
-      case 'PRODUCT': return vals.reduce((s, x) => s * x, 1)
-      case 'ABS': return Math.abs(vals[0] ?? 0)
-      case 'ROUND': { const k = Math.pow(10, vals[1] ?? 0); return Math.round((vals[0] ?? 0) * k) / k }
+      case 'AVG': case 'AVERAGE': return values.length ? sum() / values.length : 0
+      case 'MIN': return values.length ? Math.min(...values) : 0
+      case 'MAX': return values.length ? Math.max(...values) : 0
+      case 'COUNT': return values.length
+      case 'PRODUCT': return values.reduce((a, b) => a * b, 1)
+      case 'ABS': return Math.abs(values[0] ?? 0)
+      case 'ROUND': { const k = 10 ** (values[1] ?? 0); return Math.round((values[0] ?? 0) * k) / k }
       default: throw new Error('ERR')
     }
   }
