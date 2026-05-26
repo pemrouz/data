@@ -3,7 +3,6 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
-/dist/
 /build/
 /experiments/wasm/build/
 /.claude/scheduled_tasks.lock
@@ -16,3 +15,12 @@
 !examples/metrics/**/*.js
 !examples/pivot/**/*.js
 !mockups/**/*.js
+
+# dist/ is committed so GitHub Pages (branch deploy) can serve the importmap
+# targets while CI/Actions billing is unavailable. The Actions workflow in
+# .github/workflows/pages.yml is the preferred path once billing is restored —
+# at which point this committed dist/ can be dropped again. Track the built
+# .js/.d.ts; skip the .map files (not needed to serve, and they bloat history).
+# Rebuild + recommit dist/ on each release.
+!/dist/**
+/dist/**/*.map
