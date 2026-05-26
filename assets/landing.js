@@ -5,11 +5,9 @@
  *
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 
-import { $, render, pageUpdates, isStreaming, setStreaming, $$, HTML } from './feed.js'
+import { $, isStreaming, setStreaming, $$ } from './feed.js'
 import { createRace } from './race.js'
 import './demos.js'
-
-const { span } = HTML
 
 /* ---------- the race ---------- */
 if (document.getElementById('race-grid')) {
@@ -39,10 +37,6 @@ document.querySelectorAll('[data-copy]').forEach(el => {
     } catch { /* clipboard unavailable — selecting the text still works */ }
   })
 })
-
-/* ---------- "this page runs on data" counter ---------- */
-const counterEl = $$('#page-updates')
-if (counterEl) { counterEl.textContent = ''; render(counterEl, span.text(pageUpdates.to(n => n.toLocaleString()))) }
 
 /* ---------- devtools: mount the real panel on demand ---------- */
 const dtBtn = $$('#devtools-mount'), dtStatus = $$('#devtools-status')

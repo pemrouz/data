@@ -60,13 +60,6 @@ export const trades = $(TRADE_DEFS.map(({ id, tenor }) => {
 /* Path of the most recent mutation, surfaced in the hero/explainer captions. */
 export const lastTick = $('—')
 
-/* Total reactive change-events processed by THIS page since load. A 0-arg
- * `.tap()` fires once per emit on the source — the documented cheap path — so
- * this is a real reactive readout, not a hand-kept counter. Bound to the DOM
- * by landing.js for the self-referential closer. */
-export const pageUpdates = $(0)
-trades.tap(() => { pageUpdates[value] = pageUpdates[value] + 1 })
-
 /* ---------- streaming engine ---------- */
 
 const NUM_FIELDS = ['bid', 'ask', 'last', 'pnl']

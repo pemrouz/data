@@ -256,14 +256,6 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
 .gcard-links a:first-child { color: var(--accent); }
 .gcard-links a:hover { color: var(--accent); }
 
-/* ---------- closer ---------- */
-.closer { text-align: center; padding: 4rem 0 3rem; border-top: 1px solid var(--rule); }
-.closer-line { max-width: 60ch; margin: 0 auto 2rem; color: var(--dim); }
-.closer-line code { color: var(--accent); }
-.closer-count { font: 500 clamp(3rem, 11vw, 6rem)/1 var(--mono); letter-spacing: -0.03em; }
-.closer-count b { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 500; }
-.closer-and { font: 0.85rem var(--mono); margin-top: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; }
-
 /* ---------- footer ---------- */
 footer { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: 2.5rem 0 4rem; border-top: 1px solid var(--rule); font: 0.82rem var(--mono); color: var(--dim); }
 footer a { border: 0; }
