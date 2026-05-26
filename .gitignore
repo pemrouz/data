@@ -6,6 +6,7 @@
 /dist/
 /build/
 /experiments/wasm/build/
+/.claude/scheduled_tasks.lock
 *.js
 !**/flights.js
 !assets/*.js
