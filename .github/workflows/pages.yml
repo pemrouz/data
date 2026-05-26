@@ -1,0 +1,57 @@
+name: Deploy site to GitHub Pages
+
+# The site (index.html + assets/ + examples/ + operators/ docs) imports the
+# library from ./dist/* via an importmap, but dist/ is gitignored — so a plain
+# branch-deploy serves 404s for every `data` import. This workflow builds dist/
+# (and the JSX examples' .js) on each push and publishes the result to Pages,
+# keeping dist/ out of git.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a newer deploy supersede an in-flight one, but don't cancel a run that's
+# mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build library (dist/) and JSX examples
+        run: |
+          npm run build
+          npm run build:examples-jsx
+      # The static site is the repo root; drop dev-only dirs so the Pages
+      # artifact stays lean (node_modules isn't needed to serve static files).
+      - name: Prune non-site files from the artifact
+        run: rm -rf node_modules .git
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
