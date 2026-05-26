@@ -13,4 +13,5 @@
 !examples/spreadsheet/**/*.js
 !examples/datagrid/**/*.js
 !examples/metrics/**/*.js
+!examples/pivot/**/*.js
 !mockups/**/*.js
