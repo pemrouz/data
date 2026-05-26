@@ -7,6 +7,20 @@ import { iter, isArray, noop } from './utils.ts'
 // a Symbol to avoid colliding with user data. `reactive` is a global symbol so
 // foreign code (e.g. render templates from a separately-bundled copy) can ask
 // "is this a reactive value?" without needing access to this module's exports.
+/**
+ * Symbol key for reading/writing a proxy's raw underlying value.
+ *
+ * Use `proxy[value]` to read the snapshot and `proxy[value] = next` to replace
+ * it. Read with the symbol, **not** `proxy.value` — any string-named access on a
+ * ViewProxy creates a child view, so `proxy.value` would make a child named
+ * "value" rather than returning the data.
+ *
+ * @example
+ * import { $, value } from 'data'
+ * const n = $(41)
+ * n[value]        // 41
+ * n[value] = 42   // now 42
+ */
 export const value = Symbol('value')
 export const reactive = Symbol.for('reactive')
 export const view = Symbol('view')
@@ -24,8 +38,32 @@ const sclone = d =>
 // Operator dispatch table populated by index.ts at module load. Stored on a
 // shared object so that adding an operator is a one-line registration rather
 // than a switch in ViewProxy.apply.
+/**
+ * Operator dispatch table: maps an operator name to a factory that picks the
+ * implementation class by argument shape. Populated by the default `data`
+ * entry (and `data/full`) on import; the `data/lean` entry leaves it empty.
+ * Register onto it directly only if you import `data/lean` and want a
+ * hand-picked subset of operators: `Operators['filter'] = () => FilterValue`.
+ */
 export const Operators: Record<string, (...args: any[]) => any> = {}
 
+/**
+ * Wrap a value or collection in a reactive `ViewProxy`.
+ *
+ * Read the raw value with `proxy[value]` (the {@link value} symbol). Mutate by
+ * assignment — `proxy.foo = 1`, `proxy[0].done = true`, `delete proxy[1]`,
+ * `proxy[value] = next` — including nested paths; the right update cascade
+ * fires automatically. Derive reactive views with chainable operators
+ * (`filter`, `between`, `map`, `length`, `sum`, …), which are registered when
+ * you import from `data` or `data/full`.
+ *
+ * @example
+ * import { $, value } from 'data'
+ * const rows = $([{ n: 1 }, { n: 5 }, { n: 9 }])
+ * const big  = rows.filter(d => d.n > 3).length()
+ * big[value]      // 2
+ * rows[0].n = 10  // views update incrementally
+ */
 export const $ = <T>(v: T) => new ViewProxy(View.value(v)) as Data<T>
 export default $
 // Overridable for deterministic IDs in tests — see core.test.ts:7.
@@ -45,6 +83,13 @@ export const _devtoolsInternalRoots = new WeakSet<View>()
 // Only operators that implement `matches()` participate; everything else gets
 // a fresh instance per call. Reusing matters most for `between`/`sort` where
 // the same brush bound may be subscribed to from multiple chart components.
+/**
+ * Low-level escape hatch for building a derived view from a custom `Operator`
+ * subclass without going through the named dispatch table — `createOperator(src,
+ * MyOperatorClass, ...args)`. Most code should use the chainable operators
+ * (`src.filter(...)`) instead; reach for this only when authoring a new
+ * operator or wiring one that isn't registered. See operators/README.md.
+ */
 export function createOperator(source, OperatorClass, ...args) {
   const p = source[view]
   // some_sink returns whatever the predicate returns, so the predicate has
