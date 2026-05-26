@@ -1,6 +1,6 @@
 # data
 
-A small reactive data library for TypeScript and JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves.
+A small reactive data library for TypeScript and JavaScript — think **crossfilter's incremental aggregation with Solid-style fine-grained DOM updates**, in one dependency-free package. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `sort`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves. **Work is proportional to the path that changed, not the size of the data.**
 
 ```js
 import { $, value } from 'data'
