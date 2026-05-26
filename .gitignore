@@ -10,4 +10,5 @@
 !**/flights.js
 !assets/*.js
 !examples/multidim/**/*.js
+!examples/spreadsheet/**/*.js
 !mockups/**/*.js
