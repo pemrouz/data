@@ -139,20 +139,18 @@ class DOMSink {
 
   BR2(BR2){}
 
-  // Move-at-depth-1: relocate the existing DOM element rather than
-  // tearing it down and rebuilding. Preserves identity, focus, and any
-  // state the row holds.
-  BMV1(M1){
-    if (this._detached()) return
-    if (!isArray(this.nodes)) return
-    for (let i = 0; i < M1.length; i += 2) {
-      const from = +M1[i]
-      const to = +M1[i + 1]
-      const [dom] = this.nodes.splice(from, 1)
-      this.nodes.splice(to, 0, dom)
-      this.parent.insertBefore(dom, this.nodes[to + 1] ?? null)
-    }
-  }
+  // Move-at-depth-1. Rows here are *index-keyed*: each DOM node is bound to
+  // the positional child view `node.data[k]`, and a rank rotation reaches us
+  // as core's Value.BMV1 refreshing the content of every slot in the affected
+  // range (child.XU0, see core.ts) *before* this method runs. So by now each
+  // fixed slot already shows its new row's data — the DOM is correct without
+  // touching node order. Physically relocating the element on top of that
+  // would double-apply the rotation and scramble the list (the regression in
+  // tests/render-reorder.spec.ts). We intentionally do nothing: keep `nodes`
+  // aligned with positions and let the positional content refresh stand.
+  // (True element-identity preservation across reorders would require a
+  // data-keyed row model, which this index-keyed renderer doesn't have.)
+  BMV1(){}
 
   BU2(U2){
     if (this._detached()) return

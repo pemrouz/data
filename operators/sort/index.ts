@@ -120,9 +120,10 @@ export class ZAValue extends Operator {
   //   • out → out: nothing observable, just update `sorted`
   //   • out → in : evict the row pushed off the tail, insert this one
   //   • in  → out: evict this one from its position, refill the tail
-  //   • in  → in : in-window rotation — emitted as BMV1 so DOM sinks can
-  //                use insertBefore on the same node rather than tearing
-  //                down and rebuilding (preserves focus, animations, etc.)
+  //   • in  → in : in-window rotation — emitted as a single BMV1 'move'
+  //                rather than N per-position updates (cheaper for change-
+  //                stream consumers; index-keyed DOM sinks refresh content
+  //                positionally and treat the move itself as a no-op).
   BU1(U1){
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
@@ -164,9 +165,9 @@ export class ZAValue extends Operator {
         // the new rank. The nested-mutation case (`row.col = …`) is
         // unaffected: value === p.value[name] is the same reference
         // that's already in view.value, the BU1 is a no-op shuffle. Then
-        // emit the move event so sinks that care about identity (DOMSink
-        // uses insertBefore on the same element) preserve it; sinks
-        // without BMV1 fall back to BU1 over the affected range.
+        // emit the move event for change-stream consumers that want move
+        // semantics; sinks without BMV1 (and index-keyed DOM sinks) fall
+        // back to a positional content refresh over the affected range.
         super.BU1([oidx, value])
         super.BMV1([oidx, nidx])
       }

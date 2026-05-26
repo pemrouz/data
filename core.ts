@@ -317,10 +317,11 @@ export class Value {
   }
 
   // Move-at-depth-1 verb. Each [from, to] pair moves the element at
-  // index `from` to index `to`; rows in between rotate by one. Cheaper
-  // than emulating the rotation as N value-update events because sinks
-  // that care about identity (DOMSink uses insertBefore on the same
-  // <li>) keep the existing entity rather than tearing down + rebuilding.
+  // index `from` to index `to`; rows in between rotate by one. Carried as a
+  // single 'move' for change-stream consumers that want move semantics rather
+  // than N value-update events. (DOMSink itself treats a move as a no-op: it
+  // renders rows index-keyed, so Value.BMV1's positional child refresh below
+  // already updates each slot's content — see render/index.ts BMV1.)
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BI0A — see comment on BR1A).
