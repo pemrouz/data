@@ -259,13 +259,19 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
         <span class="gcard-links"><a href="./examples/datagrid/">open →</a><a href="./examples/datagrid/?devtools">?devtools</a></span>
       </div>
       <div class="gcard">
+        <span class="gcard-tag">streaming · live</span>
+        <h3><a href="./examples/metrics/">Live metrics board</a></h3>
+        <p>A request firehose into a bounded ring buffer — status, endpoint, and latency breakdowns plus avg latency are kept incrementally by <code>length(group)</code> + <code>avg</code> as ~14k events/sec stream through.</p>
+        <span class="gcard-links"><a href="./examples/metrics/">open →</a><a href="./examples/metrics/?devtools">?devtools</a></span>
+      </div>
+      <div class="gcard">
         <span class="gcard-tag">basics · live</span>
         <h3><a href="./examples/todo/">To-do</a></h3>
         <p>The smallest end-to-end: mutate an array, derive <code>filter</code> + <code>length</code>, and watch <code>render</code> do per-key surgical DOM updates that keep focus.</p>
         <span class="gcard-links"><a href="./examples/todo/">open →</a><a href="./examples/todo-jsx/">jsx</a><a href="./examples/todo-jsx/?devtools">?devtools</a></span>
       </div>
     </div>
-    <p class="cat-foot muted">More on the way — a live metrics board and a pivot table are next.</p>
+    <p class="cat-foot muted">More on the way — a pivot table is next.</p>
   </section>
 
   <footer>

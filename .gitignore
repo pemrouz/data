@@ -12,4 +12,5 @@
 !examples/multidim/**/*.js
 !examples/spreadsheet/**/*.js
 !examples/datagrid/**/*.js
+!examples/metrics/**/*.js
 !mockups/**/*.js
