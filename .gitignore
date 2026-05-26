@@ -11,4 +11,5 @@
 !assets/*.js
 !examples/multidim/**/*.js
 !examples/spreadsheet/**/*.js
+!examples/datagrid/**/*.js
 !mockups/**/*.js
