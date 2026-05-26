@@ -19,11 +19,11 @@ test('metrics — streams events and keeps every panel incrementally', async ({ 
   await page.waitForSelector('.tile', { timeout: 10_000 })
 
   // panels are present
-  await expect(page.locator('#status .bar')).toHaveCount(8)
-  await expect(page.locator('#eps .bar')).toHaveCount(10)
+  await expect(page.locator('.status .bar')).toHaveCount(8)
+  await expect(page.locator('.eps .bar')).toHaveCount(10)
 
   // tiles carry real numbers
-  for (const k of ['rps', 'served', 'avg', 'err']) await expect(page.locator(`[data-k=${k}]`)).toHaveText(/\d/, { timeout: 5_000 })
+  for (const k of ['rps', 'served', 'avg', 'errorRate']) await expect(page.locator(`[data-k=${k}]`)).toHaveText(/\d/, { timeout: 5_000 })
 
   // the stream is running: the cumulative served counter climbs
   const read = () => page.locator('[data-k=served]').textContent()
@@ -33,7 +33,7 @@ test('metrics — streams events and keeps every panel incrementally', async ({ 
   expect(a).not.toBe(b)
 
   // a top endpoint has accumulated more than a cold one (skewed popularity)
-  const counts = await page.locator('#eps .bval').allTextContents()
+  const counts = await page.locator('.eps .bval').allTextContents()
   expect(counts.length).toBe(10)
   expect(counts.some(c => /\d/.test(c))).toBeTruthy()
 

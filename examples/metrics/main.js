@@ -1,213 +1,256 @@
-/* A live metrics / observability board on `data`.
+/* A live metrics board, built on `data`.
  *
- * One firehose of request events streams into a fixed-size ring buffer (the last
- * WINDOW events), so the working set is BOUNDED — every frame overwrites the
- * oldest slots with fresh events. The library keeps every panel incrementally:
+ * The shape of the whole app is: one source, a few derived views, one render.
  *
- *   length(e => e.status)   → status-code breakdown
- *   length(e => e.endpoint) → per-endpoint counts (the leaderboard)
- *   length(e => band(lat))  → latency-band distribution
- *   avg('lat')              → rolling average latency
+ *   events  — a bounded ring buffer of the most recent requests
+ *   byStatus / byEndpoint / byLatency / avgLatency
+ *           — derived views the library keeps up to date incrementally
+ *   board   — a small presentation view, refreshed once per frame from the above
+ *   render  — binds the DOM straight to `board`; no manual DOM updates
  *
- * Each of these is O(Δ) per event — a slot overwrite moves a couple of counters
- * and nudges a running mean, no rescan of the window. The reactive numbers are
- * bound to the DOM with `render` (surgical text updates); bar widths + the
- * throughput sparkline are painted once per frame (the real render cadence),
- * reading the already-maintained aggregates.
- *
- * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
+ * Events stream in by the thousand per second; each one moves a couple of
+ * counters (O(Δ)), never a rescan of the window. We snapshot the maintained
+ * aggregates into `board` once per frame and let `render` surgically update only
+ * the cells that changed. The single imperative piece is the canvas sparkline. */
 
-if (location.search.includes('devtools')) await import('data/devtools')
 import { $, value, render, HTML } from 'data/full'
 
-const { div, span, button, input, label, canvas } = HTML
+const { div, span, button, label, input, canvas } = HTML
 
-const WINDOW = 20_000
+/* ------------------------------- the domain ------------------------------ */
+
+const WINDOW = 20_000 // keep the last 20k requests; older slots are overwritten
+
 const ENDPOINTS = ['GET /feed', 'GET /user', 'POST /order', 'GET /search', 'GET /price', 'POST /auth', 'GET /chart', 'PUT /cart', 'GET /quote', 'DELETE /sess']
+const POPULARITY = [30, 20, 6, 16, 18, 5, 11, 4, 9, 3] // skewed, so the leaderboard has shape
 const STATUSES = [200, 201, 304, 400, 404, 429, 500, 503]
-const STATUS_CLASS = s => s < 300 ? 'ok' : s < 400 ? 'redir' : s < 500 ? 'warn' : 'bad'
-const BANDS = [['fast', '<50ms'], ['ok', '50–200'], ['slow', '200–500'], ['bad', '>500ms']]
-const band = l => l < 50 ? 'fast' : l < 200 ? 'ok' : l < 500 ? 'slow' : 'bad'
+const BANDS = [['fast', '< 50ms'], ['ok', '50–200'], ['slow', '200–500'], ['bad', '> 500ms']]
 
-function lcg (seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 0x1_0000_0000 } }
-const r = lcg(11)
-// per-endpoint base latency + error proclivity so the board has texture
-const base = ENDPOINTS.map((_, i) => ({ lat: 18 + i * 9 + (i === 2 ? 60 : 0), err: i === 2 ? 0.05 : i === 5 ? 0.04 : 0.01 }))
-// skewed popularity so the leaderboard has shape (and reorders as it warms up)
-const WEIGHT = [30, 20, 6, 16, 18, 5, 11, 4, 9, 3]
-const CUM = []; { let s = 0; for (const w of WEIGHT) { s += w; CUM.push(s) } }
-const TOTW = CUM[CUM.length - 1]
-function pickEp () { const x = r() * TOTW; for (let i = 0; i < CUM.length; i++) if (x < CUM[i]) return i; return CUM.length - 1 }
-let stress = 0, stressEp = 0 // occasional incident: one endpoint spikes latency + errors
+const statusClass = code => code < 300 ? 'ok' : code < 400 ? 'redir' : code < 500 ? 'warn' : 'bad'
+const latencyBand = ms => ms < 50 ? 'fast' : ms < 200 ? 'ok' : ms < 500 ? 'slow' : 'bad'
 
+// A tiny request generator with skewed endpoints, per-endpoint latency, and the
+// occasional incident that spikes one endpoint's latency and error rate.
+const rng = (seed => () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32)(11)
+const weighted = (() => {
+  const cumulative = POPULARITY.reduce((acc, w) => (acc.push((acc[acc.length - 1] || 0) + w), acc), [])
+  const total = cumulative[cumulative.length - 1]
+  return () => { const x = rng() * total; return cumulative.findIndex(c => x < c) }
+})()
+
+let incident = { ttl: 0, endpoint: 0 }
 function makeEvent () {
-  if (r() < 0.004) { stress = 90 + (r() * 120 | 0); stressEp = (r() * ENDPOINTS.length) | 0 }
-  const ep = pickEp()
-  const hot = stress > 0 && ep === stressEp
-  if (stress > 0) stress--
-  const b = base[ep]
-  let lat = Math.max(2, (b.lat + (hot ? 350 : 0)) * (0.5 + r() * 1.4))
-  let st = 200
-  const e = r()
-  const errP = b.err + (hot ? 0.4 : 0)
-  if (e < errP) st = r() < 0.5 ? 500 : 503
-  else if (e < errP + 0.018) st = r() < 0.5 ? 404 : 429
-  else if (e < errP + 0.032) st = r() < 0.5 ? 400 : 304
-  else if (r() < 0.04) st = 201
-  return { endpoint: ENDPOINTS[ep], status: st, lat: Math.round(lat) }
+  if (rng() < 0.004) incident = { ttl: 100 + (rng() * 120 | 0), endpoint: weighted() }
+  const i = weighted()
+  const hot = incident.ttl > 0 && i === incident.endpoint
+  if (incident.ttl > 0) incident.ttl--
+
+  const baseLatency = 18 + i * 9 + (i === 2 ? 60 : 0) + (hot ? 350 : 0)
+  const lat = Math.round(Math.max(2, baseLatency * (0.5 + rng() * 1.4)))
+
+  const errorChance = (i === 2 ? 0.05 : i === 5 ? 0.04 : 0.01) + (hot ? 0.4 : 0)
+  const roll = rng()
+  const status =
+    roll < errorChance ? (rng() < 0.5 ? 500 : 503)
+    : roll < errorChance + 0.018 ? (rng() < 0.5 ? 404 : 429)
+    : roll < errorChance + 0.032 ? (rng() < 0.5 ? 400 : 304)
+    : rng() < 0.04 ? 201
+    : 200
+
+  return { endpoint: ENDPOINTS[i], status, lat }
 }
 
-/* ---------------- the library's reactive layer ---------------- */
-// Seed the ring so the panels read sensibly on first paint.
+/* ================================ the pipeline =========================== */
+//
+//        events ──┬─ length(e => e.status)    → byStatus     (status codes)
+//   (a bounded    ├─ length(e => e.endpoint)  → byEndpoint   (leaderboard)
+//    ring buffer) ├─ length(e => band(e.lat)) → byLatency    (distribution)
+//                 └─ avg('lat')               → avgLatency   (rolling mean)
+//
+// Each derived view is maintained incrementally: a single event moves a couple
+// of counters / nudges a mean — never a rescan of the 20k-event window.
+
 const seed = {}
 for (let i = 0; i < WINDOW; i++) seed[i] = makeEvent()
-const events = $(seed)
 
+const events = $(seed)
 const byStatus = events.length(e => '' + e.status)
 const byEndpoint = events.length(e => e.endpoint)
-const byBand = events.length(e => band(e.lat))
-const avgLat = events.avg('lat')
-const errCount = events.length(e => e.status >= 400 ? 'err' : 'ok')
+const byLatency = events.length(e => latencyBand(e.lat))
+const avgLatency = events.avg('lat')
 
-const cnt = (view, key) => { const o = view[value]; const c = o && o[key]; return (c && c.value) || 0 }
+/* ---------------------------- the presentation view ---------------------- */
 
-/* ---------------- view ---------------- */
-const tile = (k, label, unit) => div.tile(div.tlabel(label), div.tval(span.attr('data-k', k)('—'), unit ? span.tunit(' ' + unit) : ''))
+// `length(group)` buckets look like { '200': { value: 4321 }, … }.
+const count = (groups, key) => (groups && groups[key] && groups[key].value) || 0
+const top = entries => entries.reduce((m, e) => Math.max(m, e.count), 1)
+
+// The view the DOM binds to. Refreshed once per frame in tick();
+// every field below maps directly to something on screen. Each bar row carries
+// a `name`, a `count`, and a `pct` (its share of the largest bar in the panel).
+const board = $({
+  rps: 0,
+  served: 0,
+  avg: 0,
+  errorRate: 0,
+  status: STATUSES.map(code => ({ name: '' + code, cls: statusClass(code), count: 0, pct: 0 })),
+  endpoints: ENDPOINTS.map(name => ({ name, cls: 'ep', count: 0, pct: 0 })),
+  latency: BANDS.map(([key, label]) => ({ key, label, count: 0, pct: 0 }))
+})
+
+function refreshBoard () {
+  const status = byStatus[value], endpoint = byEndpoint[value], latency = byLatency[value]
+
+  const statusRows = STATUSES.map(code => ({ name: '' + code, cls: statusClass(code), count: count(status, '' + code) }))
+  const endpointRows = ENDPOINTS.map(name => ({ name, cls: 'ep', count: count(endpoint, name) }))
+  const latencyRows = BANDS.map(([key, label]) => ({ key, label, count: count(latency, key) }))
+
+  const errors = STATUSES.filter(c => c >= 400).reduce((n, c) => n + count(status, '' + c), 0)
+  const total = STATUSES.reduce((n, c) => n + count(status, '' + c), 0)
+  const withPct = (rows, max) => rows.map(r => ({ ...r, pct: Math.round(r.count / max * 100) }))
+
+  board[value] = {
+    rps: Math.round(smoothedRps),
+    served,
+    avg: avgLatency[value] || 0,
+    errorRate: total ? errors / total * 100 : 0,
+    status: withPct(statusRows, top(statusRows)),
+    endpoints: withPct(endpointRows, top(endpointRows)).sort((a, b) => b.count - a.count),
+    latency: withPct(latencyRows, top(latencyRows))
+  }
+}
+
+/* --------------------------------- the view ------------------------------ */
+
+let rate = 12000 // target events/sec (the throughput slider); the rest of the stream state lives below
+
+const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : '' + Math.round(n)
+const pct = p => p.to(v => v + '%')
+
+const tile = (key, label, unit = '') => div.tile(
+  div.tlabel(label),
+  div.tval(span.attr('data-k', key).text(board[key].to(fmtTile[key])), unit && span.tunit(' ' + unit))
+)
+const fmtTile = {
+  rps: fmt, served: fmt,
+  avg: v => v.toFixed(1),
+  errorRate: v => v.toFixed(2)
+}
+
+const horizontalBars = (rows, klass) => div.bars[klass](div(rows, (row, r) => row.bar.nodes(
+  span.bname.text(r.name),
+  div.btrack(div.bfill.attr('data-cls', r.cls).style('width', pct(r.pct))),
+  span.bval.text(r.count.to(fmt))
+)))
 
 render(document.body, div.mapp(
   div.mbar(
     span.mbrand('◉  live metrics'),
-    label.mrate('throughput ', input['type=range']['min=200']['max=40000']['value=12000']['step=200'].on('input', e => { rate = +e.target.value; rateOut.textContent = fmtN(rate) + '/s' }), span.mrateout('—')),
-    button.mtoggle.on('click', toggleRun)
+    label.mrate('throughput ',
+      input['type=range']['min=400']['max=40000']['step=200'].attr('value', rate).on('input', e => setRate(+e.target.value)),
+      span.mrateout.text(board.rps.to(r => fmt(r) + '/s'))
+    ),
+    button.mtoggle.on('click', toggle)
   ),
+
   div.tiles(
     tile('rps', 'requests / sec'),
     tile('served', 'served (total)'),
     tile('avg', 'avg latency', 'ms'),
-    tile('err', 'error rate', '%')
+    tile('errorRate', 'error rate', '%')
   ),
+
   div.mgrid(
-    div.panel.span2(
-      div.ptitle('throughput', span.psub('requests / sec · last 60s')),
-      canvas.spark
-    ),
-    div.panel(
-      div.ptitle('status codes'),
-      div.bars.attr('id', 'status').nodes(...STATUSES.map(s => barRow('s' + s, s, STATUS_CLASS(s), byStatus.to(o => fmtN((o && o['' + s] && o['' + s].value) || 0)))))
-    ),
-    div.panel(
-      div.ptitle('endpoints', span.psub('by request count')),
-      div.bars.eps.attr('id', 'eps').nodes(...ENDPOINTS.map(ep => barRow('e' + ep, ep, 'ep', byEndpoint.to(o => fmtN((o && o[ep] && o[ep].value) || 0)))))
-    ),
-    div.panel(
-      div.ptitle('latency distribution'),
-      div.bands.nodes(...BANDS.map(([k, lbl]) => div.bandcol(
-        div.bandbar.attr('data-band', k).nodes(div.bandfill.attr('data-bk', k)),
-        div.bandval.text(byBand.to(o => fmtN((o && o[k] && o[k].value) || 0))),
-        div.bandlbl(lbl)
-      )))
-    )
+    div.panel.span2(div.ptitle('throughput', span.psub('requests / sec · last 60s')), canvas.spark),
+    div.panel(div.ptitle('status codes'), horizontalBars(board.status, 'status')),
+    div.panel(div.ptitle('endpoints', span.psub('by request count')), horizontalBars(board.endpoints, 'eps')),
+    div.panel(div.ptitle('latency distribution'), div.bands(
+      div(board.latency, (col, b) => col.bandcol.nodes(
+        div.bandbar(div.bandfill.attr('data-bk', b.key).style('height', pct(b.pct))),
+        div.bandval.text(b.count.to(fmt)),
+        div.bandlbl.text(b.label)
+      ))
+    ))
   )
 ))
 
-function barRow (k, name, cls, textVP) {
-  return div.bar.attr('data-bar', k).nodes(
-    span.bname(name),
-    div.btrack.nodes(div.bfill.attr('data-fill', k).attr('data-cls', cls)),
-    span.bval.text(textVP)
-  )
-}
+/* ------------------------------- the stream ------------------------------ */
+// Write events into the ring; the library propagates each into the derived
+// views. Once per frame we snapshot those into `board` and redraw the sparkline.
 
-/* ---------------- once-per-frame paint (widths + sparkline + tiles) ---------------- */
-const $$ = s => document.querySelector(s)
-const sparkEl = $$('.spark')
-const rateOut = $$('.mrateout')
-const toggleEl = $$('.mtoggle')
-const setText = (k, v) => { const el = document.querySelector(`[data-k=${k}]`); if (el) el.textContent = v }
-const fillEls = {}
-for (const el of document.querySelectorAll('[data-fill]')) fillEls[el.getAttribute('data-fill')] = el
-const bandFills = {}
-for (const el of document.querySelectorAll('[data-bk]')) bandFills[el.getAttribute('data-bk')] = el
+let running = false
+let slot = 0
+let served = 0
+let smoothedRps = 0
+let trafficScale = 1 // a slow random walk so throughput wobbles like real load
+let lastFrame = 0
+let frameId = 0
 
-const sctx = sparkEl.getContext('2d')
-const dpr = Math.max(1, devicePixelRatio || 1)
-function sizeSpark () { sparkEl.width = sparkEl.clientWidth * dpr; sparkEl.height = sparkEl.clientHeight * dpr }
-sizeSpark(); addEventListener('resize', sizeSpark)
-
-const hist = []; const HCAP = 240
-let rate = 12000, served = 0, running = false, raf = 0, lastT = 0, frac = 0
-let rpsSmooth = 0, jf = 1 // jf: slow random-walk traffic multiplier so throughput wobbles like real traffic
-rateOut.textContent = fmtN(rate) + '/s'
-
-let ptr = 0
-function frame (now) {
+function tick (now) {
   if (!running) return
-  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now
-  jf = Math.max(0.55, Math.min(1.45, jf + (r() - 0.5) * 0.08)) // organic traffic wobble
-  const owed = rate * jf * dt + frac; const k = Math.floor(owed); frac = owed - k
-  for (let i = 0; i < k; i++) { events[ptr] = makeEvent(); ptr = (ptr + 1) % WINDOW }
-  served += k
+  const dt = Math.min(0.1, (now - lastFrame) / 1000)
+  lastFrame = now
 
-  // smoothed req/s for the tile + sparkline
-  const inst = dt > 0 ? k / dt : 0
-  rpsSmooth = rpsSmooth ? rpsSmooth * 0.9 + inst * 0.1 : inst
-  hist.push(rpsSmooth); if (hist.length > HCAP) hist.shift()
+  trafficScale = clamp(trafficScale + (rng() - 0.5) * 0.08, 0.55, 1.45)
+  const n = Math.round(rate * trafficScale * dt)
+  for (let i = 0; i < n; i++) { events[slot] = makeEvent(); slot = (slot + 1) % WINDOW }
 
-  paint()
-  raf = requestAnimationFrame(frame)
+  served += n
+  smoothedRps = smoothedRps ? smoothedRps * 0.9 + (n / dt) * 0.1 : n / dt
+  pushSample(smoothedRps)
+
+  refreshBoard()
+  drawSparkline()
+  frameId = requestAnimationFrame(tick)
 }
 
-function paint () {
-  // tiles
-  setText('rps', fmtN(Math.round(rpsSmooth)))
-  setText('served', fmtN(served))
-  setText('avg', (avgLat[value] || 0).toFixed(1))
-  const total = cnt(errCount, 'ok') + cnt(errCount, 'err')
-  setText('err', total ? (cnt(errCount, 'err') / total * 100).toFixed(2) : '0.00')
-
-  // status + endpoint bar widths (relative to the largest in each panel)
-  paintBars(byStatus, STATUSES.map(s => ['s' + s, '' + s]))
-  paintBars(byEndpoint, ENDPOINTS.map(ep => ['e' + ep, ep]), true)
-  // latency bands (relative to window)
-  let bmax = 1; for (const [k] of BANDS) bmax = Math.max(bmax, cnt(byBand, k))
-  for (const [k] of BANDS) { const f = bandFills[k]; if (f) f.style.height = (cnt(byBand, k) / bmax * 100) + '%' }
-
-  drawSpark()
-}
-
-function paintBars (view, rows, reorder) {
-  const o = view[value]; let max = 1
-  const vals = rows.map(([fk, key]) => { const c = (o && o[key] && o[key].value) || 0; if (c > max) max = c; return [fk, key, c] })
-  for (const [fk, , c] of vals) { const el = fillEls[fk]; if (el) el.style.width = (c / max * 100) + '%' }
-  if (reorder) { const sorted = vals.slice().sort((a, b) => b[2] - a[2]); sorted.forEach(([fk], i) => { const bar = document.querySelector(`[data-bar=${CSS.escape(fk)}]`); if (bar) bar.style.order = i }) }
-}
-
-function drawSpark () {
-  const w = sparkEl.width, h = sparkEl.height
-  sctx.clearRect(0, 0, w, h)
-  if (hist.length < 2) return
-  let max = 1; for (const v of hist) if (v > max) max = v
-  const step = w / (HCAP - 1)
-  const y = v => h - (v / max) * (h - 6 * dpr) - 3 * dpr
-  sctx.beginPath(); sctx.moveTo(0, h)
-  for (let i = 0; i < hist.length; i++) sctx.lineTo(i * step, y(hist[i]))
-  sctx.lineTo((hist.length - 1) * step, h); sctx.closePath()
-  sctx.fillStyle = 'rgba(255,94,58,0.16)'; sctx.fill()
-  sctx.beginPath()
-  for (let i = 0; i < hist.length; i++) { const x = i * step, yy = y(hist[i]); i ? sctx.lineTo(x, yy) : sctx.moveTo(x, yy) }
-  sctx.strokeStyle = '#ff5e3a'; sctx.lineWidth = 1.6 * dpr; sctx.lineJoin = 'round'; sctx.stroke()
-}
-
-function toggleRun () {
+function toggle () {
   running = !running
   toggleEl.textContent = running ? '⏸ pause' : '▶ run'
   toggleEl.classList.toggle('on', running)
-  if (running) { lastT = performance.now(); raf = requestAnimationFrame(frame) } else cancelAnimationFrame(raf)
+  if (running) { lastFrame = performance.now(); frameId = requestAnimationFrame(tick) }
+  else cancelAnimationFrame(frameId)
 }
 
-function fmtN (n) { return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : '' + n }
+function setRate (v) { rate = v }
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x))
 
+/* the one imperative corner: a throughput sparkline on a canvas */
+const sparkEl = document.querySelector('.spark')
+const sctx = sparkEl.getContext('2d')
+const dpr = Math.max(1, devicePixelRatio || 1)
+const samples = []
+const SAMPLE_CAP = 240
+const sizeCanvas = () => { sparkEl.width = sparkEl.clientWidth * dpr; sparkEl.height = sparkEl.clientHeight * dpr }
+const pushSample = v => { samples.push(v); if (samples.length > SAMPLE_CAP) samples.shift() }
+sizeCanvas()
+addEventListener('resize', sizeCanvas)
+
+function drawSparkline () {
+  const w = sparkEl.width, h = sparkEl.height
+  sctx.clearRect(0, 0, w, h)
+  if (samples.length < 2) return
+  const max = Math.max(...samples, 1)
+  const step = w / (SAMPLE_CAP - 1)
+  const y = v => h - (v / max) * (h - 6 * dpr) - 3 * dpr
+
+  sctx.beginPath()
+  sctx.moveTo(0, h)
+  samples.forEach((v, i) => sctx.lineTo(i * step, y(v)))
+  sctx.lineTo((samples.length - 1) * step, h)
+  sctx.closePath()
+  sctx.fillStyle = 'rgba(255,94,58,0.16)'
+  sctx.fill()
+
+  sctx.beginPath()
+  samples.forEach((v, i) => i ? sctx.lineTo(i * step, y(v)) : sctx.moveTo(i * step, y(v)))
+  sctx.strokeStyle = '#ff5e3a'
+  sctx.lineWidth = 1.6 * dpr
+  sctx.lineJoin = 'round'
+  sctx.stroke()
+}
+
+const toggleEl = document.querySelector('.mtoggle')
 toggleEl.textContent = '▶ run'
-paint()
-if (!matchMedia('(prefers-reduced-motion: reduce)').matches) toggleRun()
-Object.assign(window, { metrics: { events, byStatus, avgLat, value } })
+refreshBoard()
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) toggle()
