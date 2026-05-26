@@ -22,7 +22,7 @@ test('pivot — aggregates, re-pivots on dimension change, streams', async ({ pa
   await expect(page.locator('table.ptable')).toHaveCount(1)
   await expect(page.locator('.prow')).toHaveCount(5)
   await expect(page.locator('.pcell')).toHaveCount(20)
-  await expect(page.locator('[data-grand]')).toHaveText(/\d/)
+  await expect(page.locator('.pgrand')).toHaveText(/\d/)
 
   // changing the column dimension re-pivots to ONE table (no append) with new headers
   await page.selectOption('.pvctrl:has-text("cols") .psel', 'category')
@@ -31,7 +31,7 @@ test('pivot — aggregates, re-pivots on dimension change, streams', async ({ pa
   await expect(page.locator('.pcell')).toHaveCount(25)
 
   // streaming inserts/evicts move the incrementally-kept grand total
-  const grand = () => page.locator('[data-grand]').textContent()
+  const grand = () => page.locator('.pgrand').textContent()
   const g1 = await grand()
   await page.locator('.pvstream').click({ force: true })
   await page.waitForTimeout(700)
