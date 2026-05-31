@@ -223,7 +223,11 @@ aside span:nth-child(3) {
   max-width: 100%;
   justify-self: start;
 }
-.chart svg { display: block; }
+/* touch-action: none keeps the browser from stealing horizontal drags as
+   page-pan/zoom on mobile, which would otherwise throttle or drop the
+   pointermove events the brush relies on. user-select: none stops a
+   long-press from kicking off the iOS text-selection callout mid-brush. */
+.chart svg { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
 
 .title {
   font: 500 0.7rem/1 var(--mono);
