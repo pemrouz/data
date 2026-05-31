@@ -340,6 +340,11 @@ window.v = value
                     exDown = false
                     this.releasePointerCapture?.(d.pointerId)
                     exWrite?.flush()
+                  })
+                  .on('pointercancel', function (d) {
+                    exDown = false
+                    this.releasePointerCapture?.(d.pointerId)
+                    exWrite?.flush()
                   }),
                 ...[0, 1].map(resizeHandle(filter, domain, x, rx, round))
               )
@@ -358,6 +363,11 @@ window.v = value
     return node
       .on('pointerdown', function (d) {
         down = true
+        // setPointerCapture on the background hit-rect so a drag started
+        // here keeps receiving pointermove even if the finger drifts off
+        // the SVG (or onto a sibling card). Without this, mobile drops the
+        // stream the moment the contact wanders.
+        this.setPointerCapture?.(d.pointerId)
         initial = apply(c(this, d))
         write = filter.raf()
         filter[value] = [initial, initial]
@@ -370,8 +380,19 @@ window.v = value
             : [new_val, initial])
         }
       })
-      .on('pointerup', d => {
+      .on('pointerup', function (d) {
         down = false
+        this.releasePointerCapture?.(d.pointerId)
+        write?.flush()
+        if (filter.first()[value] === filter.last()[value])
+          filter[value] = []
+      })
+      .on('pointercancel', function (d) {
+        // Browser may cancel the touch when a competing gesture wins (e.g.
+        // iOS edge-swipe). Mirror pointerup so the brush doesn't get stuck
+        // in a "down" state with no way to release it.
+        down = false
+        this.releasePointerCapture?.(d.pointerId)
         write?.flush()
         if (filter.first()[value] === filter.last()[value])
           filter[value] = []
@@ -418,6 +439,11 @@ window.v = value
           write(cur < other ? [cur, other] : [other, cur])
         })
         .on('pointerup', function (d) {
+          down = false
+          this.releasePointerCapture?.(d.pointerId)
+          write?.flush()
+        })
+        .on('pointercancel', function (d) {
           down = false
           this.releasePointerCapture?.(d.pointerId)
           write?.flush()
