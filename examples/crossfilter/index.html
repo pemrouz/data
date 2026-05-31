@@ -263,6 +263,8 @@ window.v = value
     const clip_path = `url(${clip_name})`
     const margin = { top: 10, right: 10, bottom: 20, left: 10 }
     const height = 100
+    const svgW = width + margin.left + margin.right
+    const svgH = height + margin.top + margin.bottom
     const x = scale(domain, [0, width])
     const rx = scale([0, width], domain)
     const max = data.max('value')
@@ -275,7 +277,12 @@ window.v = value
       .to(bars(max, domain, width, name))
     const reset = () => (filters[name] = [])
 
-    let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite
+    // exScale converts incoming screen-px deltas back into SVG-px before
+    // they reach `rx`. With viewBox + responsive CSS the SVG can be drawn
+    // at less than its design width on narrow viewports; without scaling
+    // the brush would land at the wrong domain value (off by the CSS
+    // shrink factor). Re-measured on every pointerdown from the bg rect.
+    let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exScale = 1, exWrite
 
     return node(
       div.title(
@@ -285,8 +292,9 @@ window.v = value
           .on('click', reset),
       ),
       svg
-        .attr('width', width + margin.left + margin.right)
-        .attr('height', height + margin.top + margin.bottom)(
+        .attr('viewBox', `0 0 ${svgW} ${svgH}`)
+        .attr('width', svgW)
+        .attr('height', svgH)(
           g
             .attr('transform', 'translate(10, 10)')(
               clipPath[clip_name](
@@ -318,15 +326,18 @@ window.v = value
                     if (!filter[value]?.length) return
                     exDown = true
                     this.setPointerCapture(d.pointerId)
-                    exLeftRef = this.parentNode.getBoundingClientRect().left
-                    exInitial = rx(d.x - exLeftRef)
+                    const bg = this.parentNode.querySelector('.background')
+                    const r = bg.getBoundingClientRect()
+                    exLeftRef = r.left
+                    exScale = width / r.width
+                    exInitial = rx((d.x - exLeftRef) * exScale)
                     exBase = [filter.first()[value], filter.last()[value]]
                     exWrite = filter.raf()
                     d.stopPropagation()
                   })
                   .on('pointermove', function (d) {
                     if (!exDown) return
-                    const cur = rx(d.x - exLeftRef)
+                    const cur = rx((d.x - exLeftRef) * exScale)
                     const delta = cur - exInitial
                     const span = exBase[1] - exBase[0]
                     let lo = exBase[0] + delta
@@ -346,7 +357,7 @@ window.v = value
                     this.releasePointerCapture?.(d.pointerId)
                     exWrite?.flush()
                   }),
-                ...[0, 1].map(resizeHandle(filter, domain, x, rx, round))
+                ...[0, 1].map(resizeHandle(filter, domain, x, rx, round, width))
               )
             )
         )
@@ -357,7 +368,8 @@ window.v = value
     let down = false
     let initial
     let write
-    const c = (el, { x }) => rx(x - el.getBoundingClientRect().left)
+    let leftRef = 0
+    let scaleRatio = 1
     const apply = round || (v => v)
 
     return node
@@ -368,13 +380,18 @@ window.v = value
         // the SVG (or onto a sibling card). Without this, mobile drops the
         // stream the moment the contact wanders.
         this.setPointerCapture?.(d.pointerId)
-        initial = apply(c(this, d))
+        // Re-measure on every drag so the scale ratio is current — the
+        // viewport may have been rotated/resized since the chart mounted.
+        const r = this.getBoundingClientRect()
+        leftRef = r.left
+        scaleRatio = width / r.width
+        initial = apply(rx((d.x - leftRef) * scaleRatio))
         write = filter.raf()
         filter[value] = [initial, initial]
       })
       .on('pointermove', function (d) {
         if (down) {
-          const new_val = apply(c(this, d))
+          const new_val = apply(rx((d.x - leftRef) * scaleRatio))
           write(new_val > initial
             ? [initial, new_val]
             : [new_val, initial])
@@ -399,11 +416,12 @@ window.v = value
       })
   }
 
-  function resizeHandle(filtersArr, initial, x, rx, round) {
+  function resizeHandle(filtersArr, initial, x, rx, round, width) {
     return function (i) {
       let down = false
       let write
       let leftRef = 0
+      let scaleRatio = 1
       const translate = (d = initial[i]) => `translate(${x(d)}, 0)`
       const filter = filtersArr[i]
       const apply = round || (v => v)
@@ -428,13 +446,16 @@ window.v = value
         .on('pointerdown', function(d) {
           down = true
           this.setPointerCapture(d.pointerId)
-          leftRef = this.parentNode.getBoundingClientRect().left
+          const bg = this.parentNode.querySelector('.background')
+          const r = bg.getBoundingClientRect()
+          leftRef = r.left
+          scaleRatio = width / r.width
           write = filtersArr.raf()
           d.stopPropagation()
         })
         .on('pointermove', function(e){
           if (!down) return
-          const cur = apply(rx(e.x - leftRef))
+          const cur = apply(rx((e.x - leftRef) * scaleRatio))
           const other = filtersArr[1 - i][value]
           write(cur < other ? [cur, other] : [other, cur])
         })

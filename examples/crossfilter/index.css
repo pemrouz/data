@@ -226,8 +226,18 @@ aside span:nth-child(3) {
 /* touch-action: none keeps the browser from stealing horizontal drags as
    page-pan/zoom on mobile, which would otherwise throttle or drop the
    pointermove events the brush relies on. user-select: none stops a
-   long-press from kicking off the iOS text-selection callout mid-brush. */
-.chart svg { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+   long-press from kicking off the iOS text-selection callout mid-brush.
+   max-width:100% + height:auto lets the SVG scale down inside narrow
+   cards (mobile) while keeping its design size when there's room; relies
+   on each SVG carrying a viewBox so the intrinsic aspect ratio is known. */
+.chart svg {
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  max-width: 100%;
+  height: auto;
+}
 
 .title {
   font: 500 0.7rem/1 var(--mono);
