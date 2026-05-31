@@ -107,6 +107,14 @@ export function createChart(parent, opts) {
     bgClickHit.releasePointerCapture?.(e.pointerId)
     if (currentRange.length === 2 && currentRange[0] === currentRange[1]) fireRange([])
   })
+  // pointercancel mirrors pointerup. The browser fires it (instead of
+  // pointerup) when a competing gesture wins — iOS edge-swipe, scroll
+  // preemption, etc. Without this the brush gets stuck in down=true.
+  bgClickHit.addEventListener('pointercancel', e => {
+    bgDown = false
+    bgClickHit.releasePointerCapture?.(e.pointerId)
+    if (currentRange.length === 2 && currentRange[0] === currentRange[1]) fireRange([])
+  })
 
   // extent drag: translate
   let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0
@@ -135,6 +143,10 @@ export function createChart(parent, opts) {
     exDown = false
     extentRect.releasePointerCapture?.(e.pointerId)
   })
+  extentRect.addEventListener('pointercancel', e => {
+    exDown = false
+    extentRect.releasePointerCapture?.(e.pointerId)
+  })
 
   // resize handles
   for (const h of handles) {
@@ -152,6 +164,10 @@ export function createChart(parent, opts) {
       fireRange(cur < other ? [cur, other] : [other, cur])
     })
     h.el.addEventListener('pointerup', e => {
+      h.down = false
+      h.el.releasePointerCapture?.(e.pointerId)
+    })
+    h.el.addEventListener('pointercancel', e => {
       h.down = false
       h.el.releasePointerCapture?.(e.pointerId)
     })
