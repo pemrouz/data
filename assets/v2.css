@@ -386,6 +386,11 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
 .gcard-links a { border: 0; color: var(--dim); }
 .gcard-links a:first-child { color: var(--accent); }
 .gcard-links a:hover { color: var(--accent); }
+/* Featured card spans the gallery width so the essay reads as the headline
+ * entry — distinct from the runnable apps in the rest of the row. */
+.gcard-feature { grid-column: 1 / -1; border-left: 3px solid var(--accent); }
+.gcard-feature .gcard-tag { color: var(--accent); }
+.gcard-feature h3 { font-size: 1.15rem; }
 
 /* ---------- footer ---------- */
 footer { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: 2.5rem 0 4rem; border-top: 1px solid var(--rule); font: 0.82rem var(--mono); color: var(--dim); }

@@ -10,10 +10,6 @@
 !**/flights.js
 !assets/*.js
 !examples/multidim/**/*.js
-!examples/spreadsheet/**/*.js
-!examples/datagrid/**/*.js
-!examples/metrics/**/*.js
-!examples/pivot/**/*.js
 !examples/flow/**/*.js
 !mockups/**/*.js
 
