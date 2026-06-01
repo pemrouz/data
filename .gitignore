@@ -14,6 +14,7 @@
 !examples/datagrid/**/*.js
 !examples/metrics/**/*.js
 !examples/pivot/**/*.js
+!examples/flow/**/*.js
 !mockups/**/*.js
 
 # dist/ is committed so GitHub Pages (branch deploy) can serve the importmap

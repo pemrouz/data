@@ -1,0 +1,404 @@
+:root {
+  --bg: #0c0c0d;
+  --paper: #f5f3ee;
+  --ink: #1b1a17;
+  --dim: #5c5a55;
+  --faint: #8d8b85;
+  --rule: #d8d4cb;
+  --rule-soft: #e8e4d9;
+  --panel: #f9f7f1;
+  --panel-2: #efece3;
+  --accent: #c1432b;
+  --pos: #2d7a5f;
+  --neg: #b5341e;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --serif: "Charter", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { font: 17px/1.65 var(--serif); }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+a:hover { color: var(--ink); }
+
+/* ---- layout ---- */
+.essay {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4rem) clamp(1.25rem, 4vw, 2rem) 4rem;
+}
+.essay section { margin: 3rem 0; }
+
+/* ---- masthead ---- */
+.masthead { margin: 1rem 0 4rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
+.kicker {
+  display: inline-block; font: 500 0.7rem var(--mono);
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 1.25rem;
+}
+.masthead h1 {
+  font: 500 clamp(2rem, 5vw, 3rem)/1.1 var(--serif);
+  letter-spacing: -0.015em;
+  margin: 0 0 1.5rem;
+}
+.standfirst {
+  font: 400 1.1rem/1.55 var(--serif);
+  color: var(--dim);
+  margin: 0 0 1rem;
+  max-width: 60ch;
+}
+.byline { font: 0.8rem var(--mono); color: var(--faint); margin: 1.25rem 0 0; }
+.byline a { color: var(--faint); border-bottom-color: var(--rule); }
+.byline a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* ---- section heading ---- */
+.hd { display: flex; align-items: baseline; gap: 1rem; margin: 0 0 1.5rem; }
+.hno {
+  font: 500 0.72rem var(--mono); letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--accent);
+  flex-shrink: 0; min-width: 2.5ch;
+}
+.essay h2 {
+  font: 500 1.4rem/1.25 var(--serif);
+  letter-spacing: -0.01em;
+  margin: 0;
+  max-width: 28ch;
+}
+
+/* ---- prose ---- */
+.essay p { margin: 0 0 1rem; max-width: 64ch; }
+.essay p:last-child { margin-bottom: 0; }
+.essay em { font-style: italic; }
+.essay q { font-style: italic; quotes: '“' '”'; }
+.essay q:before { content: open-quote; }
+.essay q:after  { content: close-quote; }
+.essay code {
+  font: 0.88em var(--mono);
+  background: var(--panel-2);
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  color: var(--ink);
+}
+pre.code {
+  font: 13px/1.55 var(--mono);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  color: var(--ink);
+}
+pre.code code { background: none; padding: 0; font-size: inherit; border-radius: 0; }
+
+/* ---- figure base ---- */
+.fig {
+  margin: 1.75rem 0;
+  padding: 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.fig-wide {
+  /* Break out of the prose column for the dataflow graph. */
+  margin-left: calc(50% - 50vw + 1.25rem);
+  margin-right: calc(50% - 50vw + 1.25rem);
+  max-width: calc(100vw - 2.5rem);
+  width: auto;
+}
+@media (min-width: 1080px) {
+  .fig-wide { margin-left: -120px; margin-right: -120px; max-width: 960px; }
+}
+
+/* =========================================================================
+ * §2 — A view is a query that lives
+ * ========================================================================= */
+.qfig {}
+.qfig-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 640px) { .qfig-cols { grid-template-columns: 1fr; } }
+.qfig-col h4 {
+  font: 500 0.7rem var(--mono); letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--faint);
+  margin: 0 0 0.75rem;
+}
+/* SOURCE rows (left column) — represent intrinsic data state. A toggle dot
+ * on the left signals .active / inactive. Border stays neutral so the
+ * column reads as "the data", not "the filtered output". */
+.qrow {
+  display: flex; align-items: center; gap: 0.65rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  background: var(--paper);
+  font: 13px var(--mono);
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+  transition: border-color 150ms, opacity 200ms;
+}
+.qrow:hover { border-color: var(--rule); }
+.qrow:before {
+  content: ''; display: inline-block; width: 9px; height: 9px;
+  border-radius: 50%; border: 1px solid var(--faint); background: transparent;
+  flex-shrink: 0; transition: background 150ms, border-color 150ms;
+}
+.qrow.on:before  { background: var(--pos); border-color: var(--pos); }
+.qrow.off:before { background: transparent; border-color: var(--rule); }
+.qrow.off { opacity: 0.5; }
+.qrow .qid { color: var(--faint); }
+.qrow .qval { color: var(--ink); font-variant-numeric: tabular-nums; margin-left: auto; }
+
+/* FILTER-VIEW slots (right column) — represent membership in the
+ * materialized view. Filled rows are emphatically "in the view"; empty
+ * slots are clearly placeholders, preserving vertical alignment with the
+ * corresponding source row on the left. */
+.qrow.slot { cursor: default; }
+.qrow.slot:before { display: none; }  /* no toggle dot — these aren't toggleable */
+.qrow.slot.show {
+  border-color: var(--pos);
+  border-left-width: 3px;
+  background: rgba(45, 122, 95, 0.06);
+}
+.qrow.slot.hide {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--rule);
+  opacity: 0.4;
+}
+.qrow.slot.hide .qid,
+.qrow.slot.hide .qval { visibility: hidden; }
+.qrow.slot.show .qid,
+.qrow.slot.show .qval { animation: enterRow 600ms ease-out; }
+@keyframes enterRow {
+  0%   { color: var(--paper); background: var(--pos); padding: 0 0.3em; border-radius: 3px; }
+  100% { color: inherit; background: transparent; padding: 0; }
+}
+.qcount {
+  font: 500 0.8rem var(--mono); color: var(--dim);
+  margin-bottom: 0.75rem;
+}
+.qcount strong { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* =========================================================================
+ * §3 — Cost is Δ, not N
+ * ========================================================================= */
+.cfig {}
+.cfig-meta {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; align-items: baseline;
+  margin-bottom: 1rem;
+}
+.cfig-meta label {
+  font: 0.78rem var(--mono); color: var(--faint);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.cfig-meta select {
+  font: 0.85rem var(--mono); color: var(--ink);
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 0.25rem 0.5rem;
+}
+.cfig-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 560px) { .cfig-stats { grid-template-columns: 1fr; } }
+.cstat {
+  background: var(--paper); border: 1px solid var(--rule-soft);
+  border-radius: 6px; padding: 0.65rem 0.85rem;
+}
+.cstat .cstat-l {
+  font: 0.7rem var(--mono); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--faint);
+  margin-bottom: 0.2rem;
+}
+.cstat .cstat-v {
+  font: 600 1.4rem var(--mono); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.cstat.naive .cstat-v { color: var(--neg); }
+.cstat.real .cstat-v  { color: var(--pos); }
+.cstat .cstat-v.flash { animation: cflash 700ms ease-out; }
+@keyframes cflash {
+  0%   { background: var(--accent); color: var(--paper); border-radius: 3px; padding: 0 0.2em; }
+  100% { background: transparent; padding: 0; }
+}
+.cfig-action {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+.cbtn {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 6px; color: var(--ink); font: 500 0.85rem var(--mono);
+  padding: 0.55rem 0.9rem; cursor: pointer; transition: border-color 150ms;
+}
+.cbtn:hover { border-color: var(--accent); color: var(--accent); }
+.cnote {
+  font: 0.78rem var(--mono); color: var(--faint);
+  margin-top: 0.75rem;
+}
+
+/* =========================================================================
+ * §4 — Selectivity pulse (graph)
+ * ========================================================================= */
+.pfig { padding: 1.5rem 1.25rem; }
+.pfig-stage {
+  display: grid; grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 1.25rem; align-items: stretch;
+}
+@media (max-width: 760px) { .pfig-stage { grid-template-columns: 1fr; } }
+.pgraph-host { min-height: 360px; }
+.pgsvg { width: 100%; height: auto; display: block; }
+
+.node .bg { fill: var(--paper); stroke: var(--rule); stroke-width: 1; transition: stroke 200ms, filter 200ms, fill 200ms; }
+.node .label { font: 500 13px var(--mono); fill: var(--ink); letter-spacing: -0.01em; }
+.node .sub { font: 11px var(--mono); fill: var(--dim); }
+.node.source .bg { fill: var(--panel-2); stroke: var(--faint); }
+.node.lit .bg { fill: #fef4f1; stroke: var(--accent); filter: drop-shadow(0 0 4px rgba(193, 67, 43, 0.35)); }
+.node.lit .label { fill: var(--accent); }
+
+.srow { fill: var(--rule); transition: fill 200ms; }
+.srow.target { fill: var(--faint); }
+.node.source.lit .srow.target { fill: var(--accent); }
+
+.edge { fill: none; stroke: var(--rule); stroke-width: 1.4; transition: stroke 250ms, opacity 250ms; opacity: 0.65; }
+.edge.lit { stroke: var(--accent); opacity: 1; }
+.pulse {
+  fill: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(193, 67, 43, 0.7));
+  stroke: var(--paper); stroke-width: 1.5;
+}
+
+.ppanel {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 0.9rem 1rem;
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.ppanel-h {
+  font: 0.66rem var(--mono); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 0.25rem;
+}
+.prow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.plabel { color: var(--dim); font: 0.85rem var(--mono); }
+.pval { font: 600 1.05rem var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.pval.flash { animation: pflash 600ms ease-out; }
+@keyframes pflash {
+  0%   { background: var(--accent); color: var(--paper); border-radius: 3px; padding: 0 0.3em; }
+  100% { background: transparent; color: var(--ink); padding: 0; }
+}
+
+.pcontrols {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+  margin-top: 1rem;
+}
+@media (max-width: 720px) { .pcontrols { grid-template-columns: 1fr; } }
+.pbtn {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 6px; color: var(--ink); font: inherit;
+  padding: 0.7rem 0.85rem; cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 0.15rem;
+  transition: border-color 160ms, background 160ms, transform 80ms;
+}
+.pbtn:hover { border-color: var(--accent); }
+.pbtn:active { transform: translateY(1px); background: #fdece6; }
+.pbtn.pbtn-fired { animation: btnFire 500ms ease-out; }
+@keyframes btnFire {
+  0%   { background: var(--accent); border-color: var(--accent); }
+  60%  { background: #fdece6; border-color: var(--accent); }
+  100% { background: var(--paper); border-color: var(--rule); }
+}
+.pbtn-t { font: 500 0.85rem var(--mono); color: var(--ink); }
+.pbtn-h { font: 0.72rem var(--mono); color: var(--faint); }
+.pauto {
+  font: 0.7rem var(--mono); color: var(--faint);
+  margin-top: 0.75rem; text-align: right;
+}
+.pauto.on { color: var(--accent); }
+.pauto:before {
+  content: "●"; display: inline-block; margin-right: 0.3em;
+  color: var(--faint); transition: color 200ms;
+}
+.pauto.on:before { color: var(--accent); }
+
+/* =========================================================================
+ * §5 — Composition (per-region counts)
+ * ========================================================================= */
+.gfig {}
+.gfig-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 560px) { .gfig-grid { grid-template-columns: repeat(2, 1fr); } }
+.gcell {
+  background: var(--paper); border: 1px solid var(--rule-soft);
+  border-radius: 6px; padding: 0.6rem 0.8rem;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.gcell-k {
+  font: 0.7rem var(--mono); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--faint);
+}
+.gcell-v {
+  font: 600 1.5rem var(--mono); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.gcell-v.flash { animation: cflash 600ms ease-out; }
+.gfig-controls {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+
+/* =========================================================================
+ * §6 — Change log + fold
+ * ========================================================================= */
+.lfig {}
+.lfig-cols {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 640px) { .lfig-cols { grid-template-columns: 1fr; } }
+.lfig-col h4 {
+  font: 500 0.7rem var(--mono); letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--faint);
+  margin: 0 0 0.65rem;
+}
+.lfig-loglist, .lfig-state {
+  background: var(--paper); border: 1px solid var(--rule-soft);
+  border-radius: 6px; padding: 0.65rem 0.8rem;
+  min-height: 200px;
+  font: 12px/1.55 var(--mono);
+}
+.lrec, .lrow {
+  padding: 0.2rem 0;
+  color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lrec.faint, .lrow.faint { color: var(--faint); }
+.lrec.fresh {
+  animation: lrecFresh 700ms ease-out;
+}
+@keyframes lrecFresh {
+  0%   { background: var(--pos); color: var(--paper); padding-left: 0.4rem; padding-right: 0.4rem; border-radius: 3px; }
+  100% { background: transparent; color: var(--ink); padding-left: 0; padding-right: 0; }
+}
+.lfig-meta {
+  margin-top: 0.5rem;
+  font: 0.7rem var(--mono); letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.lfig-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ---- footer ---- */
+.essay-foot {
+  margin-top: 4rem; padding-top: 2rem;
+  border-top: 1px solid var(--rule);
+  display: flex; justify-content: space-between; align-items: baseline;
+  font: 0.85rem var(--mono); color: var(--faint);
+}
+.essay-foot a { color: var(--accent); border-bottom-color: var(--rule); }
+.essay-foot a:hover { color: var(--ink); }
+.muted { color: var(--faint); }

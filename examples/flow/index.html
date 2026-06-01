@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data — what is a materialized view, and why does it matter</title>
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+<article class="essay">
+
+  <header class="masthead">
+    <span class="kicker">essay · materialized views</span>
+    <h1>What is a materialized view,<br>and why does it matter</h1>
+    <p class="standfirst">
+      Most code treats data as a thing you fetch, compute, and throw away.
+      A reactive view inverts that: the answer to your query stays alive,
+      and the runtime maintains it as the underlying data changes. This is
+      what that means in practice — and what the pieces of a real
+      implementation look like.
+    </p>
+    <p class="byline"><a href="../../">data</a> · open source · MIT</p>
+  </header>
+
+  <section id="setup">
+    <div class="hd"><span class="hno">01</span><h2>The setup</h2></div>
+    <p>
+      Picture the simplest query: <em>how many orders are active.</em> In the
+      way most apps are written, you read the orders list, run a filter,
+      count what comes back, and write the number to the page. When something
+      changes — a new order, a toggled flag — you do the whole thing again.
+      Fetch, compute, throw away. Repeat.
+    </p>
+    <p>
+      This works, but it's wasteful. The <em>answer</em> to <q>how many are
+      active</q> is a small integer, and it changes by at most one when a
+      single row flips. Yet you've recomputed it as though nothing was known
+      a moment before.
+    </p>
+    <p>
+      A reactive view inverts that. The answer is something the runtime keeps
+      alive — a <em>materialized view</em> that exists between observations
+      and is <em>maintained</em> as the data underneath shifts. You declare
+      the relationship once; the runtime does the bookkeeping.
+    </p>
+  </section>
+
+  <section id="query-lives">
+    <div class="hd"><span class="hno">02</span><h2>A view is a query that lives</h2></div>
+    <p>
+      Write <code>$(orders).filter(o =&gt; o.active)</code> and the framework
+      doesn't run the filter. It builds a small object — an <em>index</em> —
+      whose contents track which rows pass the predicate. The first
+      observation populates it. Every subsequent change to <code>orders</code>
+      updates the index in place: when a row's <code>active</code> flips to
+      <code>true</code>, the runtime pushes one <em>enter</em> event
+      downstream; when it flips back, one <em>leave</em>.
+    </p>
+    <p>
+      The filter itself never re-scans. The work each change costs is
+      proportional to the size of the change, not the size of the dataset.
+      Click any row below to flip its <code>active</code> flag and watch the
+      filtered view update in place.
+    </p>
+    <figure class="fig" id="fig-query-lives"></figure>
+    <pre class="code"><code>const orders = $([{ id: 1, active: true, value: 87 }, …])
+const active = orders.filter(o =&gt; o.active)
+// `active` is now a live view. Reading it is free; mutating
+// `orders` keeps it correct.</code></pre>
+  </section>
+
+  <section id="cost-is-delta">
+    <div class="hd"><span class="hno">03</span><h2>The cost of a change is the size of the change, not the size of the dataset</h2></div>
+    <p>
+      This is the central claim, and it has a name: <em>incremental view
+      maintenance</em>. If your data has <code>N</code> rows and one row
+      changes, the cost to update every downstream view should be
+      <code>O(Δ)</code>, not <code>O(N)</code>.
+    </p>
+    <p>
+      In practice, a small constant amount of work happens at each operator
+      the change passes through. A filter does one membership decision; a
+      counter does one increment; a sum does one addition or subtraction.
+      The cost scales with the <em>path</em> the change walks, not with what
+      sits upstream.
+    </p>
+    <p>
+      Scale the dataset below and insert a row. The work-per-insert stays
+      flat as <code>N</code> grows by three orders of magnitude. A naive
+      recompute would scale linearly.
+    </p>
+    <figure class="fig" id="fig-cost-delta"></figure>
+  </section>
+
+  <section id="selectivity">
+    <div class="hd"><span class="hno">04</span><h2>Selectivity: changes walk only the edges they need</h2></div>
+    <p>
+      If a single change costs <code>O(Δ)</code>, what determines
+      <code>Δ</code>? The dependency graph. Each operator is a node; each
+      derives-from relationship is an edge. When you mutate a field, the
+      change propagates through operators that read that field — and not
+      through the ones that don't.
+    </p>
+    <p>
+      Below is a small graph: <code>$(orders)</code> feeds
+      <code>filter(o =&gt; o.active)</code>, which in turn feeds
+      <code>length()</code> and <code>sum('value')</code>. Separately,
+      <code>avg('value')</code> derives directly from the source.
+    </p>
+    <p>
+      The pulse on each tick traces the actual path the change walked.
+      Toggling <code>active</code> lights filter → length and filter → sum,
+      but never touches <code>avg</code> (it doesn't depend on
+      <code>active</code>). Bumping <code>value</code> wakes <code>avg</code>
+      and <code>sum</code> — but <code>filter</code> and <code>length</code>
+      stay dim because membership didn't change.
+    </p>
+    <figure class="fig fig-wide" id="fig-pulse"></figure>
+    <p>
+      This is what people mean when they call reactive systems
+      <em>sparse</em>: propagation is local. It's also what makes the model
+      composable. Adding another operator to the graph doesn't slow anything
+      else down, because nothing else is on its path.
+    </p>
+  </section>
+
+  <section id="composition">
+    <div class="hd"><span class="hno">05</span><h2>Composition: pipelines are graphs of small invariants</h2></div>
+    <p>
+      A complex pipeline is a sequence of operators where each holds a
+      one-sentence contract. <code>filter</code> says: <em>I am the subset of
+      rows satisfying this predicate.</em> <code>group</code> says: <em>I am
+      the partition of rows by this key.</em> <code>length</code> says:
+      <em>I am the cardinality of my upstream.</em> Compose them and you get
+      an expression that maintains a non-trivial derived structure — a
+      leaderboard, a histogram, a pivot — with the same incremental
+      guarantee at every step.
+    </p>
+    <p>
+      You don't write the propagation. You don't say <q>when a row enters
+      the filter, increment the group's counter.</q> You declare the
+      relationships, and the runtime walks them.
+    </p>
+    <figure class="fig" id="fig-composition"></figure>
+    <pre class="code"><code>// One expression. The runtime maintains the whole chain.
+const perRegion = orders.length(o =&gt; o.active ? o.region : null)
+// {north: 7, south: 9, east: 6, west: 8} — updates in place.</code></pre>
+  </section>
+
+  <section id="log">
+    <div class="hd"><span class="hno">06</span><h2>The log is the source of truth; state is the fold</h2></div>
+    <p>
+      Step back from the operators for a moment and look at what's actually
+      flowing between them. It isn't state. It's a sequence of small
+      records — <em>insert this row, update this field, remove this key</em>
+      — each one a self-describing claim about a single change.
+    </p>
+    <p>
+      Every operator in the graph speaks this same vocabulary. The source
+      emits records when you mutate it. <code>filter</code> consumes them
+      and emits new records (the rows that pass). <code>length</code>
+      consumes those and emits an updated count. The propagation pulse from
+      §4 is, concretely, a record threading through the graph.
+    </p>
+    <p>
+      This is the same insight Jay Kreps put at the centre of his essay
+      <a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying">on the log</a>:
+      the log of changes is the system of record, and any piece of state is
+      just <em>a fold over the log up to now</em>. Replay the log from the
+      beginning into the same fold and you reconstruct the same state.
+      Subscribe a new consumer to the log and it can catch up the same way.
+    </p>
+    <p>
+      Below: a live view of the records emitted by mutating
+      <code>orders</code>. Each click pushes one record onto the log; the
+      panel on the right is <code>state = log.reduce(apply, [])</code> —
+      literally that fold, computed on the spot. The records are what's
+      real; the state is a window into the most-recent value of the fold.
+    </p>
+    <figure class="fig" id="fig-log"></figure>
+    <pre class="code"><code>// Every operator is fundamentally a record-transformer.
+//
+//   orders ──── { insert, key: 8, value: {...} } ────►
+//                                                     │
+//   filter ──── { insert, key: 8, value: {...} } ────►   (passed predicate)
+//                                                     │
+//   length ──── { update, key: value, from: 7, to: 8 } ►
+//
+// The "current value" of `orders` is the fold of every record it's seen.
+// Replay the log; rebuild the state. There's nothing else.</code></pre>
+  </section>
+
+  <section id="dom-sink">
+    <div class="hd"><span class="hno">07</span><h2>The DOM is another sink</h2></div>
+    <p>
+      The framework doesn't know what a div is. It knows what a change is.
+      Connecting a <code>render(...)</code> call is no different in shape
+      from <code>proxy.tap(fn)</code> or <code>proxy.connect(arr)</code> —
+      each is a <em>sink</em> that receives the same change records and
+      chooses what to do with them.
+    </p>
+    <p>
+      The DOM happens to be a sink that translates inserts to
+      <code>appendChild</code>, removes to <code>remove</code>, and updates
+      to text or attribute writes. That's it. There's no virtual DOM, no
+      diff, no reconciliation pass — the change record already says
+      <em>what changed</em>, by <em>which key</em>, so the right node is
+      patched directly.
+    </p>
+    <pre class="code"><code>// Three sinks, one model.
+
+proxy.tap(change =&gt; console.log(change))      // log every change
+proxy.connect(myArray)                          // mirror into an array
+render(el, HTML.ul(proxy, (li, row) =&gt; ...))   // paint into the DOM</code></pre>
+    <p>
+      The same model that maintains a number in memory maintains a row in
+      the DOM.
+    </p>
+  </section>
+
+  <section id="why">
+    <div class="hd"><span class="hno">08</span><h2>Why this matters</h2></div>
+    <p>
+      The pieces are old — incremental view maintenance, dataflow graphs,
+      log-structured propagation. What's new is the cost. A library you can
+      drop into a single page can give you a database's worth of
+      materialized-view machinery for the dozens-of-kilobytes of code it
+      takes to express it. Local-first apps don't need a server round-trip
+      per query. Live dashboards don't have to choose between freshness and
+      frame rate. Edge functions can hand a client a <em>view</em> and a
+      <em>change feed</em> and let it stay current without polling.
+    </p>
+    <p>
+      This library is one such piece. The
+      <a href="../../">reference docs</a> explain how the operators compose;
+      the <a href="../../#gallery">examples</a> show them under load. The
+      idea, though, is the one above: you declare what you want to know, and
+      the runtime keeps the answer ready.
+    </p>
+  </section>
+
+  <footer class="essay-foot">
+    <a href="../../">← back to data</a>
+    <span class="muted">MIT</span>
+  </footer>
+
+</article>
+
+<script type="importmap">
+{ "imports": {
+    "data":          "../../dist/index.js",
+    "data/full":     "../../dist/full.js",
+    "data/render":   "../../dist/render/index.js",
+    "data/devtools": "../../dist/devtools/index.js"
+} }
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
