@@ -168,30 +168,95 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
 .prop-list .op { display: inline-block; min-width: 11rem; font: 500 0.875rem var(--mono); color: var(--accent); }
 .prop-list em { font-style: normal; color: var(--ink); }
 
-/* ---------- operator catalogue ---------- */
+/* ---------- operator catalogue ----------
+ * Single inline row per operator: [op | desc | sig | ×]. Three operators
+ * (filter, sort, group) expand inline into a rich live card directly under
+ * their row. Stacks on narrow viewports. */
 .catalogue { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
-.cat-row { display: grid; grid-template-columns: 13rem 1fr 4rem; align-items: baseline; gap: 1rem; padding: 0.6rem 1rem; border-bottom: 1px solid var(--rule); background: var(--bg-2); }
+.cat-row {
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.3rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-2);
+}
 .cat-row:last-child { border-bottom: 0; }
 .cat-row:hover { background: var(--bg-3); }
 .cat-op { font: 500 0.85rem var(--mono); color: var(--accent); border: 0; white-space: nowrap; }
 .cat-op:hover { text-decoration: underline; }
-.cat-desc { color: var(--dim); font-size: 0.9rem; }
-.cat-x { text-align: right; font: 500 0.8rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.cat-desc { color: var(--dim); font-size: 0.86rem; min-width: 0; }
+.cat-sig {
+  font: 0.74rem var(--mono);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cat-sig::before { content: '› '; color: var(--rule); }
+.cat-x {
+  text-align: right;
+  font: 600 1.15rem var(--mono);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  min-width: 3.6rem;
+  padding-left: 0.3rem;
+}
 .cat-foot { font-size: 0.82rem; margin: 0 0 2.5rem; }
 .cat-foot a { color: var(--accent); }
-@media (max-width: 680px) {
-  .cat-row { grid-template-columns: 1fr auto; gap: 0.25rem 1rem; }
-  .cat-desc { grid-column: 1 / -1; }
+/* inline expansion under an operator row — the rich live demo card for the
+ * operators that get one (filter, sort, group). Reads as a continuation of
+ * the row, full-width, not indented. */
+.cat-demo {
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.85rem 1rem 1rem;
+  font: 0.78rem var(--mono);
+}
+.cat-demo:last-child { border-bottom: 0; }
+.cat-demo .demo-chips { margin-bottom: 0.6rem; }
+.cat-demo .demo-panel { min-width: 0; }
+/* Pin variable-content cards to a stable height so streaming ticks (rows
+ * crossing pnl thresholds, chip clicks switching tenor) don't shift the page.
+ * Each height is sized for the max plausible row count in that card on our
+ * 10-row trades feed; if the dataset grew, these would need to grow too. */
+.cat-demo[data-demo-for="filter"]    { min-height: 11rem; }
+.cat-demo[data-demo-for="between"]   { min-height: 19rem; }
+.cat-demo[data-demo-for="compare"]   { min-height: 16rem; }
+.cat-demo[data-demo-for="sort"]      { min-height: 10rem; }
+.cat-demo[data-demo-for="intersect"] { min-height: 9rem;  }
+.cat-demo[data-demo-for="union"]     { min-height: 13rem; }
+.cat-demo[data-demo-for="group"]     { min-height: 22rem; }
+.cat-demo[data-demo-for="distinct"]  { min-height: 6rem;  }
+.cat-demo[data-demo-for="map"]       { min-height: 19rem; }
+.cat-demo[data-demo-for="reduce"]    { min-height: 5rem;  }
+.cat-demo[data-demo-for="tap"]       { min-height: 4.5rem; }
+.cat-demo[data-demo-for="length"]    { min-height: 6.5rem; }
+.cat-demo[data-demo-for="aggregate"] { min-height: 4.5rem; }
+.cat-demo[data-demo-for="some"]      { min-height: 4rem;  }
+.cat-demo[data-demo-for="keys"]      { min-height: 19rem; }
+@media (max-width: 880px) {
+  .cat-row {
+    grid-template-columns: 1fr auto;
+    column-gap: 0.85rem;
+    row-gap: 0.3rem;
+    padding: 0.7rem 0.85rem;
+  }
+  .cat-op { font-size: 0.82rem; }
+  .cat-desc { grid-column: 1 / -1; font-size: 0.85rem; }
+  .cat-sig { grid-column: 1 / -1; white-space: normal; word-break: break-word; }
+  .cat-x { font-size: 1rem; padding-left: 0; }
 }
 
 /* ---------- live demos ---------- */
 .demos-intro { margin-top: 1rem; }
 .stream-btn { background: transparent; color: var(--dim); border: 1px solid var(--rule); font: 500 0.72rem var(--mono); padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer; margin-left: 0.4rem; }
 .stream-btn:hover { color: var(--accent); border-color: var(--accent); }
-.demos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-.demo { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem 1.1rem; min-width: 0; }
-.demo h3 { font: 500 0.95rem var(--mono); color: var(--ink); margin: 0 0 0.75rem; }
-.demo-sig { display: block; font: 0.72rem var(--mono); color: var(--faint); margin-top: 0.25rem; }
 .demo-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.75rem; }
 .demo-chips .chip { background: transparent; color: var(--dim); border: 1px solid var(--rule); font: 500 0.75rem var(--mono); padding: 0.25rem 0.55rem; border-radius: 3px; cursor: pointer; user-select: none; }
 .demo-chips .chip:hover { color: var(--ink); border-color: var(--dim); }
@@ -222,7 +287,73 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
 .gbucket-body { padding-left: 0.6rem; border-left: 2px solid var(--rule); margin: 0.3rem 0 0 0.2rem; }
 .gbucket-body .grow { display: flex; justify-content: space-between; padding: 0.12rem 0; color: var(--dim); }
 .gbucket-body .grow .pnl.neg { color: var(--neg); } .gbucket-body .grow .pnl.pos { color: var(--pos); }
-@media (max-width: 820px) { .demos { grid-template-columns: 1fr; } }
+
+/* ---------- demo layouts: extra shapes for the per-operator cards ---------- */
+/* multi-column splits — used by compare, intersect, union, keys */
+.split { display: grid; gap: 1rem; }
+.split-2 { grid-template-columns: 1fr 1fr; }
+.split-3 { grid-template-columns: 1fr 1fr 1fr; }
+.split-col { min-width: 0; }
+.col-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 0 0.35rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--rule); font: 0.72rem var(--mono); gap: 0.5rem; }
+.col-head-label { color: var(--accent); }
+.col-head-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+.id-row { grid-template-columns: 1fr 1fr; }
+
+/* 4-scalar grid for sum/avg/max/min */
+.agg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
+.agg-cell { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 4px; padding: 0.55rem 0.75rem 0.65rem; min-width: 0; }
+.agg-label { display: block; font: 500 0.62rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin-bottom: 0.2rem; }
+.agg-val { font: 600 1.15rem var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.agg-val.pos { color: var(--pos); }
+.agg-val.neg { color: var(--neg); }
+
+/* boolean LEDs for some/every */
+.bool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.bool-cell { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0.8rem; background: var(--bg-2); border: 1px solid var(--rule); border-radius: 4px; }
+.bool-key { font: 0.74rem var(--mono); color: var(--dim); }
+.bool-val { font: 500 0.85rem var(--mono); }
+.bool-val.tru { color: var(--pos); }
+.bool-val.fal { color: var(--neg); }
+
+/* per-tenor count bars for length(fn) */
+.tcount-block { display: grid; gap: 0.2rem; }
+.tcount-row { display: grid; grid-template-columns: 2.5rem 1fr 2rem; align-items: center; gap: 0.6rem; padding: 0.15rem 0; font-variant-numeric: tabular-nums; }
+.tcount-label { font: 500 0.78rem var(--mono); }
+.tcount-bar { height: 6px; background: var(--bg); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+.tcount-fill { display: block; height: 100%; background: var(--accent); transition: width 180ms ease; }
+.tcount-val { text-align: right; font: 0.78rem var(--mono); color: var(--dim); }
+
+/* 2-scalar row for to/reduce */
+.scalar-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.scalar-cell { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 4px; padding: 0.6rem 0.9rem 0.7rem; }
+.scalar-label { display: block; font: 500 0.62rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin-bottom: 0.25rem; }
+.scalar-val { font: 600 1.4rem var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.scalar-val.pos { color: var(--pos); }
+.scalar-val.neg { color: var(--neg); }
+
+/* tap counter + last-mutation panel */
+.tap-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1.25rem; align-items: baseline; }
+.tap-block { display: flex; flex-direction: column; gap: 0.2rem; }
+.tap-label { font: 500 0.62rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); }
+.tap-counter { font: 600 1.5rem var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+.tap-last { font: 0.8rem var(--mono); color: var(--dim); word-break: break-all; }
+
+/* distinct: a chip per first-seen value */
+.distinct-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.distinct-chip { display: inline-flex; align-items: baseline; gap: 0.4rem; padding: 0.3rem 0.6rem; background: var(--bg-2); border: 1px solid var(--rule); border-radius: 3px; font: 500 0.76rem var(--mono); }
+.distinct-chip-tenor { font-weight: 600; }
+.distinct-chip-id { color: var(--faint); font-size: 0.72rem; }
+
+/* keys/values/reverse: small chips for keys */
+.key-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.kchip { font: 0.74rem var(--mono); padding: 0.18rem 0.45rem; background: var(--bg-2); border: 1px solid var(--rule); border-radius: 3px; color: var(--faint); }
+
+@media (max-width: 720px) {
+  .split-3 { grid-template-columns: 1fr; }
+  .split-2 { grid-template-columns: 1fr; }
+  .agg-grid { grid-template-columns: 1fr 1fr; }
+  .bool-grid, .scalar-row { grid-template-columns: 1fr; }
+}
 
 /* ---------- quickstart ---------- */
 .quickstart .install { display: inline-block; margin-bottom: 1.5rem; }

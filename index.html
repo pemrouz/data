@@ -117,45 +117,49 @@
     <div class="sec-head"><span class="sec-no">02</span><h2>The operator surface</h2></div>
     <p class="lead-para">
       One source, many derived views. Wrap a collection in <code>$()</code> and
-      chain operators; each returns a reactive view that updates incrementally as
-      the source changes. The full catalogue:
+      chain operators; each returns a reactive view that updates incrementally
+      as the source changes. Every row below runs live off one shared
+      <code>$(trades)</code> feed of rate trades — pick any tenor, watch the
+      top-K reshuffle, see the groups recount as bid/ask/pnl tick.
+      <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button>
     </p>
 
     <div class="catalogue">
-      <div class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><span class="cat-x">1671×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/between/BENCHMARK.md">between</a><span class="cat-desc">rows where a column falls in a range (sort-indexed, reactive bounds)</span><span class="cat-x">547×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/compare/BENCHMARK.md">gt / lt / gte / lte</a><span class="cat-desc">single-threshold comparison, O(1) per tick</span><span class="cat-x">343×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/sort/BENCHMARK.md">za / az / top / limit</a><span class="cat-desc">sort and / or limit (incremental top-K)</span><span class="cat-x">420×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/length/BENCHMARK.md">length</a><span class="cat-desc">row count, or counts grouped under a key</span><span class="cat-x">447×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">sum / avg / max / min</a><span class="cat-desc">scalar aggregates over a column or row values</span><span class="cat-x">723×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">some / every</a><span class="cat-desc">scalar booleans — any / all rows matching</span><span class="cat-x">723×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/intersect/BENCHMARK.md">intersect</a><span class="cat-desc">rows present in all source views</span><span class="cat-x">441×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/union/BENCHMARK.md">union / except</a><span class="cat-desc">set algebra over views (bitmask machinery)</span><span class="cat-x">250×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/group/BENCHMARK.md">group</a><span class="cat-desc">rows nested under a computed key</span><span class="cat-x">2310×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/distinct/BENCHMARK.md">distinct</a><span class="cat-desc">first-seen unique rows by a projection</span><span class="cat-x">1241×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/map/BENCHMARK.md">map</a><span class="cat-desc">per-row transform</span><span class="cat-x">1902×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/to/BENCHMARK.md">to / reduce</a><span class="cat-desc">whole-value transform / incremental fold</span><span class="cat-x">29556×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/tap/BENCHMARK.md">tap</a><span class="cat-desc">declarative side effects in a chain</span><span class="cat-x">1875×</span></div>
-      <div class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape of the data</span><span class="cat-x">7621×</span></div>
-    </div>
-    <p class="cat-foot muted">×-figures are peak speedup vs. the fastest of eight peer libraries on each operator's benchmark — each links to its reproducible run (<code>npm run bench:ops</code> regenerates them). <a href="./operators/BENCHMARK.md">Summary table →</a></p>
-
-    <p class="lead-para demos-intro">A few, live. Below is one feed of rate trades — bid/ask/pnl ticking — with three views derived from the same <code>$(trades)</code> proxy. <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button></p>
-    <div class="demos">
-      <div class="demo">
-        <h3>filter <span class="demo-sig">trades.filter('tenor', t)</span></h3>
+      <div class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><code class="cat-sig">trades.filter('tenor', '5Y')</code><span class="cat-x">1671×</span></div>
+      <div class="cat-demo" data-demo-for="filter">
         <div class="demo-chips" id="filter-chips"></div>
         <div class="demo-panel" id="filter-result"></div>
       </div>
-      <div class="demo">
-        <h3>za <span class="demo-sig">trades.za('pnl', 5)</span></h3>
-        <div class="demo-panel" id="za-result"></div>
-      </div>
-      <div class="demo">
-        <h3>group <span class="demo-sig">trades.group(d =&gt; d.tenor)</span></h3>
-        <div class="demo-panel" id="group-result"></div>
-      </div>
+      <div class="cat-row"><a class="cat-op" href="./operators/between/BENCHMARK.md">between</a><span class="cat-desc">column in a range (sort-indexed)</span><code class="cat-sig">trades.between('pnl', [-500, 500])</code><span class="cat-x">547×</span></div>
+      <div class="cat-demo" data-demo-for="between"><div class="demo-panel" id="between-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/compare/BENCHMARK.md">gt / lt / gte / lte</a><span class="cat-desc">single-threshold comparison</span><code class="cat-sig">trades.gt('pnl', 0)</code><span class="cat-x">343×</span></div>
+      <div class="cat-demo" data-demo-for="compare"><div class="demo-panel" id="compare-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/sort/BENCHMARK.md">za / az / top / limit</a><span class="cat-desc">sort and / or limit (top-K)</span><code class="cat-sig">trades.za('pnl', 5)</code><span class="cat-x">420×</span></div>
+      <div class="cat-demo" data-demo-for="sort"><div class="demo-panel" id="za-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/length/BENCHMARK.md">length</a><span class="cat-desc">row count, or counts per key</span><code class="cat-sig">trades.length(d =&gt; d.tenor)</code><span class="cat-x">447×</span></div>
+      <div class="cat-demo" data-demo-for="length"><div class="demo-panel" id="length-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">sum / avg / max / min</a><span class="cat-desc">scalar aggregates</span><code class="cat-sig">trades.avg('pnl')</code><span class="cat-x">723×</span></div>
+      <div class="cat-demo" data-demo-for="aggregate"><div class="demo-panel" id="aggregate-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">some / every</a><span class="cat-desc">any / all rows matching</span><code class="cat-sig">trades.some(r =&gt; r.pnl &gt; 1000)</code><span class="cat-x">723×</span></div>
+      <div class="cat-demo" data-demo-for="some"><div class="demo-panel" id="some-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/intersect/BENCHMARK.md">intersect</a><span class="cat-desc">rows in all source views</span><code class="cat-sig">fiveY.intersect(gainers)</code><span class="cat-x">441×</span></div>
+      <div class="cat-demo" data-demo-for="intersect"><div class="demo-panel" id="intersect-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/union/BENCHMARK.md">union / except</a><span class="cat-desc">set algebra over views</span><code class="cat-sig">fiveY.union(gainers)</code><span class="cat-x">250×</span></div>
+      <div class="cat-demo" data-demo-for="union"><div class="demo-panel" id="union-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/group/BENCHMARK.md">group</a><span class="cat-desc">nested under a computed key</span><code class="cat-sig">trades.group(d =&gt; d.tenor)</code><span class="cat-x">2310×</span></div>
+      <div class="cat-demo" data-demo-for="group"><div class="demo-panel" id="group-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/distinct/BENCHMARK.md">distinct</a><span class="cat-desc">first-seen unique by projection</span><code class="cat-sig">trades.distinct(r =&gt; r.tenor)</code><span class="cat-x">1241×</span></div>
+      <div class="cat-demo" data-demo-for="distinct"><div class="demo-panel" id="distinct-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/map/BENCHMARK.md">map</a><span class="cat-desc">per-row transform</span><code class="cat-sig">trades.map(r =&gt; ({ id, spread }))</code><span class="cat-x">1902×</span></div>
+      <div class="cat-demo" data-demo-for="map"><div class="demo-panel" id="map-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/to/BENCHMARK.md">to / reduce</a><span class="cat-desc">whole-value transform / fold</span><code class="cat-sig">trades.reduce(add, remove, 0)</code><span class="cat-x">29556×</span></div>
+      <div class="cat-demo" data-demo-for="reduce"><div class="demo-panel" id="reduce-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/tap/BENCHMARK.md">tap</a><span class="cat-desc">declarative side effects</span><code class="cat-sig">trades.tap(() =&gt; n++)</code><span class="cat-x">1875×</span></div>
+      <div class="cat-demo" data-demo-for="tap"><div class="demo-panel" id="tap-result"></div></div>
+      <div class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">7621×</span></div>
+      <div class="cat-demo" data-demo-for="keys"><div class="demo-panel" id="keys-result"></div></div>
     </div>
+    <p class="cat-foot muted">×-figures are peak speedup vs. the fastest of eight peer libraries on each operator's benchmark — each links to its reproducible run (<code>npm run bench:ops</code> regenerates them). <a href="./operators/BENCHMARK.md">Summary table →</a></p>
   </section>
 
   <!-- ===== §3 quickstart ===== -->
