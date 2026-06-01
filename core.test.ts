@@ -442,3 +442,41 @@ test('devtools - _devtoolsRoots holds WeakRef so unreached roots can be GC\'d', 
     ok(v === undefined || (v && typeof v === 'object'), 'deref returns View|undefined')
   }
 })
+
+test('connect(obj, fn) — FunctionSink pinned to obj (returned), survives GC', () => {
+  // Like PropSink, a FunctionSink lives only as a WeakRef on the view; pinning it
+  // to `obj` via lifetimes means holding connect()'s return value keeps it firing.
+  const res = $({ a: 1 })
+  const seen = []
+  const host = res.connect({}, c => seen.push(c)) // FunctionSink branch
+  ok(host && typeof host === 'object', 'connect returns the host object')
+  same(seen.length, 1)                            // initial snapshot
+  res.b = 2
+  same(seen.length, 2)                            // subsequent change delivered
+
+  // With gc exposed, dropping every local ref but `host` must NOT stop delivery —
+  // that's the regression this pin guards against.
+  if (typeof globalThis.gc === 'function') {
+    globalThis.gc()
+    res.c = 3
+    same(seen.length, 3, 'FunctionSink collected despite host being retained')
+  }
+  ok(host) // keep `host` reachable to end-of-test
+})
+
+test('connect([]) — ArrSink pinned to the array (returned), survives GC', () => {
+  // The array references the sink only one way (sink.arr), so holding it must be
+  // made to keep the sink alive — same pin as FunctionSink/PropSink.
+  const res = $({ a: 1 })
+  const changes = res.connect([]) // ArrSink branch; returns the array
+  same(changes.length, 1)         // initial snapshot pushed
+  res.b = 2
+  same(changes.length, 2)         // subsequent change pushed
+
+  if (typeof globalThis.gc === 'function') {
+    globalThis.gc()
+    res.c = 3
+    same(changes.length, 3, 'ArrSink collected despite array being retained')
+  }
+  ok(changes) // keep `changes` reachable to end-of-test
+})

@@ -762,6 +762,14 @@ class ArrSink {
   constructor(p, arr){
     this.p = p
     this.arr = arr
+    // Pin to `arr` like PropSink/FunctionSink: the view holds this sink only via
+    // a WeakRef, and `arr` references the sink only one way (sink.arr), so holding
+    // the returned array would NOT keep the sink alive. Without this, a consumer
+    // that kept only connect([])'s return value could have the sink GC'd and the
+    // array silently stop receiving change records.
+    const refs = lifetimes.get(arr) ?? new Set
+    refs.add(this)
+    lifetimes.set(arr, refs)
     this.update([], p.value)
   }
   update = (key, value) => this.arr.push({ type: 'update', key, value: sclone(value) })
@@ -831,6 +839,13 @@ class FunctionSink extends Sink {
   constructor(p, obj, fn){
     super()
     this.fn = fn
+    // Pin to `obj` exactly like PropSink: the view holds this sink only via a
+    // WeakRef, so a caller that kept only connect()'s return value (`obj`) would
+    // otherwise have the sink GC'd out from under it and silently stop firing.
+    // Holding `obj` keeps the sink alive for as long as the caller cares.
+    const refs = lifetimes.get(obj) ?? new Set
+    refs.add(this)
+    lifetimes.set(obj, refs)
     fn({ type: 'update', key: [], value: sclone(p.value) })
   }
   XU0(value){ this.fn({ type: 'update', key: [], value: sclone(value) }) }
