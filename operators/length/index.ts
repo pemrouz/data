@@ -120,8 +120,35 @@ export class LengthFnValue extends Operator {
     this.view.XU0(this.view.value)
   }
 
+  // In-place field mutation (e.g. `data[id].status = 'x'`). The framework
+  // delivers this as a BU2 carrying the changed path, not the whole row, so we
+  // re-read the current row from `p.value` and recompute its bucket key. If the
+  // key moved, decrement the old bucket and increment the new one — exactly the
+  // BU1 rebucket, just sourced by path. A no-op key change (a different field
+  // changed, or the same bucket) republishes nothing, so subscribers only wake
+  // on an actual count change. Without this, `length(fn)` was blind to in-place
+  // mutations — a histogram over a source that mutates rows (rather than only
+  // inserting/removing them) silently froze at its construction-time buckets.
+  BU2(U2){
+    if (!U2.length) return
+    const { mapping, view, fn, p } = this
+    let moved = false
+    for (let i = 0; i < U2.length; i += 2) {
+      const n = U2[i][0]
+      const v = p.value[n]
+      if (v === undefined) continue
+      const og = mapping[n]
+      const ng = view.value[fn(v)] ??= { value: 0 }
+      if (og !== ng) {
+        mapping[n] = ng
+        if (og) og.value--
+        ng.value++
+        moved = true
+      }
+    }
+    if (moved) this.view.XU0(this.view.value)
+  }
   BR2(){}
-  BU2(){}
   BI2(){}
 }
 

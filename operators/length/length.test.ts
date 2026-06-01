@@ -77,3 +77,33 @@ test('length fn - group counting', () => {
   ])
   same(lengths[value], {})
 })
+
+// Regression: length(fn) must rebucket on an in-place field mutation (BU2),
+// not just on insert/remove. A field set arrives as a BU2 carrying the path,
+// and the changed field is the bucket key — so the row has to move buckets,
+// including into a bucket key that did not exist at construction time. This is
+// the swarm example's SIR-by-state histogram (`pop.length(a => a.state)` driven
+// by `pop[id].state = …`): before the BU2 handler existed the counts silently
+// froze at their construction values. A field change that does NOT move the
+// bucket must stay silent (no spurious republish).
+test('length fn - rebuckets on in-place field change (BU2)', () => {
+  const rows = $({
+    a: { state: 'S' },
+    b: { state: 'S' },
+    c: { state: 'I' },
+  })
+  const byState = length(rows, d => d.state)
+  const changes = byState.connect([])
+  rows.a.state = 'I'          // S→I: moves a from S to I
+  rows.c.state = 'R'          // I→R: creates the R bucket (absent at construction)
+  rows.b.foo = 'x'            // unrelated field: no bucket move → no emit
+  rows.b.state = 'R'          // S→R: into the now-existing R bucket
+  same(changes, [
+    { type: 'update', key: [], value: { S: { value: 2 }, I: { value: 1 } } },
+    { type: 'update', key: [], value: { S: { value: 1 }, I: { value: 2 } } },
+    { type: 'update', key: [], value: { S: { value: 1 }, I: { value: 1 }, R: { value: 1 } } },
+    { type: 'update', key: [], value: { S: { value: 0 }, I: { value: 1 }, R: { value: 2 } } },
+  ])
+  same(byState.I.value[value], 1) // each bucket's count stays individually subscribable
+  same(byState.R.value[value], 2)
+})
