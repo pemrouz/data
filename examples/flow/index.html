@@ -3,240 +3,370 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>data — what is a materialized view, and why does it matter</title>
+  <title>data — derive a view, keep it live, touch no deltas</title>
+  <meta name="description" content="Most of an app is one view derived from another — a filtered list, a count, a grouping — kept current as the data moves. Recompute everything and it's slow; wire the deltas by hand and it's a tangle. data gives you both: write the derivation, and only the change flows through it.">
   <link rel="stylesheet" href="./index.css">
 </head>
 <body>
 
+<!-- the change history, pinned in the left margin and scrubbable, so you can
+     watch the changes that flow while the prose talks about the derivations
+     they feed. A viewing aid — the library itself only ever moves forward. -->
+<aside class="tl-pin" id="tl-pin" aria-hidden="true">
+  <div class="tl-pin-label" id="tl-pin-label">the changes</div>
+  <div class="tl-pin-strip" id="tl-pin-strip" role="slider" aria-label="change history" tabindex="0"></div>
+  <div class="tl-pin-meta" id="tl-pin-meta">0 / 0</div>
+</aside>
+
 <article class="essay">
 
   <header class="masthead">
-    <span class="kicker">essay · materialized views</span>
-    <h1>What is a materialized view,<br>and why does it matter</h1>
+    <span class="kicker">essay · derived views</span>
+    <h1>Table B is table A,<br>filtered.</h1>
     <p class="standfirst">
-      Most code treats data as a thing you fetch, compute, and throw away.
-      A reactive view inverts that: the answer to your query stays alive,
-      and the runtime maintains it as the underlying data changes. This is
-      what that means in practice — and what the pieces of a real
-      implementation look like.
+      Most of what an app does is derive one view from another — a filtered list,
+      a running count, a grouping — and keep it current as the data moves. Do that
+      naively and you recompute everything on every change. Do it by hand and you
+      drown in delta-stream plumbing. There is a third way: write the derivation
+      you actually mean, and let the change — only the change — flow through it.
     </p>
     <p class="byline"><a href="../../">data</a> · open source · MIT</p>
   </header>
 
-  <section id="setup">
-    <div class="hd"><span class="hno">01</span><h2>The setup</h2></div>
+  <!-- ===================================================================
+       §1 — Everything is a derived view
+       =================================================================== -->
+  <section id="flowing">
+    <div class="hd"><span class="hno">01</span><h2>Everything is a derived view</h2></div>
     <p>
-      Picture the simplest query: <em>how many orders are active.</em> In the
-      way most apps are written, you read the orders list, run a filter,
-      count what comes back, and write the number to the page. When something
-      changes — a new order, a toggled flag — you do the whole thing again.
-      Fetch, compute, throw away. Repeat.
+      Look at almost any screen and you are looking at derivations. The orders
+      table is the base. <em>Active orders</em> is that table, filtered. <em>Orders
+      per region</em> is the active set, grouped and counted. <em>Average value</em>
+      is an aggregate over the whole. Each is a view defined in terms of another —
+      and each has to stay right as orders are added, toggled, and removed.
     </p>
     <p>
-      This works, but it's wasteful. The <em>answer</em> to <q>how many are
-      active</q> is a small integer, and it changes by at most one when a
-      single row flips. Yet you've recomputed it as though nothing was known
-      a moment before.
+      Below is exactly that: a base table on the left of the page as a running
+      history of <strong>changes</strong>, and on the right the <strong>derived
+      views</strong> built from it. Add a change, toggle a flag, remove a row.
+      Every derived view stays correct — and, as we'll see, for the price of the
+      change, not the table. Scrub the change history to step back through how
+      each view got where it is.
     </p>
+
+    <figure class="fig instrument" id="instrument">
+      <div class="tl">
+        <div class="tl-head">
+          <span class="tl-t">the changes</span>
+          <span class="tl-sub">applied in order · <b id="tl-head-n">0</b> of <b id="tl-len">0</b></span>
+        </div>
+        <div class="tl-strip" id="tl-strip" role="slider" aria-label="change history" tabindex="0"></div>
+        <div class="tl-detail" id="tl-detail">add a change, or drag back through the history →</div>
+        <div class="tl-controls" id="tl-controls">
+          <button class="tlb" data-act="insert">+ insert</button>
+          <button class="tlb" data-act="toggle">↻ toggle active</button>
+          <button class="tlb" data-act="bump">△ bump value</button>
+          <button class="tlb" data-act="remove">✕ remove</button>
+        </div>
+      </div>
+      <div class="folds-cap">derived views — each defined off another, each kept live</div>
+      <div class="folds" id="folds">
+        <div class="fold" data-fold="orders">
+          <div class="fold-h"><span class="fold-t">orders</span><span class="fold-sig">the base table</span></div>
+          <div class="fold-body" id="fold-orders"></div>
+        </div>
+        <div class="fold" data-fold="active">
+          <div class="fold-h"><span class="fold-t">active</span><span class="fold-sig"><code>orders.filter(o =&gt; o.active)</code></span></div>
+          <div class="fold-body" id="fold-active"></div>
+        </div>
+        <div class="fold" data-fold="perRegion">
+          <div class="fold-h"><span class="fold-t">perRegion</span><span class="fold-sig"><code>active.length(o =&gt; o.region)</code></span></div>
+          <div class="fold-body" id="fold-perRegion"></div>
+        </div>
+        <div class="fold" data-fold="avg">
+          <div class="fold-h"><span class="fold-t">avg</span><span class="fold-sig"><code>orders.avg('value')</code></span></div>
+          <div class="fold-body" id="fold-avg"></div>
+        </div>
+      </div>
+    </figure>
+
     <p>
-      A reactive view inverts that. The answer is something the runtime keeps
-      alive — a <em>materialized view</em> that exists between observations
-      and is <em>maintained</em> as the data underneath shifts. You declare
-      the relationship once; the runtime does the bookkeeping.
+      You wrote four one-line derivations. You did not write a single line that
+      handles a change. That gap — between what you declare and what you'd
+      otherwise have to maintain by hand — is the whole subject of this essay.
     </p>
   </section>
 
-  <section id="query-lives">
-    <div class="hd"><span class="hno">02</span><h2>A view is a query that lives</h2></div>
+  <!-- ===================================================================
+       §2 — A derived view stays live
+       =================================================================== -->
+  <section id="view-fold">
+    <div class="hd"><span class="hno">02</span><h2>A derived view stays live</h2></div>
     <p>
-      Write <code>$(orders).filter(o =&gt; o.active)</code> and the framework
-      doesn't run the filter. It builds a small object — an <em>index</em> —
-      whose contents track which rows pass the predicate. The first
-      observation populates it. Every subsequent change to <code>orders</code>
-      updates the index in place: when a row's <code>active</code> flips to
-      <code>true</code>, the runtime pushes one <em>enter</em> event
-      downstream; when it flips back, one <em>leave</em>.
+      <code>orders.filter(o =&gt; o.active)</code> reads like a one-off: run the
+      filter, get a list. But the list it returns is not a snapshot — it is a
+      <em>live view</em> that the runtime keeps in step with <code>orders</code>.
+      Add an active order and it appears in <em>active</em>; toggle one off and it
+      leaves. You never re-run the filter; the view simply stays true.
     </p>
     <p>
-      The filter itself never re-scans. The work each change costs is
-      proportional to the size of the change, not the size of the dataset.
-      Click any row below to flip its <code>active</code> flag and watch the
-      filtered view update in place.
+      Scrub the change history and watch it track. The membership of <em>active</em>
+      isn't stored anywhere you manage — it follows from the same changes the base
+      table sees, applied through the rule you declared once. The view you wrote
+      <em>is</em> the thing that's maintained.
     </p>
-    <figure class="fig" id="fig-query-lives"></figure>
-    <pre class="code"><code>const orders = $([{ id: 1, active: true, value: 87 }, …])
-const active = orders.filter(o =&gt; o.active)
-// `active` is now a live view. Reading it is free; mutating
-// `orders` keeps it correct.</code></pre>
+    <pre class="code"><code>const orders = $([…])
+const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
+// read `active` any time — it is always the current subset. You wrote the
+// relationship; the runtime keeps it true as `orders` changes.</code></pre>
   </section>
 
-  <section id="cost-is-delta">
-    <div class="hd"><span class="hno">03</span><h2>The cost of a change is the size of the change, not the size of the dataset</h2></div>
+  <!-- ===================================================================
+       §3 — The cost is the change, not the table
+       =================================================================== -->
+  <section id="cost">
+    <div class="hd"><span class="hno">03</span><h2>The cost is the change, not the table</h2></div>
     <p>
-      This is the central claim, and it has a name: <em>incremental view
-      maintenance</em>. If your data has <code>N</code> rows and one row
-      changes, the cost to update every downstream view should be
-      <code>O(Δ)</code>, not <code>O(N)</code>.
+      Here is where the naive version falls down. When one order changes, the
+      obvious way to keep <em>active</em>, <em>perRegion</em>, and <em>avg</em>
+      correct is to re-derive them — re-scan every row. That's <code>O(N)</code>
+      work for a one-row change, and it grows with the table: ten times the data,
+      ten times the cost, on every single change.
     </p>
     <p>
-      In practice, a small constant amount of work happens at each operator
-      the change passes through. A filter does one membership decision; a
-      counter does one increment; a sum does one addition or subtraction.
-      The cost scales with the <em>path</em> the change walks, not with what
-      sits upstream.
+      The runtime doesn't do that. A change carries enough to update each view in
+      place — flip one membership, adjust one bucket, nudge one running total. The
+      work is proportional to the <em>change</em>, <code>O(Δ)</code>, and it does
+      not grow with <code>N</code> at all.
     </p>
     <p>
-      Scale the dataset below and insert a row. The work-per-insert stays
-      flat as <code>N</code> grows by three orders of magnitude. A naive
-      recompute would scale linearly.
+      Before you scale it: as the table gets bigger, what happens to the cost of
+      handling one change — for the naive recompute, and for the runtime? Place
+      your bet, then drag the table size up.
     </p>
-    <figure class="fig" id="fig-cost-delta"></figure>
+
+    <figure class="fig cost" id="fig-cost">
+      <div class="cost-stage" id="cost-stage">
+        <div class="cost-meters">
+          <div class="cost-meter" data-meter="incremental">
+            <div class="cost-k">data · O(Δ) per change</div>
+            <div class="cost-v" id="cost-inc">—</div>
+            <div class="cost-sub">touches only what moved</div>
+          </div>
+          <div class="cost-meter" data-meter="refold">
+            <div class="cost-k">naive recompute · O(N) per change</div>
+            <div class="cost-v" id="cost-ref">—</div>
+            <div class="cost-sub">re-scans the whole table</div>
+          </div>
+        </div>
+        <svg class="cost-curve" id="cost-curve" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="cost-veil" id="cost-veil">
+          <div class="cost-veil-q">One row changes. The naive way re-derives the views over <b>all N rows</b>. As the table grows, how does the cost of that one change grow?</div>
+          <div class="cost-veil-opts">
+            <button class="tlb" data-bet="flat">stays flat</button>
+            <button class="tlb" data-bet="linear">grows with the table</button>
+            <button class="tlb" data-bet="quad">faster and faster</button>
+          </div>
+          <div class="cost-veil-hint muted">data pays the same at any size — the question is the other line.</div>
+        </div>
+      </div>
+      <div class="cost-bar" id="cost-bar"><div class="cost-bar-fill" id="cost-bar-fill"></div><span class="cost-bar-label" id="cost-bar-label"></span></div>
+      <div class="cost-controls">
+        <label class="cost-n">table size N
+          <select id="cost-n">
+            <option value="60">60</option>
+            <option value="600">600</option>
+            <option value="6000" selected>6,000</option>
+            <option value="60000">60,000</option>
+          </select>
+        </label>
+        <span class="cost-note" id="cost-note">per-change cost vs table size — <code>O(Δ)</code> flat, <code>O(N)</code> rising. measured, not drawn</span>
+      </div>
+    </figure>
   </section>
 
+  <!-- ===================================================================
+       §4 — Selectivity
+       =================================================================== -->
   <section id="selectivity">
-    <div class="hd"><span class="hno">04</span><h2>Selectivity: changes walk only the edges they need</h2></div>
+    <div class="hd"><span class="hno">04</span><h2>A change reaches only the views that read it</h2></div>
     <p>
-      If a single change costs <code>O(Δ)</code>, what determines
-      <code>Δ</code>? The dependency graph. Each operator is a node; each
-      derives-from relationship is an edge. When you mutate a field, the
-      change propagates through operators that read that field — and not
-      through the ones that don't.
+      The change is cheap for a second reason: it doesn't disturb every view —
+      only the ones that read what changed. Toggle a row's <code>active</code> flag
+      and membership shifts, so <em>active</em> and the per-region count both move —
+      but the <em>average</em> never stirs, because no value changed. Bump a row's
+      <code>value</code> and the <em>average</em> updates, yet the per-region count
+      sits still: a tally of how many rows fall in each region never reads a value.
     </p>
     <p>
-      Below is a small graph: <code>$(orders)</code> feeds
-      <code>filter(o =&gt; o.active)</code>, which in turn feeds
-      <code>length()</code> and <code>sum('value')</code>. Separately,
-      <code>avg('value')</code> derives directly from the source.
+      This isn't asserted; it's measured. Each change carries a dot for every
+      derived view it actually <em>moved</em> — taken by comparing each view's
+      output the instant before and after. Hover or scrub a change to light them,
+      and notice how each kind moves a different, small handful.
     </p>
+    <figure class="fig sel" id="fig-sel">
+      <div class="sel-legend" id="sel-legend"></div>
+      <div class="sel-strip" id="sel-strip"></div>
+      <div class="sel-detail" id="sel-detail">hover a change above, or scrub the history</div>
+    </figure>
     <p>
-      The pulse on each tick traces the actual path the change walked.
-      Toggling <code>active</code> lights filter → length and filter → sum,
-      but never touches <code>avg</code> (it doesn't depend on
-      <code>active</code>). Bumping <code>value</code> wakes <code>avg</code>
-      and <code>sum</code> — but <code>filter</code> and <code>length</code>
-      stay dim because membership didn't change.
-    </p>
-    <figure class="fig fig-wide" id="fig-pulse"></figure>
-    <p>
-      This is what people mean when they call reactive systems
-      <em>sparse</em>: propagation is local. It's also what makes the model
-      composable. Adding another operator to the graph doesn't slow anything
-      else down, because nothing else is on its path.
+      That's what keeps the model composable. Add a tenth derived view and the
+      nine others don't slow down, because a change they don't read never reaches
+      them. The cost of a change is its size times the number of views that care —
+      both small, neither <code>N</code>.
     </p>
   </section>
 
+  <!-- ===================================================================
+       §5 — One primitive, composed
+       =================================================================== -->
   <section id="composition">
-    <div class="hd"><span class="hno">05</span><h2>Composition: pipelines are graphs of small invariants</h2></div>
+    <div class="hd"><span class="hno">05</span><h2>One primitive, composed</h2></div>
     <p>
-      A complex pipeline is a sequence of operators where each holds a
-      one-sentence contract. <code>filter</code> says: <em>I am the subset of
-      rows satisfying this predicate.</em> <code>group</code> says: <em>I am
-      the partition of rows by this key.</em> <code>length</code> says:
-      <em>I am the cardinality of my upstream.</em> Compose them and you get
-      an expression that maintains a non-trivial derived structure — a
-      leaderboard, a histogram, a pivot — with the same incremental
-      guarantee at every step.
+      There is really only one primitive here — a view derived from another — and
+      it composes without limit. A derived view is itself a perfectly good base for
+      the next derivation. <code>perRegion</code> isn't built on the raw table; it's
+      built on <code>active</code>: <code>active.length(o =&gt; o.region)</code>. A
+      derivation of a derivation, kept live exactly the same way.
     </p>
     <p>
-      You don't write the propagation. You don't say <q>when a row enters
-      the filter, increment the group's counter.</q> You declare the
-      relationships, and the runtime walks them.
+      And the chaining is real all the way down: when a change moves a row in or
+      out of <code>active</code>, that movement is itself the change
+      <code>perRegion</code> reads — incrementing one bucket, decrementing another.
+      Watch one change to <code>orders</code> turn into the change <code>active</code>
+      hands onward:
     </p>
-    <figure class="fig" id="fig-composition"></figure>
-    <pre class="code"><code>// One expression. The runtime maintains the whole chain.
-const perRegion = orders.length(o =&gt; o.active ? o.region : null)
-// {north: 7, south: 9, east: 6, west: 8} — updates in place.</code></pre>
+    <figure class="fig edge" id="fig-edge">
+      <div class="edge-step"><span class="edge-where">a change to <b>orders</b></span><code class="edge-rec" id="edge-src">— toggle a row —</code></div>
+      <div class="edge-arrow">↓ <code>filter</code> reads it, and hands on…</div>
+      <div class="edge-step"><span class="edge-where">a change to <b>active</b></span><code class="edge-rec" id="edge-act">—</code></div>
+    </figure>
+    <button class="tlb" id="edge-go">toggle a row →</button>
+    <p>
+      Compose these and you get leaderboards, histograms, pivots — non-trivial
+      structures, each maintained by the same one step, none of them ever
+      re-scanning. You declare the relationships; you never write the propagation.
+    </p>
+    <pre class="code"><code>const active    = orders.filter(o =&gt; o.active)
+const perRegion = active.length(o =&gt; o.region)   // a derivation of a derivation
+// {north: 7, south: 9, east: 6, west: 8} — one bucket moves per relevant change.</code></pre>
   </section>
 
-  <section id="log">
-    <div class="hd"><span class="hno">06</span><h2>The log is the source of truth; state is the fold</h2></div>
+  <!-- ===================================================================
+       §6 — You never touch a delta
+       =================================================================== -->
+  <section id="determinism">
+    <div class="hd"><span class="hno">06</span><h2>You never touch a delta</h2></div>
     <p>
-      Step back from the operators for a moment and look at what's actually
-      flowing between them. It isn't state. It's a sequence of small
-      records — <em>insert this row, update this field, remove this key</em>
-      — each one a self-describing claim about a single change.
+      Everything in §3 and §4 — the small change, threaded only through the views
+      that read it — is happening under the floor. You can see it on the left, as
+      the change history. But notice what your <em>code</em> looks like: it is the
+      derivations, and nothing else. You never wrote an <code>onInsert</code>, never
+      diffed two arrays, never reasoned about a stream of deltas over time.
     </p>
     <p>
-      Every operator in the graph speaks this same vocabulary. The source
-      emits records when you mutate it. <code>filter</code> consumes them
-      and emits new records (the rows that pass). <code>length</code>
-      consumes those and emits an updated count. The propagation pulse from
-      §4 is, concretely, a record threading through the graph.
+      That last part is the trap the other fast option springs. To make a recompute
+      incremental by hand, you start handling change events — and then your
+      derived-of-derived views are change-streams of change-streams, and the logic
+      you actually care about is buried in plumbing. The deltas should be the
+      runtime's problem, not your program's.
     </p>
-    <p>
-      This is the same insight Jay Kreps put at the centre of his essay
-      <a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying">on the log</a>:
-      the log of changes is the system of record, and any piece of state is
-      just <em>a fold over the log up to now</em>. Replay the log from the
-      beginning into the same fold and you reconstruct the same state.
-      Subscribe a new consumer to the log and it can catch up the same way.
-    </p>
-    <p>
-      Below: a live view of the records emitted by mutating
-      <code>orders</code>. Each click pushes one record onto the log; the
-      panel on the right is <code>state = log.reduce(apply, [])</code> —
-      literally that fold, computed on the spot. The records are what's
-      real; the state is a window into the most-recent value of the fold.
-    </p>
-    <figure class="fig" id="fig-log"></figure>
-    <pre class="code"><code>// Every operator is fundamentally a record-transformer.
-//
-//   orders ──── { insert, key: 8, value: {...} } ────►
-//                                                     │
-//   filter ──── { insert, key: 8, value: {...} } ────►   (passed predicate)
-//                                                     │
-//   length ──── { update, key: value, from: 7, to: 8 } ►
-//
-// The "current value" of `orders` is the fold of every record it's seen.
-// Replay the log; rebuild the state. There's nothing else.</code></pre>
-  </section>
+    <figure class="fig handsoff" id="fig-handsoff">
+      <div class="ho-cols">
+        <div class="ho-col ho-bad">
+          <div class="ho-h">by hand — you reason about deltas</div>
+          <pre><code>orders$.pipe(
+  scan(applyChange, []),
+  map(os =&gt; os.filter(o =&gt; o.active)),
+  switchMap(active =&gt; active$.pipe(
+    scan(toBuckets, {}),   // streams of streams…
+  )),
+  distinctUntilChanged(deepEq),
+).subscribe(render)</code></pre>
+        </div>
+        <div class="ho-col ho-good">
+          <div class="ho-h">with data — you reason about the view</div>
+          <pre><code>const active    = orders.filter(o =&gt; o.active)
+const perRegion = active.length(o =&gt; o.region)
 
-  <section id="dom-sink">
-    <div class="hd"><span class="hno">07</span><h2>The DOM is another sink</h2></div>
-    <p>
-      The framework doesn't know what a div is. It knows what a change is.
-      Connecting a <code>render(...)</code> call is no different in shape
-      from <code>proxy.tap(fn)</code> or <code>proxy.connect(arr)</code> —
-      each is a <em>sink</em> that receives the same change records and
-      chooses what to do with them.
-    </p>
-    <p>
-      The DOM happens to be a sink that translates inserts to
-      <code>appendChild</code>, removes to <code>remove</code>, and updates
-      to text or attribute writes. That's it. There's no virtual DOM, no
-      diff, no reconciliation pass — the change record already says
-      <em>what changed</em>, by <em>which key</em>, so the right node is
-      patched directly.
-    </p>
-    <pre class="code"><code>// Three sinks, one model.
+render(el, perRegion, …)
 
-proxy.tap(change =&gt; console.log(change))      // log every change
-proxy.connect(myArray)                          // mirror into an array
-render(el, HTML.ul(proxy, (li, row) =&gt; ...))   // paint into the DOM</code></pre>
+
+// the change-handling is the runtime's job.</code></pre>
+        </div>
+      </div>
+    </figure>
     <p>
-      The same model that maintains a number in memory maintains a row in
-      the DOM.
+      Both end up doing the minimal, incremental work. Only one of them is the code
+      you'd want to read in six months. That's the whole pitch: the readability of
+      recompute, the cost of hand-tuned deltas, and none of the bookkeeping.
     </p>
   </section>
 
+  <!-- ===================================================================
+       §7 — The last derivation is the DOM
+       =================================================================== -->
+  <section id="dom-fold">
+    <div class="hd"><span class="hno">07</span><h2>The last derivation is the DOM</h2></div>
+    <p>
+      The screen is just the last view in the chain. <code>render(el, orders, …)</code>
+      is not special — it's one more sink reading the same changes. And because each
+      change names exactly what moved and by which key, it maps to <em>one</em>
+      minimal DOM instruction: an insert is a single <code>appendChild</code>; a
+      field update is a single text write to one node — the row itself never
+      re-renders. There is no virtual DOM and no diff to compute, because there is
+      nothing to discover: the change already said what to do.
+    </p>
+    <figure class="fig domfold" id="fig-dom">
+      <div class="domfold-cols">
+        <div class="domfold-side">
+          <div class="domfold-h">the change</div>
+          <code class="domfold-rec" id="dom-rec">— press a button —</code>
+          <div class="domfold-op" id="dom-op">↳ the one DOM instruction it becomes</div>
+        </div>
+        <div class="domfold-side">
+          <div class="domfold-h"><code>render(el, orders, …)</code> — a sink like any other</div>
+          <div class="domfold-list" id="dom-list"></div>
+        </div>
+      </div>
+      <div class="domfold-controls">
+        <button class="tlb" id="dom-insert">+ insert</button>
+        <button class="tlb" id="dom-update">△ update one field</button>
+        <button class="tlb" id="dom-remove">✕ remove</button>
+      </div>
+    </figure>
+    <p>
+      A count in memory, a bucket in a histogram, a row on the page — the same
+      derived view, maintained the same way, pointed at three different sinks. The
+      framework doesn't know what a div is. It knows what a change is.
+    </p>
+    <pre class="code"><code>// Three sinks, one set of changes.
+orders.tap(change =&gt; console.log(change))      // into a console
+orders.connect(myArray)                          // into an array
+render(el, HTML.ul(orders, (li, row) =&gt; …))     // into the DOM</code></pre>
+  </section>
+
+  <!-- ===================================================================
+       §8 — Best of both worlds
+       =================================================================== -->
   <section id="why">
-    <div class="hd"><span class="hno">08</span><h2>Why this matters</h2></div>
+    <div class="hd"><span class="hno">08</span><h2>Best of both worlds</h2></div>
     <p>
-      The pieces are old — incremental view maintenance, dataflow graphs,
-      log-structured propagation. What's new is the cost. A library you can
-      drop into a single page can give you a database's worth of
-      materialized-view machinery for the dozens-of-kilobytes of code it
-      takes to express it. Local-first apps don't need a server round-trip
-      per query. Live dashboards don't have to choose between freshness and
-      frame rate. Edge functions can hand a client a <em>view</em> and a
-      <em>change feed</em> and let it stay current without polling.
+      The pieces are old — incremental view maintenance, dataflow. What's new is
+      the price: a library you drop into one page, a few kilobytes, that lets you
+      write views the way you'd write business logic and pays only for the change.
+      Once a derived view costs the change rather than the table, a lot stops being
+      hard. Local-first apps keep derived state live off a change feed instead of
+      round-tripping a server per query. A live dashboard updates in place instead
+      of choosing between freshness and frame rate. An edge function hands a client
+      a <em>view</em> and a stream of changes and lets it stay current without polling.
     </p>
     <p>
-      This library is one such piece. The
-      <a href="../../">reference docs</a> explain how the operators compose;
-      the <a href="../../#gallery">examples</a> show them under load. The
-      idea, though, is the one above: you declare what you want to know, and
-      the runtime keeps the answer ready.
+      Build your own chain off the table above and watch it keep up. Then read how
+      the operators compose in the <a href="../../">reference docs</a>, or see them
+      under load in the <a href="../../#gallery">examples</a>. The idea is the one
+      table and its derivations: you say what each view is, and the change does the
+      rest.
     </p>
   </section>
 
@@ -251,8 +381,7 @@ render(el, HTML.ul(proxy, (li, row) =&gt; ...))   // paint into the DOM</code></
 { "imports": {
     "data":          "../../dist/index.js",
     "data/full":     "../../dist/full.js",
-    "data/render":   "../../dist/render/index.js",
-    "data/devtools": "../../dist/devtools/index.js"
+    "data/render":   "../../dist/render/index.js"
 } }
 </script>
 <script type="module" src="./main.js"></script>

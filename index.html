@@ -246,8 +246,8 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
     <div class="gallery">
       <div class="gcard gcard-feature">
         <span class="gcard-tag">essay · the model</span>
-        <h3><a href="./examples/flow/">What is a materialized view, and why does it matter</a></h3>
-        <p>An eight-section explainer, each load-bearing claim paired with a small live demo: <code>filter</code> as a live index, work-per-change at <code>O(Δ)</code> not <code>O(N)</code>, selectivity on a real dataflow graph, composition, and the change log that — folded — IS the state.</p>
+        <h3><a href="./examples/flow/">Table B is table A, filtered</a></h3>
+        <p>An eight-section essay on derived views: write <code>B = A.filter(…)</code> and the runtime keeps it live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, none of the bookkeeping.</p>
         <span class="gcard-links"><a href="./examples/flow/">read →</a></span>
       </div>
       <div class="gcard">

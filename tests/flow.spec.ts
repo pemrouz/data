@@ -1,94 +1,117 @@
 import { test, expect } from '@playwright/test'
 
+// The flow essay ("Table B is table A, filtered") is one base table shown as a
+// scrubbable change history (left rail) feeding four derived views, plus
+// companion figures for cost (§3), selectivity (§4), composition (§5), the
+// hands-off code contrast (§6) and the DOM-as-last-derivation (§7). These
+// smoke tests assert the figures mount and the core interactions behave, with
+// no console errors.
+
 test('flow essay loads, every figure mounts without console errors', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
-  page.on('console', msg => {
-    if (msg.type() === 'error') errors.push(msg.text())
-  })
+  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()) })
 
   await page.goto('/examples/flow/')
 
-  // §2 mounts a count line.
-  await expect(page.locator('.qcount')).toContainText(/filter view: \d of 8 rows/)
+  await expect(page.locator('.masthead h1')).toContainText(/filtered/i)
 
-  // §3 starts at N=60, work=0 events.
-  await expect(page.locator('[data-stat=n] .cstat-v')).toHaveText('60')
-  await expect(page.locator('[data-stat=real] .cstat-v')).toHaveText('0 events')
-
-  // §4 builds the SVG graph with five nodes.
-  await expect(page.locator('.pgsvg [data-node]')).toHaveCount(5)
-
-  // §5 renders four region cells.
-  await expect(page.locator('.gcell')).toHaveCount(4)
-
-  // §6 seeds the log with 3 inserts; rebuilt state has 3 rows.
-  await expect(page.locator('#loglist .lrec')).toHaveCount(3)
-  await expect(page.locator('#staterows .lrow')).toHaveCount(3)
+  // §1 instrument: seed of four changes → four chips, four base rows, three
+  // active, four region bars, avg 67.
+  await expect(page.locator('#tl-strip .chip')).toHaveCount(4)
+  await expect(page.locator('#tl-head-n')).toHaveText('4')
+  await expect(page.locator('#fold-orders .frow')).toHaveCount(4)
+  await expect(page.locator('#fold-active .frow')).toHaveCount(3)
+  await expect(page.locator('#fold-perRegion .rbar')).toHaveCount(4)
+  await expect(page.locator('#fold-avg .avg-scalar')).toHaveText('67')
 
   expect(errors).toEqual([])
 })
 
-test('§2: toggling a row updates the filtered view', async ({ page }) => {
+test('§1: adding a change extends the history and the derived views', async ({ page }) => {
   await page.goto('/examples/flow/')
 
-  // Right column holds 8 aligned slots; only `.show` slots represent the
-  // filter view's current contents.
-  const slots = page.locator('.qfig-col').nth(1).locator('.qrow.slot')
-  await expect(slots).toHaveCount(8)
-
-  const before = await slots.locator('.qrow.slot.show, .qrow.slot.show *').count()
-  const show = page.locator('.qrow.slot.show')
-  const initialShow = await show.count()
-
-  await page.locator('.qfig-col').first().locator('.qrow.on').first().click()
-  await expect(show).toHaveCount(initialShow - 1)
+  await page.locator('#tl-controls .tlb[data-act=insert]').click()
+  await expect(page.locator('#tl-strip .chip')).toHaveCount(5)
+  await expect(page.locator('#tl-len')).toHaveText('5')
+  await expect(page.locator('#fold-orders .frow')).toHaveCount(5)
 })
 
-test('§3: insert advances N by 1 and reports bounded work', async ({ page }) => {
+test('§2: scrubbing the history reconstructs an earlier state', async ({ page }) => {
   await page.goto('/examples/flow/')
 
-  await page.locator('.cfig button.cbtn').click()
-  await expect(page.locator('[data-stat=n] .cstat-v')).toHaveText('61')
+  await page.locator('#tl-controls .tlb[data-act=insert]').click()
+  await page.locator('#tl-controls .tlb[data-act=insert]').click()
+  await expect(page.locator('#tl-strip .chip')).toHaveCount(6)
 
-  const work = await page.locator('[data-stat=real] .cstat-v').textContent()
-  // Work should be a small constant, not proportional to N.
-  expect(work).toMatch(/^\d{1,2} events$/)
+  const strip = await page.locator('#tl-strip').boundingBox()
+  await page.mouse.click(strip!.x + 18, strip!.y + strip!.height / 2)
+
+  expect(Number(await page.locator('#tl-head-n').textContent())).toBeLessThan(6)
+  expect(await page.locator('#fold-orders .frow').count()).toBeLessThan(6)
 })
 
-test('§4: clicking a trigger lights at least one edge', async ({ page }) => {
+test('§3: cost is O(Δ) flat vs O(N) per change, scaling with table size', async ({ page }) => {
   await page.goto('/examples/flow/')
 
-  // Wait for auto-cycle to be idle, then click "toggle active".
-  await page.locator('[data-fire=active]').click()
-  // Give the pulse animation a moment.
-  await page.waitForTimeout(900)
-  const litEdges = await page.locator('.edge.lit').count()
-  expect(litEdges).toBeGreaterThan(0)
+  await page.locator('#cost-veil .tlb[data-bet=linear]').click()
+  await expect(page.locator('#cost-veil')).toHaveClass(/gone/)
+  await expect(page.locator('#cost-note')).toContainText(/right/)
+  await expect(page.locator('#cost-curve .cc-refold')).toHaveCount(1)
+  await expect(page.locator('#cost-inc')).toContainText(/ops/)
+
+  // recompute cost scales with N; data does not.
+  await page.locator('#cost-n').selectOption('600')
+  const small = await page.locator('#cost-ref').textContent()
+  await page.locator('#cost-n').selectOption('60000')
+  const big = await page.locator('#cost-ref').textContent()
+  const n = (s: string | null) => Number((s || '').replace(/[^0-9]/g, ''))
+  expect(n(big)).toBeGreaterThan(n(small) * 10)
 })
 
-test('§6: insert / update / remove advance the log and re-derive state', async ({ page }) => {
+test('§4: each change is tinted only by the derived views it moves', async ({ page }) => {
   await page.goto('/examples/flow/')
 
-  // Seeded with 3 records / 3 state rows.
-  await expect(page.locator('#loglist .lrec')).toHaveCount(3)
-  await expect(page.locator('#staterows .lrow')).toHaveCount(3)
+  await page.locator('#tl-controls .tlb[data-act=toggle]').click()
+  await expect(page.locator('#tl-detail')).toContainText(/moved/)
+  await expect(page.locator('#tl-detail')).toContainText(/untouched/)
+})
 
-  await page.locator('#fig-log button:has-text("insert")').click()
-  await expect(page.locator('#loglist .lrec')).toHaveCount(4)
-  await expect(page.locator('#staterows .lrow')).toHaveCount(4)
+test('the change history pins to the left margin on scroll and scrubs', async ({ page }) => {
+  await page.setViewportSize({ width: 1360, height: 900 })
+  await page.goto('/examples/flow/')
 
-  // Update appends a record but doesn't change row count.
-  await page.locator('#fig-log button:has-text("update random")').click()
-  await expect(page.locator('#loglist .lrec')).toHaveCount(5)
-  await expect(page.locator('#staterows .lrow')).toHaveCount(4)
+  await expect(page.locator('#tl-pin')).not.toHaveClass(/show/)
+  await page.evaluate(() => document.getElementById('selectivity')!.scrollIntoView())
+  await expect(page.locator('#tl-pin')).toHaveClass(/show/, { timeout: 3000 })
+  await expect(page.locator('#tl-pin-strip .pchip')).toHaveCount(4)
+  await expect(page.locator('#tl-pin-label')).toContainText(/§4/)
+})
 
-  // Remove decrements state.
-  await page.locator('#fig-log button:has-text("remove random")').click()
-  await expect(page.locator('#staterows .lrow')).toHaveCount(3)
+test('§5: a change to orders becomes a change handed on by active', async ({ page }) => {
+  await page.goto('/examples/flow/')
 
-  // Replay rebuilds the same state from scratch.
-  const stateBefore = await page.locator('#staterows').textContent()
-  await page.locator('#fig-log button:has-text("replay from scratch")').click()
-  await expect(page.locator('#staterows')).toHaveText(stateBefore!)
+  await page.locator('#edge-go').click()
+  await expect(page.locator('#edge-src')).toContainText(/update · #\d+\.active/)
+  await expect(page.locator('#edge-act')).toContainText(/(insert|remove) · #\d+/)
+})
+
+test('§6: the hands-off code contrast renders both columns', async ({ page }) => {
+  await page.goto('/examples/flow/')
+  await expect(page.locator('#fig-handsoff .ho-col')).toHaveCount(2)
+  await expect(page.locator('#fig-handsoff .ho-good')).toContainText(/orders\.filter/)
+})
+
+test('§7: a change maps to one minimal DOM instruction', async ({ page }) => {
+  await page.goto('/examples/flow/')
+
+  await expect(page.locator('#dom-list .dl-row')).toHaveCount(2)
+  await page.locator('#dom-insert').click()
+  await expect(page.locator('#dom-list .dl-row')).toHaveCount(3)
+  await expect(page.locator('#dom-op')).toContainText(/appendChild/)
+  await page.locator('#dom-update').click()
+  await expect(page.locator('#dom-op')).toContainText(/one text write/)
+  await page.locator('#dom-remove').click()
+  await expect(page.locator('#dom-list .dl-row')).toHaveCount(2)
+  await expect(page.locator('#dom-op')).toContainText(/remove/)
 })
