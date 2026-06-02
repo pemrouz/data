@@ -5,7 +5,8 @@
   "type": "module",
   "sideEffects": [
     "./dist/index.js",
-    "./dist/full.js"
+    "./dist/full.js",
+    "./register.ts"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
