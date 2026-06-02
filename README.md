@@ -222,6 +222,7 @@ idEvents.length    // 1
   - `proxy.connect(obj, fn)` calls `fn(change)` per event — `obj` is just the lifetime anchor (a sink stays alive while the object does).
 - **`raf` writes.** `const write = proxy.raf()` returns a coalescing writer: `write(v)` schedules a single `requestAnimationFrame` that commits the latest pending value to `proxy[value]`; further calls before the frame fires overwrite the pending value. `write.flush()` commits immediately — for `pointerup` handlers that want the final brush position to land without an extra frame. Replaces hand-rolled `rafWriter` patterns in interactive UIs.
 - **`first` / `last`** return the proxy at the first / last key of an array-shaped view (snapshot at call time). Sugar for `proxy[0]` / `proxy[length - 1]` and the equivalent for objects (first / last enumerable key).
+- **`patch` batches writes.** `proxy.patch([name, value, name, value, ...])` applies many child updates as a *single* cascade — sinks receive one batched update (new keys become inserts) instead of one dispatch per `proxy[name] = value`. For a high-throughput producer (a simulation, a market feed) touching hundreds of rows per frame this collapses the per-row dispatch fan-out to one walk per sink. See [examples/swarm/](examples/swarm/).
 
 For internals — the View / Sink / notification model — see [.claude/architecture.md](.claude/architecture.md).
 
@@ -256,6 +257,7 @@ Two example apps live in [examples/](examples/):
 
 - [examples/todo/](examples/todo/) — TodoMVC: filter on `done`, route via hash, edit-in-place, length counters.
 - [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 (and 50 000) flight records, with brushable histograms. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter/).**
+- [examples/swarm/](examples/swarm/) — a live agent-simulation control room: a SIRS epidemic over ~12k moving agents at 60fps in plain JS, with a fully incremental analytics deck on `data` riding alongside (SIR counts, region leaderboard, energy histogram, an outbreak alarm via `some()`, and a brushable cohort). Plain JS owns the physics + canvas; `data` owns the deck, fed one batched `patch` per frame so its cost tracks the events, not the population.
 - [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Functionally identical; demonstrates that the JSX adapter preserves DOMSink's per-key incremental updates.
 
 Run them locally:
