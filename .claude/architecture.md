@@ -22,7 +22,7 @@ $(value)
   - `delete proxy.x` → `res.remove([...key, 'x'])`.
   - `proxy.x` → returns a child `ViewProxy` lazily (creates child `View` on demand).
   - `proxy[value]` (the `value` symbol) returns the raw underlying value.
-  - `proxy.method(args)` — if `method` is a registered operator name (in `Operators`), instantiates/reuses the operator class; if it's `connect`, wires up a sink; otherwise dispatches `update`/`insert`/`remove`.
+  - `proxy.method(args)` — if `method` is a registered operator name (in `Operators`), instantiates/reuses the operator class; if it's a built-in (`connect` wires a sink, `raf` a coalescing writer, `first`/`last` a positional child, `patch` a batched multi-row write that fans one `BU1`/`BU2` out to all sinks); otherwise dispatches `update`/`insert`/`remove`.
 
 ## Symbols
 

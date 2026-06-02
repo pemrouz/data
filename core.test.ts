@@ -480,3 +480,49 @@ test('connect([]) — ArrSink pinned to the array (returned), survives GC', () =
   }
   ok(changes) // keep `changes` reachable to end-of-test
 })
+
+test('patch - batches updates and inserts into one cascade', () => {
+  // patch([name, value, ...]) is the bulk form of `proxy[name] = value`: it
+  // updates the backing value for every pair and emits a single batched BU1
+  // (new keys split out as BI0), instead of one dispatch per assignment. This
+  // is the high-throughput producer path the swarm example uses.
+  const data = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const changes = data.connect([])
+  const aChanges = data.a.connect([]) // touched row sees its update…
+  const bChanges = data.b.connect([]) // …untouched row stays silent (per-path routing)
+
+  data.patch(['a', { n: 10 }, 'c', { n: 30 }, 'd', { n: 99 }]) // a,c update; d insert
+
+  same(data[value], { a: { n: 10 }, b: { n: 2 }, c: { n: 30 }, d: { n: 99 } })
+  same(changes, [
+    { type: 'update', key: [], value: { a: { n: 1 }, b: { n: 2 }, c: { n: 3 } } },
+    { type: 'update', key: ['a'], value: { n: 10 } },
+    { type: 'update', key: ['c'], value: { n: 30 } },
+    { type: 'insert', key: [], value: { n: 99 }, at: 'd' },
+  ])
+  same(aChanges, [
+    { type: 'update', key: [], value: { n: 1 } },
+    { type: 'update', key: [], value: { n: 10 } },
+  ])
+  same(bChanges, [{ type: 'update', key: [], value: { n: 2 } }])
+})
+
+test('patch - new keys become inserts, existing keys propagate per-path', () => {
+  // a second cascade on the same proxy: new key 'e' inserts; the
+  // previously-inserted 'c' updates; a derived child sees only its own path.
+  const data = $({ a: { n: 1 } })
+  data.patch(['b', { n: 2 }, 'c', { n: 3 }]) // two inserts
+  const changes = data.connect([])
+  const cChanges = data.c.n.connect([])
+  data.patch(['c', { n: 30 }, 'e', { n: 5 }]) // c updates, e inserts
+  same(data[value], { a: { n: 1 }, b: { n: 2 }, c: { n: 30 }, e: { n: 5 } })
+  same(changes, [
+    { type: 'update', key: [], value: { a: { n: 1 }, b: { n: 2 }, c: { n: 3 } } },
+    { type: 'update', key: ['c'], value: { n: 30 } },
+    { type: 'insert', key: [], value: { n: 5 }, at: 'e' },
+  ])
+  same(cChanges, [
+    { type: 'update', key: [], value: 3 },
+    { type: 'update', key: [], value: 30 },
+  ])
+})

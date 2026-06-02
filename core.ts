@@ -932,6 +932,24 @@ export class ViewProxy {
     }
     if (type === 'connect') return connect(p, ...args)
     if (type === 'raf')     return raf(p)
+    // `proxy.patch([name, value, name, value, ...])` applies many child updates
+    // as ONE cascade: the backing value is updated for every pair and sinks
+    // receive a single batched BU1 (new keys split out as BI0), instead of one
+    // dispatch per `proxy[name] = value`. For high-throughput producers that
+    // touch thousands of rows per frame (a simulation, a market feed) this
+    // collapses the per-row dispatch fan-out to one walk per sink. Writes route
+    // through the root resource (`res`), exactly like the single-key setter; on
+    // the root receiver the pairs are a flat BU1 batch, on a sub-proxy each
+    // pair is rewritten to a deep path so semantics match N assignments at
+    // `receiver[name] = value`.
+    if (type === 'patch') {
+      const { res, key } = p // the receiver's view, not the 'patch' method child
+      const pairs = args[0]
+      if (!key.length) return res.BU1(pairs)
+      const U2 = []
+      for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1])
+      return res.BU2(U2)
+    }
     if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
     if (type === 'last')    return new ViewProxy(p.get_or_create_named(lastKey(p.value)))
     const OperatorClass = Operators[type]?.(...args)
