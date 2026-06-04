@@ -1392,7 +1392,7 @@ var ZAValue = class extends Operator {
   XU0(value2) {
     if (typeof value2 !== "object") return this.XR0();
     this.isArr = isArray(value2);
-    this.sorted = Object.keys(value2).sort((a, b) => {
+    this.sorted = Object.keys(value2).filter((k) => value2[k] !== void 0).sort((a, b) => {
       const va = this.col(value2[a]);
       const vb = this.col(value2[b]);
       return va > vb ? -1 : va < vb ? 1 : 0;
@@ -1577,7 +1577,7 @@ var ZAValue = class extends Operator {
 ZAValue.prototype.find = bisect_right;
 var ZAColumnValue = class extends ZAValue {
   constructor(p, col, n = Infinity) {
-    super(p, (d) => d[col], col, n);
+    super(p, (d) => d?.[col], col, n);
   }
 };
 var ZANumberValue = class extends ZAValue {
@@ -1588,7 +1588,7 @@ var ZANumberValue = class extends ZAValue {
 var AZValue = class extends ZAValue {
   XU0(value2) {
     if (typeof value2 !== "object") return this.XR0();
-    this.sorted = Object.keys(value2).sort((a, b) => {
+    this.sorted = Object.keys(value2).filter((k) => value2[k] !== void 0).sort((a, b) => {
       const va = this.col(value2[a]);
       const vb = this.col(value2[b]);
       return va > vb ? 1 : va < vb ? -1 : 0;
@@ -1601,7 +1601,7 @@ var AZValue = class extends ZAValue {
 AZValue.prototype.find = bisect_left;
 var AZColumnValue = class extends AZValue {
   constructor(p, col, n = Infinity) {
-    super(p, (d) => d[col], col, n);
+    super(p, (d) => d?.[col], col, n);
   }
 };
 var AZNumberValue = class extends AZValue {
@@ -2369,7 +2369,7 @@ var IntersectValue = class extends Operator {
     this.filters = isArray(this.p.value) ? [] : {};
     iter(p.value, (i, v) => {
       for (const [res, src] of this.sources) {
-        if (i in res.value) this.filters[i] |= src.one;
+        if (res.value[i] !== void 0) this.filters[i] |= src.one;
       }
       if (this.filters[i] === this.all) new_value[i] = v;
     });
