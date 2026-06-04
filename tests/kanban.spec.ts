@@ -100,10 +100,16 @@ test('search filters cards across columns (rAF-coalesced re-point)', async ({ pa
 
 test('assignee filter re-points every column', async ({ page }) => {
   await page.goto('/examples/kanban/')
-  const totalBefore = await page.locator('.card').count()
+  // wait for the async-mounted board before snapshotting the total (the count
+  // raced the initial render under full-suite load — the documented flake).
+  await expect(page.locator('.card')).toHaveCount(20)
   await page.locator('.chip[data-who="ana"]').click()
   await expect(page.locator('.chip[data-who="ana"]')).toHaveClass(/active/)
-  expect(await page.locator('.card').count()).toBeLessThan(totalBefore)
-  const whos = await page.locator('.card .pill.who').allTextContents()
-  expect(whos.every(w => w.trim() === 'ana')).toBe(true)
+  // auto-retry the post-filter reads so the assertion can't observe a
+  // mid-reconcile DOM (was a plain `await ...count()` / `allTextContents()`).
+  await expect.poll(async () => page.locator('.card').count()).toBeLessThan(20)
+  await expect.poll(async () => {
+    const whos = await page.locator('.card .pill.who').allTextContents()
+    return whos.length > 0 && whos.every(w => w.trim() === 'ana')
+  }).toBe(true)
 })
