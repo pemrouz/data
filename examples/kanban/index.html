@@ -1,0 +1,23 @@
+<!doctype html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data • kanban</title>
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body></body>
+<script type="importmap">
+{ "imports": {
+    "data":          "../../dist/index.js",
+    "data/full":     "../../dist/full.js",
+    "data/render":   "../../dist/render/index.js",
+    "data/devtools": "../../dist/devtools/index.js"
+} }
+</script>
+<script type="module">
+  // Opt-in devtools: append ?devtools to load $.inspect/.graph/.trace and the
+  // overlay panel. Off by default so the example stays byte-clean.
+  if (location.search.includes('devtools')) await import('data/devtools')
+  await import('./main.js')
+</script>
+</html>
