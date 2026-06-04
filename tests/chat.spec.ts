@@ -64,6 +64,28 @@ test('sending a message appends it to the open channel', async ({ page }) => {
   expect(await page.locator('.msg').count()).toBe(before + 1)
 })
 
+test('search filters the open channel (rAF-coalesced re-point)', async ({ page }) => {
+  await page.goto('/examples/chat/')
+  await stopBot(page)
+  // two known messages in the open channel: one matches the query, one doesn't
+  for (const t of ['alpha marker zzqq', 'beta other line']) {
+    await page.locator('.compose-input').fill(t)
+    await page.locator('.compose-input').press('Enter')
+  }
+  await expect(page.locator('.msg', { hasText: 'beta other line' })).toBeVisible()
+  // typing re-points the view once per frame (coalesced); the filter applies a
+  // frame later, so use auto-retrying assertions.
+  await page.locator('.search').fill('zzqq')
+  await expect.poll(async () => {
+    const texts = await page.locator('.msg .msg-text').allTextContents()
+    return texts.length > 0 && texts.every(t => t.toLowerCase().includes('zzqq'))
+  }).toBe(true)
+  await expect(page.locator('.msg', { hasText: 'beta other line' })).toHaveCount(0)
+  // clearing restores the non-matching message
+  await page.locator('.search').fill('')
+  await expect(page.locator('.msg', { hasText: 'beta other line' })).toBeVisible()
+})
+
 test('blast (batched patch insert) lifts the channel counts', async ({ page }) => {
   await page.goto('/examples/chat/')
   await stopBot(page)

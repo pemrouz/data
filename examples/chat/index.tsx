@@ -118,7 +118,12 @@ const toggleBot = (ev: any) => {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-const initial = (u: string) => u[0].toUpperCase()
+// Guard against the transient `undefined` a row's field shows while the row is
+// leaving the view during a re-point cascade (the documented sparse-view gotcha
+// — the same reason the library example binds defensively). Without the guard,
+// `undefined[0]` throws inside the remove cascade and aborts it, leaving stale
+// message nodes behind (search/channel-switch then appear not to filter).
+const initial = (u: string) => u ? u[0].toUpperCase() : ''
 const fmtTime = (ts: number) => {
   const h = 8 + ((ts / 6) | 0) % 12
   const m = (ts * 7) % 60
