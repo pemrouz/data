@@ -13,6 +13,7 @@
 !examples/flow/**/*.js
 !examples/swarm/**/*.js
 !examples/kanban/**/*.js
+!examples/pivot/**/*.js
 !mockups/**/*.js
 
 # dist/ is committed so GitHub Pages (branch deploy) can serve the importmap
