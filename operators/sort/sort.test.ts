@@ -3,6 +3,8 @@ import { deepStrictEqual as same } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { sort, limit } from './index.ts'
+import { filter } from '../filter/index.ts'
+import { sum } from '../aggregate/index.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
@@ -174,9 +176,40 @@ test('sort (za) - in-window rank change emits BMV1', () => {
   same(moves[0], { type: 'move', from: 3, to: 0 })
 })
 
-// limit on object sources used to fall back to a full XU0 on every
-// BR1/BU1/BI0, which defeated the operator's purpose for object-shaped
-// data. These tests drive the incremental object branch.
+// Regression: an in-place row mutation that reaches sort as a whole-row BU1
+// with an *unchanged object reference* used to be silently dropped. `filter`
+// (a RowOperator) collapses an upstream deep BU2 into a whole-row BU1, and
+// because the row was mutated in place the reference is unchanged — sort
+// re-emitted via super.BU1 (Value.BU1), whose reference dedup (`old === new`)
+// then dropped the change. Both a downstream aggregate AND a downstream child
+// view (the render path) went stale. Surfaced building the Kanban example
+// (`board.filter('status', s).sort('order')` columns whose cards get edited).
+test('sort - in-window in-place edit through filter refreshes aggregate + child view', () => {
+  const board = $({
+    a: { status: 'todo', title: 'Hello', points: 5, order: 0 },
+    b: { status: 'done', title: 'X',     points: 2, order: 1 },
+  })
+  const col = sort(filter(board, 'status', 'todo'), 'order')  // ascending column
+  const pts = sum(col, 'points')
+  // A raw sink on the positional child view's title field — the same XU0 a
+  // render text-binding subscribes to. Kept alive in a local (WeakRef sinks).
+  const seen = []
+  const titleSink = { XU0: (v) => seen.push(v), BU1() {}, BR1() {}, BI0() {}, BU2() {}, XR0() {} }
+  const keep = col[0].title
+  keep.connect(titleSink)
+  same(pts[value], 5)
+  same(keep[value], 'Hello')
+
+  // edit a non-sort, non-filter column in place — arrives as whole-row BU1,
+  // same object reference, rank unchanged.
+  board.a.points = 8
+  same(pts[value], 8)                                           // aggregate followed
+
+  // edit the rendered field in place — the positional child view must refresh.
+  board.a.title = 'World'
+  same(keep[value], 'World')                                    // child view followed
+  same(seen[seen.length - 1], 'World')                          // and notified its sink
+})
 test('limit (obj) - takes first n keys in iteration order', () => {
   const data = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
   const res = limit(data, 3)

@@ -145,8 +145,20 @@ export class ZAValue extends Operator {
       // No rank change: only forward the value update if the row is in the
       // visible window. Otherwise we'd write `view.value[oidx] = value` past
       // `n`, growing the materialized window past its limit.
+      //
+      // Emit through View.BU1 (not super.BU1 / Value.BU1) deliberately:
+      // Value.BU1 dedups by reference (`view.value[oidx] === value → skip`),
+      // which is correct for a source setter but WRONG here. An in-place row
+      // mutation that reaches us as a whole-row BU1 — e.g. `filter` collapsing
+      // an upstream BU2 into a same-reference whole-row BU1 — carries the
+      // unchanged object reference, so Value.BU1 would silently drop a real
+      // content change. The upstream already decided the row changed; honour
+      // that and refresh the in-window slot's child view + sinks unconditionally.
       if (oidx === nidx) {
-        if (oidx < n) super.BU1([oidx, value])
+        // Stringify the index: child views are keyed by stringified name, so a
+        // numeric index would miss get_named() and skip the child-view refresh
+        // (the working no-rank-change BU2 path emits the string key '0' too).
+        if (oidx < n) { this.view.value[oidx] = value; this.view.BU1(['' + oidx, value]) }
         continue
       }
       if (oidx >= n && nidx >= n) {}
