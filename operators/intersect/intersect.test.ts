@@ -3,6 +3,29 @@ import { deepStrictEqual as same, ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value, view } from '../../core.ts'
 import { intersect } from './index.ts'
+import { between } from '../between/index.ts'
+
+// Regression: intersect's CONSTRUCTOR seeded its bitmask with `i in res.value`,
+// but between/union/except leave EXPLICIT `undefined` at excluded slots (the
+// key is present), so an excluded row counted as a member and was wrongly
+// admitted. Only bites when the intersect is BUILT over an already-sparse
+// source (e.g. a between whose bounds were tightened before the intersect was
+// composed). The incremental paths already used `!== undefined`. Surfaced
+// building the faceted-library example.
+test('intersect - construction skips explicit-undefined slots of a sparse source', () => {
+  const m = $({ a: { r: 8.3 }, b: { r: 8.6 }, c: { r: 8.5 } })
+  const bounds = $([8.0, 9.0])
+  const hi = between(m, 'r', bounds)           // reactive bounds; members a, b, c
+  bounds[value] = [8.4, 9.0]                    // a leaves — left behind as undefined
+  const dense = (v) => Object.keys(v).filter(k => v[k] !== undefined).sort()
+  // a is `in hi.value` (key present, value undefined) but NOT a member
+  same(hi[value].a, undefined)
+  same('a' in hi[value], true)
+  // build the intersect AFTER the sparse exclusion exists
+  const res = intersect(m, hi)
+  same(dense(res[value]), ['b', 'c'])
+  same(res[value].a, undefined)                // must not be admitted
+})
 
 test('intersect - objects', () => {
   const a = $({ 10: 'a', 20: 'b', 30: 'c' })

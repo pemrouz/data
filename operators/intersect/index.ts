@@ -84,7 +84,12 @@ export class IntersectValue extends Operator {
     this.filters = isArray(this.p.value) ? [] : {}
     iter(p.value, (i, v) => {
       for (const [res, src] of this.sources) {
-        if (i in res.value) this.filters[i] |= src.one
+        // `res.value[i] !== undefined`, NOT `i in res.value`: between/union/
+        // except leave EXPLICIT `undefined` at excluded slots (the key is
+        // present), so `i in` would count an excluded row as a member and
+        // wrongly admit it. The incremental XU0/BI0 paths already use the
+        // `!== undefined` test — the constructor seeding was the outlier.
+        if (res.value[i] !== undefined) this.filters[i] |= src.one
       }
       if (this.filters[i] === this.all) new_value[i] = v
     })
