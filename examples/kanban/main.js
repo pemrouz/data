@@ -228,7 +228,19 @@ const setAssigneeFilter = who => () => {
   rebuildColumns()
   syncFilterChips()
 }
-const onSearch = ev => { filterState.search = ev.target.value; rebuildColumns() }
+// Coalesce the search re-point to one rebuild per frame. A fast typer fires
+// several `input` events per frame, but the columns only need to re-point once
+// with the latest query — the same rAF-coalescing the library slider uses.
+// Without it, every keystroke re-points all 5 columns (O(board) per keystroke)
+// and the undeduped filter/az operators pile up until GC, which measurably
+// slows later board edits. Assignee clicks stay immediate (one event each).
+let searchPending = false
+const onSearch = ev => {
+  filterState.search = ev.target.value
+  if (searchPending) return
+  searchPending = true
+  requestAnimationFrame(() => { searchPending = false; rebuildColumns() })
+}
 
 // ── views ────────────────────────────────────────────────────────────────────
 const fmtPts = n => (n || 0) + ' pts'

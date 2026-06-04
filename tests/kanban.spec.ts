@@ -83,6 +83,21 @@ test('clicking the points pill cycles the value (real interaction)', async ({ pa
   await expect(pill).not.toHaveText(before!)
 })
 
+test('search filters cards across columns (rAF-coalesced re-point)', async ({ page }) => {
+  await page.goto('/examples/kanban/')
+  await expect(page.locator('.card')).toHaveCount(20)
+  // typing re-points every column once per frame; the filter applies a frame
+  // later, so use auto-retrying assertions (never a synchronous read).
+  await page.locator('.search').fill('auth')
+  await expect.poll(async () => {
+    const cards = await page.locator('.card').allTextContents()
+    return cards.length > 0 && cards.length < 20 && cards.every(t => t.toLowerCase().includes('auth'))
+  }).toBe(true)
+  // clearing restores the full board
+  await page.locator('.search').fill('')
+  await expect(page.locator('.card')).toHaveCount(20)
+})
+
 test('assignee filter re-points every column', async ({ page }) => {
   await page.goto('/examples/kanban/')
   const totalBefore = await page.locator('.card').count()
