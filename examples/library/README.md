@@ -8,7 +8,7 @@ genreFacet  = filter(g1).union(filter(g2), …)         // OR within a facet
 ratingFacet = movies.between('rating', ratingBounds)  // reactive range
 selected    = movies.intersect(genreFacet, decadeFacet, ratingFacet, …)  // AND across
 final       = selected.except(excludedFacet)          // minus exclusions
-display     = final.za('rating').limit(n)             // sorted, paged
+display     = final.za('rating', pageSize)            // bounded top-K (sorted + paged)
 ```
 
 ## What it exercises (the set-algebra operators)
@@ -19,10 +19,29 @@ display     = final.za('rating').limit(n)             // sorted, paged
 - **`except`** — the "exclude genre" chips subtract a union of views.
 - **`between`** — the rating / runtime sliders mutate reactive bounds.
 - **`distinct`** / fixed domains drive the facet value chips.
-- **`za` + `limit`** — sorted, paged display; "load more" re-points the limit.
+- **bounded `za('rating', pageSize)`** — a top-K window does the sort *and* the
+  paging in one operator; "load more" re-points it to a larger `pageSize`. This
+  replaced `za('rating').limit(n)` — the unbounded sort materialized and
+  re-spliced the full in-range set (thousands of rows) on every brush tick.
 
 Facet selections re-point the per-facet `$(view)` sources; the chain downstream
 recomputes incrementally and the card grid catches up surgically.
+
+## Brushing performance
+
+The rating / runtime sliders write their bounds through a **rAF-coalesced
+writer** (`ratingBounds.raf()`), so a fast drag commits one `between → … → za`
+cascade per frame instead of one per `input` event. A brush does **not** repage
+— the bounded `za` window re-windows itself reactively; `repage()` only runs
+when `pageSize` actually changes (load more / facet reset).
+
+This example also drove a library fix (`perf(sort)`): a bounded `za` brushed on
+its own sort column used to re-render the whole grid every step, because the
+window refilled from the next-ranked row after each in-window eviction — and on
+a top-of-order batch (exactly what a rating brush is) that refill row is itself
+in the doomed batch, so it was inserted then immediately re-evicted (O(Δ)
+churn). `za` now reconciles a multi-row batch once (≤ window positional
+updates). Smooth brush step: ~431 ms → ~2 ms; fast coalesced drag: ~4 s → ~40 ms.
 
 ## Library bugs it surfaced
 

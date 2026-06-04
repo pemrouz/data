@@ -69,15 +69,30 @@ const runtimeBounds = $([80, 180])
 const ratingFacet = movies.between('rating', ratingBounds)
 const runtimeFacet = movies.between('runtime', runtimeBounds)
 
+// rAF-coalesced writers for the two range brushes: a fast slider drag fires
+// many `input` events per frame, but the bounds (and the whole between → … → za
+// cascade) only need to commit once per frame. `write([lo, hi])` overwrites the
+// pending value; the latest lands on the next rAF. (Same technique the
+// crossfilter example uses for its brush.) clearAll routes through these too, so
+// a pending mid-drag write can't clobber the reset a frame later.
+const writeRating = ratingBounds.raf()
+const writeRuntime = runtimeBounds.raf()
+
 // AND across every facet, then subtract the exclusions
 const selected = movies.intersect(genreFacet, decadeFacet, searchFacet, ratingFacet, runtimeFacet)
 const final = selected.except(excludedFacet)
 const resultCount = final.length()
 
-// sorted + paged display (re-pointed when "load more" grows the page)
-const sorted = final.za('rating')
+// sorted + paged display — a BOUNDED top-K. `za('rating', pageSize)` keeps only
+// a pageSize-element window; rows that fall outside it are tracked in the sort
+// index but never materialized, so a rating/runtime brush costs O(window) per
+// step, not O(matching-rows). (`final.za('rating')` with no n — then `.limit()`
+// — was ~13× slower: the un-bounded sort materializes and re-splices the FULL
+// in-range set, thousands of rows, on every brush tick, and the downstream
+// limit can't undo that.) Re-pointed only when the page size actually changes
+// (load more / facet reset) — never on a brush tick; the window updates itself.
 let pageSize = 60
-const display = $(sorted.limit(pageSize))
+const display = $(final.za('rating', pageSize))
 
 // union a set of precomputed views, or fall back to `whenEmpty`
 function unionOf(views, whenEmpty) {
@@ -99,7 +114,7 @@ function rebuildSearch() {
   const q = state.search.trim().toLowerCase()
   searchFacet[value] = q ? movies.filter(m => m.title.toLowerCase().includes(q)) : movies
 }
-function repage() { display[value] = sorted.limit(pageSize) }
+function repage() { display[value] = final.za('rating', pageSize) }
 
 // ── handlers ─────────────────────────────────────────────────────────────────
 const toggle = (set, key, rebuild) => () => {
@@ -110,22 +125,26 @@ const onSearch = ev => { state.search = ev.target.value; rebuildSearch(); pageSi
 const loadMore = () => { pageSize += 60; repage() }
 const clearAll = () => {
   state.genres.clear(); state.decades.clear(); state.exclude.clear(); state.search = ''
-  ratingBounds[value] = [4, 9.5]; runtimeBounds[value] = [80, 180]
+  writeRating([4, 9.5]); writeRuntime([80, 180])
   document.querySelector('#search').value = ''
   syncRanges()
   rebuildGenre(); rebuildDecade(); rebuildExclude(); rebuildSearch(); syncChips(); pageSize = 60; repage()
 }
 
-// range sliders: two inputs per dimension, clamped so lo ≤ hi
-function rangeControl(idLo, idHi, min, max, step, bounds, fmt) {
+// range sliders: two inputs per dimension, clamped so lo ≤ hi. The brush writes
+// the new bounds through a rAF-coalesced `write` and does NOT repage — the
+// display is a live `za` window, so it re-windows itself surgically as `between`
+// emits enter/leave events. Only one thumb moves per `input`, so reading the
+// stationary thumb from the committed `bounds[value]` stays correct even with a
+// frame pending.
+function rangeControl(idLo, idHi, min, max, step, bounds, write, fmt) {
   const read = () => bounds[value]
   const onInput = which => ev => {
     let [lo, hi] = read()
     const v = +ev.target.value
     if (which === 'lo') lo = Math.min(v, hi)
     else hi = Math.max(v, lo)
-    bounds[value] = [lo, hi]
-    pageSize = 60; repage()
+    write([lo, hi])
   }
   return div.range(
     input.attr({ id: idLo, type: 'range', min, max, step, value: read()[0] }).on('input', onInput('lo')),
@@ -195,11 +214,11 @@ render(document.body, HTML.body(
       ),
       div.facet(
         label.flabel('Rating'),
-        rangeControl('rlo', 'rhi', 4, 9.5, 0.1, ratingBounds, v => v.toFixed(1)),
+        rangeControl('rlo', 'rhi', 4, 9.5, 0.1, ratingBounds, writeRating, v => v.toFixed(1)),
       ),
       div.facet(
         label.flabel('Runtime'),
-        rangeControl('tlo', 'thi', 80, 180, 1, runtimeBounds, v => v + 'm'),
+        rangeControl('tlo', 'thi', 80, 180, 1, runtimeBounds, writeRuntime, v => v + 'm'),
       ),
       div.facet.facet_exclude(
         label.flabel('Exclude genre'),

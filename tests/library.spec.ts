@@ -58,6 +58,41 @@ test('load more grows the page; clear all resets to 6000', async ({ page }) => {
   await expect(page.locator('.facet-genres .chip.on')).toHaveCount(0)
 })
 
+// The rating brush is the hot path that motivated the bounded-`za` + rAF work:
+// `display = final.za('rating', pageSize)` (a bounded top-K, not `za().limit()`)
+// updated through a rAF-coalesced bounds write. This asserts the brush stays
+// CORRECT under a drag — every visible card within the ceiling, sorted desc,
+// the window full (60) while enough titles qualify — and throws no errors.
+// (The per-step cost is pinned at the operator level in
+// operators/sort/sort.perf.ts `bounded batch brush`.)
+test('rating brush filters + re-sorts correctly under a drag', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', e => errors.push(e.message))
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  await page.goto('/examples/library/')
+  await expect(page.locator('.card')).toHaveCount(60)
+
+  const scores = (p: Page) =>
+    p.locator('.card .score').evaluateAll(els =>
+      els.map(e => parseFloat((e as HTMLElement).textContent || 'NaN')))
+
+  // Drag the rating ceiling down through several stops; after each, every card
+  // must be ≤ ceiling and the list must stay sorted descending.
+  for (const hi of [9.0, 8.0, 7.0, 6.0, 5.5]) {
+    await page.locator('#rhi').evaluate((el, v) => {
+      ;(el as HTMLInputElement).value = String(v)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }, hi)
+    await expect.poll(async () => {
+      const s = await scores(page)
+      return s.length > 0 && s.every(x => x <= hi + 1e-9) && s.every((x, i) => i === 0 || s[i - 1] >= x)
+    }).toBe(true)
+  }
+  // Plenty of titles still rate ≤ 5.5, so the window stays full.
+  await expect(page.locator('.card')).toHaveCount(60)
+  expect(errors).toEqual([])
+})
+
 test('rendered cards stay consistent (no duplicates/stale) through facet churn', async ({ page }) => {
   await page.goto('/examples/library/')
 
