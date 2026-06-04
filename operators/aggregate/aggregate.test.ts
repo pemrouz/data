@@ -3,6 +3,8 @@ import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { sum, avg, max, min, some, every } from './index.ts'
+import { sort, limit } from '../sort/index.ts'
+import { filter } from '../filter/index.ts'
 
 // SUM ------------------------------------------------------------------
 
@@ -16,6 +18,60 @@ test('sum - array of numbers', () => {
   eq(s[value], 33)
   delete res[0]
   eq(s[value], 32)        // 20 + 3 + 4 + 5
+})
+
+// Regression: scalar aggregates downstream of a sort/limit (array-shaped
+// upstreams) silently desynced on remove/insert. sort emits removal/insert
+// notifications with *numeric* array-index names (key [0], [1], …), but
+// AggregateValue.XU0 keys its `tracked` Map with stringified names. The
+// incremental BU1/BR1/BI0 handlers used the raw numeric name for get/delete,
+// so the lookup missed and the running total never moved — `sum` stuck, count
+// (length) correct because it's key-agnostic. Surfaced building the Kanban
+// example (per-column `filter(status).sort(order).sum(points)`).
+test('sum/avg/max/min - downstream of sort survives remove + insert (numeric-key path)', () => {
+  const res = $({ x: { p: 3, o: 0 }, y: { p: 5, o: 1 }, z: { p: 9, o: 2 } })
+  const s = sort(res, 'o')              // descending by o → array-shaped output
+  const sm = sum(s, 'p'), av = avg(s, 'p'), mx = max(s, 'p'), mn = min(s, 'p')
+  eq(sm[value], 17); eq(av[value], 17 / 3); eq(mx[value], 9); eq(mn[value], 3)
+
+  delete res.z                          // remove the max via an array shift
+  eq(sm[value], 8)                      // was stuck at 17 before the fix
+  eq(av[value], 4)
+  eq(mx[value], 5); eq(mn[value], 3)
+
+  res.x.p = 1                           // in-place update lowers the min
+  eq(sm[value], 6); eq(mn[value], 1)
+
+  res.insert({ p: 20, o: 9 }, ['w'])    // insert a new max
+  eq(sm[value], 26); eq(mx[value], 20)
+})
+
+// A filter that flips a row's membership reaches a downstream sort as a
+// BR1/BI0 with the sort's positional (numeric) key — the exact Kanban "move
+// card between columns" path. The column's point total must follow.
+test('sum - filter → sort → sum tracks membership flips (Kanban column shape)', () => {
+  const board = $({
+    a: { s: 'todo', p: 3, o: 0 },
+    b: { s: 'todo', p: 5, o: 1 },
+    c: { s: 'done', p: 2, o: 0 },
+  })
+  const col = sort(filter(board, 's', 'todo'), 'o')
+  const pts = sum(col, 'p')
+  eq(pts[value], 8)
+  board.a.s = 'done'                    // move a out of the todo column
+  eq(pts[value], 5)                     // was stuck at 8 before the fix
+  board.c.s = 'todo'                    // move c into the todo column
+  eq(pts[value], 7)
+})
+
+// limit shares the same array-index notification shape as sort.
+test('sum - downstream of limit decrements on remove', () => {
+  const res = $([{ p: 10 }, { p: 20 }, { p: 30 }])
+  const lim = limit(res, 3)
+  const sm = sum(lim, 'p')
+  eq(sm[value], 60)
+  delete res[0]
+  eq(sm[value], 50)                     // 20 + 30
 })
 
 test('sum - object of numbers', () => {

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { iter } from '../../utils.ts'
+import { iter, isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
 // Common per-row tracking for scalar aggregates. `tracked.get(name)` returns
@@ -76,7 +76,11 @@ class AggregateValue extends Operator {
     if (!U1.length) return
     let dirty = false
     for (let i = 0; i < U1.length; i += 2) {
-      const n = U1[i]
+      // Coerce to string: XU0 keys `tracked` with `'' + n`, but array-shaped
+      // upstreams (sort/limit/between) emit *numeric* array-index names here.
+      // Without this coercion get/set/delete miss the string-keyed entries and
+      // the running aggregate silently desyncs (sum stuck, max/min stale slot).
+      const n = '' + U1[i]
       const old = this.tracked.get(n)
       const x = this._project(U1[i + 1])
       if (x === undefined) this.tracked.delete(n)
@@ -88,9 +92,18 @@ class AggregateValue extends Operator {
 
   BR1(R1) {
     if (!R1.length) return
+    // Array-shaped upstreams (sort/limit windows, direct array sources) *shift*
+    // their dense array on a structural change — removing position k slides
+    // every higher element down one slot WITHOUT re-emitting per-position
+    // updates. Our `tracked` Map is keyed by position, so a positional shift
+    // invalidates the index→value association for every later in-place BU1/BU2.
+    // Re-sync from the current upstream value (same rebuild XU0 does); _publish
+    // no-ops if the scalar is unchanged. Object upstreams have stable keys and
+    // keep the O(1) incremental path below.
+    if (isArray(this.p.value)) return this.XU0(this.p.value)
     let dirty = false
     for (let i = 0; i < R1.length; i += 2) {
-      const n = R1[i]
+      const n = '' + R1[i]
       const old = this.tracked.get(n)
       if (old === undefined) continue
       this.tracked.delete(n)
@@ -102,9 +115,11 @@ class AggregateValue extends Operator {
 
   BI0(I0) {
     if (!I0.length) return
+    // See BR1: a non-tail insert into an array upstream shifts later positions.
+    if (isArray(this.p.value)) return this.XU0(this.p.value)
     let dirty = false
     for (let i = 0; i < I0.length; i += 2) {
-      const n = I0[i]
+      const n = '' + I0[i]
       const x = this._project(I0[i + 1])
       if (x === undefined) continue
       this.tracked.set(n, x)
@@ -125,7 +140,7 @@ class AggregateValue extends Operator {
     let dirty = false
     for (let i = 0; i < arr.length; i += stride) {
       const path = arr[i]
-      const n = path[0]
+      const n = '' + path[0]
       const old = this.tracked.get(n)
       const x = this._project(this.p.value[n])
       if (x === undefined) this.tracked.delete(n)
