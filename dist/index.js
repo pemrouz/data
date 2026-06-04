@@ -1407,6 +1407,7 @@ var ZAValue = class extends Operator {
   // require additional shift bookkeeping — see BR1A.
   BR1(R1) {
     if (this.isArr) return this.BR1A(R1);
+    if (this.n !== Infinity && R1.length > 2) return this._batchRemove(R1);
     for (let i = 0; i < R1.length; i += 2) {
       const oidx = this.get_index(R1[i]);
       if (oidx === -1) continue;
@@ -1417,6 +1418,30 @@ var ZAValue = class extends Operator {
       if (this.sorted.length > len)
         super.BI0A([len, this.p.value[this.sorted[len]]]);
     }
+  }
+  // Drop a batch of keys from `sorted` in one pass, then reconcile the
+  // materialized window against the new order with minimal positional deltas.
+  // Removal can only shrink or hold the window (never grow it), so the only
+  // verbs are tail BR1A (when survivors no longer fill n) and per-slot BU1.
+  _batchRemove(R1) {
+    const removed = /* @__PURE__ */ new Set();
+    for (let i = 0; i < R1.length; i += 2) removed.add("" + R1[i]);
+    const sorted = this.sorted;
+    let w = 0;
+    for (let r = 0; r < sorted.length; r++)
+      if (!removed.has(sorted[r])) sorted[w++] = sorted[r];
+    sorted.length = w;
+    const newLen = this.n < sorted.length ? this.n : sorted.length;
+    while (this.view.value.length > newLen) super.BR1A([this.view.value.length - 1]);
+    const NU1 = [];
+    for (let i = 0; i < newLen; i++) {
+      const row = this.p.value[sorted[i]];
+      if (this.view.value[i] !== row) {
+        this.view.value[i] = row;
+        NU1.push("" + i, row);
+      }
+    }
+    if (NU1.length) this.view.BU1(NU1);
   }
   // Array source: each removal at upstream index `name` shifts all later
   // indices down by one. Sorted holds upstream keys (numeric strings); after
@@ -1503,6 +1528,7 @@ var ZAValue = class extends Operator {
   // one to match the source's post-splice indexing — `push` (at === length)
   // collapses to a no-op shift since nothing needs moving.
   BI0(I0) {
+    if (!this.isArr && this.n !== Infinity && I0.length > 2) return this._batchInsert(I0);
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
       const value2 = I0[i + 1];
@@ -1520,6 +1546,31 @@ var ZAValue = class extends Operator {
         super.BR1A([this.n - 1]);
       super.BI0A([new_idx, value2]);
     }
+  }
+  // Splice a batch of new keys into `sorted` at their ranks, then reconcile the
+  // window. Insertion can only grow or hold the window: grow via tail BI0A when
+  // it was underfilled, then per-slot BU1 for the rows the inserts pushed down.
+  _batchInsert(I0) {
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const nidx = this.find(this.col(this.p.value[at]));
+      this.sorted.splice(nidx, 0, at);
+    }
+    const sorted = this.sorted;
+    const newLen = this.n < sorted.length ? this.n : sorted.length;
+    while (this.view.value.length < newLen) {
+      const i = this.view.value.length;
+      super.BI0A([i, this.p.value[sorted[i]]]);
+    }
+    const NU1 = [];
+    for (let i = 0; i < newLen; i++) {
+      const row = this.p.value[sorted[i]];
+      if (this.view.value[i] !== row) {
+        this.view.value[i] = row;
+        NU1.push("" + i, row);
+      }
+    }
+    if (NU1.length) this.view.BU1(NU1);
   }
   // Nested-key changes (`row.col` mutated). If the change touches the sort
   // column we have to recompute the row's rank — funnel into BU1. Otherwise
