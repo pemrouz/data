@@ -867,16 +867,27 @@ var DOMSink = class {
     node.data.connect(this);
     this.XU0(this.p.value);
   }
-  // Array branch passes `nodes[k + 1]` as the insertBefore anchor so the new
-  // element lands at position k; object branch is positional-agnostic and
-  // appends. `node.generate(k, ...)` builds the per-row template with the
-  // user's data passed in — this is what materializes the row's content.
+  // Array sources are index-keyed: each DOM slot is bound to the positional
+  // child view `node.data[i]`, and every shift refreshes slot content
+  // positionally (the V1 propagation), with `remove_node` popping the *tail*.
+  // So an insert must MIRROR that — append exactly one node at the new tail
+  // index (bound to `data[tail]`) and let the positional refresh place the
+  // data. Splicing a node *at* position k (the old behaviour) gave that node
+  // a binding to slot k while the existing slot-k node kept its slot-k binding
+  // too: both rendered `data[k]` (a duplicate) and the real tail element was
+  // left with no node (dropped). Surfaced rendering a sort() view — an
+  // array-shaped list with mid-list inserts, which no object-keyed example
+  // (group / object-limit) exercised. During the initial XU0 build `tail`
+  // already equals the iteration index, so this is identical to the old append
+  // for that path; only post-init mid-inserts change.
+  // Object branch is positional-agnostic and keyed directly.
   create_node(k) {
-    const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k]);
     if (isArray(this.nodes)) {
-      const dom = node.create(this.parent, this.nodes[k + 1]);
-      this.nodes.splice(k, 0, dom);
+      const tail = this.nodes.length;
+      const node = this.node.generate(tail, this.node.data[tail]);
+      this.nodes.push(node.create(this.parent));
     } else {
+      const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k]);
       this.nodes[k] = node.create(this.parent);
     }
   }

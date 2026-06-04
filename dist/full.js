@@ -1478,7 +1478,10 @@ var ZAValue = class extends Operator {
       let nidx = this.find(this.col(this.p.value[name]));
       sorted.splice(nidx, 0, name);
       if (oidx === nidx) {
-        if (oidx < n) super.BU1([oidx, value2]);
+        if (oidx < n) {
+          this.view.value[oidx] = value2;
+          this.view.BU1(["" + oidx, value2]);
+        }
         continue;
       }
       if (oidx >= n && nidx >= n) ; else if (oidx >= n && nidx < n) {
@@ -2497,7 +2500,7 @@ var AggregateValue = class extends Operator {
     if (!U1.length) return;
     let dirty = false;
     for (let i = 0; i < U1.length; i += 2) {
-      const n = U1[i];
+      const n = "" + U1[i];
       const old = this.tracked.get(n);
       const x = this._project(U1[i + 1]);
       if (x === void 0) this.tracked.delete(n);
@@ -2511,9 +2514,10 @@ var AggregateValue = class extends Operator {
   }
   BR1(R1) {
     if (!R1.length) return;
+    if (isArray(this.p.value)) return this.XU0(this.p.value);
     let dirty = false;
     for (let i = 0; i < R1.length; i += 2) {
-      const n = R1[i];
+      const n = "" + R1[i];
       const old = this.tracked.get(n);
       if (old === void 0) continue;
       this.tracked.delete(n);
@@ -2524,9 +2528,10 @@ var AggregateValue = class extends Operator {
   }
   BI0(I0) {
     if (!I0.length) return;
+    if (isArray(this.p.value)) return this.XU0(this.p.value);
     let dirty = false;
     for (let i = 0; i < I0.length; i += 2) {
-      const n = I0[i];
+      const n = "" + I0[i];
       const x = this._project(I0[i + 1]);
       if (x === void 0) continue;
       this.tracked.set(n, x);
@@ -2551,7 +2556,7 @@ var AggregateValue = class extends Operator {
     let dirty = false;
     for (let i = 0; i < arr.length; i += stride) {
       const path = arr[i];
-      const n = path[0];
+      const n = "" + path[0];
       const old = this.tracked.get(n);
       const x = this._project(this.p.value[n]);
       if (x === void 0) this.tracked.delete(n);
@@ -3553,16 +3558,27 @@ var DOMSink = class {
     node.data.connect(this);
     this.XU0(this.p.value);
   }
-  // Array branch passes `nodes[k + 1]` as the insertBefore anchor so the new
-  // element lands at position k; object branch is positional-agnostic and
-  // appends. `node.generate(k, ...)` builds the per-row template with the
-  // user's data passed in — this is what materializes the row's content.
+  // Array sources are index-keyed: each DOM slot is bound to the positional
+  // child view `node.data[i]`, and every shift refreshes slot content
+  // positionally (the V1 propagation), with `remove_node` popping the *tail*.
+  // So an insert must MIRROR that — append exactly one node at the new tail
+  // index (bound to `data[tail]`) and let the positional refresh place the
+  // data. Splicing a node *at* position k (the old behaviour) gave that node
+  // a binding to slot k while the existing slot-k node kept its slot-k binding
+  // too: both rendered `data[k]` (a duplicate) and the real tail element was
+  // left with no node (dropped). Surfaced rendering a sort() view — an
+  // array-shaped list with mid-list inserts, which no object-keyed example
+  // (group / object-limit) exercised. During the initial XU0 build `tail`
+  // already equals the iteration index, so this is identical to the old append
+  // for that path; only post-init mid-inserts change.
+  // Object branch is positional-agnostic and keyed directly.
   create_node(k) {
-    const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k]);
     if (isArray(this.nodes)) {
-      const dom = node.create(this.parent, this.nodes[k + 1]);
-      this.nodes.splice(k, 0, dom);
+      const tail = this.nodes.length;
+      const node = this.node.generate(tail, this.node.data[tail]);
+      this.nodes.push(node.create(this.parent));
     } else {
+      const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k]);
       this.nodes[k] = node.create(this.parent);
     }
   }
