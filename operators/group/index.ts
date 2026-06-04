@@ -36,6 +36,10 @@ export class GroupValue extends Operator {
       // per-group bucket array on incremental BR1A/BI0A events
       for (let i = 0; i < value.length; i++) {
         const v = value[i]
+        // Skip explicit-undefined / hole slots (a sparse array from
+        // between/intersect/union/except, or a RowOperator gone sparse) — calling
+        // fn(undefined) would crash. Mirrors sort's XU0 guard.
+        if (v === undefined) continue
         const g = this.fn(v)
         const bucket = (new_value[g] ??= [])
         this.posMap.set(i, { group: g, idx: bucket.length })
@@ -65,8 +69,11 @@ export class GroupValue extends Operator {
     const leaving = new Map()
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++]
+      // Use `has`, not `get(...) === undefined`: a row whose group key IS
+      // undefined (fn returns undefined for unclassified rows → the "undefined"
+      // bucket) is legitimately tracked; only a genuinely untracked name throws.
+      if (!this.posMap.has(name)) throw new Error('unexpected group r1: ' + name + ' ' + typeof name)
       const group = this.posMap.get(name)
-      if (group === undefined) throw new Error('unexpected group r1: ' + name + ' ' + typeof name)
       this.posMap.delete(name)
       const bucket = this.view.value[group]
       if (bucket !== undefined && name in bucket) {
@@ -92,12 +99,16 @@ export class GroupValue extends Operator {
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
       const value = U1[i]
+      // `tracked` (posMap.has) distinguishes a row in the "undefined" group from
+      // an untracked one — `old_group === undefined` would conflate them, leaving
+      // an undefined-group row in its old bucket on a cross-group move (silent dup).
+      const tracked = this.posMap.has(name)
       const old_group = this.posMap.get(name)
       const new_group = this.fn(value)
-      if (old_group === new_group) {
+      if (tracked && old_group === new_group) {
         NU2.push([new_group, name], this.view.value[new_group][name] = value)
       } else {
-        if (old_group !== undefined) {
+        if (tracked) {
           const oldVal = this.view.value[old_group]?.[name]
           if (oldVal !== undefined) {
             let leavers = leaving.get(old_group)
@@ -352,14 +363,15 @@ export class GroupValue extends Operator {
       const name = path[0]
       if (moved.has(name)) continue
       const row = this.p.value[name]
+      const tracked = this.posMap.has(name)   // see BU1: distinguishes the "undefined" group from untracked
       const old_group = this.posMap.get(name)
       const new_group = this.fn(row)
-      if (old_group === new_group) {
+      if (tracked && old_group === new_group) {
         if (this.view.value[new_group]) this.view.value[new_group][name] = row
         NU2.push([new_group, ...path], value)
       } else {
         moved.add(name)
-        if (old_group !== undefined) {
+        if (tracked) {
           const oldVal = this.view.value[old_group]?.[name]
           if (oldVal !== undefined) {
             let leavers = leaving.get(old_group)

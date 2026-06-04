@@ -5,6 +5,7 @@ import { $, value, view } from '../../core.ts'
 import { group, GroupValue } from './index.ts'
 import { sort, limit } from '../sort/index.ts'
 import { sum } from '../aggregate/index.ts'
+import { between } from '../between/index.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
@@ -217,4 +218,39 @@ test('group - limit→group survives churn that shifts upstream positions', () =
     1: [ { cat: 1, val: 7 }, { cat: 1, val: 10 }, { cat: 1, val: 13 } ],
     2: [ { cat: 2, val: 8 }, { cat: 2, val: 11 }, { cat: 2, val: 14 } ],
   })
+})
+
+// Regression: a group fn returning undefined for some rows (the "unclassified"
+// idiom) used to crash on that row's remove ("unexpected group r1") and silently
+// DUPLICATE it on a cross-group move, because posMap stored the literal undefined
+// group, indistinguishable from "untracked". posMap.has() now disambiguates.
+test('group (object) - undefined group key: remove and move are correct', () => {
+  const src = $({ a: { cat: 'x', v: 1 }, b: { v: 2 }, c: { cat: 'x', v: 3 } })
+  const g = group(src, r => r.cat)            // b → the "undefined" bucket
+  same(g[value], { x: { a: { cat: 'x', v: 1 }, c: { cat: 'x', v: 3 } }, undefined: { b: { v: 2 } } })
+
+  // remove the undefined-group row — must not throw, bucket disappears
+  delete src.b
+  same(g[value], { x: { a: { cat: 'x', v: 1 }, c: { cat: 'x', v: 3 } } })
+
+  // move an undefined-group row into a real group — must not leave a duplicate
+  const src2 = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
+  const g2 = group(src2, r => r.cat)
+  src2.b = { cat: 'z', v: 2 }                 // BU1 cross-group move out of "undefined"
+  same(g2[value], { x: { a: { cat: 'x', v: 1 } }, z: { b: { cat: 'z', v: 2 } } })
+
+  // same via an in-place BU2 field edit that newly classifies the row
+  const src3 = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
+  const g3 = group(src3, r => r.cat)
+  src3.b.cat = 'z'
+  same(g3[value], { x: { a: { cat: 'x', v: 1 } }, z: { b: { cat: 'z', v: 2 } } })
+})
+
+// Regression: group over a SPARSE array source (downstream of between/intersect/
+// union/except, which leave excluded slots as holes/explicit-undefined) crashed
+// in XU0 calling fn(undefined). XU0 now skips undefined slots like sort does.
+test('group - over a sparse array source skips excluded slots (no crash)', () => {
+  const src = $([{ v: 10, g: 1 }, { v: 50, g: 2 }, { v: 90, g: 1 }])
+  const g = group(between(src, 'v', [20, 80]), r => r.g)
+  same(g[value], { 2: [ { v: 50, g: 2 } ] })
 })
