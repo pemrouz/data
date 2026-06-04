@@ -35,8 +35,13 @@ export class ZAValue extends Operator {
     // for arrays a removal will have shifted indices we still need to
     // translate against the pre-shift `sorted`.
     this.isArr = isArray(value)
+    // Skip explicit-undefined slots: between/intersect/union/except leave the
+    // key present with value `undefined` for excluded rows (the documented
+    // sparse-array shape). Those aren't sortable members — including them would
+    // crash `col` (`undefined[col]`) and leak undefined rows into the output.
     this.sorted = Object
       .keys(value)
+      .filter(k => value[k] !== undefined)
       .sort((a, b) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
@@ -268,7 +273,7 @@ ZAValue.prototype.find = bisect_right
 
 export class ZAColumnValue extends ZAValue {
   constructor(p, col, n = Infinity){
-    super(p, d => d[col], col, n)
+    super(p, d => d?.[col], col, n)
   }
 }
 
@@ -291,8 +296,10 @@ export class ZANumberValue extends ZAValue {
 export class AZValue extends ZAValue {
   XU0(value) {
     if (typeof value !== 'object') return this.XR0()
+    // Skip explicit-undefined slots (see ZAValue.XU0).
     this.sorted = Object
       .keys(value)
+      .filter(k => value[k] !== undefined)
       .sort((a, b) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
@@ -310,7 +317,7 @@ AZValue.prototype.find = bisect_left
 
 export class AZColumnValue extends AZValue {
   constructor(p, col, n = Infinity){
-    super(p, d => d[col], col, n)
+    super(p, d => d?.[col], col, n)
   }
 }
 

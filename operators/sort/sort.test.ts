@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { sort, limit } from './index.ts'
 import { filter } from '../filter/index.ts'
+import { between } from '../between/index.ts'
 import { sum } from '../aggregate/index.ts'
 
 const max = (a, b) => a > b ? a : b
@@ -282,4 +283,26 @@ test('limit (obj) - new key does not join a full window', () => {
   data.d = 4
   same(res[value], [1, 2, 3])
   same(changes, [])
+})
+
+// Regression: sort over a SPARSE source crashed. between/intersect/union/except
+// leave the key present with value `undefined` at excluded slots; sort's XU0
+// iterated Object.keys (including those) and called `col(undefined)` →
+// `undefined[col]` threw. It must skip explicit-undefined members (like length
+// does) and never leak undefined rows into its output. Surfaced building the
+// faceted-library example (`final = …except(…); final.za('rating').limit(n)`).
+test('sort - over a sparse (explicit-undefined) source skips excluded slots', () => {
+  const m = $({ a: { r: 5 }, b: { r: 9 }, c: { r: 7 } })
+  const bounds = $([4, 10])
+  const btw = between(m, 'r', bounds)
+  bounds[value] = [6, 10]                         // a (5) leaves → left as undefined
+  same(btw[value].a, undefined)
+  same('a' in btw[value], true)
+  // construct the sort AFTER the source went sparse — must not throw
+  const desc = sort(btw, 'r')
+  same(desc[value], [{ r: 9 }, { r: 7 }])         // a excluded, no undefined leaked
+  same(limit(desc, 10)[value], [{ r: 9 }, { r: 7 }])
+  // a re-entering the range refills the sort
+  bounds[value] = [4, 10]
+  same(desc[value], [{ r: 9 }, { r: 7 }, { r: 5 }])
 })
