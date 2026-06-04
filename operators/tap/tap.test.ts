@@ -5,6 +5,11 @@ import { $, value } from '../../core.ts'
 import { tap } from './index.ts'
 import { filter } from '../filter/index.ts'
 import { length } from '../length/index.ts'
+import { sum } from '../aggregate/index.ts'
+
+// Deterministic insert keys so insert-driven parity assertions are stable.
+const max = (a, b) => a > b ? a : b
+$.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
 test('tap - fires fn for the initial XU0 and downstream events', () => {
   const data = $({ a: 1, b: 2 })
@@ -80,4 +85,44 @@ test('tap - 1-arg fn keeps the full record path (no silent downgrade)', () => {
   data.a = 2
   same(records.length, 2)                       // initial + one update
   same(records[1], { type: 'update', key: ['a'], value: 2 })
+})
+
+// Regression: tap delegated to `super.<verb>`, which re-derived the delta off
+// `this.view.value` — an alias of the source value the source had ALREADY
+// mutated in place. So removes and same-key whole-row updates were dropped
+// downstream (Value.BR1 saw the row already gone; Value.BU1 saw the value
+// already equal), silently desyncing any operator chained after tap. The
+// existing "downstream sees the same events" test only exercised an insert,
+// which is why this shipped. Forwarding the handed delta via this.view.<verb>
+// fixes it. These assert PARITY between a direct chain and a tap-interposed one
+// across remove + whole-row replace, on both object and array sources.
+function rows() { const o = {}; for (let i = 0; i < 5; i++) o[i] = { v: (i + 1) * 10, ok: i % 2 === 0 }; return $(o) }
+
+test('tap - downstream length/sum/filter stay in sync through remove + whole-row update', () => {
+  const churn = s => { delete s[1]; s[3] = { v: 999, ok: true }; delete s[4]; s.insert({ v: 7, ok: true }) }
+
+  const dSrc = rows(), tSrc = rows()
+  const dLen = length(dSrc),               tLen = length(tap(tSrc, () => {}))
+  const dSum = sum(dSrc, 'v'),             tSum = sum(tap(tSrc, () => {}), 'v')
+  const dFil = filter(dSrc, r => r && r.ok), tFil = filter(tap(tSrc, () => {}), r => r && r.ok)
+  churn(dSrc); churn(tSrc)
+  same(tLen[value], dLen[value])           // was 5 vs 3 before the fix (removes dropped)
+  same(tSum[value], dSum[value])           // was 150 vs … before the fix
+  same(tFil[value], dFil[value])           // kept deleted rows before the fix
+})
+
+test('tap - change stream is byte-identical to the bare source (object and array)', () => {
+  // object source
+  const bo = $({ 0: 10, 1: 20, 2: 30, 3: 40 }), to = $({ 0: 10, 1: 20, 2: 30, 3: 40 })
+  const boC = bo.connect([]), toC = tap(to, () => {}).connect([])
+  const seqO = s => { s.insert(50); delete s[1]; s.insert(60); s[0] = 99; delete s[2] }
+  seqO(bo); seqO(to)
+  same(toC, boC)
+
+  // array source (positional removes carried wrong values + a phantom event before the fix)
+  const ba = $([10, 20, 30, 40]), ta = $([10, 20, 30, 40])
+  const baC = ba.connect([]), taC = tap(ta, () => {}).connect([])
+  const seqA = s => { s.insert(50); delete s[1]; s.insert(60); s[0] = 99; delete s[2] }
+  seqA(ba); seqA(ta)
+  same(taC, baC)
 })

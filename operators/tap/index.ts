@@ -15,12 +15,22 @@ import { Operator, createOperator } from '../../core.ts'
 //   { type: 'update'|'insert'|'remove', key, value, at? }
 // — see ArrSink/FunctionSink in core.ts for the canonical event vocabulary.
 //
-// Each verb override calls `super.<verb>` to keep the inherited Value
-// semantics (mutating this.view.value and propagating to sinks); the only
-// added work is the fn call. Order matters for BR1/BR2 — fn fires *before*
-// super so the change record carries the value being removed; for the
-// other verbs fn fires after so any normalization (e.g. BI0 may mint
-// a random key for undefined `at`) is reflected in the record.
+// Propagation: each batched verb FORWARDS the delta it was handed straight to
+// `this.view.<verb>` (the same View-level fan-out every operator uses to emit
+// downstream), then fires `fn`. It must NOT delegate to `super.<verb>` (the
+// inherited Value verbs): tap aliases `this.view.value` to the source's value
+// object (Operator.XU0 does `this.view.value = value`, same reference), and the
+// source mutates that object IN PLACE *before* notifying us — so a Value verb
+// re-deriving the delta off `this.view.value` reads the already-applied state
+// and DROPS it (Value.BR1 sees the row already gone → `continue`; same-key
+// Value.BU1 sees the value already equal → skip), silently desyncing any
+// downstream operator/DOM sink. Forwarding the handed delta is correct because
+// the source already computed it and view.value (the alias) already reflects it.
+// (This also avoids routing a stride-2 sink-shaped BR2 through Value.BR2, which
+// expects a stride-1 keypath list and would throw `key.slice is not a function`
+// on a group→tap relocate.) XU0/XR0 still go through super — they OWN the
+// view.value (re)assignment. Order: fn fires before forward for BR1/BR2 (the
+// record carries the leaving value), after for the others.
 const sclone = d => structuredClone(d)
 
 export class TapValue extends Operator {
@@ -44,7 +54,7 @@ export class TapValue extends Operator {
   }
 
   BU1(U1) {
-    super.BU1(U1)
+    this.view.BU1(U1)
     for (let i = 0; i < U1.length; i += 2)
       this.fn({ type: 'update', key: [U1[i]], value: sclone(U1[i + 1]) })
   }
@@ -52,17 +62,17 @@ export class TapValue extends Operator {
   BR1(R1) {
     for (let i = 0; i < R1.length; i += 2)
       this.fn({ type: 'remove', key: [R1[i]], value: sclone(R1[i + 1]) })
-    super.BR1(R1)
+    this.view.BR1(R1)
   }
 
   BI0(I0) {
-    super.BI0(I0)
+    this.view.BI0(I0)
     for (let i = 0; i < I0.length; i += 2)
       this.fn({ type: 'insert', key: [], value: sclone(I0[i + 1]), at: I0[i] })
   }
 
   BU2(U2) {
-    super.BU2(U2)
+    this.view.BU2(U2)
     for (let i = 0; i < U2.length; i += 2)
       this.fn({ type: 'update', key: U2[i], value: sclone(U2[i + 1]) })
   }
@@ -70,11 +80,11 @@ export class TapValue extends Operator {
   BR2(R2) {
     for (let i = 0; i < R2.length; i += 2)
       this.fn({ type: 'remove', key: R2[i], value: sclone(R2[i + 1]) })
-    super.BR2(R2)
+    this.view.BR2(R2)
   }
 
   BI2(I2) {
-    super.BI2(I2)
+    this.view.BI2(I2)
     for (let i = 0; i < I2.length; i += 3)
       this.fn({ type: 'insert', key: I2[i], value: sclone(I2[i + 1]), at: I2[i + 2] })
   }
@@ -84,7 +94,7 @@ export class TapValue extends Operator {
   // `{ type: 'move', from, to }`; tap mirrors the convention so consumers
   // see the same vocabulary regardless of which sink they use.
   BMV1(M1) {
-    super.BMV1(M1)
+    this.view.BMV1(M1)
     for (let i = 0; i < M1.length; i += 2)
       this.fn({ type: 'move', from: +M1[i], to: +M1[i + 1] })
   }
@@ -118,13 +128,13 @@ export class TapBareValue extends Operator {
     super.XR0()
     this.fn()
   }
-  BU1(U1) { super.BU1(U1); this.fn() }
-  BR1(R1) { super.BR1(R1); this.fn() }
-  BI0(I0) { super.BI0(I0); this.fn() }
-  BU2(U2) { super.BU2(U2); this.fn() }
-  BR2(R2) { super.BR2(R2); this.fn() }
-  BI2(I2) { super.BI2(I2); this.fn() }
-  BMV1(M1) { super.BMV1(M1); this.fn() }
+  BU1(U1) { this.view.BU1(U1); this.fn() }
+  BR1(R1) { this.view.BR1(R1); this.fn() }
+  BI0(I0) { this.view.BI0(I0); this.fn() }
+  BU2(U2) { this.view.BU2(U2); this.fn() }
+  BR2(R2) { this.view.BR2(R2); this.fn() }
+  BI2(I2) { this.view.BI2(I2); this.fn() }
+  BMV1(M1) { this.view.BMV1(M1); this.fn() }
 }
 
 // The standalone `tap(source, fn)` form mirrors the dispatch in full.ts:
