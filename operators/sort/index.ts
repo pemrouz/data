@@ -62,6 +62,20 @@ export class ZAValue extends Operator {
   // require additional shift bookkeeping — see BR1A.
   BR1(R1){
     if (this.isArr) return this.BR1A(R1)
+    // Bounded-window batch fast path. The per-row loop below refills the window
+    // from the next-ranked row after every in-window eviction — but on a
+    // top-of-order batch removal (a range brush narrowing past the visible
+    // window) that refill row is itself in the doomed batch, so it's inserted
+    // then immediately re-evicted: O(Δ) churn, where each churned slot costs an
+    // O(n) V1 content shift + a node create/destroy in the DOM, instead of
+    // O(window). Recompute the window once and emit one positional BU1 per slot
+    // whose occupant actually changed (the same verb za already uses for the
+    // no-rank-change case), plus tail removals when the window can no longer be
+    // filled. Identical final state, far fewer events. Gated on a finite window
+    // (an unbounded sort has no window to churn — every row is materialized, so
+    // a removal is a genuine BR1A, not a turnover) and a multi-row batch (a
+    // single removal can't churn). See sort.perf.ts `bounded batch brush`.
+    if (this.n !== Infinity && R1.length > 2) return this._batchRemove(R1)
     for (let i = 0; i < R1.length; i += 2) {
       const oidx = this.get_index(R1[i])
       if (oidx === -1) continue
@@ -72,6 +86,28 @@ export class ZAValue extends Operator {
       if (this.sorted.length > len)
         super.BI0A([len, this.p.value[this.sorted[len]]])
     }
+  }
+
+  // Drop a batch of keys from `sorted` in one pass, then reconcile the
+  // materialized window against the new order with minimal positional deltas.
+  // Removal can only shrink or hold the window (never grow it), so the only
+  // verbs are tail BR1A (when survivors no longer fill n) and per-slot BU1.
+  _batchRemove(R1){
+    const removed = new Set()
+    for (let i = 0; i < R1.length; i += 2) removed.add('' + R1[i])
+    const sorted = this.sorted
+    let w = 0
+    for (let r = 0; r < sorted.length; r++)
+      if (!removed.has(sorted[r])) sorted[w++] = sorted[r]
+    sorted.length = w
+    const newLen = this.n < sorted.length ? this.n : sorted.length
+    while (this.view.value.length > newLen) super.BR1A([this.view.value.length - 1])
+    const NU1 = []
+    for (let i = 0; i < newLen; i++) {
+      const row = this.p.value[sorted[i]]
+      if (this.view.value[i] !== row) { this.view.value[i] = row; NU1.push('' + i, row) }
+    }
+    if (NU1.length) this.view.BU1(NU1)
   }
 
   // Array source: each removal at upstream index `name` shifts all later
@@ -198,6 +234,12 @@ export class ZAValue extends Operator {
   // one to match the source's post-splice indexing — `push` (at === length)
   // collapses to a no-op shift since nothing needs moving.
   BI0(I0){
+    // Bounded-window batch fast path — the insert mirror of _batchRemove. A
+    // range brush widening past the visible window re-inserts a block of
+    // top-of-order rows; the per-row loop evicts and re-inserts the window tail
+    // once per newcomer (O(Δ) churn). Recompute the window once instead. Object
+    // source only — the array branch needs its per-insert `sorted` index shift.
+    if (!this.isArr && this.n !== Infinity && I0.length > 2) return this._batchInsert(I0)
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const value = I0[i + 1]
@@ -215,6 +257,29 @@ export class ZAValue extends Operator {
         super.BR1A([this.n - 1])
       super.BI0A([new_idx, value])
     }
+  }
+
+  // Splice a batch of new keys into `sorted` at their ranks, then reconcile the
+  // window. Insertion can only grow or hold the window: grow via tail BI0A when
+  // it was underfilled, then per-slot BU1 for the rows the inserts pushed down.
+  _batchInsert(I0){
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const nidx = this.find(this.col(this.p.value[at]))
+      this.sorted.splice(nidx, 0, at)
+    }
+    const sorted = this.sorted
+    const newLen = this.n < sorted.length ? this.n : sorted.length
+    while (this.view.value.length < newLen) {
+      const i = this.view.value.length
+      super.BI0A([i, this.p.value[sorted[i]]])
+    }
+    const NU1 = []
+    for (let i = 0; i < newLen; i++) {
+      const row = this.p.value[sorted[i]]
+      if (this.view.value[i] !== row) { this.view.value[i] = row; NU1.push('' + i, row) }
+    }
+    if (NU1.length) this.view.BU1(NU1)
   }
 
   // Nested-key changes (`row.col` mutated). If the change touches the sort

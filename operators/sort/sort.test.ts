@@ -211,6 +211,48 @@ test('sort - in-window in-place edit through filter refreshes aggregate + child 
   same(keep[value], 'World')                                    // child view followed
   same(seen[seen.length - 1], 'World')                          // and notified its sink
 })
+// Regression + perf-shape: a bounded top-K (`za('col', n)`) used to refill the
+// window from the next-ranked row after EVERY in-window eviction. On a range
+// brush narrowing past the visible window, that next-ranked row is itself in
+// the doomed removal batch, so it was inserted-then-immediately-re-evicted:
+// O(Δ) churn (each churned slot is an O(n) content shift + a DOM node
+// create/destroy) instead of O(window). Surfaced building the faceted-library
+// example (`between(...).za('rating', 60)` brushed on rating — every 0.1 step
+// re-rendered the whole grid). The batch path now reconciles the window once
+// with positional BU1s. This test pins both the correctness (window == fresh
+// top-K across narrow/shrink/widen/grow) AND the no-churn property (a window
+// turnover emits only `update`s, ≤ n of them — never insert/remove churn).
+test('sort (za) - bounded window reconciles batch removal/insert without churn', () => {
+  const seed = {}
+  for (let i = 1; i <= 12; i++) seed['v' + i] = { id: 'v' + i, r: i }
+  const m = $(seed)
+  const bounds = $([0, 100])
+  const top4 = sort(between(m, 'r', bounds), 'r', 4)        // bounded top-4 by r desc
+  same(top4[value].map(x => x.r), [12, 11, 10, 9])
+  const changes = top4.connect([])
+
+  // Narrow so the top three (10,11,12) leave in ONE batch BR1 (length > 2).
+  changes.length = 0
+  bounds[value] = [0, 9]
+  same(top4[value].map(x => x.r), [9, 8, 7, 6])             // window slid down, still full
+  same(changes.every(c => c.type === 'update'), true)      // no doomed-row churn
+  same(changes.length <= 4, true)                          // ≤ window, not O(Δ)
+
+  // Widen back: the three re-enter as one batch BI0 — same no-churn reconcile.
+  changes.length = 0
+  bounds[value] = [0, 100]
+  same(top4[value].map(x => x.r), [12, 11, 10, 9])
+  same(changes.every(c => c.type === 'update'), true)
+  same(changes.length <= 4, true)
+
+  // Shrink past the window: only two survivors — window must drop to length 2
+  // (the tail-removal branch), then grow back when they re-enter.
+  bounds[value] = [0, 2]
+  same(top4[value].map(x => x.r), [2, 1])
+  bounds[value] = [0, 100]
+  same(top4[value].map(x => x.r), [12, 11, 10, 9])
+})
+
 test('limit (obj) - takes first n keys in iteration order', () => {
   const data = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
   const res = limit(data, 3)

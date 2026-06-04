@@ -28,4 +28,13 @@ window — only the boundary rotates on each BU2 ([operators/sort/index.ts](inde
 crossfilter's `dim.top(K)` is the textbook peer equivalent. Other peers
 re-sort 10k rows on every emit, which dominates at this batch size.
 
+The table above is the single-tick / streamed-single-tick workload (one row
+rewritten per emit) and is unchanged by the bounded-batch path. A separate
+hot path — **multi-row** `BR1`/`BI0` on a finite window (a `between` range
+brush narrowing/widening past the visible window) — reconciles the window
+once instead of churning the per-row refill; see [sort.perf.ts](sort.perf.ts)
+`bounded batch brush` (≈25 ms for ~10k membership changes through a top-100,
+which was multi-second before). Not part of the peer harness (no peer exposes
+the same brush-a-bounded-sort shape), so it lives in the perf suite, not here.
+
 Run `BENCH_OPS=sort npm run bench:ops` to refresh.

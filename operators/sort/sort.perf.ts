@@ -3,6 +3,7 @@ import { ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { sort } from './index.ts'
+import { between } from '../between/index.ts'
 
 const REPS = 5
 const measure = (fn, reps = REPS) => {
@@ -54,4 +55,27 @@ test('sort rotate - 10000 rows top 100, in-window rank change', () => {
   })
   console.log(`  sort rotate 10k top-100: ${elapsed.toFixed(2)}ms`)
   ok(elapsed < 50)
+})
+
+// Range-brush worst case: a bounded top-100 over 10k rows, brushed so ~half the
+// rows leave (then re-enter) in ONE batch. The old per-row refill churned the
+// 100-window ~50× per step (≈10k evict/refill events); the batch path
+// reconciles the window once — O(source) sorted rebuild + ≤100 positional
+// updates, no churn. This is the operator-level shape of the faceted-library
+// rating brush that motivated the fix (was multi-second per brush step).
+test('sort bounded batch brush - 10000 rows top 100, half leave/re-enter per step', () => {
+  const obj = {}
+  for (let i = 0; i < 10000; i++) obj['v' + i] = { r: Math.random(), id: i }
+  const src = $(obj)
+  const bounds = $([0, 1])
+  sort(between(src, 'r', bounds), 'r', 100)            // bounded top-100
+  const elapsed = measure(() => {
+    bounds[value] = [0, 0.5]   // ~5000 rows leave in one batched BR1
+    bounds[value] = [0, 1]     // ~5000 rows re-enter in one batched BI0
+  })
+  console.log(`  sort bounded batch brush 10k top-100: ${elapsed.toFixed(2)}ms`)
+  // ~25 ms isolated, ~55 ms under full-suite load. The ceiling is deliberately
+  // loose: its only job is to fail loudly if the per-row churn ever comes back
+  // (that path is >2000 ms here — 30×+ over), not to police the ~25 ms figure.
+  ok(elapsed < 200)
 })
