@@ -305,6 +305,36 @@ test('limit (obj) - removing a key outside the window is a no-op', () => {
   same(changes, [])
 })
 
+// Regression: a windowed key leaving via `src.key = undefined` (a BU1 carrying
+// undefined) used to double-splice view.value — the BU1 object branch manually
+// spliced AND super.BR1A spliced again — collapsing a full window of 3 to 2,
+// then 1, then 0 while the source still had rows to refill it. Must match the
+// `delete src.key` (BR1) path exactly, in both snapshot and change stream.
+test('limit (obj) - key leaving via assignment-to-undefined refills like delete', () => {
+  const undef = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
+  const ru = limit(undef, 3)
+  const cu = ru.connect([])
+  cu.length = 0
+  undef.a = undefined
+  same(ru[value], [2, 3, 4])                 // not [3, 4] (double-splice undercount)
+  undef.b = undefined
+  same(ru[value], [3, 4, 5])
+  undef.c = undefined
+  same(ru[value], [4, 5])
+
+  // Parity: the delete-based path produces the identical sequence of states…
+  const del = $({ a: 1, b: 2, c: 3, d: 4, e: 5 })
+  const rd = limit(del, 3)
+  const cd = rd.connect([])
+  cd.length = 0
+  delete del.a; same(rd[value], [2, 3, 4])
+  delete del.b; same(rd[value], [3, 4, 5])
+  delete del.c; same(rd[value], [4, 5])
+  // …and the identical change stream (the broken path emitted a remove for the
+  // wrong row, so a connect/DOM sink rendered a third, distinct wrong state).
+  same(cu, cd)
+})
+
 test('limit (obj) - new key joins when window has headroom', () => {
   const data = $({ a: 1, b: 2 })
   const res = limit(data, 3)

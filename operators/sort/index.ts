@@ -515,10 +515,14 @@ export class LimitValue extends Operator {
       const pos = this.keys.indexOf(key)
       if (pos !== -1) {
         if (val === undefined) {
-          // The row left the source — same as a BR1 in effect. Splice out
-          // and try to refill from the next iteration-order key.
+          // The row left the source — same as a BR1 in effect. Splice the key
+          // out of our index and let super.BR1A do the view.value splice + emit
+          // the remove (reading the still-present pre-splice element). Splicing
+          // view.value here too would double-remove — BR1A owns view.value, so
+          // it splices again, collapsing the window by an extra slot per leave
+          // (the delete-via-`src.key = undefined` undercount bug). The sibling
+          // BR1 object branch never manual-splices for the same reason.
           this.keys.splice(pos, 1)
-          this.view.value.splice(pos, 1)
           super.BR1A([pos])
           const next = this.nextObjectKey()
           if (next !== undefined) {
