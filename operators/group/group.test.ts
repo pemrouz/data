@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { $, value, view } from '../../core.ts'
 import { group, GroupValue } from './index.ts'
 import { sort, limit } from '../sort/index.ts'
+import { sum } from '../aggregate/index.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
@@ -50,6 +51,37 @@ test('group - object', () => {
 // the same group-remove twice and DOMSink's remove_node threw on the second
 // call. The cleared group should now be reported exactly once, with the
 // removed rows as the value.
+// Regression: group's BU2 was a no-op, so in-place field edits on an object
+// source were invisible — a row whose group key changed in place was never
+// rebucketed, and a non-key edit never reached bucket consumers (e.g. an
+// aggregate over a bucket). Surfaced by the pivot example (group-by-region
+// with editable revenue / region). Mirrors the length(fn)-on-BU2 fix.
+test('group (object) - BU2 rebuckets on key change and forwards non-key edits', () => {
+  const res = $({
+    x: { g: 'A', v: 1 }, y: { g: 'A', v: 2 }, z: { g: 'B', v: 5 },
+  })
+  const grouped = group(res, d => d.g)
+  const aSum = sum(grouped.A, 'v')          // aggregate over bucket A
+  const bSum = sum(grouped.B, 'v')
+  same(aSum[value], 3)                      // 1 + 2
+  same(bSum[value], 5)
+
+  // non-key edit in place — bucket A's sum must follow
+  res.x.v = 10
+  same(aSum[value], 12)                     // was stuck at 3
+
+  // key edit in place — x moves A → B
+  res.x.g = 'B'
+  same(Object.keys(grouped[value].A), ['y'])
+  same(Object.keys(grouped[value].B).sort(), ['x', 'z'])
+  same(aSum[value], 2)                      // A now just y
+  same(bSum[value], 15)                     // B = z(5) + x(10)
+
+  // emptying a bucket via a key move drops the group
+  res.y.g = 'B'
+  same(grouped[value].A, undefined)
+})
+
 test('group - batched BU1 with multiple rows leaving the same group', () => {
   const res = $({
     1: { num: 1.1 }, 2: { num: 1.2 }, 3: { num: 5.0 },

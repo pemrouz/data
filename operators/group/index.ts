@@ -323,8 +323,75 @@ export class GroupValue extends Operator {
     return idx
   }
 
+  // In-place field updates (BU2) on an object source. This used to be a no-op,
+  // which froze `group` against any in-place mutation: a histogram/aggregate
+  // built on `data.group(fn)` over a source whose rows *mutate* (rather than
+  // only enter/leave via insert/remove) never saw the change, and a row whose
+  // group key changed in place was never rebucketed. (The same gap `length(fn)`
+  // had before its BU2 fix — surfaced again by the pivot example.)
+  //
+  // For each touched row we recompute its group from the FULL current row
+  // (this.p.value[name], already updated by the time BU2 fires):
+  //   • same group  → forward the deep update, prefixing the path with the
+  //     bucket key, so bucket consumers (aggregates re-projecting a column,
+  //     child views) refresh — the row reference in the bucket is unchanged.
+  //   • changed group → relocate the whole row to its new bucket (remove from
+  //     old as BR2/BR1-if-emptied, insert into new as BI2) — mirrors BU1's
+  //     cross-group move. A subsequent path for an already-moved row is skipped
+  //     because the relocated row already carries every updated field.
+  BU2(U2) {
+    if (this.isArr) return   // array buckets are positional; rows don't mutate
+                             // in place in the only array-source consumer
+    const NU2 = []
+    const NI2 = []
+    const leaving = new Map()
+    const moved = new Set()
+    for (let i = 0; i < U2.length; i++) {
+      const path = U2[i++]
+      const value = U2[i]
+      const name = path[0]
+      if (moved.has(name)) continue
+      const row = this.p.value[name]
+      const old_group = this.posMap.get(name)
+      const new_group = this.fn(row)
+      if (old_group === new_group) {
+        if (this.view.value[new_group]) this.view.value[new_group][name] = row
+        NU2.push([new_group, ...path], value)
+      } else {
+        moved.add(name)
+        if (old_group !== undefined) {
+          const oldVal = this.view.value[old_group]?.[name]
+          if (oldVal !== undefined) {
+            let leavers = leaving.get(old_group)
+            if (!leavers) leaving.set(old_group, leavers = {})
+            leavers[name] = oldVal
+            delete this.view.value[old_group][name]
+          }
+        }
+        this.view.value[new_group] ??= {}
+        NI2.push([new_group], this.view.value[new_group][name] = row, name)
+        this.posMap.set(name, new_group)
+      }
+    }
+
+    const NR1 = []
+    const NR2 = []
+    for (const [group, leavers] of leaving) {
+      if (isEmpty(this.view.value[group])) {
+        NR1.push(group, leavers)
+        delete this.view.value[group]
+      } else {
+        for (const name in leavers) NR2.push([group, name], leavers[name])
+      }
+    }
+
+    if (NR1.length) this.view.BR1(NR1)
+    if (NR2.length) this.view.BR2(NR2)
+    if (NU2.length) this.view.BU2(NU2)
+    if (NI2.length) this.view.BI2(NI2)
+  }
+
   BR2() {}
-  BU2() {}
   BI2() {}
 }
 

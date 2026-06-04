@@ -31,6 +31,7 @@ Often paired with `length(fn)` to count per-bucket, or with iteration in `render
 
 ## Behavior
 
-- **Incremental.** Inserts/removes hit only the affected bucket; updates that move a row from one bucket to another fire a remove + insert.
+- **Incremental.** Inserts/removes hit only the affected bucket; a whole-row update (`BU1`) that moves a row to a different group fires a remove + insert.
+- **In-place rebucketing (object sources).** A nested field edit (`data[id].col = …`, delivered as `BU2`) is handled too: if the changed row's group key moves, the row is relocated to its new bucket (removed from the old, possibly dropping an emptied group); if it stays, the deep update is forwarded into the bucket so per-bucket consumers (aggregates re-projecting a column, child views) refresh. This used to be a no-op, which froze a `group(fn)` sitting on a source whose rows *mutate in place* (rather than only enter/leave) — the same gap `length(fn)` had before its `BU2` fix. Array-source `group` keeps the `BU2` no-op (its rows are positional; the only array-source consumer, crossfilter, never mutates rows in place).
 - The bucket key is whatever `fn` returns — string, number, or anything that survives object-key coercion.
 - No dedup. No reactive args.
