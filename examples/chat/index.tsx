@@ -69,7 +69,17 @@ const openChannel = (c: string) => () => {
   unread[c] = 0          // mark read
   repoint()
 }
-const onSearch = (ev: any) => { search[value] = ev.target.value; repoint() }
+// Coalesce the search re-point to one rebuild per frame (see kanban's search /
+// the library slider): a fast typer fires several input events per frame, but
+// `view` only needs to re-point once with the latest query. Channel clicks stay
+// immediate (one event each).
+let searchPending = false
+const onSearch = (ev: any) => {
+  search[value] = ev.target.value
+  if (searchPending) return
+  searchPending = true
+  requestAnimationFrame(() => { searchPending = false; repoint() })
+}
 
 const send = (text: string) => {
   const t = text.trim(); if (!t) return
