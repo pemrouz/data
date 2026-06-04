@@ -283,7 +283,17 @@ export class BetweenValue extends Operator {
 
   BI0(I0) {
     if (this.view.value === this.p.value) return this.view.BI0(I0)
-    if (this.sortedDirty) this._resort()
+    // A prior in-place edit (BU1/BU2 → _replaceRow) left `sorted` stale. The
+    // incremental shift+place below assumes `sorted` is the clean PRE-insert
+    // layout, but _resort() rebuilds from the already-mutated p.value (the
+    // inserted row is present), so shift+place would double-count it — minting
+    // an out-of-bounds key the bisect then dereferences (`p.value[badKey][col]`
+    // → crash on arrays; a duplicate `sorted` entry on objects). Fall back to a
+    // full rebuild: p.value already reflects the insert, so XU0 captures it.
+    // O(N), but rare (brushes don't dirty `sorted`; pure insert churn never sets
+    // the flag) and array between insert is already O(N). Emits a coarse XU0
+    // instead of incremental BI0 — downstream + DOM sink both reconcile from it.
+    if (this.sortedDirty) { this.sortedDirty = false; return this.XU0(this.p.value) }
 
     // Array source: a non-end insert at position `at` shifts every existing
     // upstream key >= at up by one. We have to translate `sorted` and the
@@ -321,7 +331,10 @@ export class BetweenValue extends Operator {
 
   BR1(R1) {
     if (this.view.value === this.p.value) return this.view.BR1(R1)
-    if (this.sortedDirty) this._resort()
+    // See BI0: a stale `sorted` from a prior in-place edit makes the
+    // incremental shift below double-count the just-removed row (p.value is
+    // already spliced). Rebuild from the post-remove p.value instead.
+    if (this.sortedDirty) { this.sortedDirty = false; return this.XU0(this.p.value) }
 
     const NR1 = []
     const removedKeys = this.isArr ? [] : null

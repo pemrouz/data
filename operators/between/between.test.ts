@@ -125,3 +125,33 @@ test('between - reactive bounds', async () => {
     { type: 'update', value: {}, key: [] },
   ])
 })
+
+// Regression: on an ARRAY source, an in-place edit of the between column (BU2,
+// or a whole-row BU1) sets `sortedDirty`; the NEXT insert then ran _resort()
+// (which rebuilt `sorted` from the already-mutated p.value) AND the incremental
+// array shift+place, double-counting the new row and minting an out-of-bounds
+// key the bisect dereferenced → `Cannot read properties of undefined (reading
+// 'v')` thrown to the caller's .insert(). This is the crossfilter/swarm shape
+// (stream inserts while attributes mutate in place). Now the dirty path rebuilds
+// via XU0. Object sources had the silent-duplicate analogue.
+test('between - insert after an in-place column edit does not crash (array + object)', () => {
+  // array
+  const arr = $([{ v: 50, g: 0 }])
+  const wa = between(arr, 'v', [20, 80])
+  arr[0].v = 60                       // in-place col edit -> sortedDirty
+  arr.insert({ v: 40, g: 1 })         // used to throw
+  same(wa[value].filter(Boolean), [{ v: 60, g: 0 }, { v: 40, g: 1 }])
+  arr[1].v = 70                       // dirty again (in-band edit also triggers)
+  arr.insert({ v: 30, g: 2 })
+  same(wa[value].filter(Boolean), [{ v: 60, g: 0 }, { v: 70, g: 1 }, { v: 30, g: 2 }])
+  arr[0].v = 100                      // 60 -> 100 leaves the band, dirty
+  arr.insert({ v: 25, g: 3 })
+  same(wa[value].filter(Boolean), [{ v: 70, g: 1 }, { v: 30, g: 2 }, { v: 25, g: 3 }])
+
+  // object (was a silent `sorted` duplicate rather than a crash)
+  const obj = $({ a: { v: 50 }, b: { v: 90 } })
+  const wo = between(obj, 'v', [20, 80])
+  obj.a.v = 60
+  ;(obj as any).insert({ v: 40 }, 'c')
+  same(wo[value], { a: { v: 60 }, c: { v: 40 } })
+})
