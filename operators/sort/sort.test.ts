@@ -1,8 +1,8 @@
 ﻿// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { test } from 'node:test'
-import { $, value } from '../../core.ts'
-import { sort, limit } from './index.ts'
+import { $, value, createOperator } from '../../core.ts'
+import { sort, limit, AZColumnValue } from './index.ts'
 import { filter } from '../filter/index.ts'
 import { between } from '../between/index.ts'
 import { sum } from '../aggregate/index.ts'
@@ -175,6 +175,28 @@ test('sort (za) - in-window rank change emits BMV1', () => {
   const moves = changes.filter(c => c.type === 'move')
   same(moves.length, 1)
   same(moves[0], { type: 'move', from: 3, to: 0 })
+})
+
+// Regression: a windowed sort feeding another windowed sort rotates the inner
+// window's POSITION keys without re-keying the outer, so the outer's get_index
+// misses (returns -1). The BU2/BR2 forwarding guard was `oidx < n`, and -1 < n
+// admitted a bogus key[0]="-1" deep update — which makes an index-keyed DOM sink
+// create a phantom node it never removes (a permanently inflated rendered list).
+// The guard must drop get_index misses. (NB: chained *windowed* sort can still
+// have stale CONTENT vs a fresh rebuild — a separate, deeper positional-
+// composition limitation; this test locks only the phantom-key DOM regression.)
+test('sort (za) - chained windowed sort never forwards a -1 position key', () => {
+  const src = $([{ v: 40, g: 1 }, { v: 50, g: 0 }, { v: 30, g: 2 }, { v: 20, g: 3 }])
+  const inner = sort(src, 'v', 2)                       // za('v', 2)
+  const chain = createOperator(inner, AZColumnValue, 'v', 2)  // .az('v', 2)
+  const changes = chain.connect([])
+  changes.length = 0
+  src[0].v = 5       // sort-column edit (rank change in the inner window)
+  src[2].g = 9       // non-sort-column edit on an inner-window row -> BU2 forward
+  // No change record may carry a "-1" position key (the phantom-node trigger).
+  same(changes.some(c => c.key && String(c.key[0]) === '-1'), false)
+  // And the window stays the correct SIZE (count), so a DOM sink shows 2 rows.
+  same(chain[value].length, 2)
 })
 
 // Regression: an in-place row mutation that reaches sort as a whole-row BU1

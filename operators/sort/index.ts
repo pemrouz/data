@@ -295,7 +295,13 @@ export class ZAValue extends Operator {
         this.BU1([name, this.p.value[name]])
       } else {
         const oidx = this.get_index(name)
-        if (oidx < this.n)
+        // `oidx >= 0`: a get_index miss returns -1, and -1 < n would forward a
+        // bogus key[0]="-1" deep update. That happens when this sort feeds off
+        // another windowed sort whose position-keys it rotates without re-keying
+        // us — our `sorted` is then stale for that name. A "-1" key makes an
+        // index-keyed DOM sink create a phantom node it never removes. The row
+        // isn't tracked here, so there's nothing valid to forward — drop it.
+        if (oidx >= 0 && oidx < this.n)
           this.view.BR2([[`${oidx}`, col, ...rest], value])
       }
     }
@@ -309,7 +315,8 @@ export class ZAValue extends Operator {
         this.BU1([name, this.p.value[name]])
       } else {
         const oidx = this.get_index(name)
-        if (oidx < this.n) {
+        // See BR2: drop get_index misses (-1) instead of forwarding a "-1" key.
+        if (oidx >= 0 && oidx < this.n) {
           this.view.BU2([[`${oidx}`, col, ...rest], value])
         }
       }
