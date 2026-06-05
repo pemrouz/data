@@ -181,7 +181,13 @@ export class GroupValue extends Operator {
     for (let i = 0; i < R1.length; i++) {
       const pos = +R1[i++]
       const info = this.posMap.get(pos)
-      if (!info) throw new Error('unexpected group r1: ' + pos)
+      // Untracked position: an excluded/hole slot from a sparse-array upstream
+      // (between/intersect/union/except, or a RowOperator gone sparse) that
+      // XU0's skip-guard never bucketed. Still record it for the shift
+      // bookkeeping below, but there's no bucket row to remove. (group over a
+      // sparse array is the documented array-positional limitation — degrade to
+      // no-crash rather than throw; use object-keyed sources for exact results.)
+      if (!info) { removed.push(pos); continue }
       const { group, idx } = info
       this.posMap.delete(pos)
       removed.push(pos)

@@ -248,9 +248,16 @@ test('group (object) - undefined group key: remove and move are correct', () => 
 
 // Regression: group over a SPARSE array source (downstream of between/intersect/
 // union/except, which leave excluded slots as holes/explicit-undefined) crashed
-// in XU0 calling fn(undefined). XU0 now skips undefined slots like sort does.
+// in XU0 calling fn(undefined). XU0 now skips undefined slots like sort does, and
+// the array BR1A tolerates untracked (hole) positions rather than throwing
+// `unexpected group r1` — so the (documented array-positional-limitation) combo
+// degrades to no-crash through churn instead of throwing.
 test('group - over a sparse array source skips excluded slots (no crash)', () => {
   const src = $([{ v: 10, g: 1 }, { v: 50, g: 2 }, { v: 90, g: 1 }])
   const g = group(between(src, 'v', [20, 80]), r => r.g)
   same(g[value], { 2: [ { v: 50, g: 2 } ] })
+  // a removal that shifts past hole slots used to throw in BR1A — must not now
+  delete src[0]
+  // bucket 2 still holds its row; no exception is the assertion that matters
+  same(2 in g[value], true)
 })
