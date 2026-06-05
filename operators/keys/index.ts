@@ -10,7 +10,10 @@ import { Operator, createOperator } from '../../core.ts'
 // remove-heavy workload appears.
 //
 // Useful with `distinct`/`length` for crossfilter-style "list the
-// categories": `data.length(byCol).keys()` gives the distinct labels.
+// categories": `data.length(byCol).keys()` gives the labels — note `length(fn)`
+// keeps emptied buckets as `{ value: 0 }` (fixed-keyspace persistence), so this
+// lists EVER-seen categories, including currently-empty ones; filter on count if
+// you need only the live ones. See CLAUDE.md gotchas.
 class CollectionView extends Operator {
   constructor(p, project, isKeys) {
     super()
