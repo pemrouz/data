@@ -43,6 +43,12 @@ export class ReverseValue extends Operator {
   // source becomes output[0].
   BI0(I0) {
     if (!I0.length) return
+    // Array upstreams (sort/limit windows, mid-array inserts) deliver BI0 with a
+    // POSITIONAL `at` — a row entering a sort window at rank k is not an append,
+    // so the front-prepend below would put it at the wrong end. The upstream
+    // value already reflects the insert; rebuild. Object upstreams (new key at
+    // the end of iteration → front of the reverse) keep the O(1) prepend.
+    if (isArray(this.p.value)) return this._rebuild()
     const out = this.output
     for (let i = I0.length - 2; i >= 0; i -= 2) {
       const val = I0[i + 1]

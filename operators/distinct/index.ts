@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { iter, identity } from '../../utils.ts'
+import { iter, identity, isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
 // `proxy.distinct(fn?)` materializes the source's distinct values as an
@@ -133,6 +133,11 @@ export class DistinctValue extends Operator {
 
   BI0(I0) {
     if (!I0.length) return
+    // Array upstreams (sort/limit windows, mid-array inserts) deliver BI0 with a
+    // POSITIONAL `at` that collides with the position-keyed namesProj map — a row
+    // entering a sort window at rank k is not a fresh name. Rebuild from the
+    // current (post-insert) source instead. Object upstreams keep the O(1) path.
+    if (isArray(this.p.value)) return this._rebuild()
     let changed = false
     for (let i = 0; i < I0.length; i += 2) {
       if (this._insert(I0[i], I0[i + 1])) changed = true
@@ -147,6 +152,7 @@ export class DistinctValue extends Operator {
     // partial sub-value. Read from this.p.value, which the source has
     // already updated by the time BU2 fires downstream.
     const v = this.p.value
+    if (isArray(v)) return this._rebuild()   // positional names shift under array upstreams; rebuild
     let changed = false
     for (let i = 0; i < U2.length; i += 2) {
       const path = U2[i]

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
 // `proxy.keys()` and `proxy.values()` materialize the source's current
@@ -30,6 +31,13 @@ class CollectionView extends Operator {
 
   BI0(I0) {
     if (!I0.length) return
+    // Array upstreams (a sort/limit window, or arr.insert at a position) deliver
+    // BI0 with a POSITIONAL `at`, not an append: a row entering a sort window at
+    // rank 0 shifts the rest, and the `at` is its index — appending it (and, for
+    // keys, pushing the numeric index as a "key") corrupts the output. The
+    // upstream value already reflects the insert, so rebuild. Object upstreams
+    // (append-at-end iteration) keep the O(1) append fast path.
+    if (isArray(this.p.value)) return this._rebuild()
     const out = this.output
     if (this.isKeys) {
       for (let i = 0; i < I0.length; i += 2) {
