@@ -1,6 +1,29 @@
 // @ts-nocheck
 import { iter } from '../../utils.ts'
-import { Operator, createOperator } from '../../core.ts'
+import { $, Operator, createOperator } from '../../core.ts'
+
+// Order-insensitive, float-tolerant structural compare used ONLY by the
+// `$.debug` symmetry check below — never on a hot path. Numbers compare with a
+// relative epsilon so benign floating-point drift between an incremental
+// subtract and a fresh add doesn't false-positive.
+const _approxEqual = (a, b) =>
+  a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))
+const _deepEqual = (a, b) => {
+  if (a === b) return true
+  const ta = typeof a
+  if (ta !== typeof b) return false
+  if (ta === 'number') return _approxEqual(a, b) || (Number.isNaN(a) && Number.isNaN(b))
+  if (a && b && ta === 'object') {
+    const ka = Object.keys(a), kb = Object.keys(b)
+    if (ka.length !== kb.length) return false
+    for (let i = 0; i < ka.length; i++) {
+      const k = ka[i]
+      if (!Object.prototype.hasOwnProperty.call(b, k) || !_deepEqual(a[k], b[k])) return false
+    }
+    return true
+  }
+  return false
+}
 
 // `proxy.reduce(fn, init)` folds the source's rows through `fn(acc, row, key)`
 // starting from `init`, exposing the result as a scalar reactive view.
@@ -78,7 +101,11 @@ export class ReduceValue extends Operator {
 //   • `remove` must invert `add`'s contribution for the row passed to it,
 //     using only the row + key — same contract as crossfilter's
 //     group.reduce(add, remove, init). Forgetting symmetry desyncs `acc`
-//     silently; a unit test that round-trips insert+remove catches it.
+//     silently; a unit test that round-trips insert+remove catches it. Set
+//     `$.debug = true` during development to turn the silent desync loud: after
+//     every incremental delta the fold is recomputed from scratch and compared
+//     to the running accumulator, warning on the first drift (O(N) per delta,
+//     so off by default — a dev aid, not a runtime guard).
 export class ReduceIncrementalValue extends Operator {
   constructor(p, add, remove, init) {
     super()
@@ -95,6 +122,26 @@ export class ReduceIncrementalValue extends Operator {
 
   _seed() {
     return typeof this.init === 'function' ? this.init() : this.init
+  }
+
+  // Dev-only symmetry check (see the class comment): re-fold from scratch and
+  // compare to the incremental accumulator. A mismatch means `remove` didn't
+  // invert `add` for some row. Gated behind `$.debug` because the re-fold is
+  // O(N) per delta — it exists to make the silent-desync trap catchable.
+  _verify(where) {
+    if (!$.debug) return
+    let truth = this._seed()
+    const v = this.p.value
+    if (v && typeof v === 'object') iter(v, (k, row) => {
+      if (row === undefined) return
+      truth = this.add(truth, row, k)
+    })
+    if (!_deepEqual(truth, this.view.value) && typeof console !== 'undefined')
+      console.warn(
+        '[data] reduce(add, remove, init): the incremental accumulator drifted ' +
+        `from a fresh fold after ${where}. The usual cause is a \`remove\` that ` +
+        "doesn't exactly invert `add` for a row (the symmetry contract).",
+        '\n  incremental =', this.view.value, '\n  fresh fold  =', truth)
   }
 
   _rebuild() {
@@ -121,6 +168,7 @@ export class ReduceIncrementalValue extends Operator {
       acc = this.add(acc, v, I0[i])
     }
     this.view.XU0(this.view.value = acc)
+    this._verify('BI0')
   }
 
   BR1(R1) {
@@ -135,6 +183,7 @@ export class ReduceIncrementalValue extends Operator {
       acc = this.remove(acc, v, R1[i])
     }
     this.view.XU0(this.view.value = acc)
+    this._verify('BR1')
   }
 
   // BU1: row's slot was overwritten with a new value, but the framework

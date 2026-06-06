@@ -1,8 +1,19 @@
 // @ts-nocheck
-import { deepStrictEqual as same, strictEqual as eq } from 'node:assert'
+import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { reduce } from './index.ts'
+
+// Capture console.warn while running `fn`, restoring it (and $.debug) after.
+function withDebug(fn) {
+  const warnings = []
+  const origWarn = console.warn
+  const prevDebug = $.debug
+  console.warn = (...a) => warnings.push(a.map(String).join(' '))
+  $.debug = true
+  try { fn(warnings) } finally { console.warn = origWarn; $.debug = prevDebug }
+  return warnings
+}
 
 test('reduce - sums an array', () => {
   const res = $([1, 2, 3, 4])
@@ -28,6 +39,32 @@ test('reduce - fn receives (acc, row, key)', () => {
   const res = $({ a: 1, b: 2, c: 3 })
   const r = reduce(res, (acc, row, key) => acc + key + row, '')
   eq(r[value], 'a1b2c3')
+})
+
+test('reduce.incremental - $.debug warns when remove does not invert add', () => {
+  const warnings = withDebug(() => {
+    // BROKEN remove: subtracts a constant 1 instead of the row's value, so a
+    // remove leaves `acc` desynced from a fresh fold.
+    const src = $({ a: 10, b: 20 })
+    const r = reduce(src, (acc, v) => acc + v, (acc, v) => acc - 1, 0)
+    eq(r[value], 30)
+    delete src.a   // incremental acc = 30 - 1 = 29; fresh fold = 20
+  })
+  ok(
+    warnings.some(w => /reduce\(add, remove, init\)/.test(w) && /drift/i.test(w)),
+    `expected a drift warning, got: ${JSON.stringify(warnings)}`,
+  )
+})
+
+test('reduce.incremental - $.debug stays silent for a correct symmetric remove', () => {
+  const warnings = withDebug(() => {
+    const src = $({ a: 10, b: 20 })
+    const r = reduce(src, (acc, v) => acc + v, (acc, v) => acc - v, 0)
+    src.c = 5         // insert a new row (BU1 → BI0): acc 30 → 35, verified
+    delete src.a      // remove (BR1): acc 35 → 25, verified
+    eq(r[value], 25)
+  })
+  same(warnings, [])
 })
 
 test('reduce - dedup: same fn + init reuse the operator view', () => {
