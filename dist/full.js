@@ -1247,7 +1247,10 @@ var BetweenValue = class extends Operator {
   }
   BI0(I0) {
     if (this.view.value === this.p.value) return this.view.BI0(I0);
-    if (this.sortedDirty) this._resort();
+    if (this.sortedDirty) {
+      this.sortedDirty = false;
+      return this.XU0(this.p.value);
+    }
     if (this.isArr) {
       for (let i = 0; i < I0.length; i += 2) {
         const atNum = +I0[i];
@@ -1277,7 +1280,10 @@ var BetweenValue = class extends Operator {
   }
   BR1(R1) {
     if (this.view.value === this.p.value) return this.view.BR1(R1);
-    if (this.sortedDirty) this._resort();
+    if (this.sortedDirty) {
+      this.sortedDirty = false;
+      return this.XU0(this.p.value);
+    }
     const NR1 = [];
     const removedKeys = this.isArr ? [] : null;
     for (let i = 0; i < R1.length; i += 2) {
@@ -1585,7 +1591,7 @@ var ZAValue = class extends Operator {
         this.BU1([name, this.p.value[name]]);
       } else {
         const oidx = this.get_index(name);
-        if (oidx < this.n)
+        if (oidx >= 0 && oidx < this.n)
           this.view.BR2([[`${oidx}`, col, ...rest], value2]);
       }
     }
@@ -1598,7 +1604,7 @@ var ZAValue = class extends Operator {
         this.BU1([name, this.p.value[name]]);
       } else {
         const oidx = this.get_index(name);
-        if (oidx < this.n) {
+        if (oidx >= 0 && oidx < this.n) {
           this.view.BU2([[`${oidx}`, col, ...rest], value2]);
         }
       }
@@ -1760,7 +1766,6 @@ var LimitValue = class extends Operator {
       if (pos !== -1) {
         if (val === void 0) {
           this.keys.splice(pos, 1);
-          this.view.value.splice(pos, 1);
           super.BR1A([pos]);
           const next = this.nextObjectKey();
           if (next !== void 0) {
@@ -1930,6 +1935,7 @@ var GroupValue = class extends Operator {
     if (this.isArr) {
       for (let i = 0; i < value2.length; i++) {
         const v = value2[i];
+        if (v === void 0) continue;
         const g = this.fn(v);
         const bucket = new_value[g] ??= [];
         this.posMap.set(i, { group: g, idx: bucket.length });
@@ -1955,8 +1961,8 @@ var GroupValue = class extends Operator {
     const leaving = /* @__PURE__ */ new Map();
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++];
+      if (!this.posMap.has(name)) throw new Error("unexpected group r1: " + name + " " + typeof name);
       const group = this.posMap.get(name);
-      if (group === void 0) throw new Error("unexpected group r1: " + name + " " + typeof name);
       this.posMap.delete(name);
       const bucket = this.view.value[group];
       if (bucket !== void 0 && name in bucket) {
@@ -1981,12 +1987,13 @@ var GroupValue = class extends Operator {
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++];
       const value2 = U1[i];
+      const tracked = this.posMap.has(name);
       const old_group = this.posMap.get(name);
       const new_group = this.fn(value2);
-      if (old_group === new_group) {
+      if (tracked && old_group === new_group) {
         NU2.push([new_group, name], this.view.value[new_group][name] = value2);
       } else {
-        if (old_group !== void 0) {
+        if (tracked) {
           const oldVal = this.view.value[old_group]?.[name];
           if (oldVal !== void 0) {
             let leavers = leaving.get(old_group);
@@ -2053,7 +2060,10 @@ var GroupValue = class extends Operator {
     for (let i = 0; i < R1.length; i++) {
       const pos = +R1[i++];
       const info = this.posMap.get(pos);
-      if (!info) throw new Error("unexpected group r1: " + pos);
+      if (!info) {
+        removed.push(pos);
+        continue;
+      }
       const { group, idx } = info;
       this.posMap.delete(pos);
       removed.push(pos);
@@ -2213,14 +2223,15 @@ var GroupValue = class extends Operator {
       const name = path[0];
       if (moved.has(name)) continue;
       const row = this.p.value[name];
+      const tracked = this.posMap.has(name);
       const old_group = this.posMap.get(name);
       const new_group = this.fn(row);
-      if (old_group === new_group) {
+      if (tracked && old_group === new_group) {
         if (this.view.value[new_group]) this.view.value[new_group][name] = row;
         NU2.push([new_group, ...path], value2);
       } else {
         moved.add(name);
-        if (old_group !== void 0) {
+        if (tracked) {
           const oldVal = this.view.value[old_group]?.[name];
           if (oldVal !== void 0) {
             let leavers = leaving.get(old_group);
@@ -2902,32 +2913,32 @@ var TapValue = class extends Operator {
     this.fn({ type: "remove", key: [], value: sclone2(value2) });
   }
   BU1(U1) {
-    super.BU1(U1);
+    this.view.BU1(U1);
     for (let i = 0; i < U1.length; i += 2)
       this.fn({ type: "update", key: [U1[i]], value: sclone2(U1[i + 1]) });
   }
   BR1(R1) {
     for (let i = 0; i < R1.length; i += 2)
       this.fn({ type: "remove", key: [R1[i]], value: sclone2(R1[i + 1]) });
-    super.BR1(R1);
+    this.view.BR1(R1);
   }
   BI0(I0) {
-    super.BI0(I0);
+    this.view.BI0(I0);
     for (let i = 0; i < I0.length; i += 2)
       this.fn({ type: "insert", key: [], value: sclone2(I0[i + 1]), at: I0[i] });
   }
   BU2(U2) {
-    super.BU2(U2);
+    this.view.BU2(U2);
     for (let i = 0; i < U2.length; i += 2)
       this.fn({ type: "update", key: U2[i], value: sclone2(U2[i + 1]) });
   }
   BR2(R2) {
     for (let i = 0; i < R2.length; i += 2)
       this.fn({ type: "remove", key: R2[i], value: sclone2(R2[i + 1]) });
-    super.BR2(R2);
+    this.view.BR2(R2);
   }
   BI2(I2) {
-    super.BI2(I2);
+    this.view.BI2(I2);
     for (let i = 0; i < I2.length; i += 3)
       this.fn({ type: "insert", key: I2[i], value: sclone2(I2[i + 1]), at: I2[i + 2] });
   }
@@ -2936,7 +2947,7 @@ var TapValue = class extends Operator {
   // `{ type: 'move', from, to }`; tap mirrors the convention so consumers
   // see the same vocabulary regardless of which sink they use.
   BMV1(M1) {
-    super.BMV1(M1);
+    this.view.BMV1(M1);
     for (let i = 0; i < M1.length; i += 2)
       this.fn({ type: "move", from: +M1[i], to: +M1[i + 1] });
   }
@@ -2958,31 +2969,31 @@ var TapBareValue = class extends Operator {
     this.fn();
   }
   BU1(U1) {
-    super.BU1(U1);
+    this.view.BU1(U1);
     this.fn();
   }
   BR1(R1) {
-    super.BR1(R1);
+    this.view.BR1(R1);
     this.fn();
   }
   BI0(I0) {
-    super.BI0(I0);
+    this.view.BI0(I0);
     this.fn();
   }
   BU2(U2) {
-    super.BU2(U2);
+    this.view.BU2(U2);
     this.fn();
   }
   BR2(R2) {
-    super.BR2(R2);
+    this.view.BR2(R2);
     this.fn();
   }
   BI2(I2) {
-    super.BI2(I2);
+    this.view.BI2(I2);
     this.fn();
   }
   BMV1(M1) {
-    super.BMV1(M1);
+    this.view.BMV1(M1);
     this.fn();
   }
 };
@@ -3083,6 +3094,7 @@ var DistinctValue = class extends Operator {
   }
   BI0(I0) {
     if (!I0.length) return;
+    if (isArray(this.p.value)) return this._rebuild();
     let changed = false;
     for (let i = 0; i < I0.length; i += 2) {
       if (this._insert(I0[i], I0[i + 1])) changed = true;
@@ -3092,6 +3104,7 @@ var DistinctValue = class extends Operator {
   BU2(U2) {
     if (!U2.length) return;
     const v = this.p.value;
+    if (isArray(v)) return this._rebuild();
     let changed = false;
     for (let i = 0; i < U2.length; i += 2) {
       const path = U2[i];
@@ -3514,6 +3527,7 @@ var CollectionView = class extends Operator {
   }
   BI0(I0) {
     if (!I0.length) return;
+    if (isArray(this.p.value)) return this._rebuild();
     const out = this.output;
     if (this.isKeys) {
       for (let i = 0; i < I0.length; i += 2) {
@@ -3596,6 +3610,7 @@ var ReverseValue = class extends Operator {
   // source becomes output[0].
   BI0(I0) {
     if (!I0.length) return;
+    if (isArray(this.p.value)) return this._rebuild();
     const out = this.output;
     for (let i = I0.length - 2; i >= 0; i -= 2) {
       const val = I0[i + 1];
