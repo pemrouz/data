@@ -34,7 +34,7 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 
 ## How dispatch works
 
-The mapping from operator name to class lives in [../index.ts](../index.ts) — the default `data` entry, which registers every operator on import (`data/full` inherits the registration via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves the dispatch table empty). Each entry is a function that picks a class based on argument shape:
+The mapping from operator name to class lives in [../register.ts](../register.ts) — a side-effect-only module imported by the default `data` entry ([../index.ts](../index.ts)), which registers every operator on import (`data/full` inherits the registration via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves the dispatch table empty). Each entry is a function that picks a class based on argument shape:
 
 ```js
 Operators['filter']  = (a, b) => typeof a === 'function' ? FilterValue
@@ -72,7 +72,7 @@ This is the canonical list of everything that needs to land when a new operator 
 
 ### Dispatch — repo root
 
-4. **[../index.ts](../index.ts)** — the default `data` entry. Import the class(es), then add `Operators['<name>'] = (...) => OpClass` (or a closure that picks a class based on argument shape, like `filter` does) to the registration block. `data/full` inherits it via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves dispatch empty.
+4. **[../register.ts](../register.ts)** — the side-effect dispatch module (imported by the default `data` entry, [../index.ts](../index.ts)). Import the class(es), then add `Operators['<name>'] = (...) => OpClass` (or a closure that picks a class based on argument shape, like `filter` does) to the registration block. `data` runs it via `index.ts`'s `import './register.ts'`; `data/full` inherits it via `export * from './index.ts'`; the registration-free `data/lean` entry deliberately leaves dispatch empty.
 
 ### Docs — per-operator + cross-cutting
 

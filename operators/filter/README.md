@@ -11,7 +11,7 @@ proxy.filter(path:  string[],  expected: any)         // FilterColumnValue
 proxy.filter(shape: object)                           // FilterObjectValue
 ```
 
-Dispatch lives in [../../index.ts:18](../../index.ts#L18-L21).
+Dispatch lives in [../../register.ts:41](../../register.ts#L41-L44).
 
 ## Examples
 
