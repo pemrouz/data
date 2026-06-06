@@ -278,6 +278,12 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
         <span class="gcard-links"><a href="./examples/crossfilter/">open →</a><a href="./examples/crossfilter-jsx/">jsx</a><a href="./examples/crossfilter-jsx/?devtools">?devtools</a></span>
       </div>
       <div class="gcard">
+        <span class="gcard-tag">messaging · jsx</span>
+        <h3><a href="./examples/chat/">Chat workspace</a></h3>
+        <p>A messaging app in JSX: the open channel is <code>filter('channel', c).az('ts')</code>, channel counts a per-channel <code>length</code> histogram, and reactions a <code>&lt;For&gt;</code> over a nested object that mutates in place. A bot streams messages and <strong>blast 200</strong> inserts a batch via <code>patch</code> — new rows append while existing rows keep DOM identity.</p>
+        <span class="gcard-links"><a href="./examples/chat/">open →</a><a href="./examples/chat/?devtools">?devtools</a></span>
+      </div>
+      <div class="gcard">
         <span class="gcard-tag">basics · live</span>
         <h3><a href="./examples/todo/">To-do</a></h3>
         <p>The smallest end-to-end: mutate an array, derive <code>filter</code> + <code>length</code>, and watch <code>render</code> do per-key surgical DOM updates that keep focus.</p>
