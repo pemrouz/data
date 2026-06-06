@@ -112,4 +112,33 @@ export class RowOperator extends Operator {
     }
     this.view.BI0A(NI0)
   }
+
+  // Hole remove (counterpart of BR1, for a sparse producer that marked a slot
+  // undefined WITHOUT splicing). The row simply left our view too: clear our
+  // slot to a hole, keeping length and positions aligned with the upstream — do
+  // NOT splice (that would shift survivors the producer never moved). Forward a
+  // BH1 so our own positional sinks mirror the hole rather than shifting.
+  BH1(R1) {
+    const NR1 = []
+    for (let i = 0; i < R1.length; i++) {
+      const name = R1[i++]
+      const value = this.view.value?.[name]
+      if (value !== undefined) { delete this.view.value[name]; NR1.push(name, value) }
+    }
+    this.view.BH1(NR1)
+  }
+
+  // Hole fill (counterpart of BI0A). The producer re-admitted a row into a
+  // previously-holed position — length unchanged, no shift. Re-run `process`
+  // and fill our slot in place if the row passes (otherwise leave it a hole).
+  // Forward a BF0 so downstream fills in place too.
+  BF0(I0) {
+    const NF0 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const name = I0[i]
+      const now_val = this.process(this.p.value[name], name, undefined)
+      if (now_val !== undefined) { this.view.value[name] = now_val; NF0.push(name, now_val) }
+    }
+    this.view.BF0(NF0)
+  }
 }

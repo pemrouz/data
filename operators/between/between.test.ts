@@ -3,6 +3,37 @@ import { deepStrictEqual as same } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { between } from './index.ts'
+import { filter } from '../filter/index.ts'
+
+const dense = (a) => (Array.isArray(a) ? a.filter((x) => x !== undefined) : a)
+
+test('between → filter over an ARRAY source stays aligned through a holed-row removal (C1)', () => {
+  // A row OUT of between's range is a hole in between's array. Removing it
+  // splices between's array; between must emit that splice (BH1/BR1 path) so
+  // the downstream filter shifts in lockstep — otherwise filter keeps a ghost.
+  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
+  const b = between(src, 'v', [40, 70])   // in range: {v:50},{v:55}; holes: 10, 90
+  const f = filter(b, (r) => r.v > 45)
+  same(dense(b[value]), [{ v: 50 }, { v: 55 }])
+  same(dense(f[value]), [{ v: 50 }, { v: 55 }])
+  delete src[0]                            // remove the holed {v:10} (out of range)
+  same(dense(b[value]), [{ v: 50 }, { v: 55 }])
+  same(dense(f[value]), [{ v: 50 }, { v: 55 }])   // pre-fix: ghost — drifted by one
+  delete src[0]                            // now remove {v:50} (in range)
+  same(dense(b[value]), [{ v: 55 }])
+  same(dense(f[value]), [{ v: 55 }])
+})
+
+test('between → filter over an ARRAY source tracks a reactive bound move (C1)', () => {
+  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
+  const bound = $([40, 70])
+  const b = between(src, 'v', bound)
+  const f = filter(b, (r) => r.v > 20)
+  same(dense(f[value]), [{ v: 50 }, { v: 55 }])
+  bound[value] = [0, 60]                    // 10 and 50,55 in; 90 out
+  same(dense(b[value]), [{ v: 10 }, { v: 50 }, { v: 55 }])
+  same(dense(f[value]), [{ v: 50 }, { v: 55 }])   // 10 excluded by filter, not a ghost
+})
 
 // Regression: between() with plain numeric bounds previously threw
 // `arg[0].connect is not a function` because it called .connect on raw

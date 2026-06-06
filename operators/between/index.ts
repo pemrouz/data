@@ -161,8 +161,13 @@ export class BetweenValue extends Operator {
 
     this.lo_val = new_lo
     this.hi_val = new_hi
-    if (I0.length) this.view.BI0(I0)
-    if (R1.length) this.view.BR1(R1)
+    // Over an ARRAY source a row crossing a bound is a HOLE event, not a splice:
+    // we set value[ti]=undefined / value[ti]=tv in place, keeping the array
+    // length stable so sibling sources stay index-aligned (intersect). Emit
+    // BF0/BH1 so positional sinks mirror the hole instead of shifting. Object
+    // sources have stable keys, so the plain BI0/BR1 path is correct there.
+    if (I0.length) this.isArr ? this.view.BF0(I0) : this.view.BI0(I0)
+    if (R1.length) this.isArr ? this.view.BH1(R1) : this.view.BR1(R1)
   }
 
   // Whole-source replacement: rebuild `sorted` and seed `new_value` with
@@ -220,12 +225,20 @@ export class BetweenValue extends Operator {
       this.view.BU1([name, row])
     } else if (!wasIn && isIn) {
       this.view.value[name] = row
-      this.view.BI0([name, row])
+      // Over an array this fills a hole in place (no shift) — emit BF0 so
+      // positional sinks fill rather than splice-insert; objects use BI0.
+      this.isArr ? this.view.BF0([name, row]) : this.view.BI0([name, row])
     } else if (wasIn && !isIn) {
       const oldVal = this.view.value[name]
-      if (this.isArr) this.view.value[name] = undefined
-      else delete this.view.value[name]
-      this.view.BR1([name, oldVal])
+      if (this.isArr) {
+        // Mark the slot a hole (length stable, siblings stay index-aligned) and
+        // emit BH1 so positional sinks hole rather than splice-shift.
+        this.view.value[name] = undefined
+        this.view.BH1([name, oldVal])
+      } else {
+        delete this.view.value[name]
+        this.view.BR1([name, oldVal])
+      }
     }
 
     this.sortedDirty = true
@@ -347,9 +360,14 @@ export class BetweenValue extends Operator {
         removedKeys.push(+name)
         // Splice the view in lockstep with the source's array shift; if
         // the row was in view its slot disappears, otherwise the hole at
-        // that position disappears (which is what we want).
+        // that position disappears (which is what we want). ALWAYS emit the
+        // splice (even when the removed slot was a hole, oldVal===undefined):
+        // a downstream row op keeps a parallel array and must splice the same
+        // position or its layout drifts one slot per holed-row removal (a
+        // surviving row becomes a ghost). The [name, undefined] pair tells it
+        // "position `name` was removed" without claiming a row left the view.
         this.view.value.splice(name, 1)
-        if (oldVal !== undefined) NR1.push(name, oldVal)
+        NR1.push(name, oldVal)
       } else if (oldVal !== undefined) {
         delete this.view.value[name]
         NR1.push(name, oldVal)

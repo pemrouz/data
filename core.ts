@@ -690,6 +690,38 @@ export class View {
       : sink.BI0(I0, this))
   }
 
+  // Hole remove / hole fill — the positional-stable counterparts of BR1A/BI0A.
+  // A sparse producer (between/intersect/union/except over an ARRAY) marks an
+  // excluded slot `undefined` WITHOUT splicing: the array length is unchanged
+  // and survivors do NOT shift. BR1A/BI0A would wrongly splice downstream
+  // (ghost rows / dropped survivors — the array-positional desync). Instead the
+  // producer emits BH1/BF0: we refresh only the touched children (no V1 shift)
+  // and route to a sink's BH1/BF0 if it has one. A sink WITHOUT them (an
+  // aggregate, say — position-agnostic) falls back to BR1/BI0, which is correct:
+  // it just drops/adds the row. Only positional sinks (RowOperator, a
+  // downstream sparse op, the DOM) implement BH1/BF0 to mirror the hole instead
+  // of shifting. BH1/BF0 live on View only — never on Value — so a plain Value
+  // sink never inherits one and always takes the fallback.
+  BH1(R1) {
+    if (!R1.length) return
+    for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0()
+    for (const x of this.sinks) {
+      const sink = x.deref()
+      if (!sink) { this.sinks.delete(x); continue }
+      sink.BH1 ? sink.BH1(R1, this) : sink.BR1(R1, this)
+    }
+  }
+
+  BF0(I0) {
+    if (!I0.length) return
+    for (let i = 0; i < I0.length; i += 2) this.get_named(I0[i])?.XU0()
+    for (const x of this.sinks) {
+      const sink = x.deref()
+      if (!sink) { this.sinks.delete(x); continue }
+      sink.BF0 ? sink.BF0(I0, this) : sink.BI0(I0, this)
+    }
+  }
+
   BI2(I2){
     if (this.p) this.value = this.p.value?.[this.name]
     for (let i = 0; i < I2.length;) {

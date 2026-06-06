@@ -203,9 +203,6 @@ function runScenario(scn, shape, seed) {
 const KNOWN_FAILURES = new Set([
   'length-fn [array]',           // length(fn) BU2 rebucket after a prior splice mis-keys
   'group [array]',               // array-source group positional churn
-  'between→filter [array]',      // C1: sparse hole vs filter splice
-  'between→map [array]',         // C1
-  'between→az [array]',          // C1: hole feeds sort accessor
   'filter→between [array]',      // C1: filter holes feed between
   'between→group [array]',       // C1
   'za-window→az-window [array]', // C3: chained windowed sort re-key
