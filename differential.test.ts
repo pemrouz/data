@@ -200,8 +200,16 @@ function runScenario(scn, shape, seed) {
 // gaps; the test also fails if a listed case starts PASSING, forcing us to
 // delist it as each fix lands. Object-keyed sources are the documented
 // mitigation, so most array entries have a green object twin.
+// C3 — chained WINDOWED sort (za(col,n).az(col,n)). The inner window rotates by
+// emitting a separate BR1A (evict) then BI0A (insert), and `p.value` differs
+// between the two events (the rotation completes between them). The outer sort
+// keys its state by upstream POSITION, so a position whose content changed
+// across the pair leaves the outer window's ORDER stale. Membership is now
+// correct (the key-coercion fix); only the order residual remains, and closing
+// it needs the inner window to emit the rotation atomically — a protocol change
+// to the sort emission path that this harness deliberately doesn't force.
 const KNOWN_FAILURES = new Set([
-  'za-window→az-window [array]', // C3: chained windowed sort re-key
+  'za-window→az-window [array]', // C3: chained windowed sort — order residual
   'za-window→az-window [object]',// C3
 ])
 

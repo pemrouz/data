@@ -126,7 +126,7 @@ export class ZAValue extends Operator {
       // never in our `sorted` (because they were filtered out earlier in
       // the chain). We must still re-key everything else.
       removedKeys.push(+name)
-      const oidx = this.sorted.indexOf(name)
+      const oidx = this.sorted.indexOf('' + name)   // sorted holds strings; name may be numeric (chained sort)
       if (oidx === -1) continue
       this.sorted.splice(oidx, 1)
       if (oidx < this.n) inWindow.push(oidx)
@@ -182,7 +182,7 @@ export class ZAValue extends Operator {
       // leave the row at its old rank.
       sorted.splice(oidx, 1)
       let nidx = this.find(this.col(this.p.value[name]))
-      sorted.splice(nidx, 0, name)
+      sorted.splice(nidx, 0, '' + name)   // keep sorted string-keyed (chained sort sends numbers)
       // No rank change: only forward the value update if the row is in the
       // visible window. Otherwise we'd write `view.value[oidx] = value` past
       // `n`, growing the materialized window past its limit.
@@ -251,7 +251,7 @@ export class ZAValue extends Operator {
         }
       }
       const new_idx = this.find(this.col(this.p.value[at]))
-      this.sorted.splice(new_idx, 0, at)
+      this.sorted.splice(new_idx, 0, '' + at)   // keep sorted string-keyed
       if (new_idx >= this.n) continue
       if (this.view.value.length === this.n)
         super.BR1A([this.n - 1])
@@ -266,7 +266,7 @@ export class ZAValue extends Operator {
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const nidx = this.find(this.col(this.p.value[at]))
-      this.sorted.splice(nidx, 0, at)
+      this.sorted.splice(nidx, 0, '' + at)   // keep sorted string-keyed
     }
     const sorted = this.sorted
     const newLen = this.n < sorted.length ? this.n : sorted.length
@@ -336,7 +336,12 @@ export class ZAValue extends Operator {
   }
 
   get_index(id){
-    return this.sorted.indexOf(id)
+    // `sorted` holds upstream keys as strings (XU0 builds them via Object.keys
+    // / `''+i`). A chained windowed sort upstream (za→az) forwards its internal
+    // BR1A/BI0 positions as NUMBERS, so coerce before the lookup — otherwise
+    // indexOf(2) misses "2" and the rank change is silently dropped (stale
+    // content in the outer window).
+    return this.sorted.indexOf('' + id)
   }
 
   has(id){ return !!~this.get_index(id) }
