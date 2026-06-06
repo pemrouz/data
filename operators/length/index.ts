@@ -71,6 +71,7 @@ export class LengthFnValue extends Operator {
   XU0(value) {
     const new_value = {}
     this.mapping = {}
+    this.isArr = isArray(value)
     iter(value, (i, v) => {
       if (v === undefined) return
       ;(this.mapping[i] = new_value[this.fn(v)] ??= { value: 0 }).value++
@@ -80,6 +81,13 @@ export class LengthFnValue extends Operator {
 
   BR1(R1){
     if (!R1.length) return
+    // Array source: a remove SPLICES the source, shifting every position past
+    // it — but `mapping` is keyed by position, so it goes stale and a later
+    // BU2 would rebucket the wrong row. Rebuild to re-key `mapping` (O(N), but
+    // array-source length(fn) with inserts/removes is rare; the histogram-on-a-
+    // mutating-source case the incremental path targets is BU2-only). BI0 below
+    // does the same for the symmetric insert shift.
+    if (this.isArr) return this.XU0(this.p.value)
     const { mapping } = this
     for (let i = 0; i < R1.length; i++) {
       const n = R1[i++]
@@ -110,6 +118,7 @@ export class LengthFnValue extends Operator {
 
   BI0(I0){
     if (!I0.length) return
+    if (this.isArr) return this.XU0(this.p.value)   // see BR1: re-key position map
     const { mapping, view, fn } = this
     for (let i = 0; i < I0.length; i++) {
       const n = I0[i++]

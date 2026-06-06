@@ -201,7 +201,6 @@ function runScenario(scn, shape, seed) {
 // delist it as each fix lands. Object-keyed sources are the documented
 // mitigation, so most array entries have a green object twin.
 const KNOWN_FAILURES = new Set([
-  'length-fn [array]',           // length(fn) BU2 rebucket after a prior splice mis-keys
   'za-window→az-window [array]', // C3: chained windowed sort re-key
   'za-window→az-window [object]',// C3
 ])

@@ -5,6 +5,20 @@ import { $, value } from '../../core.ts'
 import { length } from './index.ts'
 import { filter } from '../filter/index.ts'
 
+test('length(fn) - array source: in-place key edit after a remove rebuckets correctly (C1)', () => {
+  // `mapping` is keyed by position; an array remove splices and shifts
+  // positions, so a later in-place group-key edit would rebucket the wrong row
+  // unless the remove re-keys mapping. (counts read as bucket.value.)
+  const src = $([{ g: 'a' }, { g: 'b' }, { g: 'a' }, { g: 'b' }])
+  const counts = length(src, (r) => r.g)
+  const c = (o) => Object.fromEntries(Object.entries(o[value]).map(([k, b]) => [k, b.value]))
+  same(c(counts), { a: 2, b: 2 })
+  delete src[0]                 // splice: was [b,a,b]; positions shift
+  same(c(counts), { a: 1, b: 2 })
+  src[0].g = 'a'                // the row now at index 0 ({g:'b'}) → 'a'
+  same(c(counts), { a: 2, b: 1 })
+})
+
 test('length - object', () => {
   const obj = $({ 10: 'a' })
   const count = length(obj)
