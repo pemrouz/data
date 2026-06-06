@@ -50,7 +50,7 @@
       And a change is a small, literal thing. It names <em>what</em> moved and
       <em>where</em> — nothing more:
     </p>
-    <pre class="code"><code>{ type: 'insert', at: '7',  value: { region: 'west', active: true, value: 74 } }
+    <pre class="code"><code>{ type: 'insert', at: '7', value: { region: 'west', active: true, value: 74 } }
 { type: 'update', key: ['5', 'active'], value: false }  // row #5 went inactive
 { type: 'remove', key: ['3'] }                          // row #3 is gone</code></pre>
     <p>
@@ -178,8 +178,8 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
       When one order changes, how do <em>active</em>, <em>perRegion</em>, and
       <em>avg</em> stay current? The obvious way is to recompute them — re-derive each
       view over every row. Below, both strips are the same table of <em>N</em> rows:
-      one change touches the green tick; recompute re-scans the red. Drag <em>N</em>
-      up and watch what each approach has to touch.
+      one change touches the green tick; recompute re-scans the red. Raise <em>N</em>
+      and watch what each approach has to touch.
     </p>
 
     <figure class="fig cost" id="fig-cost">
@@ -208,7 +208,7 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
             <option value="60000">60,000</option>
           </select>
         </label>
-        <span class="cost-note" id="cost-note">one change touches one row; recompute re-scans all N. drag N — data stays one tick</span>
+        <span class="cost-note" id="cost-note">one change touches one row; recompute re-scans all N. raise N — data stays one tick</span>
       </div>
     </figure>
     <p>
@@ -218,7 +218,7 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
       change-shadow; so it
       pushes the one change <em>through</em> the shadow — flip one membership,
       adjust one bucket, nudge one running total. The work is proportional to the
-      <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The lit row above is
+      <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The lit tick above is
       the one the change at the playhead touched — scrub the rail and it stays a single
       tick while the recompute strip fills regardless of size.)
     </p>
@@ -239,7 +239,7 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
       <em>count</em> sits perfectly still, because a tally never looks at a value.
     </p>
     <p>
-      This isn't asserted; and to <em>show</em> it, the figure diffs each view's output
+      Don't take that on faith — to <em>show</em> it, the figure diffs each view's output
       the instant before and after each change — a measurement aid, not how the runtime
       works (it never needs to look: a change either has a shadow in a view or it
       doesn't). The matrix below is one row per change, with a filled dot under every
@@ -302,7 +302,7 @@ const perRegion = active.length(o =&gt; o.region)   // a derivation of a derivat
     <div class="hd"><span class="hno">06</span><h2>You never touch a delta</h2></div>
     <p>
       Everything so far — the small change, threaded only through the views
-      that read it — is happening under the floor. You can see it on the left, as
+      that read it — is happening under the hood. You can see it on the left, as
       the change history. But notice what your <em>code</em> looks like: it is the
       derivations, and nothing else. You never wrote an <code>onInsert</code>, never
       diffed two arrays, never reasoned about a stream of deltas over time.
@@ -344,7 +344,7 @@ render(el, perRegion, …)
       re-scans the whole array on every event, the same <code>O(N)</code> recompute we
       measured earlier. Make it genuinely incremental and you're threading deltas through every stage
       by hand, the logic you care about lost in the plumbing. <code>data</code> gives you
-      the right column at the left column's best cost: you write the derivations, the
+      that readable right-hand code at the best cost the by-hand version could ever reach: you write the derivations, the
       runtime pays only the change. The readability of recompute, the cost of hand-tuned
       deltas, and none of the bookkeeping.
     </p>
@@ -385,8 +385,8 @@ render(el, perRegion, …)
       </div>
     </figure>
     <p>
-      A count in memory, a bucket in a histogram, a row on the page — the same
-      derived view, maintained the same way, pointed at three different sinks. The
+      A count in memory, a bucket in a histogram, a row on the page — each a
+      derived view, maintained the same way, ending in a different sink. The
       framework doesn't know what a div is. It knows what a change is.
     </p>
     <pre class="code"><code>// Three sinks, one set of changes.

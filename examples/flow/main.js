@@ -325,7 +325,7 @@ document.querySelectorAll('#dz-controls .tlb').forEach(btn => {
 /* ====================================================================== *
  * §3 — flow the change, not the table. The sweep: the `orders` table drawn as
  * N row-ticks. One change touches ONE row (data, O(Δ)); recompute re-scans
- * EVERY row (O(N)) — a left→right sweep that lights the lot. Drag N and the
+ * EVERY row (O(N)) — a left→right sweep that lights the lot. Raise N and the
  * recompute strip fills regardless while data stays one tick. The data tick +
  * label track the change at the PLAYHEAD, so scrubbing the rail keeps §3 in
  * sync with the rest of the page (without re-running the sweep animation).
