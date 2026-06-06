@@ -184,19 +184,20 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
 
     <figure class="fig cost" id="fig-cost">
       <div class="cost-stage" id="cost-stage">
-        <div class="cost-meters">
-          <div class="cost-meter" data-meter="incremental">
-            <div class="cost-k">data · O(Δ) per change</div>
-            <div class="cost-v" id="cost-inc">—</div>
-            <div class="cost-sub">touches only what moved</div>
+        <!-- each strip is the orders table as N row-ticks. one change: data
+             lights ONE row; recompute sweeps and lights every one. -->
+        <div class="sweep">
+          <div class="sweep-row" data-which="data">
+            <div class="sweep-k">data · O(Δ)</div>
+            <div class="sweep-field" id="sweep-data"></div>
+            <div class="sweep-n" id="sweep-data-n">—</div>
           </div>
-          <div class="cost-meter" data-meter="refold">
-            <div class="cost-k">naive recompute · O(N) per change</div>
-            <div class="cost-v" id="cost-ref">—</div>
-            <div class="cost-sub">re-scans the whole table</div>
+          <div class="sweep-row" data-which="recompute">
+            <div class="sweep-k">recompute · O(N)</div>
+            <div class="sweep-field" id="sweep-ref"></div>
+            <div class="sweep-n" id="sweep-ref-n">—</div>
           </div>
         </div>
-        <svg class="cost-curve" id="cost-curve" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"></svg>
         <div class="cost-veil" id="cost-veil">
           <div class="cost-veil-q">One row changes. The naive way re-derives the views over <b>all N rows</b>. As the table grows, how does the cost of that one change grow?</div>
           <div class="cost-veil-opts">
@@ -207,7 +208,6 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
           <div class="cost-veil-hint muted">data pays the same at any size — the question is the other line.</div>
         </div>
       </div>
-      <div class="cost-bar" id="cost-bar"><div class="cost-bar-fill" id="cost-bar-fill"></div><span class="cost-bar-label" id="cost-bar-label"></span></div>
       <div class="cost-controls">
         <label class="cost-n">table size N
           <select id="cost-n">
@@ -217,7 +217,7 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
             <option value="60000">60,000</option>
           </select>
         </label>
-        <span class="cost-note" id="cost-note">per-change cost vs table size — <code>O(Δ)</code> flat, <code>O(N)</code> rising. measured, not drawn</span>
+        <span class="cost-note" id="cost-note">one change touches one row; recompute re-scans all N. drag N — data stays one tick</span>
       </div>
     </figure>
     <p>
@@ -226,9 +226,9 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
       tiny, self-contained thing, and that every derivation has a change-shadow; so it
       pushes the one change <em>through</em> the shadow — flip one membership,
       adjust one bucket, nudge one running total. The work is proportional to the
-      <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The <code>O(Δ)</code>
-      meter above is the real footprint of the change at the playhead — scrub the rail
-      and it stays flat while the other line climbs.)
+      <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The lit row above is
+      the one the change at the playhead touched — scrub the rail and it stays a single
+      tick while the recompute strip fills regardless of size.)
     </p>
   </section>
 

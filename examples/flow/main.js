@@ -172,11 +172,6 @@ const verbOf = rec =>
   rec.field === 'active' ? `toggled <b>#${rec.rid}</b>.active` :
   `bumped <b>#${rec.rid}</b>.value`
 
-const verbPlain = rec =>
-  rec.type === 'insert' ? `inserted #${rec.rid}` :
-  rec.type === 'remove' ? `removed #${rec.rid}` :
-  rec.field === 'active' ? `toggled #${rec.rid}.active` :
-  `bumped #${rec.rid}.value`
 
 /* the head record as the literal source-side delta, e.g. { update · #3.active }. */
 function srcDeltaText (rec) {
@@ -328,82 +323,59 @@ document.querySelectorAll('#dz-controls .tlb').forEach(btn => {
 })
 
 /* ====================================================================== *
- * §3 — flow the change, not the table.
- * The naive way re-derives every view over all N rows on each change: O(N),
- * and it grows with the table. data pushes the change through the derivation's
- * shadow: O(Δ), flat in N. We plot per-change work vs table size N, both
- * measured — the recompute by actually scanning N rows, data by counting the
- * views the change at the PLAYHEAD actually moves. So scrubbing the rail (or
- * any button on the page) re-reads data's cost from the current change.
+ * §3 — flow the change, not the table. The sweep: the `orders` table drawn as
+ * N row-ticks. One change touches ONE row (data, O(Δ)); recompute re-scans
+ * EVERY row (O(N)) — a left→right sweep that lights the lot. Drag N and the
+ * recompute strip fills regardless while data stays one tick. The data tick +
+ * label track the change at the PLAYHEAD, so scrubbing the rail keeps §3 in
+ * sync with the rest of the page (without re-running the sweep animation).
  * ====================================================================== */
-const costIncEl = document.getElementById('cost-inc')
-const costRefEl = document.getElementById('cost-ref')
-const costIncSub = document.querySelector('.cost-meter[data-meter="incremental"] .cost-sub')
-const barFill   = document.getElementById('cost-bar-fill')
-const barLabel  = document.getElementById('cost-bar-label')
-const N_POINTS  = [60, 600, 6000, 60000]
+const sweepData  = document.getElementById('sweep-data')
+const sweepRef   = document.getElementById('sweep-ref')
+const sweepDataN = document.getElementById('sweep-data-n')
+const sweepRefN  = document.getElementById('sweep-ref-n')
+const SHOWN_MAX  = 180          // ticks we can draw; the label carries the true N
 let costN = 6000
 let costRevealed = false
 
-// data's per-change work IS the footprint of the change at the playhead: the
-// number of views it moved, each touched in O(1). Constant in N. Measured off
-// the real record (the same `changed` set §4 draws its dots from), not authored.
+// data's footprint at the playhead — the views the change moved (excl. the base).
 function dataWorkAtHead () {
   const rec = headRec()
   return rec && rec.changed ? rec.changed.size : 0
 }
-// recompute's per-change work: re-derive filter + group + avg over all N rows.
-function measureRecomputeWork (n) {
-  let visits = 0
-  for (let i = 0; i < n; i++) { visits++; /* filter pass */ }
-  for (let i = 0; i < n; i++) { visits++; /* group pass  */ }
-  for (let i = 0; i < n; i++) { visits++; /* avg pass    */ }
-  return visits
-}
+const shownBars = () => Math.max(1, Math.min(costN, SHOWN_MAX))
 
-function renderCost () {
+// light the one row the change at the playhead touched.
+function markHit () {
+  const n = sweepData.children.length
+  if (!n) return
   const rec = headRec()
-  const dataW = dataWorkAtHead()           // includes 'orders' (the base table sink) + each moved view
-  const views = Math.max(0, dataW - 1)     // the derived views moved — matches §4's dot count
-  const refW = costRevealed ? measureRecomputeWork(costN) : null
-  costIncEl.textContent = dataW ? `${dataW} ops` : '—'
-  if (costIncSub) costIncSub.textContent = rec ? `${verbPlain(rec)} → the table + ${views} view${views === 1 ? '' : 's'}` : 'the change at the playhead'
-  costRefEl.textContent = refW == null ? '—' : `${refW.toLocaleString()} visits`
-  if (refW != null && dataW) {
-    const ratio = Math.round(refW / dataW)
-    barFill.style.width = Math.min(100, (1 - dataW / refW) * 100) + '%'
-    barLabel.textContent = `at N=${costN.toLocaleString()}, recompute does ≈ ${ratio.toLocaleString()}× the work of this one change`
-  } else { barFill.style.width = '0'; barLabel.textContent = '' }
-  drawCurve()
+  const hit = rec && rec.rid != null ? (rec.rid % n) : (n >> 1)
+  ;[...sweepData.children].forEach((b, i) => b.classList.toggle('hit', i === hit))
 }
 
-// per-change work vs table size: data a flat line near the axis, recompute a
-// line rising with N. Sampled across the size range; the chosen N is marked.
-function drawCurve () {
-  const svg = document.getElementById('cost-curve')
-  if (!svg) return
-  const W = 584, H = 116, x0 = 8, y0 = 14
-  const base = `<line class="cc-grid" x1="${x0}" y1="${y0 + H}" x2="${x0 + W}" y2="${y0 + H}"/>`
-  if (!costRevealed) { svg.innerHTML = base; return }
-  const Nmax = N_POINTS[N_POINTS.length - 1]
-  const maxW = 3 * Nmax
-  const X = n => (x0 + (n / Nmax) * W).toFixed(1)
-  const Y = v => (y0 + H - (v / maxW) * H).toFixed(1)
-  const pts = []
-  for (let s = 0; s <= 40; s++) pts.push(Math.round((s / 40) * Nmax))
-  const ref = pts.map(n => `${X(n)},${Y(3 * n)}`).join(' ')
-  const adv = pts.map(n => `${X(n)},${Y(3)}`).join(' ')
-  const markX = X(costN), markY = Y(3 * costN)
-  svg.innerHTML = base +
-    `<polygon class="cc-refold-area" points="${X(0)},${y0 + H} ${ref} ${X(Nmax)},${y0 + H}"/>` +
-    `<polyline class="cc-refold" points="${ref}"/>` +
-    `<polyline class="cc-advance" points="${adv}"/>` +
-    `<line class="cc-grid" x1="${markX}" y1="${y0}" x2="${markX}" y2="${y0 + H}" stroke-dasharray="2 3"/>` +
-    `<circle class="cc-dot" r="3.5" fill="var(--neg)" cx="${markX}" cy="${markY}"/>` +
-    `<circle class="cc-dot" r="3.5" fill="var(--pos)" cx="${markX}" cy="${Y(3)}"/>` +
-    `<text class="cc-label ref" x="${x0 + 6}" y="${y0 + 12}">recompute · O(N)</text>` +
-    `<text class="cc-label adv" x="${x0 + 6}" y="${y0 + H - 6}">data · O(Δ)</text>` +
-    `<text class="cc-label" fill="var(--faint)" x="${x0 + 4}" y="${y0 + H + 11}">table size N →</text>`
+// runs on every playhead move (a figureUpdater): move the lit row + relabel,
+// but DON'T rebuild or re-animate the recompute sweep.
+function updateCostLabel () {
+  if (!costRevealed) { sweepDataN.textContent = '—'; sweepRefN.textContent = '—'; return }
+  markHit()
+  const views = Math.max(0, dataWorkAtHead() - 1)
+  sweepDataN.innerHTML = `<b>1</b> row${views ? ` + ${views} view${views === 1 ? '' : 's'}` : ''}`
+}
+
+// runs on reveal + N change: rebuild both strips and play the recompute sweep.
+function rebuildSweep () {
+  if (!costRevealed) return
+  const shown = shownBars()
+  const bars = '<i class="sweep-bar"></i>'.repeat(shown)
+  sweepData.innerHTML = bars
+  sweepRef.innerHTML = bars
+  sweepData.classList.add('lit')
+  const step = Math.min(900 / shown, 8)   // stagger → a visible left→right sweep
+  ;[...sweepRef.children].forEach((b, i) => { b.style.transitionDelay = `${Math.round(i * step)}ms` })
+  sweepRef.classList.remove('swept'); void sweepRef.offsetWidth; sweepRef.classList.add('swept')
+  updateCostLabel()
+  sweepRefN.innerHTML = `<b>${costN.toLocaleString()}</b> rows${costN > SHOWN_MAX ? ` (${SHOWN_MAX} shown)` : ''}`
 }
 
 function mountCost () {
@@ -413,12 +385,12 @@ function mountCost () {
     const right = btn.dataset.bet === 'linear'
     costRevealed = true
     veil.classList.add('gone')
-    renderCost()
-    note.innerHTML = `${right ? '<b class="win">right.</b>' : 'not quite —'} recompute is <code>O(N)</code> — ten times the table, ten times the cost per change; data stays flat at <code>O(Δ)</code>. Scrub the rail to cost a different change.`
+    rebuildSweep()
+    note.innerHTML = `${right ? '<b class="win">right.</b>' : 'not quite —'} recompute re-scans <b>all N</b> rows for a one-row change — ten times the table, ten times the work; data touches one row at any size. Drag N, or scrub the rail.`
   }))
-  document.getElementById('cost-n').addEventListener('change', e => { costN = +e.target.value; renderCost() })
-  figureUpdaters.push(renderCost)   // re-cost whenever the playhead moves
-  renderCost()
+  document.getElementById('cost-n').addEventListener('change', e => { costN = +e.target.value; rebuildSweep() })
+  figureUpdaters.push(updateCostLabel)   // move the lit row when the playhead moves
+  updateCostLabel()
 }
 
 /* ====================================================================== *

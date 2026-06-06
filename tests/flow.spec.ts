@@ -64,22 +64,24 @@ test('§1/§2: scrubbing the records applies fewer changes → a smaller table',
   await expect(page.locator('#dz-rows .frow')).toHaveCount(1)
 })
 
-test('§3: cost is O(Δ) flat vs O(N), and the data figure reads the head record', async ({ page }) => {
+test('§3: the sweep lights one row for data, all N for recompute, scaling with N', async ({ page }) => {
   await page.goto('/examples/flow/')
 
   await page.locator('#cost-veil .tlb[data-bet=linear]').click()
   await expect(page.locator('#cost-veil')).toHaveClass(/gone/)
   await expect(page.locator('#cost-note')).toContainText(/right/)
-  await expect(page.locator('#cost-curve .cc-refold')).toHaveCount(1)
-  await expect(page.locator('#cost-inc')).toContainText(/ops/)
 
-  // recompute cost scales with N; data does not.
+  // data strip lights exactly one row; recompute strip sweeps the whole table.
+  await expect(page.locator('#sweep-data .sweep-bar.hit')).toHaveCount(1)
+  await expect(page.locator('#sweep-ref')).toHaveClass(/swept/)
+  await expect(page.locator('#sweep-data-n')).toContainText(/row/)
+
+  // the recompute count scales with N; data stays one row.
   await page.locator('#cost-n').selectOption('600')
-  const small = await page.locator('#cost-ref').textContent()
+  await expect(page.locator('#sweep-ref-n')).toContainText('600')
   await page.locator('#cost-n').selectOption('60000')
-  const big = await page.locator('#cost-ref').textContent()
-  const n = (s: string | null) => Number((s || '').replace(/[^0-9]/g, ''))
-  expect(n(big)).toBeGreaterThan(n(small) * 10)
+  await expect(page.locator('#sweep-ref-n')).toContainText('60,000')
+  await expect(page.locator('#sweep-data .sweep-bar.hit')).toHaveCount(1)
 })
 
 test('§4: each change is tinted only by the derived views it moves', async ({ page }) => {

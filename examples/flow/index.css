@@ -316,43 +316,37 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
 .avg-unit { font: 0.7rem var(--mono); color: var(--faint); }
 
 /* =========================================================================
- * §3 cost
+ * §3 cost — the touch-the-table sweep: two strips of N row-ticks. data lights
+ * ONE; recompute sweeps and lights every one.
  * ========================================================================= */
-.cost-meters { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.9rem; }
-@media (max-width: 560px) { .cost-meters { grid-template-columns: 1fr; } }
-.cost-meter { background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px; padding: 0.8rem 0.95rem; }
-.cost-meter[data-meter="incremental"] { border-left: 3px solid var(--pos); }
-.cost-meter[data-meter="refold"] { border-left: 3px solid var(--neg); }
-.cost-k { font: 0.7rem var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin-bottom: 0.35rem; }
-.cost-v { font: 600 1.7rem var(--mono); font-variant-numeric: tabular-nums; }
-.cost-meter[data-meter="incremental"] .cost-v { color: var(--pos); }
-.cost-meter[data-meter="refold"] .cost-v { color: var(--neg); }
-.cost-sub { font: 0.7rem var(--mono); color: var(--faint); margin-top: 0.25rem; }
-.cost-bar { position: relative; height: 26px; background: var(--panel-2); border-radius: 5px; overflow: hidden; margin-bottom: 0.9rem; }
-.cost-bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, #d98b7a, var(--neg)); transition: width 320ms ease; }
-.cost-bar-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 0.78rem var(--mono); color: var(--ink); }
-.cost-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.cost-stage { position: relative; }
+.sweep { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.5rem 0.2rem; min-height: 150px; justify-content: center; }
+.sweep-row { display: grid; grid-template-columns: 8.5rem 1fr 8.5rem; align-items: center; gap: 0.7rem; }
+@media (max-width: 560px) { .sweep-row { grid-template-columns: 6rem 1fr; } .sweep-n { grid-column: 2; text-align: left !important; } }
+.sweep-k { font: 0.72rem var(--mono); letter-spacing: 0.03em; text-transform: uppercase; }
+.sweep-row[data-which="data"] .sweep-k { color: var(--pos); }
+.sweep-row[data-which="recompute"] .sweep-k { color: var(--neg); }
+.sweep-field {
+  display: flex; gap: 1px; height: 40px; overflow: hidden;
+  background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 5px; padding: 4px;
+}
+.sweep-bar { flex: 1 1 0; min-width: 0; background: var(--panel-2); border-radius: 1px; transition: background 200ms ease; }
+/* data: one row touched */
+.sweep-field.lit .sweep-bar.hit { background: var(--pos); }
+/* recompute: every row swept (staggered by inline transition-delay → a sweep) */
+.sweep-field.swept .sweep-bar { background: var(--neg); }
+.sweep-n { font: 0.74rem var(--mono); color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+.sweep-row[data-which="data"] .sweep-n b { color: var(--pos); }
+.sweep-row[data-which="recompute"] .sweep-n b { color: var(--neg); }
+
+.cost-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.9rem; }
 .cost-note { font: 0.74rem var(--mono); color: var(--faint); }
 .cost-note code { background: none; padding: 0; color: var(--dim); }
 .cost-note b.win { color: var(--pos); }
 .cost-n { font: 0.78rem var(--mono); color: var(--faint); display: flex; align-items: center; gap: 0.5rem; }
 .cost-n select { font: 0.85rem var(--mono); color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 0.25rem 0.5rem; }
 
-/* the diverging curve + the predict-then-reveal veil */
-.cost-stage { position: relative; }
-.cost-curve {
-  width: 100%; height: 150px; display: block; margin: 0.4rem 0 0.9rem;
-  background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px;
-}
-.cc-grid { stroke: var(--rule-soft); stroke-width: 1; }
-.cc-refold-area { fill: rgba(181, 52, 30, 0.08); }
-.cc-refold { fill: none; stroke: var(--neg); stroke-width: 2; }
-.cc-advance { fill: none; stroke: var(--pos); stroke-width: 2; }
-.cc-label { font: 11px var(--mono); }
-.cc-label.adv { fill: var(--pos); }
-.cc-label.ref { fill: var(--neg); }
-.cc-dot { stroke: var(--paper); stroke-width: 1.5; }
-
+/* the predict-then-reveal veil */
 .cost-veil {
   position: absolute; inset: 0; z-index: 5;
   background: rgba(249, 247, 241, 0.9); backdrop-filter: blur(2px);
@@ -447,5 +441,5 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
 .essay-foot a:hover { color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
 }
