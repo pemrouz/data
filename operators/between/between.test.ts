@@ -24,6 +24,23 @@ test('between → filter over an ARRAY source stays aligned through a holed-row 
   same(dense(f[value]), [{ v: 55 }])
 })
 
+test('filter → between over an ARRAY source: between consumes upstream holes/fills (C1)', () => {
+  // between DOWNSTREAM of filter: filter's array carries holes for excluded
+  // rows. between must skip them (no crash deref-ing `.v` on a hole) and treat
+  // an upstream hole-fill/hole-remove (BF0/BH1) as a membership change without
+  // splicing.
+  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 30 }])
+  const f = filter(src, (r) => r.v >= 25)   // holes out {v:10}; keeps 50,90,30
+  const b = between(f, 'v', [40, 100])      // of those, 50 & 90 in range
+  same(dense(b[value]), [{ v: 50 }, { v: 90 }])
+  src[3].v = 70                             // {v:30}→70: enters filter? already in; now in between range
+  same(dense(b[value]), [{ v: 50 }, { v: 90 }, { v: 70 }])
+  src[0].v = 60                             // {v:10}→60: enters filter (BF0) AND between range
+  same(dense(b[value]), [{ v: 60 }, { v: 50 }, { v: 90 }, { v: 70 }])
+  src[1].v = 5                              // {v:50}→5: leaves filter (BH1) → leaves between
+  same(dense(b[value]), [{ v: 60 }, { v: 90 }, { v: 70 }])
+})
+
 test('between → filter over an ARRAY source tracks a reactive bound move (C1)', () => {
   const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
   const bound = $([40, 70])

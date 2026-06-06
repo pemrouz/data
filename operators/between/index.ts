@@ -183,14 +183,19 @@ export class BetweenValue extends Operator {
     const new_value = this.isArr ? [] : {}
     this.sorted = []
     iter(value, (i, v) => {
+      // Skip holes: when between sits DOWNSTREAM of a sparse producer
+      // (filter/map/between/…) its upstream array carries `undefined` slots for
+      // excluded rows. Treat them as absent — don't index them and don't let
+      // the comparator deref them.
+      if (v === undefined) return
       this.sorted.push(''+i)
       if (v[col] >= this.lo_val && v[col] <= this.hi_val)
         new_value[i] = value[i]
     })
 
     this.sorted.sort((a, b) => {
-      const va = value[a][col]
-      const vb = value[b][col]
+      const va = value[a]?.[col]
+      const vb = value[b]?.[col]
       return va > vb ? 1
            : va < vb ? -1
            : 0
@@ -254,7 +259,7 @@ export class BetweenValue extends Operator {
     const v = this.p.value
     if (!v || typeof v !== 'object') return
     this.sorted = []
-    iter(v, (i) => this.sorted.push('' + i))
+    iter(v, (i, row) => { if (row !== undefined) this.sorted.push('' + i) })
     const col = this.col
     this.sorted.sort((a, b) => {
       const va = v[a]?.[col]
@@ -388,6 +393,43 @@ export class BetweenValue extends Operator {
     this.lo_index = undefined
     this.hi_index = undefined
     if (NR1.length) this.view.BR1(NR1)
+  }
+
+  // Consumer-side hole/fill: when between sits downstream of another sparse
+  // producer (filter/map/between/…), a row entering/leaving the UPSTREAM view
+  // arrives as BF0/BH1 (hole fill / hole remove — no array shift). Treat them
+  // as membership transitions WITHOUT splicing: the position is stable, only
+  // its occupancy changed. Mark `sorted` dirty so the next bound move rebuilds
+  // it (skipping holes), and forward BH1/BF0 so our own positional sinks mirror.
+  BH1(R1) {
+    if (this.view.value === this.p.value) return this.view.BH1(R1)
+    const NR1 = []
+    for (let i = 0; i < R1.length; i += 2) {
+      const name = R1[i]
+      const oldVal = this.view.value[name]
+      if (oldVal !== undefined) { this.view.value[name] = undefined; NR1.push(name, oldVal) }
+    }
+    this.sortedDirty = true
+    this.lo_index = undefined
+    this.hi_index = undefined
+    if (NR1.length) this.view.BH1(NR1)
+  }
+
+  BF0(I0) {
+    if (this.view.value === this.p.value) return this.view.BF0(I0)
+    const NF0 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const name = I0[i]
+      const row = this.p.value[name]
+      if (row !== undefined && this._inRange(row[this.col])) {
+        this.view.value[name] = row
+        NF0.push(name, row)
+      }
+    }
+    this.sortedDirty = true
+    this.lo_index = undefined
+    this.hi_index = undefined
+    if (NF0.length) this.view.BF0(NF0)
   }
 
   BR2(R2) {
