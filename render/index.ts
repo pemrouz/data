@@ -120,9 +120,19 @@ class DOMSink {
       return
     }
 
-    this.nodes ??= isArray(value) ? [] : {}
+    const arr = isArray(value)
+    this.nodes ??= arr ? [] : {}
     for (const i in value)
-      if (!prev_nodes[i])
+      // Object (keyed) sinks: skip explicit-`undefined` slots that sparse
+      // producers (between/intersect/union/except) leave at excluded keys. Here
+      // create_node is index-relative (`nodes[k]` bound to `data[k]`), so
+      // skipping a hole can't misalign survivors — it just avoids a phantom row
+      // bound to `undefined` (a NaN/empty cell) when a DOMSink connects to a
+      // view that already had rows leave. The ARRAY path is tail-relative, so a
+      // mid-hole skip there would drift every later binding; leave array slots
+      // alone (excluded array slots are empty holes at construction, which
+      // for-in skips anyway; live array holes are the C4 array-protocol case).
+      if (!prev_nodes[i] && (arr || value[i] !== undefined))
         this.create_node(i) // if (this.nodes[k]) maybe reorder
     // Same V8 quirk: snapshot the keys to drop before mutating, otherwise
     // remove_node's tail-pop on dense arrays cuts the for-in short and

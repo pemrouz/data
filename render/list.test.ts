@@ -70,3 +70,25 @@ test('render - array (sort) list stays consistent through insert/remove/reorder/
   data.m.t = 'm2';                        same('in-place edit')   // ! m2 C A
   eq(dom(), '!m2CA')
 })
+
+test('render - object sparse producer renders no phantom row for an excluded key (C4 object-half)', () => {
+  // A between/intersect/union/except over an OBJECT source marks an excluded
+  // key with EXPLICIT `undefined` (not delete) when a row leaves via a bound
+  // move. If a DOMSink connects to such a view AFTER a row has left (the
+  // render-after-brush shape), its initial XU0 for-in walks the `undefined`
+  // slot and used to mint a phantom <li> bound to undefined (a NaN/empty row).
+  // The object-sink guard skips explicit-undefined slots — create_node is
+  // index-keyed for objects (`nodes[k]` bound to `data[k]`), so skipping a hole
+  // can't misalign survivors (unlike the tail-relative ARRAY path).
+  const data = $({ a: { v: 10 }, b: { v: 50 }, c: { v: 90 } })
+  const bound = $([40, 60])
+  const view = data.between('v', bound)        // in range: {b:{v:50}}
+  bound[value] = [40, 45]                       // b leaves -> view.value.b = undefined (explicit hole)
+  const root = new El('root')
+  render(root, HTML.ul(HTML.li(view, (n, r) => n.text(r.v))))
+  eq(root.children.length, 0, `expected no rows, got [${root.children.map(li => li.text).join(',')}]`)
+
+  bound[value] = [40, 60]                       // b re-enters -> BI0 -> exactly one real row
+  eq(root.children.length, 1)
+  eq(root.children[0].text, '50')
+})
