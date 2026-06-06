@@ -1192,34 +1192,43 @@ test('update (dir, dir)', () => {
     // console.log("changes5", changes5)
     // console.log("res[value]", res[value])
   
+    // A boundary-crossing window rotation (a row enters/leaves the visible top-n
+    // while the window stays full) is emitted as CONTENT-STABLE `update`s at the
+    // shifted positions — NOT an evict `remove` + `insert` pair. This matches the
+    // batch-window path (sort.test.ts "reconciles batch removal/insert without
+    // churn") and is what lets a downstream positional sort stay consistent
+    // (chained windowed sort, C3). In-window rank shuffles still emit a single
+    // `move`; the deep-insert / U2 / root-reset / R0 paths are unchanged.
     same(changes1, [
-      { type: 'update', key: [], value: [ 
+      { type: 'update', key: [], value: [
         { fooo: 5, date: 5 },
         { fooo: 4, date: 4 },
         { fooo: 3, date: 3 },
       ] },
-      { type: 'remove', key: [ 2 ], value: { fooo: 3, date: 3 } },
-      { type: 'insert', key: [], value: { fooo: [], date: 6 }, at: 0 },
+      { type: 'update', key: [ '0' ], value: { fooo: [], date: 6 } },
+      { type: 'update', key: [ '1' ], value: { fooo: 5, date: 5 } },
+      { type: 'update', key: [ '2' ], value: { fooo: 4, date: 4 } },
       { type: 'insert', key: [ '0', 'fooo' ], value: 1, at: '0' },
-      { type: 'update', key: [], value: [ 
+      { type: 'update', key: [], value: [
         { fooo: 5, date: 5 },
         { fooo: 4, date: 4 },
         { fooo: 3, date: 3 },
       ] },
       { type: 'update', key: [ '1', 'fooo' ], value: 40 },
-      { type: 'remove', key: [ 2 ], value: { fooo: 3, date: 3 } },
-      { type: 'insert', key: [], value: { fooo: 10, date: 10 }, at: 0 },
+      { type: 'update', key: [ '0' ], value: { fooo: 10, date: 10 } },
+      { type: 'update', key: [ '1' ], value: { fooo: 5, date: 5 } },
+      { type: 'update', key: [ '2' ], value: { fooo: 40, date: 4 } },
       { type: 'move', from: 0, to: 2 },
-      { type: 'remove', key: [ 1 ], value: { fooo: 40, date: 0 } },
-      { type: 'insert', key: [], value: { fooo: 3, date: 3 }, at: 2 },
-      { type: 'update', key: [], value: [ 
+      { type: 'update', key: [ '1' ], value: { fooo: 10, date: 4 } },
+      { type: 'update', key: [ '2' ], value: { fooo: 3, date: 3 } },
+      { type: 'update', key: [], value: [
         { fooo: 5, date: 5 },
         { fooo: 4, date: 4 },
         { fooo: 3, date: 3 },
       ] },
       { type: 'remove', key: [ '0', 'fooo' ], value: 5 },
-      { type: 'remove', key: [ 1 ], value: { fooo: 4, date: 4 } },
-      { type: 'insert', key: [], value: { date: 1 }, at: 2 },
+      { type: 'update', key: [ '1' ], value: { fooo: 3, date: 3 } },
+      { type: 'update', key: [ '2' ], value: { date: 1 } },
       { type: 'update', key: [], value: [] }
     ])
     same(changes2, [
@@ -1245,18 +1254,18 @@ test('update (dir, dir)', () => {
       { type: 'update', key: [], value: { fooo: 3, date: 3 } },
       { type: 'remove', key: [], value: { fooo: 3, date: 3 } }
     ])
+    // The res[2] child view no longer flashes to `undefined` between an evict and
+    // its refill — a content-stable rotation updates position 2 directly from the
+    // old row to the new one (the churn that produced those intermediate
+    // `update [] undefined` records is gone).
     same(changes4, [
       { type: 'update', key: [], value: { fooo: 3, date: 3 } },
-      { type: 'update', key: [], value: undefined },
       { type: 'update', key: [], value: { fooo: 4, date: 4 } },
       { type: 'update', key: [], value: { fooo: 3, date: 3 } },
-      { type: 'update', key: [], value: undefined },
       { type: 'update', key: [], value: { fooo: 40, date: 4 } },
       { type: 'update', key: [], value: { fooo: 10, date: 4 } },
-      { type: 'update', key: [], value: undefined },
       { type: 'update', key: [], value: { fooo: 3, date: 3 } },
       { type: 'update', key: [], value: { fooo: 3, date: 3 } },
-      { type: 'update', key: [], value: undefined },
       { type: 'update', key: [], value: { date: 1 } },
       { type: 'remove', key: [], value: { date: 1 } }
     ])

@@ -80,11 +80,11 @@ export class ZAValue extends Operator {
       const oidx = this.get_index(R1[i])
       if (oidx === -1) continue
       this.sorted.splice(oidx, 1)
-      if (oidx >= this.n) continue
-      super.BR1A([oidx])
-      const len = this.view.value.length
-      if (this.sorted.length > len)
-        super.BI0A([len, this.p.value[this.sorted[len]]])
+      if (this.n === Infinity) { super.BR1A([oidx]); continue }  // unbounded: genuine splice
+      if (oidx >= this.n) continue                              // bounded out-of-window: no change
+      // bounded in-window removal: a refill row slides up from below — a content
+      // rotation, not a mid-window splice (see _window / C3).
+      this._window()
     }
   }
 
@@ -143,7 +143,15 @@ export class ZAValue extends Operator {
       }
     }
 
-    // Each in-window eviction shrinks `view.value` by one; remap by prior j.
+    // Bounded window: each in-window removal slides a refill row up from below —
+    // a content rotation. Reconcile once with content-stable BU1s (+ a tail
+    // shrink when survivors no longer fill n) rather than mid-window splices,
+    // so a downstream positional sort stays consistent (C3). An out-of-window
+    // removal can't change ranks 0..n-1, so skip the scan (preserves O(1)).
+    if (this.n !== Infinity) { if (inWindow.length) this._window(); return }
+
+    // Unbounded: every in-window eviction is a genuine mid-array splice; shrink
+    // `view.value` by one per removal, remapping by prior j.
     inWindow.sort((a, b) => a - b)
     for (let j = 0; j < inWindow.length; j++) super.BR1A([inWindow[j] - j])
 
@@ -203,12 +211,12 @@ export class ZAValue extends Operator {
         continue
       }
       if (oidx >= n && nidx >= n) {}
-      else if (oidx >= n && nidx <  n) {
-        super.BR1A([n - 1])
-        super.BI0A([nidx, p.value[sorted[nidx]]])
-      } else if (oidx < n && nidx >= n) {
-        super.BR1A([oidx])
-        super.BI0A([n - 1, p.value[sorted[n - 1]]])
+      else if ((oidx >= n) !== (nidx >= n)) {
+        // Boundary crossing (out→in or in→out): the window's content rotates
+        // but its SIZE stays n. Reconcile as content-stable BU1s rather than a
+        // mid-window evict+insert pair, whose interior splice + inconsistent
+        // intermediate window corrupts a downstream positional sort (C3).
+        this._window()
       } else if (oidx < n && nidx < n) {
         // Both ranks fall inside the visible window: this is a rotation
         // of the element from oidx to nidx. Refresh the value at oidx
@@ -240,6 +248,7 @@ export class ZAValue extends Operator {
     // once per newcomer (O(Δ) churn). Recompute the window once instead. Object
     // source only — the array branch needs its per-insert `sorted` index shift.
     if (!this.isArr && this.n !== Infinity && I0.length > 2) return this._batchInsert(I0)
+    let touched = false
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const value = I0[i + 1]
@@ -252,11 +261,13 @@ export class ZAValue extends Operator {
       }
       const new_idx = this.find(this.col(this.p.value[at]))
       this.sorted.splice(new_idx, 0, '' + at)   // keep sorted string-keyed
-      if (new_idx >= this.n) continue
-      if (this.view.value.length === this.n)
-        super.BR1A([this.n - 1])
-      super.BI0A([new_idx, value])
+      if (this.n === Infinity) { super.BI0A([new_idx, value]); continue }  // unbounded: genuine insert
+      if (new_idx < this.n) touched = true                                // bounded in-window newcomer
     }
+    // Bounded: one content-stable reconcile after all `sorted` splices — a
+    // newcomer entering the window rotates content (evicts the tail), which a
+    // downstream positional sort must see as BU1s, not a mid-window splice (C3).
+    if (touched) this._window()
   }
 
   // Splice a batch of new keys into `sorted` at their ranks, then reconcile the
@@ -277,6 +288,40 @@ export class ZAValue extends Operator {
     const NU1 = []
     for (let i = 0; i < newLen; i++) {
       const row = this.p.value[sorted[i]]
+      if (this.view.value[i] !== row) { this.view.value[i] = row; NU1.push('' + i, row) }
+    }
+    if (NU1.length) this.view.BU1(NU1)
+  }
+
+  // Reconcile the materialized window against the current `sorted` order with
+  // the minimal CONTENT-STABLE deltas: a TAIL-ONLY BR1A/BI0A for a genuine
+  // size change, then BU1 for each slot whose occupant rotated. This is the
+  // single-row generalisation of _batchRemove/_batchInsert, used for every
+  // bounded-window rotation (a row crossing the window boundary keeps the
+  // window size n and only rotates content at fixed positions).
+  //
+  // Why not the old mid-window evict-BR1A + insert-BI0A pair: those splice at an
+  // INTERIOR index, and a downstream positional consumer that itself maintains
+  // order — another (windowed) sort — reads each splice as "a row left/entered
+  // at position k, everything shifts", corrupting its position->rank map; worse,
+  // the window is in an inconsistent intermediate state BETWEEN the evict and
+  // the insert, so a sort reading p.value mid-pair re-ranks against a transient.
+  // A tail splice shifts nothing, and a BU1 carries "position k's content
+  // changed" — both compose correctly through a downstream sort. This closes the
+  // chained-windowed-sort desync (C3). Bounded windows only: an unbounded sort
+  // has no steady tail (every row is materialized), so its removes/inserts stay
+  // genuine mid-array splices.
+  _window(){
+    const { sorted, n, p } = this
+    const newLen = n < sorted.length ? n : sorted.length
+    while (this.view.value.length > newLen) super.BR1A([this.view.value.length - 1])
+    while (this.view.value.length < newLen) {
+      const i = this.view.value.length
+      super.BI0A([i, p.value[sorted[i]]])
+    }
+    const NU1 = []
+    for (let i = 0; i < newLen; i++) {
+      const row = p.value[sorted[i]]
       if (this.view.value[i] !== row) { this.view.value[i] = row; NU1.push('' + i, row) }
     }
     if (NU1.length) this.view.BU1(NU1)
@@ -335,6 +380,38 @@ export class ZAValue extends Operator {
     }
   }
 
+  // Positional-stable hole fill / hole remove. A sparse producer over an ARRAY
+  // (between/intersect/union/except, or filter's predicate-flip path) admits/
+  // excludes a row at a FIXED position WITHOUT splicing — siblings don't shift.
+  // So rank the row in/out of `sorted` WITHOUT the array index-shift that
+  // BI0/BR1A apply for a real splice. Without these, View.BF0/BH1 falls back to
+  // BI0/BR1, whose shift bookkeeping would slide every `sorted` key on a hole
+  // fill — the filter→windowed-sort desync. Bounded windows reconcile via
+  // _window; an unbounded sort splices its (dense) materialized output directly.
+  BF0(I0){
+    let touched = false
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const new_idx = this.find(this.col(this.p.value[at]))
+      this.sorted.splice(new_idx, 0, '' + at)
+      if (this.n === Infinity) { super.BI0A([new_idx, I0[i + 1]]); continue }
+      if (new_idx < this.n) touched = true
+    }
+    if (touched) this._window()
+  }
+
+  BH1(R1){
+    let touched = false
+    for (let i = 0; i < R1.length; i += 2) {
+      const oidx = this.get_index(R1[i])
+      if (oidx === -1) continue
+      this.sorted.splice(oidx, 1)
+      if (this.n === Infinity) { super.BR1A([oidx]); continue }
+      if (oidx < this.n) touched = true
+    }
+    if (touched) this._window()
+  }
+
   get_index(id){
     // `sorted` holds upstream keys as strings (XU0 builds them via Object.keys
     // / `''+i`). A chained windowed sort upstream (za→az) forwards its internal
@@ -373,6 +450,13 @@ export class ZANumberValue extends ZAValue {
 export class AZValue extends ZAValue {
   XU0(value) {
     if (typeof value !== 'object') return this.XR0()
+    // Capture source shape — ZAValue.XU0 sets this.isArr and the BU1/BI0/BR1A
+    // index-shift bookkeeping depends on it. AZValue overrides XU0 entirely, so
+    // it MUST set isArr too; without it, an ascending sort over an array source
+    // (or an array-emitting parent like an unbounded za) skipped the shift and
+    // mis-tracked positions on a mid-array insert/remove (it only worked when
+    // every insert landed at the tail). See utils.bisect_left / BI0 / BR1A.
+    this.isArr = isArray(value)
     // Skip explicit-undefined slots (see ZAValue.XU0).
     this.sorted = Object
       .keys(value)

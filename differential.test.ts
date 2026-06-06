@@ -125,7 +125,19 @@ const SCENARIOS = [
   { tag: 'za-window→map', project: (s) => s.za('v', 3).map((r) => r.v) },
   { tag: 'za-window→filter', project: (s) => s.za('v', 3).filter((r) => r.v > 25) },
   { tag: 'za-window→distinct', normalize: gKeyset, project: (s) => s.za('v', 3).distinct((r) => r.g) },
+  // Chained sorts — the inner sort's output feeds another sort, whose state is
+  // keyed by the inner's POSITIONS. A bounded inner window reconciles rotations
+  // as content-stable BU1s (not mid-window splices), and an ascending sort tracks
+  // array index-shifts (AZValue.isArr), so these stay consistent (C3).
   { tag: 'za-window→az-window', project: (s) => s.za('v', 3).az('v', 3) },
+  { tag: 'az-window→za-window', project: (s) => s.az('v', 3).za('v', 3) },
+  { tag: 'za-window→za-window', project: (s) => s.za('v', 3).za('v', 3) },
+  { tag: 'za→az (unbounded chain)', project: (s) => s.za('v').az('v') },
+  { tag: 'za-window→az-window→map', project: (s) => s.za('v', 3).az('v', 3).map((r) => r.v) },
+  // filter (sparse array via predicate-flip holes) → chained windowed sort: the
+  // filter emits BF0/BH1 on a flip so the sort mirrors the hole instead of
+  // shift-splicing every later row (C1 family extended to filter→sort).
+  { tag: 'filter→za-window→az-window', project: (s) => s.filter((r) => r.v > 5).za('v', 3).az('v', 3) },
   { tag: 'between→group', bound: true, project: (s, c) => s.between('v', c.bound).group((r) => r.g) },
   { tag: 'between→distinct', bound: true, normalize: gKeyset, project: (s, c) => s.between('v', c.bound).distinct((r) => r.g) },
   { tag: 'between→az', bound: true, project: (s, c) => s.between('v', c.bound).az('v') },
@@ -192,26 +204,14 @@ function runScenario(scn, shape, seed) {
   return { ok: true }
 }
 
-// Permutations still desyncing pending the C1/C3 protocol work (see
-// .claude/array-contract-design.md). They are ALL array-positional: a sparse
-// producer (between) or windowed sort feeding a downstream op over an array,
-// where a "row left position k" is a hole on one side and a splice-shift on the
-// other. Tracked here so the harness runs GREEN in CI while documenting the
-// gaps; the test also fails if a listed case starts PASSING, forcing us to
-// delist it as each fix lands. Object-keyed sources are the documented
-// mitigation, so most array entries have a green object twin.
-// C3 — chained WINDOWED sort (za(col,n).az(col,n)). The inner window rotates by
-// emitting a separate BR1A (evict) then BI0A (insert), and `p.value` differs
-// between the two events (the rotation completes between them). The outer sort
-// keys its state by upstream POSITION, so a position whose content changed
-// across the pair leaves the outer window's ORDER stale. Membership is now
-// correct (the key-coercion fix); only the order residual remains, and closing
-// it needs the inner window to emit the rotation atomically — a protocol change
-// to the sort emission path that this harness deliberately doesn't force.
-const KNOWN_FAILURES = new Set([
-  'za-window→az-window [array]', // C3: chained windowed sort — order residual
-  'za-window→az-window [object]',// C3
-])
+// No known failures. The C1 (hole-vs-splice) and C3 (chained windowed/array
+// sort) families are closed: bounded windows emit content-stable rotations,
+// ascending sorts track array index shifts, sort implements BF0/BH1, and
+// filter's predicate-flip path emits holes. The registry stays here (and the
+// loop below still asserts a listed case must FAIL) so any future regression
+// that reintroduces a desync can be parked and tracked rather than silently
+// widened away.
+const KNOWN_FAILURES = new Set([])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {

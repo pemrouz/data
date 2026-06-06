@@ -33,8 +33,16 @@ export class RowOperator extends Operator {
       else if ( old && !now) { NR1.push(name, old_val); delete this.view.value[name] }
     }
     this.view.BU1(NU1)
-    this.view.BI0(NI0)
-    this.view.BR1(NR1)
+    // A predicate flip over an ARRAY admits/excludes a row at its FIXED index
+    // (`value[name] = …` / `delete value[name]`) — a hole fill / hole remove, NOT
+    // a splice: siblings keep their positions. Emit BF0/BH1 so a positional sink
+    // (notably a windowed sort) mirrors the hole instead of shift-splicing every
+    // later row (the filter→windowed-sort desync, C1 family). Object sources have
+    // no positions to shift, so they keep the plain BI0/BR1 enter/leave verbs.
+    // Sinks without BF0/BH1 fall back to BI0/BR1 (View.BF0/BH1), so this is
+    // backward-compatible for aggregates and the DOM sink.
+    if (isArray(this.view.value)) { this.view.BF0(NI0); this.view.BH1(NR1) }
+    else { this.view.BI0(NI0); this.view.BR1(NR1) }
   }
 
   // Whole-value reset: rebuild the snapshot from scratch. Non-object values
