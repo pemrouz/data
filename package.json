@@ -48,6 +48,8 @@
   "files": [
     "dist",
     "README.md",
+    "AGENTS.md",
+    "llms.txt",
     "LICENSE"
   ],
   "repository": {

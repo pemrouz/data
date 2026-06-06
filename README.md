@@ -251,6 +251,15 @@ For internals — the View / Sink / notification model — see [.claude/architec
 
 Index with longer summaries and the dispatch model: [operators/README.md](operators/README.md).
 
+## For AI agents & LLMs
+
+If you're an AI coding assistant generating code that imports `data` — or a human pointing one at this repo — start here:
+
+- **[llms.txt](llms.txt)** — a condensed, machine-readable map of the whole API: imports, core concepts, every operator, and the gotchas that trip up generated code. Served at the site root: [pemrouz.github.io/data/llms.txt](https://pemrouz.github.io/data/llms.txt). Both files ship inside the npm package.
+- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate by assignment; `gt`/`lt` take literal bounds).
+
+The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of just assigning (`proxy[0].done = true`). Both are covered in `llms.txt`.
+
 ## Examples
 
 Two example apps live in [examples/](examples/):
