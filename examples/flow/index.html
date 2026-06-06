@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>data — write the view, flow the change</title>
-  <meta name="description" content="A table and its stream of changes are the same thing in two forms. A view is a table derived from another. Put those together and you can write the view you mean and let only the change flow through it — the readability of recompute, the cost of hand-tuned deltas, none of the bookkeeping.">
+  <meta name="description" content="A table and its stream of changes are the same thing in two forms. A view is a table derived from another. Put those together and you can write the view you mean and let only the change flow through it — the readability of recompute, the cost of hand-tuned deltas, and none of the bookkeeping.">
   <link rel="stylesheet" href="./index.css">
 </head>
 <body>
@@ -215,7 +215,7 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
       Recompute is <code>O(N)</code>: its cost climbs in lockstep with the table —
       every row, every change. The runtime refuses that bargain. You've seen that a
       change is a tiny, self-contained thing, and that every derivation has a
-      change-shadow; so it
+      change-shadow, so the runtime
       pushes the one change <em>through</em> the shadow — flip one membership,
       adjust one bucket, nudge one running total. The work is proportional to the
       <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The lit tick above is
@@ -274,8 +274,8 @@ const active = orders.filter(o => o.active)  // a live view, not a one-off
     <p>
       And the change-shadow chains too. When a change moves a row in or out of
       <code>active</code>, that movement is itself the change <code>perRegion</code>
-      reads — one bucket up, another down. The change <code>orders</code> hands to
-      <code>active</code> becomes the change <code>active</code> hands to
+      reads — one bucket up, another down. The change that <code>orders</code> hands to
+      <code>active</code> becomes the change that <code>active</code> hands to
       <code>perRegion</code>. Toggle a row — or scrub to any toggle in the history —
       and watch the source change become the change <code>active</code> hands on:
     </p>
