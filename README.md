@@ -59,6 +59,17 @@ the box — reach for it by default. `data/full` is a strict superset that adds
 the JSX authoring layer. `data/lean` is the same core with the registration
 omitted, for when bundle size matters more than out-of-the-box ergonomics.
 
+> **Import from a single entry.** Each sub-path (`data`, `data/full`,
+> `data/devtools`, …) ships as a self-contained bundle with its **own** `$` and
+> internal symbols, so a proxy made under one entry is not recognised by
+> another. In particular, do **not** pair `import { $ } from 'data/full'` with
+> `import 'data/devtools'` — the devtools side-effect attaches its helpers to a
+> *different* `$`, so `$.inspect`/`$.graph` won't appear on yours. Pick one
+> entry per app (`data` for most, `data/full` for JSX) and import devtools from
+> that same world (in source form: `import './devtools/index.ts'` alongside the
+> same `core.ts`). This is a packaging constraint, tracked as C6 in
+> [ISSUES.md](ISSUES.md).
+
 ## Quickstart
 
 ### A reactive scalar

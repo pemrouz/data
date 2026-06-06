@@ -7,6 +7,16 @@ console — `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
 `$.profile`, `$.cascades` — and lazy-loads a graph-first in-page overlay
 panel.
 
+> **⚠ Import devtools from the same entry as your `$`.** Each `dist` sub-path
+> (`data`, `data/full`, `data/devtools`, …) is a self-contained bundle with its
+> own `$`. `import { $ } from 'data/full'` + `import 'data/devtools'` give you
+> **two different `$` objects** — the devtools import attaches its helpers to
+> its own `$`, so `$.inspect`/`$.graph`/the panel won't be wired to the proxies
+> you created with the other `$`, and helpers fail with a confusing error.
+> Either author your whole app against one entry (e.g. only `data/full`), or in
+> source builds import `./devtools/index.ts` from the same `core.ts`. Tracked as
+> C6 in [../ISSUES.md](../ISSUES.md).
+
 ## Why opt-in
 
 The core has zero per-notification overhead today. The structural hooks

@@ -23,7 +23,7 @@ Most of these are *documented* limitations the library already works around in s
 | [C3](#c3) | Chained **windowed** sort (`za(col,n).az(col,n)`) surfaces stale **content** | Correctness · windowed-sort | Medium | ⏳ Open (xfail'd in harness) |
 | [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows | Correctness · render | Medium | Open (mitigated by convention; tied to C1) |
 | [C5](#c5) | 3-arg `reduce` silently desyncs if `remove` doesn't exactly invert `add` (no runtime guard) | Correctness · reduce | **High** | ✅ Fixed (`9187782`, opt-in `$.debug`) |
-| [C6](#c6) | Mixing proxies across two `dist/` entries (`data/full` + `data/devtools`) silently breaks — not fail-fast | Correctness · tooling | Medium | Open |
+| [C6](#c6) | Mixing proxies across two `dist/` entries (`data/full` + `data/devtools`) silently breaks — not fail-fast | Correctness · tooling | Medium | ✅ Docs (`README` + `devtools/README`); deep fix = packaging redesign, deferred |
 | [C7](#c7) | `distinct` mishandles an in-place edit that moves a shared bucket's representative (output desync, not cosmetic) | Correctness · distinct | Medium | ✅ Fixed (`8fd1574`) |
 | [P1](#p1) | `between` array-insert path is O(N) (defers swarm births/deaths) | Perf | Medium | Deferred |
 | [P2](#p2) | `max`/`min` aggregates recompute O(n) per publish | Perf | Medium | Open |
