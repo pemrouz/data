@@ -45,6 +45,7 @@ export function createLog (seed) {
   let head = 0
   let nextId = 1
   let capturing = false
+  let actBuf = []          // active's OWN deltas during the current append
 
   /* capture the runtime's real records — but only while we're appending, so a
    * scrub's wholesale re-fold doesn't pollute history. The two-arg
@@ -53,8 +54,13 @@ export function createLog (seed) {
   const anchor = {}
   display.connect(anchor, c => { if (capturing) log.push(cloneRecord(c)) })
 
+  /* …and capture the SAME change as `active` re-emits it downstream, so every
+   * source record carries the change its filter handed on (§5 — the edge). */
+  const actAnchor = {}
+  active.connect(actAnchor, c => { if (capturing) actBuf.push(cloneRecord(c)) })
+
   /* pin every view + sink so nothing is collected mid-session. */
-  const keep = { display, active, perRegion, avg, anchor }
+  const keep = { display, active, perRegion, avg, anchor, actAnchor }
   globalThis.__flowKeep = keep
 
   function cloneRecord (c) {
@@ -112,6 +118,7 @@ export function createLog (seed) {
     }
     const before = log.length
     const pre = snap()
+    actBuf = []
     capturing = true
     mutate(display)
     capturing = false
@@ -123,7 +130,8 @@ export function createLog (seed) {
     if (post.region !== pre.region) changed.add('perRegion')
     if (post.avg !== pre.avg) changed.add('avg')
 
-    for (let i = before; i < log.length; i++) log[i].changed = changed
+    const acts = actBuf.slice()
+    for (let i = before; i < log.length; i++) { log[i].changed = changed; log[i].actDeltas = acts }
     return log.slice(before)
   }
 
@@ -144,13 +152,13 @@ export function createLog (seed) {
       return tag(append(d => { d[id] = { id, active: id % 2 === 1, region, value: v } }), { rid: id, field: 'row' })
     },
     toggle () {
-      const ks = presentKeys(); if (!ks.length) return actions.insert()
+      const ks = presentKeys(); if (!ks.length) return []   // nothing to toggle → no-op, not an insert
       const k = pick(ks); const rid = display[value][k].id
       return tag(append(d => { d[k].active = !d[k].active[value] }), { rid, field: 'active' })
     },
     bump () {
       const ks = presentKeys().filter(k => display[value][k].active)
-      if (!ks.length) return actions.toggle()
+      if (!ks.length) return actions.toggle()   // no active row to bump → toggle one on (still an update, never an insert)
       const k = pick(ks); const rid = display[value][k].id
       return tag(append(d => { d[k].value = d[k].value[value] + 15 }), { rid, field: 'value' })
     },
@@ -161,12 +169,18 @@ export function createLog (seed) {
     },
   }
 
-  /* seed the log as a sequence of inserts (clean opening chips). */
-  capturing = true
-  for (const r of seed) { const id = nextId++; r.id = id; display[id] = r }
-  capturing = false
+  /* seed the log as a sequence of inserts (clean opening records). Route each
+   * through append() — the SAME path as the reader's verbs — so every seed
+   * record gets its REAL diffed `changed` set and `actDeltas`, not a blanket
+   * all-folds tag. (An inactive seed row moves only {orders, avg}, exactly like
+   * an appended inactive insert; tagging it as moving active/perRegion too would
+   * make §3 cost, §4 dots, and §5's edge disagree on the opening records.) */
+  for (const r of seed) {
+    const id = nextId++; r.id = id
+    const recs = append(d => { d[id] = r })
+    for (const rec of recs) { rec.rid = id; rec.field = 'row' }
+  }
   head = log.length
-  for (let i = 0; i < log.length; i++) { log[i].changed = new Set(FOLDS); log[i].rid = seed[i] && seed[i].id; log[i].field = 'row' }
 
   return {
     display, active, perRegion, avg, log, keep,

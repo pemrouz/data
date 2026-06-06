@@ -1,23 +1,24 @@
 /* The essay's figures — all windows onto ONE model (see log.js).
  *
- *   the instrument (§1) : the scrubbable change history + four derived-view panels.
+ *   the duality (§1)    : the real change records (left) ⟷ the orders table
+ *                         (right), two forms of one thing, + three derived views.
  *   §3 cost             : per-change work vs table size — data O(Δ) flat, recompute O(N).
  *   §4 selectivity      : each change tinted by the derived views it actually moved.
  *   §5 edge / §7 dom    : one change handed view-to-view; one change → one DOM instruction.
  *
- * The derived-view panels are ordinary `render()` calls off the model's views,
- * so they update for free. Only the chrome (chips, playhead, meters) is wired by
- * hand. Scrubbing reconstructs an earlier state for display only — the library
- * itself never re-folds; it always moves forward.
+ * The table and derived-view panels are ordinary `render()` calls off the model's
+ * views, so they update for free. Only the chrome (records list, playhead, meters)
+ * is wired by hand. Scrubbing reconstructs an earlier state for display only — the
+ * library itself never re-folds; it always moves forward.
  *
  * Hand-written .js, no .ts sibling (see CLAUDE.md).
  */
 
-import { $, render, HTML, value } from 'data/full'
+import { render, HTML } from 'data/full'
 import { createLog, REGIONS } from './log.js'
 
 const { div, span } = HTML
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+// reduced-motion is handled entirely in CSS (index.css @media prefers-reduced-motion).
 
 /* ---- the one model ---------------------------------------------------- */
 const SEED = [
@@ -33,7 +34,8 @@ const countView = r => model.perRegion[r].value
  * the four fold panels — declarative, off the model's views
  * ====================================================================== */
 function mountFolds () {
-  render(document.getElementById('fold-orders'), div['.flist'](
+  // §1 duality — the orders table on the right is a live render() sink.
+  render(document.getElementById('dz-rows'), div['.flist'](
     div(model.display, (n, row) => n.frow.attr('data-id', row.id).nodes(
       span.fr_id.text(row.id.to(id => '#' + id)),
       span.fr_reg.text(row.region),
@@ -66,16 +68,28 @@ function mountFolds () {
 }
 
 /* ====================================================================== *
- * the timeline — chips + playhead (hand-wired interaction)
+ * §1 the duality — the change records (left) ⟷ the table (right).
+ * The records list is the REAL log (model.log), rendered as literal deltas
+ * and doubling as the scrub control. The table is a live render() sink off
+ * model.display. Scrub = apply changes → table; a button = edit the table →
+ * a new change appears. One shared playhead drives the whole page.
  * ====================================================================== */
-const stripEl   = document.getElementById('tl-strip')
-const detailEl  = document.getElementById('tl-detail')
-const headNEl   = document.getElementById('tl-head-n')
-const lenEl     = document.getElementById('tl-len')
+const recordsEl = document.getElementById('dz-records')
+const dzDetail  = document.getElementById('dz-detail')
+const dzMeta    = document.getElementById('dz-meta')
 const selStrip  = document.getElementById('sel-strip')
 const pinStrip  = document.getElementById('tl-pin-strip')
-let chipEls = []
+let recEls = []
 let pinChipEls = []
+let selChipEls = []
+/* figure updaters registered by their mount fns; syncHead drives them all so
+ * every figure is a function of the one shared playhead. */
+const figureUpdaters = []
+
+const FOLD_NAMES = ['active', 'perRegion', 'avg', 'orders']
+const foldEl = f => f === 'orders'
+  ? document.querySelector('.dz-table')
+  : document.querySelector(`.fold[data-fold="${f}"]`)
 
 const glyphOf = rec =>
   rec.type === 'insert' ? '+' :
@@ -91,22 +105,45 @@ function feedDots (rec) {
     .map(f => `<i class="feed-${f}"></i>`).join('')
 }
 
-function buildChips () {
-  stripEl.innerHTML = ''
+/* the literal delta a record carries — { type, key/at, value } made readable. */
+function recordParts (rec) {
+  if (rec.type === 'insert') {
+    const v = rec.value || {}
+    return { k: 'insert', id: `#${v.id ?? rec.at}`, val: `{ ${v.region} · ${v.active ? 'on' : 'off'} · ${v.value} }` }
+  }
+  if (rec.type === 'remove') {
+    return { k: 'remove', id: `#${(rec.key && rec.key[0]) ?? rec.rid}`, val: '' }
+  }
+  const path = rec.key || []
+  const field = path[path.length - 1]
+  const id = path[0] ?? rec.rid
+  const val = field === 'active' ? (rec.value ? 'on' : 'off') : rec.value
+  return { k: 'update', id: `#${id}.${field}`, val: `→ ${val}` }
+}
+
+function buildRecords () {
+  recordsEl.innerHTML = ''
   selStrip.innerHTML = ''
   pinStrip.innerHTML = ''
+  recEls = []
   pinChipEls = []
-  chipEls = model.log.map((rec, i) => {
-    const c = document.createElement('div')
-    c.className = 'chip'
-    c.dataset.i = i
-    c.dataset.type = rec.type
-    c.innerHTML =
-      `<span class="chip-g">${glyphOf(rec)}</span>` +
-      `<span class="chip-k">#${rec.rid ?? '?'}</span>` +
-      `<span class="chip-feeds">${feedDots(rec)}</span>`
-    c.addEventListener('mouseenter', () => describeRecord(rec, i))
-    stripEl.appendChild(c)
+  selChipEls = []
+  model.log.forEach((rec, i) => {
+    const p = recordParts(rec)
+
+    // the real change record — full literal delta, doubles as scrub track
+    const r = document.createElement('div')
+    r.className = 'drec'
+    r.dataset.i = i
+    r.dataset.type = rec.type
+    r.innerHTML =
+      `<span class="dr-k">${p.k}</span>` +
+      `<span class="dr-id">${p.id}</span>` +
+      `<span class="dr-v">${p.val}</span>`
+    r.addEventListener('mouseenter', () => { describeRecord(rec, i); lightFolds(rec) })
+    r.addEventListener('mouseleave', () => clearLitFolds())
+    recordsEl.appendChild(r)
+    recEls.push(r)
 
     // §4 mirror chip — same record, feed-focused
     const s = document.createElement('div')
@@ -115,18 +152,17 @@ function buildChips () {
     s.style.width = '34px'
     s.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="chip-feeds">${feedDots(rec)}</span>`
     s.addEventListener('mouseenter', () => { describeSel(rec); lightFolds(rec) })
-    s.addEventListener('mouseleave', () => clearLitFolds())
+    s.addEventListener('mouseleave', () => { clearLitFolds(); updateSel() })
     selStrip.appendChild(s)
+    selChipEls.push(s)
 
     // pinned mini-chip — same record, follows the scroll
-    const p = document.createElement('div')
-    p.className = 'pchip'
-    p.dataset.type = rec.type
-    p.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="pchip-id">#${rec.rid ?? '?'}</span><span class="chip-feeds">${feedDots(rec)}</span>`
-    pinStrip.appendChild(p)
-    pinChipEls.push(p)
-
-    return c
+    const pc = document.createElement('div')
+    pc.className = 'pchip'
+    pc.dataset.type = rec.type
+    pc.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="pchip-id">${p.id.split('.')[0]}</span><span class="chip-feeds">${feedDots(rec)}</span>`
+    pinStrip.appendChild(pc)
+    pinChipEls.push(pc)
   })
 }
 
@@ -136,6 +172,26 @@ const verbOf = rec =>
   rec.field === 'active' ? `toggled <b>#${rec.rid}</b>.active` :
   `bumped <b>#${rec.rid}</b>.value`
 
+const verbPlain = rec =>
+  rec.type === 'insert' ? `inserted #${rec.rid}` :
+  rec.type === 'remove' ? `removed #${rec.rid}` :
+  rec.field === 'active' ? `toggled #${rec.rid}.active` :
+  `bumped #${rec.rid}.value`
+
+/* the head record as the literal source-side delta, e.g. { update · #3.active }. */
+function srcDeltaText (rec) {
+  if (!rec) return '—'
+  const p = recordParts(rec)
+  return rec.type === 'update' ? `{ update · ${p.id} }` : `{ ${p.k} · ${p.id} }`
+}
+/* the same change as `active` re-emitted it (§5). Reads the captured actDeltas. */
+function actDeltaText (rec) {
+  const a = rec && rec.actDeltas && rec.actDeltas[rec.actDeltas.length - 1]
+  if (!a) return '{ no change to active }'
+  const id = (a.value && a.value.id) ?? (a.key && a.key[0]) ?? a.at ?? '?'
+  return `{ ${a.type} · #${id} }`
+}
+
 function selectivityTail (rec) {
   const ch = downChanged(rec)
   return ch.length
@@ -144,23 +200,23 @@ function selectivityTail (rec) {
 }
 
 function describeRecord (rec, i) {
-  detailEl.innerHTML = `record ${i + 1}: ${verbOf(rec)} — ${selectivityTail(rec)}`
+  dzDetail.innerHTML = `record ${i + 1}: ${verbOf(rec)} — ${selectivityTail(rec)}`
 }
 
 function describeSel (rec) {
   document.getElementById('sel-detail').innerHTML = `${verbOf(rec)} — ${selectivityTail(rec)}`
 }
 
-/* light the fold panels a record moved, each in its own colour. */
+/* light the panels a record moved, each in its own colour (orders = the table). */
 function lightFolds (rec) {
-  for (const f of ['active', 'perRegion', 'avg', 'orders']) {
-    const el = document.querySelector(`.fold[data-fold="${f}"]`)
+  for (const f of FOLD_NAMES) {
+    const el = foldEl(f)
     if (el) el.classList.toggle('lit-' + f, !!(rec.changed && rec.changed.has(f)))
   }
 }
 function clearLitFolds () {
-  for (const f of ['active', 'perRegion', 'avg', 'orders']) {
-    const el = document.querySelector(`.fold[data-fold="${f}"]`)
+  for (const f of FOLD_NAMES) {
+    const el = foldEl(f)
     if (el) el.classList.remove('lit-' + f)
   }
 }
@@ -171,22 +227,42 @@ const paintHead = (els, h) => els.forEach((c, i) => {
   c.classList.toggle('head', i === h - 1)
 })
 
+/* light the duality hinge in the direction the last interaction implied:
+ * scrubbing applies changes (→ table); a button diffs the table (→ a change). */
+function lightArrow (dir) {
+  const a = document.querySelector(dir === 'diff' ? '.dz-diff' : '.dz-apply')
+  if (a) { a.classList.add('lit'); setTimeout(() => a.classList.remove('lit'), 520) }
+}
+
+/* the change at the playhead — the one record every figure reads from. */
+const headRec = () => model.log[model.head() - 1] || null
+
+/* §4 reflects the head record too: mark its chip, default the detail to it. */
+function updateSel () {
+  paintHead(selChipEls, model.head())
+  const rec = headRec()
+  const el = document.getElementById('sel-detail')
+  if (el) el.innerHTML = rec ? `${verbOf(rec)} — ${selectivityTail(rec)}` : 'add a change, or scrub the history'
+}
+
 function syncHead () {
   const h = model.head(), L = model.log.length
-  headNEl.textContent = h
-  lenEl.textContent = L
-  paintHead(chipEls, h)
+  paintHead(recEls, h)
   paintHead(pinChipEls, h)
+  if (dzMeta) dzMeta.textContent = `${h} / ${L}`
   const meta = document.getElementById('tl-pin-meta')
   if (meta) meta.textContent = `${h} / ${L}`
   const rec = model.log[h - 1]
-  if (!rec) detailEl.textContent = 'log folded to the beginning — state is empty'
+  if (!rec) dzDetail.textContent = 'no changes applied — the table is empty'
   else describeRecord(rec, h - 1)
+  updateSel()
+  // every other figure is a function of the same head.
+  for (const u of figureUpdaters) u()
 }
 
-function setHead (k) { model.scrubTo(k); syncHead() }
+function setHead (k) { model.scrubTo(k); syncHead(); lightArrow('apply') }
 
-/* ---- scrubbing: pointer + keyboard, on either strip (horizontal main,
+/* ---- scrubbing: pointer + keyboard, on either strip (vertical records list,
  * vertical left rail) ---- */
 const headFromPointer = (e, els, axis) => els.filter(c => {
   const r = c.getBoundingClientRect()
@@ -207,64 +283,74 @@ function wireScrub (el, getEls, axis) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { setHead(Math.min(model.log.length, model.head() + 1)); e.preventDefault() }
   })
 }
-wireScrub(stripEl, () => chipEls, 'x')
+wireScrub(recordsEl, () => recEls, 'y')
 wireScrub(pinStrip, () => pinChipEls, 'y')
 
 /* ====================================================================== *
- * appends — the instrument controls
+ * appends — editing the table emits a new change (the 'diff' direction)
  * ====================================================================== */
 function appendRecord (act) {
   const recs = model.actions[act]()
-  buildChips(); syncHead()
+  buildRecords(); syncHead()
   flashFolds(recs && recs[recs.length - 1])
+  flashNewRecord()
   return recs
+}
+
+/* the duality made visible: a table edit produced a fresh delta on the left.
+ * (No auto-scroll — that would move the playhead's position out from under a
+ * pointer mid-scrub; the new record's .head styling marks it in place.) */
+function flashNewRecord () {
+  const last = recEls[recEls.length - 1]
+  if (last) { last.classList.remove('flash'); void last.offsetWidth; last.classList.add('flash') }
+  lightArrow('diff')
 }
 
 function flashFolds (rec) {
   if (!rec) return
-  for (const f of ['active', 'perRegion', 'avg', 'orders']) {
+  for (const f of FOLD_NAMES) {
     if (rec.changed && rec.changed.has(f)) {
-      const el = document.querySelector(`.fold[data-fold="${f}"]`)
+      const el = foldEl(f)
       if (el) { el.classList.add('lit-' + f); setTimeout(() => el.classList.remove('lit-' + f), 480) }
     }
   }
-  // flash the specific row the record touched, in the panels that show it.
+  // flash the specific row the record touched, in the views that show it.
   if (rec.rid != null) {
-    for (const panel of ['fold-orders', 'fold-active']) {
-      const row = document.querySelector(`#${panel} .frow[data-id="${rec.rid}"]`)
+    for (const sel of ['#dz-rows', '#fold-active']) {
+      const row = document.querySelector(`${sel} .frow[data-id="${rec.rid}"]`)
       if (row) { row.classList.remove('fresh'); void row.offsetWidth; row.classList.add('fresh') }
     }
   }
 }
 
-document.querySelectorAll('#tl-controls .tlb').forEach(btn => {
+document.querySelectorAll('#dz-controls .tlb').forEach(btn => {
   btn.addEventListener('click', () => appendRecord(btn.dataset.act))
 })
 
 /* ====================================================================== *
- * §3 — the cost is the change, not the table.
+ * §3 — flow the change, not the table.
  * The naive way re-derives every view over all N rows on each change: O(N),
- * and it grows with the table. data touches only what moved: O(Δ), flat in N.
- * We plot per-change work as a function of table size N, both measured — the
- * recompute by actually scanning N rows, data by counting the views a real
- * change moves.
+ * and it grows with the table. data pushes the change through the derivation's
+ * shadow: O(Δ), flat in N. We plot per-change work vs table size N, both
+ * measured — the recompute by actually scanning N rows, data by counting the
+ * views the change at the PLAYHEAD actually moves. So scrubbing the rail (or
+ * any button on the page) re-reads data's cost from the current change.
  * ====================================================================== */
 const costIncEl = document.getElementById('cost-inc')
 const costRefEl = document.getElementById('cost-ref')
+const costIncSub = document.querySelector('.cost-meter[data-meter="incremental"] .cost-sub')
 const barFill   = document.getElementById('cost-bar-fill')
 const barLabel  = document.getElementById('cost-bar-label')
 const N_POINTS  = [60, 600, 6000, 60000]
 let costN = 6000
 let costRevealed = false
-let dataWork = 3        // ~one row × the views a change moves; constant in N
 
-// data's per-change work: apply one real change to the model and count how many
-// derived views it moves (each O(1)). Constant in N. Measured, not authored.
-function measureDataWork () {
-  const recs = appendRecord('toggle')
-  const r = recs && recs[recs.length - 1]
-  dataWork = r && r.changed ? r.changed.size : 1   // e.g. orders + active + perRegion
-  return dataWork
+// data's per-change work IS the footprint of the change at the playhead: the
+// number of views it moved, each touched in O(1). Constant in N. Measured off
+// the real record (the same `changed` set §4 draws its dots from), not authored.
+function dataWorkAtHead () {
+  const rec = headRec()
+  return rec && rec.changed ? rec.changed.size : 0
 }
 // recompute's per-change work: re-derive filter + group + avg over all N rows.
 function measureRecomputeWork (n) {
@@ -276,14 +362,17 @@ function measureRecomputeWork (n) {
 }
 
 function renderCost () {
-  const dataW = dataWork
+  const rec = headRec()
+  const dataW = dataWorkAtHead()           // includes 'orders' (the base table sink) + each moved view
+  const views = Math.max(0, dataW - 1)     // the derived views moved — matches §4's dot count
   const refW = costRevealed ? measureRecomputeWork(costN) : null
-  costIncEl.textContent = `${dataW} ops`
+  costIncEl.textContent = dataW ? `${dataW} ops` : '—'
+  if (costIncSub) costIncSub.textContent = rec ? `${verbPlain(rec)} → the table + ${views} view${views === 1 ? '' : 's'}` : 'the change at the playhead'
   costRefEl.textContent = refW == null ? '—' : `${refW.toLocaleString()} visits`
-  if (refW != null) {
+  if (refW != null && dataW) {
     const ratio = Math.round(refW / dataW)
     barFill.style.width = Math.min(100, (1 - dataW / refW) * 100) + '%'
-    barLabel.textContent = `at N=${costN.toLocaleString()}, recompute does ≈ ${ratio.toLocaleString()}× the work of one change`
+    barLabel.textContent = `at N=${costN.toLocaleString()}, recompute does ≈ ${ratio.toLocaleString()}× the work of this one change`
   } else { barFill.style.width = '0'; barLabel.textContent = '' }
   drawCurve()
 }
@@ -320,95 +409,86 @@ function drawCurve () {
 function mountCost () {
   const veil = document.getElementById('cost-veil')
   const note = document.getElementById('cost-note')
-  // ensure the model reflects one settled change before measuring data's cost.
   veil.querySelectorAll('[data-bet]').forEach(btn => btn.addEventListener('click', () => {
     const right = btn.dataset.bet === 'linear'
     costRevealed = true
     veil.classList.add('gone')
-    measureDataWork(); buildChips(); syncHead()
     renderCost()
-    note.innerHTML = `${right ? '<b class="win">right.</b>' : 'not quite —'} recompute is <code>O(N)</code> — ten times the table, ten times the cost per change; data stays flat at <code>O(Δ)</code>.`
+    note.innerHTML = `${right ? '<b class="win">right.</b>' : 'not quite —'} recompute is <code>O(N)</code> — ten times the table, ten times the cost per change; data stays flat at <code>O(Δ)</code>. Scrub the rail to cost a different change.`
   }))
   document.getElementById('cost-n').addEventListener('change', e => { costN = +e.target.value; renderCost() })
+  figureUpdaters.push(renderCost)   // re-cost whenever the playhead moves
   renderCost()
 }
 
 /* ====================================================================== *
- * §5 — a log at every edge: a record on the source becomes a record on
- * `active`, which is what perRegion folds. We capture active's own emitted
- * records during one toggle.
+ * §5 — the change at every edge: the change `orders` sees becomes the change
+ * `active` hands on. The model captures active's OWN delta for every record
+ * (log.js → actDeltas), so this figure just reads the head record. The button
+ * appends a toggle to the SAME stream; scrubbing the rail drives it too.
  * ====================================================================== */
 function mountEdge () {
   const srcEl = document.getElementById('edge-src')
   const actEl = document.getElementById('edge-act')
   if (!srcEl || !actEl) return
-  let cap = false
-  const actBuf = []
-  const anchor = {}
-  model.active.connect(anchor, c => { if (cap) actBuf.push(c) })
-  const idFrom = a => (a.value && a.value.id) ?? (a.key && a.key[0]) ?? a.at ?? '?'
   const flash = el => { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash') }
+  function updateEdge () {
+    const rec = headRec()
+    srcEl.textContent = srcDeltaText(rec)
+    actEl.textContent = rec ? actDeltaText(rec) : '—'
+  }
   document.getElementById('edge-go').addEventListener('click', () => {
-    actBuf.length = 0
-    cap = true
-    const recs = appendRecord('toggle')   // mutates the source, advances the log
-    cap = false
-    const r = recs && recs[0]
-    srcEl.textContent = r ? `{ update · #${r.rid}.active }` : '(none)'
-    const a = actBuf[actBuf.length - 1]
-    actEl.textContent = a ? `{ ${a.type} · #${idFrom(a)} }` : '{ no membership change }'
+    appendRecord('toggle')        // one toggle on the shared stream; syncHead refreshes the text
     flash(srcEl); flash(actEl)
   })
+  figureUpdaters.push(updateEdge)
+  updateEdge()
 }
 
 /* ====================================================================== *
- * §7 — the DOM is the last fold: one record becomes one DOM operation, on a
- * small live list that is itself an ordinary render() sink.
+ * §7 — the DOM is the last derivation: render() is one more sink on the same
+ * changes. This list is a SECOND render() pointed at the very SAME source as
+ * the §1 table, so a button updates both from the one change — and each record
+ * maps to exactly one DOM instruction, read off the head record.
  * ====================================================================== */
 function mountDomFold () {
   const listEl = document.getElementById('dom-list')
   const recEl = document.getElementById('dom-rec')
   const opEl = document.getElementById('dom-op')
   if (!listEl) return
-  const src = $({})
-  let nid = 1
-  const REG = ['north', 'south', 'east', 'west']
 
   render(listEl, div['.flist'](
-    div(src, (n, row) => n.dl_row.attr('data-id', row.id).nodes(
+    div(model.display, (n, row) => n.dl_row.attr('data-id', row.id).nodes(
       span.dl_id.text(row.id.to(id => '#' + id)),
       span.dl_reg.text(row.region),
       span.dl_val.text(row.value),
     )),
   ))
 
-  const present = () => Object.keys(src[value]).filter(k => src[value][k] != null)
-  const flashRow = (id, only) => {
-    const row = listEl.querySelector(`.dl-row[data-id="${id}"]`); if (!row) return
-    const target = only === 'val' ? row.querySelector('.dl-val') : row
-    if (target) { target.classList.remove('fresh'); void target.offsetWidth; target.classList.add('fresh') }
+  const opFor = rec =>
+    rec.type === 'insert' ? `list.<b>appendChild</b>(node) — one call` :
+    rec.type === 'remove' ? `node.<b>remove</b>() — one call` :
+    `<b>one</b> text write — the row never re-renders`
+  function updateDomOp () {
+    const rec = headRec()
+    recEl.textContent = rec ? srcDeltaText(rec) : '— press a button —'
+    opEl.innerHTML = rec ? '↳ ' + opFor(rec) : '↳ the one DOM instruction it becomes'
   }
-  const show = (rec, op) => { recEl.textContent = rec; opEl.innerHTML = '↳ ' + op; recEl.classList.remove('flash'); void recEl.offsetWidth; recEl.classList.add('flash') }
-  const seed = () => { const id = nid++; src[id] = { id, region: REG[(id - 1) % 4], value: 40 + ((id * 31) % 50) }; return id }
+  const flashOp = () => { recEl.classList.remove('flash'); void recEl.offsetWidth; recEl.classList.add('flash') }
+  const flashDomRow = rec => {
+    if (!rec || rec.rid == null) return
+    const row = listEl.querySelector(`.dl-row[data-id="${rec.rid}"]`); if (!row) return
+    const t = rec.field === 'value' ? row.querySelector('.dl-val') : row
+    if (t) { t.classList.remove('fresh'); void t.offsetWidth; t.classList.add('fresh') }
+  }
+  // insert / update-a-field / remove → the shared model's verbs (bump = a field update).
+  const act = name => () => { const recs = appendRecord(name); flashOp(); flashDomRow(recs && recs[recs.length - 1]) }
+  document.getElementById('dom-insert').addEventListener('click', act('insert'))
+  document.getElementById('dom-update').addEventListener('click', act('bump'))
+  document.getElementById('dom-remove').addEventListener('click', act('remove'))
 
-  document.getElementById('dom-insert').addEventListener('click', () => {
-    const id = seed()
-    show(`{ insert · #${id} }`, `list.<b>appendChild</b>(node) — one call`); flashRow(id)
-  })
-  document.getElementById('dom-update').addEventListener('click', () => {
-    const ks = present(); if (!ks.length) return
-    const k = ks[(Math.random() * ks.length) | 0]
-    src[k].value = src[k].value[value] + 5
-    show(`{ update · #${k}.value }`, `<b>one</b> text write — the row never re-renders`); flashRow(k, 'val')
-  })
-  document.getElementById('dom-remove').addEventListener('click', () => {
-    const ks = present(); if (!ks.length) return
-    const k = ks[(Math.random() * ks.length) | 0]
-    delete src[k]
-    show(`{ remove · #${k} }`, `node.<b>remove</b>() — one call`)
-  })
-
-  seed(); seed()
+  figureUpdaters.push(updateDomOp)
+  updateDomOp()
 }
 
 /* ====================================================================== *
@@ -453,14 +533,18 @@ function mountSpotlights () {
   }
 }
 
-/* ---- boot ---- */
+/* ---- boot ---- *
+ * Mount every figure first so each registers its updater, then build the
+ * records and run ONE syncHead — which drives §1 and every registered figure
+ * from the shared playhead. From here, any scrub or button calls syncHead and
+ * the whole page re-reads itself from the head. */
 mountFolds()
-buildChips()
-syncHead()
 mountCost()
 mountEdge()
 mountDomFold()
 mountSpotlights()
+buildRecords()
+syncHead()
 document.getElementById('sel-legend').innerHTML =
   ['active', 'perRegion', 'avg'].map(f =>
     `<span class="lk"><span class="sw feed-${f}"></span>${f}</span>`).join('') +

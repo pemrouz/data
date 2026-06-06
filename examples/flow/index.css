@@ -86,7 +86,7 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
   border: 1px solid var(--rule); border-radius: 8px;
 }
 /* break wide figures out of the prose column */
-.fig.instrument, .fig.cost, .fig.sel {
+.fig.duality, .fig.cost, .fig.sel {
   margin-left: calc(50% - 50vw + 1.25rem);
   margin-right: calc(50% - 50vw + 1.25rem);
   max-width: calc(100vw - 2.5rem); width: auto;
@@ -94,9 +94,83 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
 /* on wide screens, break out to the RIGHT only — the left margin belongs to the
  * pinned change history. */
 @media (min-width: 1100px) {
-  .fig.instrument { margin-left: 0; margin-right: -260px; max-width: none; }
+  .fig.duality { margin-left: 0; margin-right: -260px; max-width: none; }
   .fig.cost, .fig.sel { margin-left: 0; margin-right: -150px; max-width: none; }
 }
+
+/* a brief highlight pulse, shared by records / edge / dom-fold flashes. */
+@keyframes pflash {
+  0%   { background: #fde7e0; border-color: var(--accent); }
+  100% { background: transparent; }
+}
+
+/* =========================================================================
+ * §1 — the duality: the changes ⟷ the table, two forms of one thing
+ * ========================================================================= */
+.fig.duality { padding: 1.25rem; }
+.dz {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.9rem; align-items: stretch;
+}
+@media (max-width: 640px) {
+  .dz { grid-template-columns: 1fr; gap: 0.6rem; }
+  .dz-hinge { flex-direction: row !important; gap: 0.8rem !important; padding: 0.2rem 0 !important; }
+  .dz-hinge .dz-eq { transform: rotate(90deg); }
+}
+.dz-side { display: flex; flex-direction: column; min-width: 0; }
+.dz-cap {
+  font: 0.66rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--faint); margin-bottom: 0.5rem; display: flex; gap: 0.5rem; align-items: baseline;
+}
+.dz-cap .dz-sub { text-transform: none; letter-spacing: 0; color: var(--faint); }
+.dz-cap code { background: none; padding: 0; color: var(--dim); }
+
+/* left — the real change records, scrollable + scrubbable */
+.dz-records {
+  flex: 1; display: flex; flex-direction: column; gap: 3px;
+  min-height: 210px; max-height: 270px; overflow-y: auto;
+  background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px;
+  padding: 0.4rem; cursor: ns-resize; user-select: none; scrollbar-width: thin;
+}
+.dz-records:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drec {
+  flex: 0 0 auto; display: flex; align-items: baseline; gap: 0.5rem;
+  font: 12px var(--mono); padding: 0.28rem 0.5rem; border-radius: 4px;
+  border: 1px solid transparent; color: var(--ink);
+  transition: opacity 120ms, border-color 120ms, background 120ms;
+}
+.drec .dr-k { font-weight: 600; flex: 0 0 auto; }
+.drec[data-type="insert"] .dr-k { color: var(--pos); }
+.drec[data-type="remove"] .dr-k { color: var(--neg); }
+.drec[data-type="update"] .dr-k { color: var(--f-avg); }
+.drec .dr-id { color: var(--faint); flex: 0 0 auto; }
+.drec .dr-v { color: var(--ink); font-weight: 600; margin-left: auto; text-align: right; }
+.drec.ahead { opacity: 0.3; }
+.drec.behind { opacity: 1; }
+.drec.head { border-color: var(--accent); background: #fdf2ee; }
+.drec:hover { border-color: var(--accent); }
+.drec.flash { animation: pflash 600ms ease-out; }
+
+/* middle — the duality hinge */
+.dz-hinge {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.45rem; padding: 0 0.2rem; font: 0.64rem var(--mono); color: var(--faint);
+}
+.dz-hinge .dz-eq { font-size: 1.15rem; color: var(--dim); line-height: 1; }
+.dz-arrow { white-space: nowrap; transition: color 160ms, transform 160ms; }
+.dz-arrow.lit { color: var(--accent); transform: scale(1.08); }
+
+/* right — the table (a live render() sink; rows reuse .frow) */
+.dz-rows {
+  flex: 1; background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px;
+  padding: 0.45rem 0.6rem; min-height: 210px; transition: border-color 200ms, box-shadow 200ms;
+}
+.dz-table.lit-orders .dz-rows { border-color: var(--f-orders); box-shadow: 0 0 0 1px var(--f-orders); }
+
+.dz-detail { font: 0.76rem var(--mono); color: var(--dim); margin: 0.8rem 0 0.6rem; min-height: 1.1rem; }
+.dz-detail b { color: var(--ink); }
+.dz-detail .tag { color: var(--accent); }
+.dz-controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+.dz-meta { font: 0.72rem var(--mono); color: var(--faint); margin-left: auto; font-variant-numeric: tabular-nums; }
 
 /* =========================================================================
  * the change history — pinned in the left margin, scrubbable
@@ -204,7 +278,7 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
 
 /* ---- folds ---- */
 .folds-cap { font: 0.68rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); margin: 0.2rem 0 0.7rem; }
-.folds { display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.7fr; gap: 0.7rem; }
+.folds { display: grid; grid-template-columns: 1.1fr 1fr 0.7fr; gap: 0.7rem; }
 @media (max-width: 860px) { .folds { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 460px) { .folds { grid-template-columns: 1fr; } }
 .fold {
