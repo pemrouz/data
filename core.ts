@@ -1128,6 +1128,17 @@ function connect(p, a, b) {
     return a
   }
 
+  // A bare function is never a valid sink: it has none of the BU1/BI0/BR1/…
+  // verbs the protocol calls, so the bare-attach fallback below would defer a
+  // cryptic "a.BI0 is not a function" to the first event (and silently emit
+  // nothing until then). Fail fast at connect() time and point at the
+  // supported two-arg form — there is intentionally no single-arg connect(fn).
+  if (typeof a === 'function') throw new Error(
+    "connect(fn) isn't supported: a bare function can't act as a sink. Use " +
+    "connect(anchor, fn) to receive change records (the anchor object keeps " +
+    "the subscription alive past GC), connect([]) to collect events into an " +
+    "array, or connect(obj, 'prop') to mirror the value onto a property.")
+
   p.sinks.add(new WeakRef(a))
   return a
 }

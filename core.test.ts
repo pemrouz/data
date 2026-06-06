@@ -19,6 +19,22 @@ test('update (val, val)', () => {
   same(res[value], 20)
 })
 
+test('connect(fn) single-arg throws immediately with a helpful message', () => {
+  // A bare function is not a valid sink; the single-arg form must fail fast
+  // at connect() time (not defer a cryptic "fn.BI0 is not a function" to the
+  // first event). The two-arg connect(anchor, fn) is the supported form.
+  const res = $([1, 2, 3])
+  let threw
+  try { res.connect(c => c) } catch (e) { threw = e }
+  ok(threw, 'connect(fn) should throw')
+  ok(/connect\(fn\) isn't supported/.test(threw.message), threw?.message)
+  // The supported two-arg form still works and receives change records.
+  const seen = []
+  res.connect({}, c => seen.push(c.type))
+  res.insert(4)
+  ok(seen.includes('insert'), 'connect(anchor, fn) still delivers events')
+})
+
 test('insert (val, val)', () => {
   const res = $(5)
   const changes1 = res.connect([])
