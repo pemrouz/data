@@ -51,6 +51,30 @@ test('distinct - reactive: removing all of a key drops it from the output', () =
   same(d[value], ['b'])
 })
 
+test('distinct - reactive: mutating the representative of a shared key rebuckets (regression)', () => {
+  // Two rows project to the same key 'x'; the FIRST (the instance cached in
+  // the output) is mutated in place to a new key 'y'. Bucket 'x' is still
+  // occupied by the sibling, so the output must show one 'y' and one 'x' —
+  // not drop 'x' and duplicate 'y'. Before the fix, BU2's _update left the
+  // stale representative in `output` (same mutated reference) and pushed it
+  // again, yielding [{k:'y'},{k:'y'}] with 'x' lost entirely.
+  const res = $({ a: { k: 'x' }, b: { k: 'x' } })
+  const d = distinct(res, r => r.k)
+  same(d[value], [{ k: 'x' }])              // both collapse to one 'x'
+  res.a.k = 'y'                             // mutate the representative in place
+  same(d[value], [{ k: 'y' }, { k: 'x' }]) // a→'y' (first-seen), b still 'x'
+})
+
+test('distinct - reactive: mutating a NON-representative of a shared key stays incremental', () => {
+  // Mirror of the above: mutating the SECOND row of the shared bucket must
+  // NOT disturb the representative — output keeps 'x' (via a) and adds 'y'.
+  const res = $({ a: { k: 'x' }, b: { k: 'x' } })
+  const d = distinct(res, r => r.k)
+  same(d[value], [{ k: 'x' }])
+  res.b.k = 'y'
+  same(d[value], [{ k: 'x' }, { k: 'y' }]) // a still represents 'x', b→'y'
+})
+
 test('distinct - dedup: same fn → same view', () => {
   const res = $([1, 2, 3])
   const fn = d => d

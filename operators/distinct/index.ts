@@ -2,6 +2,11 @@
 import { iter, identity, isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
+// Sentinel returned by `_update` when an in-place edit moves a bucket's
+// *representative* row to a new key while the bucket stays occupied — that
+// can't be reconciled as an O(1) output edit, so BU2 falls back to rebuild.
+const REBUILD = Symbol('distinct.rebuild')
+
 // `proxy.distinct(fn?)` materializes the source's distinct values as an
 // array, in first-seen iteration order. `fn` (default identity) projects
 // each row to a comparison key — rows projecting to the same key collapse
@@ -17,7 +22,10 @@ import { Operator, createOperator } from '../../core.ts'
 // because the test suite encodes a "first-seen order tracks current
 // source iteration order" semantic — when a row that supplied the first
 // instance of its projection is removed, the output's order can shift in
-// ways that aren't expressible as O(1) edits to the cached array.
+// ways that aren't expressible as O(1) edits to the cached array. BU2 also
+// rebuilds in the one case it can't reconcile incrementally: an in-place
+// edit that moves a bucket's *representative* row (the instance cached in
+// the output) to a new key while the bucket stays occupied by a sibling.
 // Crossfilter-shaped workloads (dimension brushing, attribute rewrites)
 // are dominated by BI0/BU2 and stay on the incremental path.
 export class DistinctValue extends Operator {
@@ -105,17 +113,18 @@ export class DistinctValue extends Operator {
         if (idx >= 0) this.output.splice(idx, 1)
         changed = true
       } else {
+        // The bucket still has other rows after this one leaves. If `row`
+        // was oldK's representative — the instance cached in `output` — it
+        // can't simply stay: for an in-place edit `row` is the SAME object
+        // reference still sitting in `output`, so leaving it would show
+        // oldK's output slot projecting to newK while the sibling that
+        // should now represent oldK is absent (output ends up duplicating
+        // newK and dropping oldK entirely). Promoting a replacement while
+        // preserving first-seen order isn't an O(1) edit, so request a full
+        // rebuild. When `row` was NOT the representative, the cached output
+        // is still valid and we stay on the incremental path.
+        if (this.firstRow.get(oldK) === row) return REBUILD
         this.counts.set(oldK, c)
-        // If `row` was the firstRow for oldK, the next remaining row with
-        // the same projection becomes first — but we don't track other
-        // rows per bucket. Since the bench/test workloads don't ask us to
-        // replace `firstRow` on update (only the OUTPUT contents are
-        // observable, and the existing entry is still valid as long as the
-        // count is non-zero), leave it. If a row that was firstRow gets
-        // updated away, the firstRow entry now points to a row whose
-        // projection no longer matches — that's a stale identity reference
-        // but the output is unaffected. The full-rebuild paths normalise
-        // it back.
       }
     }
     const c = this.counts.get(newK)
@@ -157,7 +166,9 @@ export class DistinctValue extends Operator {
     for (let i = 0; i < U2.length; i += 2) {
       const path = U2[i]
       const name = path[0]
-      if (this._update(name, v?.[name])) changed = true
+      const r = this._update(name, v?.[name])
+      if (r === REBUILD) return this._rebuild()
+      if (r) changed = true
     }
     if (changed) this.view.XU0(this.view.value = this.output)
   }
