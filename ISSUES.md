@@ -11,13 +11,12 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 | [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows when a row template binds them directly | Correctness · render | Medium | Open (mitigated by convention) |
 | [P1](#p1) | `between` array-insert path is O(N) (defers swarm births/deaths) | Perf | Medium | Deferred |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
-| [P4](#p4) | `to()` runs its `fn` on every `BU2` even when the result is reference-equal | Perf | Low | Open |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
 Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (mitigated by convention)* = every shipped example already avoids it; *Open (external blocker)* = blocked on something outside the repo.
 
-> Everything previously tracked here as C1/C2/C3/C5/C6/C7/D1/D2 (fixed/verified), P2/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
+> Everything previously tracked here as C1/C2/C3/C5/C6/C7/D1/D2 (fixed/verified), P2/P4/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
 
 ---
 
@@ -52,13 +51,6 @@ The incremental `reduce(add, remove, init)` form is O(Δ) on `BI0`/`BR1` (insert
 
 - Where: [operators/reduce/index.ts](operators/reduce/index.ts) (`BU2` rebuilds), [core.ts](core.ts) (protocol carries new value only), [operators/reduce/BENCHMARK.md](operators/reduce/BENCHMARK.md); pinned by the `reduce.incremental - BU2 (nested in-place edit) still rebuilds` test.
 - Why not the reference cache: it's useless for `BU2` because the mutated row is the *same object* the cache already holds. Closing `BU2` would need either a per-row **snapshot** cache (a `structuredClone` per insert/edit — that penalises the immutable-row crossfilter path the operator is tuned for, so it's a bad blanket trade) or a protocol change that threads the **old** value through `BU2` (which would also help any operator wanting old-value deltas, but touches every `BU2` implementer). Defer until a workload needs in-place-edit-heavy direct-on-source reduce.
-
-### P4
-**`to()` runs its `fn` on every `BU2`** · Low · Open
-
-`to`'s `BU2` calls `fn` unconditionally, then a `===` check skips the *downstream* notification when the result is reference-equal — but the `fn` call itself isn't skipped. A safe skip would need to know `fn` only reads shape (not values), a hint the API doesn't expose. Negligible when `fn` is O(1); shows up as a small single-tick gap vs dependency-tracking libs (mobx/vue) that can skip re-evaluation.
-
-- Where: [operators/to/index.ts](operators/to/index.ts), [operators/to/BENCHMARK.md](operators/to/BENCHMARK.md).
 
 ### P5
 **`distinct` rebuilds on `BR1`/`BU1`/`XU0`** · Low · Open (by design)

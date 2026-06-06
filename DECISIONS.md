@@ -84,6 +84,11 @@ Evaluated and **skipped** (not a real win). These are incremental on `BI0` (appe
 
 - Where: [operators/keys/index.ts](operators/keys/index.ts), [operators/reverse/index.ts](operators/reverse/index.ts).
 
+### P4 — `to()` runs its `fn` on every `BU2`
+Accepted limitation, **won't fix** without an API change. `to(fn)`'s `fn` is opaque — the operator can't know which fields it reads, so it must call `fn` on every upstream event; a `===` check on the *output* ([operators/to/index.ts](operators/to/index.ts) `XU0`) then skips the *downstream* notification when the projection is reference-equal, but the `fn` call itself can't be skipped. Both escape hatches cost more than they save: input-snapshot caching can't know what `fn` reads, and a nested `BU2` keeps the parent object reference equal while its contents change — so input-identity caching would *skip real changes* (unsafe); field-granular dependency tracking (mobx/vue style) is a different reactivity model the library deliberately doesn't have. Negligible when `fn` is O(1); shows up only as a small single-tick gap vs dependency-tracking peers, which `operators/to/BENCHMARK.md` already documents. The output `===` short-circuit is the best achievable without a dependency hint.
+
+- Where: [operators/to/index.ts](operators/to/index.ts) (`BU2`/`XU0`), [operators/to/BENCHMARK.md](operators/to/BENCHMARK.md).
+
 ---
 
 ## Closed out
