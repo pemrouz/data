@@ -266,9 +266,9 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
     </p>
     <div class="gallery">
       <div class="gcard gcard-feature">
-        <span class="gcard-tag">essay · the model</span>
-        <h3><a href="./examples/flow/">Table B is table A, filtered</a></h3>
-        <p>An eight-section essay on derived views: write <code>B = A.filter(…)</code> and the runtime keeps it live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, none of the bookkeeping.</p>
+        <span class="gcard-tag">essay · change &amp; derivation</span>
+        <h3><a href="./examples/flow/">Write the view, flow the change</a></h3>
+        <p>An eight-section essay on the duality at the core of the library: a table and its stream of changes are the same thing in two forms, so a view — a filter, a count, a grouping — stays live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, and none of the bookkeeping.</p>
         <span class="gcard-links"><a href="./examples/flow/">read →</a></span>
       </div>
       <div class="gcard">
