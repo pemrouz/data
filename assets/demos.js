@@ -271,12 +271,17 @@ render($$('#reduce-result'), div.scalar_row(
 ))
 
 /* ---- tap: count emits, mirror lastTick from the feed ----
- * Keep _tapKeepAlive in module scope so the operator isn't WeakRef'd away. */
+ * A standalone tap has no downstream sink to anchor it, and a bare
+ * `const x = …; void x` is NOT enough — V8 reclaims a binding it can prove is
+ * never read again, the sink's WeakRef dies, and the tap silently stops firing
+ * (the "events received" counter froze while "last mutation" kept ticking).
+ * Anchor it on the card's DOM node — alive for the page's life — exactly like
+ * multidim's `chartsRoot._chains`. */
+const tapEl = $$('#tap-result')
 const tapN = $(0)
 let _tapCounter = 0
-const _tapKeepAlive = trades.tap(() => { _tapCounter++; tapN[value] = _tapCounter })
-void _tapKeepAlive
-render($$('#tap-result'), div.tap_grid(
+tapEl._tap = trades.tap(() => { tapN[value] = ++_tapCounter })
+render(tapEl, div.tap_grid(
   div.tap_block(span.tap_label.text('events received'), div.tap_counter.text(tapN)),
   div.tap_block(span.tap_label.text('last mutation'),   div.tap_last.text(lastTick)),
 ))
