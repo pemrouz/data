@@ -8,19 +8,23 @@ Most of these are *documented* limitations the library already works around in s
 
 ## Progress (2026-06-06, branch `fix/open-issues`)
 
-**Fixed & committed:** C7 (`distinct` representative rebucket), D1 (`connect(fn)` fail-fast), C5 (opt-in `$.debug` reduce-symmetry check), **C2** (`RowOperator.BI0A` — windowed-sort inserts no longer drop a row), and the `group`-over-sparse-object crash (delisting `between→group [object]`).
+**Fixed & committed:** C7 (`distinct` representative rebucket), D1 (`connect(fn)` fail-fast), C5 (opt-in `$.debug` reduce-symmetry check), C6 (docs), **C2** (`RowOperator.BI0A`), the `group`-over-sparse-object crash, and the full **C1 array-positional protocol surgery** (see below). **8 of 9** array-positional permutations closed; the 1 remaining xfail is the C3 chained-windowed-sort *order* residual.
 
-**Proof gate:** a differential operator-permutation harness ([differential.test.ts](differential.test.ts)) asserts the live incremental view ≡ a from-scratch rebuild across every operator × source-shape × mutation, wired into `npm test`. A `KNOWN_FAILURES` registry xfails the **9 remaining** array-positional permutations (so CI is green and a fix that lands flips the gate). Design analysis in [.claude/array-contract-design.md](.claude/array-contract-design.md).
+**Proof gate:** a differential operator-permutation harness ([differential.test.ts](differential.test.ts)) asserts the live incremental view ≡ a from-scratch rebuild across every operator × source-shape × mutation, wired into `npm test` (74 cases). A `KNOWN_FAILURES` registry xfails what's left (now just C3 order ×2) and **fails if a listed case starts passing**, so each fix had to flip the gate. Design analysis in [.claude/array-contract-design.md](.claude/array-contract-design.md).
 
-**Why C1/C3 remain open (proven, not punted):** the 9 are all **array-source** positional desyncs (a "row left position *k*" is a hole on one side, a splice-shift on the other). A contained fix that infers hole-vs-splice from the upstream array's `.length` **cannot work** — a sparse array's length collapses trailing holes (`between('v',[10,100])` over a length-3 source returns length 2) and is inconsistent between the build path and the incremental path. A correct fix needs an **explicit** hole-vs-splice protocol signal threaded through core + RowOperator + DOMSink (the L-effort/high-risk stride-change in the design doc). No shipped example hits these — object-keyed sources are the documented mitigation. **P2/P6 skipped** (not real wins — see below); **C6 → docs-only**.
+**C1 — the hole-vs-splice protocol signal (`BH1`/`BF0`).** The user opted into the full surgery. A contained heuristic was *proven impossible* first (a sparse array's `.length` collapses trailing holes — `between('v',[10,100])` over a length-3 source returns length 2 — so RowOperator can't infer hole-vs-splice from length). The landed fix adds explicit positional-stable verbs `View.BH1`/`BF0` (`efa74bf`) that route to `sink.BH1`/`BF0` when present, else fall back to `BR1`/`BI0` (correct for position-agnostic aggregates). `RowOperator`, `between` (producer + consumer, `9d93dde`), `group` (`a0d4712`), and `length(fn)` (`f8f4c46`) implement the positional handling. This closed `between→filter/map/az`, `filter→between`, `group [array]`, `between→group`, and `length-fn [array]` — every realistic array-source sparse chain — with regression tests and zero perf regressions.
+
+**C3 residual (1 xfail).** The chained windowed sort's *membership* is fixed (`2423c8b`, key coercion); the *order* residual needs the inner window to emit its rotation atomically (it currently emits a separate `BR1A` then `BI0A` with `p.value` differing between them) — a deeper sort-emission change, deferred. No example uses chained windowed sorts.
+
+**P2/P6 skipped** (not real wins — see below); **C6 → docs-only**.
 
 ## Summary
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C1](#c1) | Chaining a row op (`filter`/`map`) after a sparse producer over an **array** source desyncs (ghost rows / crashes) | Correctness · array-positional | **High** | ⏳ Open — needs protocol signal (array sources only; see harness) |
+| [C1](#c1) | Chaining a row op (`filter`/`map`) / iter op after a sparse producer over an **array** source desyncs (ghost rows / crashes) | Correctness · array-positional | **High** | ✅ Fixed — `BH1`/`BF0` hole-vs-splice protocol signal (`efa74bf`, `9d93dde`, `a0d4712`, `f8f4c46`) |
 | [C2](#c2) | `map`/`filter` after a **windowed** sort (`az`/`za`/`top`/`limit`) can drop a row | Correctness · array-positional | **High** | ✅ Fixed (`2f171b5`, `RowOperator.BI0A`) |
-| [C3](#c3) | Chained **windowed** sort (`za(col,n).az(col,n)`) surfaces stale **content** | Correctness · windowed-sort | Medium | ⏳ Open (xfail'd in harness) |
+| [C3](#c3) | Chained **windowed** sort (`za(col,n).az(col,n)`) surfaces stale **content** | Correctness · windowed-sort | Medium | ◐ Membership fixed (`2423c8b`, key coercion); **order** residual xfail'd (needs atomic inner-window rotation) |
 | [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows | Correctness · render | Medium | Open (mitigated by convention; tied to C1) |
 | [C5](#c5) | 3-arg `reduce` silently desyncs if `remove` doesn't exactly invert `add` (no runtime guard) | Correctness · reduce | **High** | ✅ Fixed (`9187782`, opt-in `$.debug`) |
 | [C6](#c6) | Mixing proxies across two `dist/` entries (`data/full` + `data/devtools`) silently breaks — not fail-fast | Correctness · tooling | Medium | ✅ Docs (`README` + `devtools/README`); deep fix = packaging redesign, deferred |

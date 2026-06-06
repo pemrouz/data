@@ -42,7 +42,7 @@ Internal method names on `Value` / `View` / `Sink` follow this scheme:
 | `B` = on a branch (with key info) | `I` = insert | `1` = single name |
 |  | `R` = remove | `2` = full key path (depth ≥ 2) |
 
-The full set actually used: **`XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `BR2`**. There is no `BU0`/`BR0`/`BI1` — those collapse to `XU0`/`XR0` and `BI0`.
+The full set actually used: **`XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `BR2`**, the array-aware **`BR1A`/`BI0A`** (splice-shift), and the positional-stable **`BH1`/`BF0`** (hole). There is no `BU0`/`BR0`/`BI1` — those collapse to `XU0`/`XR0` and `BI0`.
 
 | Code | Meaning | Payload shape | Dispatched by |
 |---|---|---|---|
@@ -51,9 +51,15 @@ The full set actually used: **`XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `
 | `BU1(U1)` | one or more children updated | `[name, value, name, value, …]` | `Value.update([k])` ([core.ts:148](../core.ts#L148)) |
 | `BU2(U2)` | nested updates | `[keyPath, value, …]` | `Value.update(path)` where `path.length ≥ 2` ([core.ts:165](../core.ts#L165)) |
 | `BI0(I0)` | inserts at this level | `[at, value, at, value, …]` (at may be undefined → auto-key) | `Value.insert([])` ([core.ts:182](../core.ts#L182)) |
+| `BI0A(I0)` | **array** insert at a position — survivors shift up | `[at, value, …]` | `View.BI0A`; `RowOperator.BI0A` mirrors it |
 | `BI2(I2)` | inserts at nested path | `[keyPath, value, at, …]` | `Value.insert(path)` ([core.ts:206](../core.ts#L206)) |
 | `BR1(R1)` | child removals | `[name, value, …]` | `Value.remove([k])` ([core.ts:104](../core.ts#L104)) |
+| `BR1A(R1)` | **array** removal at a position — survivors shift down | `[name, value, …]` | `View.BR1` → `sink.BR1A` |
 | `BR2(R2)` | nested removals | `[keyPath, value, …]` | `Value.remove(path)` ([core.ts:118](../core.ts#L118)) |
+| `BH1(R1)` | **hole** remove — a sparse producer over an array marked a slot `undefined`; length stable, **no shift** | `[name, value, …]` | `View.BH1`; falls back to `sink.BR1` |
+| `BF0(I0)` | **hole** fill — a sparse producer re-admitted a row into a held position; length stable, **no shift** | `[name, value, …]` | `View.BF0`; falls back to `sink.BI0` |
+
+**`BR1A`/`BI0A` (splice) vs `BH1`/`BF0` (hole)** is the array contract's central distinction. A plain array `delete`/`insert` SHIFTS survivors (splice → `BR1A`/`BI0A`); a sparse producer (`between`/`intersect`/`union`/`except`) over an array keeps the length stable and only marks the slot `undefined` (hole → `BH1`/`BF0`) so sibling sources stay index-aligned. Positional sinks (`RowOperator`, `between`-as-consumer, `group`) implement both; position-agnostic sinks (aggregates) implement neither and take the `BR1`/`BI0` fallback (they just drop/add the row, which is correct). This is what makes array-source sparse chains (`between(arr).filter(…)`, `filter(arr).between(…)`) correct — see [../ISSUES.md](../ISSUES.md) C1.
 
 Inside operator code you'll see local arrays named `NU1` / `NI0` / `NR1` (e.g. [row.ts:9](../row.ts#L9), [core.ts:148-163](../core.ts#L148-L163)). These are **accumulator buffers** ("New U1 list") collected during a single mutation, then passed to `view.BU1(NU1)`, `view.BI0(NI0)`, etc. They are not separate notification methods.
 
