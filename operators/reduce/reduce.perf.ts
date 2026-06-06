@@ -82,6 +82,26 @@ test('reduce.incremental update - insert 1 row to 10000 (O(1), not O(n))', () =>
                                                  // budget the full form has
 })
 
+// BU1 (whole-slot overwrite of an existing key) now threads through the
+// per-key value cache: remove(old) + add(new), O(Δ). Before the cache it
+// fell back to a full O(n) re-fold on every overwrite — so overwriting 100
+// rows of a 10k source went from ~100×O(n) to ~100×O(1).
+test('reduce.incremental update - overwrite 100 rows in 10000 (O(Δ), not O(n))', () => {
+  const src = $(makeData(10000))
+  reduce(src,
+    (acc, r) => acc + r.val,
+    (acc, r) => acc - r.val,
+    0,
+  )
+  let j = 0
+  const elapsed = measure(() => {
+    for (let i = 0; i < 100; i++) src[i] = { active: true, val: 100000 + (j++) }
+  })
+  console.log(`  reduce.incremental overwrite 100 in 10k: ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 50)                               // O(Δ): 100 single-row deltas,
+                                                 // not 100 full 10k re-folds
+})
+
 // Removal cost over an array source has a baseline overhead from
 // Array.prototype.splice / RowOperator's shift bookkeeping that's
 // independent of the reduce path — the guard is just "no full rebuild."

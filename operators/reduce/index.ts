@@ -92,12 +92,16 @@ export class ReduceValue extends Operator {
 // resets. Plain-value init is fine for primitives.
 //
 // Limitations — opt out by sticking with the 2-arg form when these bite:
-//   • BU1/BU2 (row mutated in place) → falls back to full rebuild, since
-//     the framework doesn't preserve the old value at those entry points
-//     and there's no safe way to "undo" the prior contribution without it.
-//     Filter-driven workloads (intersect/between emitting BR1/BI0 as rows
-//     enter/leave the active set) never hit this path; it's a fallback for
-//     direct-on-source use where rows themselves change in place.
+//   • BU2 (a NESTED field edited in place, `data[k].f = x`) → falls back to
+//     full rebuild. The row object's reference is unchanged, so the per-key
+//     value cache (below) holds the already-mutated row — there's no pre-edit
+//     value to subtract. Filter-driven workloads (intersect/between emitting
+//     BR1/BI0 as rows enter/leave the active set) never hit this path.
+//   • BU1 (a whole slot overwritten, `data[k] = newRow`) IS incremental: the
+//     overwrite changes the slot reference, so a per-key cache of the last-seen
+//     row recovers the OLD row and the fold does remove(old) + add(new) in
+//     O(Δ). The cache stores the row REFERENCE (no clone), so it adds no cost
+//     to the insert/remove-driven crossfilter path (those rows are immutable).
 //   • `remove` must invert `add`'s contribution for the row passed to it,
 //     using only the row + key — same contract as crossfilter's
 //     group.reduce(add, remove, init). Forgetting symmetry desyncs `acc`
@@ -113,6 +117,13 @@ export class ReduceIncrementalValue extends Operator {
     this.add = add
     this.remove = remove
     this.init = init
+    // Per-key last-seen row, so a BU1 whole-slot overwrite can subtract the
+    // prior contribution (remove(old) + add(new)) without a full rebuild.
+    // Keyed by STRING: `iter` yields numeric keys for arrays but BU1 carries
+    // string keys, so normalize at every touch or the lookup silently misses
+    // on array sources (→ only `add` runs → desync). Stores references, not
+    // clones, so it's O(1) per insert and free for immutable-row workloads.
+    this._cache = new Map()
     this._rebuild()
   }
 
@@ -146,11 +157,13 @@ export class ReduceIncrementalValue extends Operator {
 
   _rebuild() {
     let acc = this._seed()
+    this._cache.clear()
     const v = this.p.value
     if (v && typeof v === 'object') {
       iter(v, (k, row) => {
         if (row === undefined) return
         acc = this.add(acc, row, k)
+        this._cache.set('' + k, row)
       })
     }
     this.view.XU0(this.view.value = acc)
@@ -166,6 +179,7 @@ export class ReduceIncrementalValue extends Operator {
       const v = I0[i + 1]
       if (v === undefined) continue
       acc = this.add(acc, v, I0[i])
+      this._cache.set('' + I0[i], v)
     }
     this.view.XU0(this.view.value = acc)
     this._verify('BI0')
@@ -181,16 +195,40 @@ export class ReduceIncrementalValue extends Operator {
       // upstream so there's no contribution to remove. Same guard here.
       if (v === undefined) continue
       acc = this.remove(acc, v, R1[i])
+      this._cache.delete('' + R1[i])
     }
     this.view.XU0(this.view.value = acc)
     this._verify('BR1')
   }
 
-  // BU1: row's slot was overwritten with a new value, but the framework
-  // doesn't carry the old value at this entry point. Rebuild is the
-  // semantically safe fallback. Crossfilter-shaped workloads (rows
-  // immutable, filters mutate) don't hit this path.
-  BU1() { this._rebuild() }
+  // BU1: a slot was overwritten in place (`data[k] = newRow`). The
+  // notification carries only the new value, but the per-key cache holds the
+  // OLD row (a whole-slot overwrite changes the reference, so cached ≠ new),
+  // so subtract its contribution then add the new one — O(Δ), no rebuild.
+  // Value.BU1 routes brand-new keys to BI0, so BU1 only ever sees keys that
+  // were already present; the cache hit is guaranteed for any row that
+  // contributed (a fresh fold + every BI0 seeds it). The `!== undefined`
+  // guard is against the *cache miss*, so a present-but-falsy row (value `0`)
+  // is still correctly subtracted.
+  BU1(U1) {
+    if (!U1.length) return
+    let acc = this.view.value
+    for (let i = 0; i < U1.length; i += 2) {
+      const key = '' + U1[i]
+      const next = U1[i + 1]
+      const prev = this._cache.get(key)
+      if (prev !== undefined) acc = this.remove(acc, prev, U1[i])
+      if (next !== undefined) { acc = this.add(acc, next, U1[i]); this._cache.set(key, next) }
+      else this._cache.delete(key)
+    }
+    this.view.XU0(this.view.value = acc)
+    this._verify('BU1')
+  }
+
+  // BU2: a NESTED field of an existing row was edited in place
+  // (`data[k].f = x`). The row reference is unchanged, so the cache already
+  // holds the mutated row — there's no pre-edit value to subtract. Rebuild
+  // (which also re-seeds the cache, keeping BU1 consistent afterwards).
   BU2() { this._rebuild() }
   BR2() { this._rebuild() }
   BI2() { this._rebuild() }

@@ -27,12 +27,16 @@ over crossfilter).
 3-arg `reduce(add, remove, init)` threads each BI0 through `add` in
 O(Δ). Crossfilter's `groupAll.reduce(add, remove, init)` is the textbook
 peer match and stays close on single. Other peers re-walk on every
-emit. BU1/BU2 fall back to rebuild because the framework doesn't carry
-old values at those entry points (CLAUDE.md notes this).
+emit. BU1 (a whole-slot overwrite) is also O(Δ) — the operator keeps a
+per-key value cache so it can `remove(old)` + `add(new)`; only BU2 (a
+nested in-place edit) falls back to rebuild, since the row reference is
+unchanged and the cache holds the already-mutated row (CLAUDE.md notes
+this).
 
 Workload note: data's batch closes over a monotonic counter shared
-across measure() reps so every insert hits a fresh key (BI0). Without
-that, reps 2–6 overwrite earlier-reps' keys (BU2) and collapse to
-rebuild — masking the incremental path.
+across measure() reps so every insert hits a fresh key (BI0) — the path
+this table measures. (Reusing keys would exercise the BU1 overwrite path
+instead, which is now incremental too, so it no longer masks the
+incremental path the way it did when BU1 rebuilt.)
 
 Run `BENCH_OPS=reduce npm run bench:ops` to refresh.

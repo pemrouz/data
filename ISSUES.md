@@ -10,7 +10,7 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 |---|---|---|---|---|
 | [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows when a row template binds them directly | Correctness · render | Medium | Open (mitigated by convention) |
 | [P1](#p1) | `between` array-insert path is O(N) (defers swarm births/deaths) | Perf | Medium | Deferred |
-| [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU1`/`BU2` (no old value in protocol) | Perf | Medium | Open |
+| [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P4](#p4) | `to()` runs its `fn` on every `BU2` even when the result is reference-equal | Perf | Low | Open |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -47,12 +47,12 @@ Note this is the **render-layer** residual only — the *data*-layer hole-vs-spl
 - Where: [operators/between/index.ts](operators/between/index.ts) (key-shift loop, `sorted.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
 
 ### P3
-**3-arg `reduce` falls back to O(N) rebuild on `BU1`/`BU2`** · Medium · Open
+**3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit)** · Low · Open (BU1 half fixed)
 
-The incremental `reduce(add, remove, init)` form is O(Δ) on `BI0`/`BR1` (insert/remove at fresh keys) but rebuilds fully on `BU1`/`BU2` (in-place edits to existing keys), because the notification protocol doesn't carry the **old** value at those entry points, so `remove(old)` can't be threaded. Update-heavy workloads that touch existing keys lose the incremental path.
+The incremental `reduce(add, remove, init)` form is O(Δ) on `BI0`/`BR1` (insert/remove) and now on `BU1` too — a whole-slot overwrite (`data[k] = newRow`) recovers the old row from a per-key reference cache and does `remove(old)` + `add(new)` (see [DECISIONS.md → P3 (BU1 half)](DECISIONS.md)). What remains is **`BU2`** — a *nested* in-place edit (`data[k].f = x`): the row's reference is unchanged, so the cache holds the already-mutated row and there's no pre-edit value to subtract, so it rebuilds. Workloads that edit fields of existing rows in place directly on a `reduce` source (e.g. kanban's points-by-assignee on a `card.points = …` edit) lose the incremental path there; they're correct (rebuild is exact) but O(N) per edit.
 
-- Where: [operators/reduce/index.ts](operators/reduce/index.ts), [core.ts](core.ts) (protocol carries new value only), [operators/reduce/BENCHMARK.md](operators/reduce/BENCHMARK.md); confirmed by the `reduce.incremental - BU1 falls back to rebuild` test.
-- Possible direction: thread the prior value through `BU1`/`BU2` (a protocol change that would also help any operator wanting old-value deltas).
+- Where: [operators/reduce/index.ts](operators/reduce/index.ts) (`BU2` rebuilds), [core.ts](core.ts) (protocol carries new value only), [operators/reduce/BENCHMARK.md](operators/reduce/BENCHMARK.md); pinned by the `reduce.incremental - BU2 (nested in-place edit) still rebuilds` test.
+- Why not the reference cache: it's useless for `BU2` because the mutated row is the *same object* the cache already holds. Closing `BU2` would need either a per-row **snapshot** cache (a `structuredClone` per insert/edit — that penalises the immutable-row crossfilter path the operator is tuned for, so it's a bad blanket trade) or a protocol change that threads the **old** value through `BU2` (which would also help any operator wanting old-value deltas, but touches every `BU2` implementer). Defer until a workload needs in-place-edit-heavy direct-on-source reduce.
 
 ### P4
 **`to()` runs its `fn` on every `BU2`** · Low · Open

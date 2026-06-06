@@ -41,7 +41,13 @@ When two windowed sorts are chained (`za(col,n).az(col,n)`), the inner window ro
 The incremental `reduce(add, remove, init)` form requires `remove` to *exactly* cancel `add`'s contribution for a row; an asymmetric `remove` desyncs the accumulator silently. The fix adds an **opt-in** `$.debug` mode: each incremental `BI0`/`BR1` then re-folds from scratch and `console.warn`s on the first drift. It is O(N) per delta, so it stays a development aid (off in production, by design) — not a runtime guard.
 
 - Where: [operators/reduce/index.ts](operators/reduce/index.ts) (`_verify` gated behind `$.debug`); test [operators/reduce/reduce.test.ts](operators/reduce/reduce.test.ts).
-- Residual perf note: the 3-arg form still rebuilds on `BU1`/`BU2` — that's the *separate* open perf item [ISSUES.md → P3](ISSUES.md#p3), not a correctness gap.
+- Residual perf note: the 3-arg form still rebuilds on `BU2` (a nested in-place edit) — that's the narrowed open perf item [ISSUES.md → P3](ISSUES.md#p3), not a correctness gap. The `BU1` half of the original P3 is now resolved (see below).
+
+### P3 (BU1 half) — 3-arg `reduce` `BU1` now incremental via a per-key value cache ✅
+
+The incremental `reduce(add, remove, init)` form used to rebuild O(N) on `BU1` *and* `BU2` because the notification carries only the new value. `BU1` (a whole-slot overwrite, `data[k] = newRow`) is now O(Δ): the operator keeps a `Map` of each key's last-seen row (seeded on rebuild, maintained on `BI0`/`BR1`/`BU1`), and since a whole-slot overwrite changes the row *reference*, the cached old row ≠ the new one — so it does `remove(old)` + `add(new)`. The cache stores **references** (no clones), so it costs O(1) per insert and nothing for immutable-row workloads (crossfilter). The cache key is normalised to a string (`'' + k`) because array sources surface numeric keys on rebuild but string keys on `BU1` — without it the lookup silently misses and only `add` runs (an array-source desync; `$.debug` off wouldn't catch it). `BU2` (a nested in-place edit) stays a rebuild — the row reference is unchanged, so the cache holds the already-mutated row; closing it would need a per-row snapshot (penalising the immutable-row path) or an old-value protocol change. Tracked-onward as the narrowed [ISSUES.md → P3](ISSUES.md#p3).
+
+- Where: [operators/reduce/index.ts](operators/reduce/index.ts) (`_cache`, `BU1`); tests [operators/reduce/reduce.test.ts](operators/reduce/reduce.test.ts) (BU1 incremental, BU2-still-rebuilds, array key-normalization, BI0→BU1→BR1 cascade), perf [operators/reduce/reduce.perf.ts](operators/reduce/reduce.perf.ts) (overwrite 100/10k ≈ 0.2ms).
 
 ### C6 — mixing proxies across two `dist/` entries (docs) ✅
 README + devtools/README

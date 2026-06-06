@@ -148,20 +148,74 @@ test('reduce.incremental - thunk init produces a fresh acc on rebuild', () => {
   same(histogram[value], { z: 1 })
 })
 
-test('reduce.incremental - BU1 falls back to rebuild', () => {
-  // BU1 doesn't carry the old value, so the operator can't subtract the
-  // prior contribution. Documented fallback — the test pins it.
+test('reduce.incremental - BU1 (whole-slot overwrite) is incremental via the value cache', () => {
+  // A whole-slot overwrite (`data[k] = newRow`) changes the slot reference, so
+  // the per-key cache holds the distinct OLD row: BU1 subtracts it and adds
+  // the new one in O(Δ) instead of re-folding both rows. (BU2 — an in-place
+  // nested edit — still rebuilds; the reference is unchanged so there's no
+  // old value to subtract. That case is pinned in the next test.)
   const src = $({ a: 1, b: 2 })
-  let addCalls = 0
+  let addCalls = 0, removeCalls = 0
   const r = reduce(src,
     (acc, v) => { addCalls++; return acc + v },
-    (acc, v) => acc - v,
+    (acc, v) => { removeCalls++; return acc - v },
     0,
   )
   eq(addCalls, 2)                                // initial rebuild
-  src.a = 10                                     // BU1 → full rebuild
-  eq(r[value], 12)
+  eq(removeCalls, 0)
+  src.a = 10                                     // BU1 → remove(old 1) + add(new 10)
+  eq(r[value], 12)                              // 10 + 2
+  eq(addCalls, 3)                                // +1 for the new value only
+  eq(removeCalls, 1)                             // -1 for the old value only
+})
+
+test('reduce.incremental - BU2 (nested in-place edit) still rebuilds', () => {
+  // The row reference is unchanged on `data[k].f = x`, so the cache holds the
+  // already-mutated row — no pre-edit value to subtract. Rebuild is the safe
+  // fallback (and it re-seeds the cache, so a later BU1 stays correct).
+  const src = $({ a: { val: 1 }, b: { val: 2 } })
+  let addCalls = 0, removeCalls = 0
+  const r = reduce(src,
+    (acc, row) => { addCalls++; return acc + row.val },
+    (acc, row) => { removeCalls++; return acc - row.val },
+    0,
+  )
+  eq(addCalls, 2)
+  src.a.val = 10                                 // BU2 → full rebuild
+  eq(r[value], 12)                              // 10 + 2
   eq(addCalls, 4)                                // both rows re-walked
+  eq(removeCalls, 0)                             // rebuild re-adds, never removes
+})
+
+test('reduce.incremental - BU1 over an ARRAY source subtracts the old value (key normalization)', () => {
+  // Regression: the per-key cache is keyed by STRING, but `iter` yields NUMERIC
+  // keys for arrays while BU1 carries STRING keys. Without `'' + key`
+  // normalization the lookup misses, `remove` is skipped, and only `add` runs
+  // → silent desync (would read 260, not 240). $.debug off, so the symmetry
+  // check wouldn't catch it — the normalization is the actual guard.
+  const src = $([10, 20, 30])
+  const r = reduce(src, (a, v) => a + v, (a, v) => a - v, 0)
+  eq(r[value], 60)
+  src[1] = 200                                   // BU1 on index 1: 60 - 20 + 200
+  eq(r[value], 240)
+})
+
+test('reduce.incremental - BI0 → BU1 → BR1 keeps the value cache consistent', () => {
+  // Exercises the cache across all three incremental entry points: an insert
+  // seeds it, a whole-slot overwrite reads+updates it, a remove deletes it.
+  const src = $({ a: 1 })
+  const r = reduce(src,
+    (acc, v, k) => { acc[k] = v; return acc },
+    (acc, v, k) => { delete acc[k]; return acc },
+    () => ({}),
+  )
+  same(r[value], { a: 1 })
+  src.b = 2                                       // BI0  → cache.set('b', 2)
+  same(r[value], { a: 1, b: 2 })
+  src.a = 100                                     // BU1  → remove old a, add new a
+  same(r[value], { a: 100, b: 2 })
+  delete src.b                                    // BR1  → cache.delete('b')
+  same(r[value], { a: 100 })
 })
 
 test('reduce.incremental - dedup on (add, remove, init) identity', () => {
