@@ -6,17 +6,25 @@ A living register of known-open issues in this repo: correctness limitations, pe
 
 Most of these are *documented* limitations the library already works around in shipped code — they are real, but the examples avoid them by construction (object-keyed sources, defensive bindings, densifying). The handful that are genuinely latent traps for a consumer are flagged **High**.
 
+## Progress (2026-06-06, branch `fix/open-issues`)
+
+**Fixed & committed:** C7 (`distinct` representative rebucket), D1 (`connect(fn)` fail-fast), C5 (opt-in `$.debug` reduce-symmetry check), **C2** (`RowOperator.BI0A` — windowed-sort inserts no longer drop a row), and the `group`-over-sparse-object crash (delisting `between→group [object]`).
+
+**Proof gate:** a differential operator-permutation harness ([differential.test.ts](differential.test.ts)) asserts the live incremental view ≡ a from-scratch rebuild across every operator × source-shape × mutation, wired into `npm test`. A `KNOWN_FAILURES` registry xfails the **9 remaining** array-positional permutations (so CI is green and a fix that lands flips the gate). Design analysis in [.claude/array-contract-design.md](.claude/array-contract-design.md).
+
+**Why C1/C3 remain open (proven, not punted):** the 9 are all **array-source** positional desyncs (a "row left position *k*" is a hole on one side, a splice-shift on the other). A contained fix that infers hole-vs-splice from the upstream array's `.length` **cannot work** — a sparse array's length collapses trailing holes (`between('v',[10,100])` over a length-3 source returns length 2) and is inconsistent between the build path and the incremental path. A correct fix needs an **explicit** hole-vs-splice protocol signal threaded through core + RowOperator + DOMSink (the L-effort/high-risk stride-change in the design doc). No shipped example hits these — object-keyed sources are the documented mitigation. **P2/P6 skipped** (not real wins — see below); **C6 → docs-only**.
+
 ## Summary
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C1](#c1) | Chaining a row op (`filter`/`map`) after a sparse producer over an **array** source desyncs (ghost rows / crashes) | Correctness · array-positional | **High** | Unfixed (protocol-level) |
-| [C2](#c2) | `map`/`filter` after a **windowed** sort (`az`/`za`/`top`/`limit`) can drop a row | Correctness · array-positional | **High** | Unfixed (protocol-level) |
-| [C3](#c3) | Chained **windowed** sort (`za(col,n).az(col,n)`) surfaces stale **content** | Correctness · windowed-sort | Medium | Partial (symptom guarded, content unfixed) |
-| [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows | Correctness · render | Medium | Open (mitigated by convention) |
-| [C5](#c5) | 3-arg `reduce` silently desyncs if `remove` doesn't exactly invert `add` (no runtime guard) | Correctness · reduce | **High** | Open (by design) |
+| [C1](#c1) | Chaining a row op (`filter`/`map`) after a sparse producer over an **array** source desyncs (ghost rows / crashes) | Correctness · array-positional | **High** | ⏳ Open — needs protocol signal (array sources only; see harness) |
+| [C2](#c2) | `map`/`filter` after a **windowed** sort (`az`/`za`/`top`/`limit`) can drop a row | Correctness · array-positional | **High** | ✅ Fixed (`2f171b5`, `RowOperator.BI0A`) |
+| [C3](#c3) | Chained **windowed** sort (`za(col,n).az(col,n)`) surfaces stale **content** | Correctness · windowed-sort | Medium | ⏳ Open (xfail'd in harness) |
+| [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows | Correctness · render | Medium | Open (mitigated by convention; tied to C1) |
+| [C5](#c5) | 3-arg `reduce` silently desyncs if `remove` doesn't exactly invert `add` (no runtime guard) | Correctness · reduce | **High** | ✅ Fixed (`9187782`, opt-in `$.debug`) |
 | [C6](#c6) | Mixing proxies across two `dist/` entries (`data/full` + `data/devtools`) silently breaks — not fail-fast | Correctness · tooling | Medium | Open |
-| [C7](#c7) | `distinct` `firstRow` map can hold a stale identity reference between rebuilds (output unaffected) | Correctness · distinct | Low | Open (cosmetic) |
+| [C7](#c7) | `distinct` mishandles an in-place edit that moves a shared bucket's representative (output desync, not cosmetic) | Correctness · distinct | Medium | ✅ Fixed (`8fd1574`) |
 | [P1](#p1) | `between` array-insert path is O(N) (defers swarm births/deaths) | Perf | Medium | Deferred |
 | [P2](#p2) | `max`/`min` aggregates recompute O(n) per publish | Perf | Medium | Open |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU1`/`BU2` (no old value in protocol) | Perf | Medium | Open |
@@ -25,7 +33,7 @@ Most of these are *documented* limitations the library already works around in s
 | [P6](#p6) | `keys`/`values`/`reverse` rebuild on remove/update (no `name→index` map) | Perf | Low | Deferred |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 | [T2](#t2) | WASM kernel experiment concluded "not worth pursuing" | Tooling · informational | Low | Deferred (closed-out) |
-| [D1](#d1) | `connect(fn)` single-arg form is unsupported (throws on first insert) + stale doc line-ref | Docs | Low | Partial (line-ref fixed; runtime error-message open) |
+| [D1](#d1) | `connect(fn)` single-arg form is unsupported (threw cryptically on first event) + stale doc line-ref | Docs | Low | ✅ Fixed (`68550fb`) |
 
 Legend — **Status**: *Unfixed (protocol-level)* = needs a cross-cutting View+RowOperator+DOMSink change; *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (mitigated by convention)* = every shipped example already avoids it.
 
@@ -72,7 +80,7 @@ When two windowed sorts are chained, the inner window rotates *which* upstream k
 
 - Where: [render/index.ts:124-126](render/index.ts#L124-L126), [operators/between/index.ts:123](operators/between/index.ts#L123) / [:135](operators/between/index.ts#L135), [operators/intersect/index.ts:159](operators/intersect/index.ts#L159), [CLAUDE.md#L151](CLAUDE.md#L151)
 - **Mitigation:** densify first (`vp.to(arr => arr.filter(r => r !== undefined))` — see the `dense()` helper in [assets/demos.js](assets/demos.js)) or write bindings defensively (handle `r.col === undefined`, as [examples/library/main.js](examples/library/main.js) does).
-- Possible fix: a `if (value[i] === undefined) continue;` skip in the DOMSink `for-in` loop would mirror the skip guards `sort`/`intersect`/`group` already carry — but it only addresses the *render* symptom, not the data-level gap in [C1](#c1).
+- ⚠️ **No clean standalone fix — entangled with [C1](#c1).** A naive `if (value[i] === undefined) continue;` in the DOMSink loop is **only safe for object (keyed) sinks**. For an **array** sink — which is exactly what `between`/`intersect`/`union`/`except` produce — `create_node` is *positional* (it tail-appends and binds slot *k* to `data[k]`), so skipping a middle `undefined` would misalign every subsequent slot's binding and drop the real tail row. Making the array sink skip holes correctly is the same positional-vs-splice protocol work as C1. Until then the mitigation (densify / defensive bindings) is the answer.
 
 ### C5
 **3-arg `reduce` silently desyncs if `remove` doesn't invert `add`** · **High** · Open (by design)
@@ -91,13 +99,13 @@ Each tsup entry (`data`, `data/lean`, `data/full`, `data/devtools`, …) is buil
 - Where: [tsup.config.ts:12-23](tsup.config.ts#L12-L23) / [:52](tsup.config.ts#L52) (`splitting: false`), [core.ts:4-9](core.ts#L4-L9) (per-bundle `value` symbol), [CLAUDE.md#L127](CLAUDE.md#L127)
 - Possible direction: park the `value`/`$` symbol on a `Symbol.for('data.value')` global registry so all entries share identity, **or** add a fail-fast guard + a prominent note in `README.md` / `devtools/README.md`.
 
-### C7
-**`distinct` `firstRow` map can hold a stale identity reference** · Low · Open (cosmetic)
+### C7 — ✅ Fixed (`8fd1574`)
+**`distinct` desyncs when an in-place edit moves a shared bucket's representative** · Medium
 
-In the incremental `BU2` path, when a row that was the `firstRow` for a key is updated away to a different key, the old `firstRow` entry is not repointed — it keeps referencing a row whose projection no longer matches. **Output is unaffected** (distinct tracks counts, not identities) and full-rebuild paths normalise it; this is documented technical debt in the incremental path, not a visible bug.
+Originally filed as a cosmetic "stale `firstRow` identity reference, output unaffected." On closer reading it was a real **output** bug: when two rows share a projection key and the *representative* (the instance cached in `output`) is mutated in place to a new key, `_update` left the stale reference in `output` and pushed it again — e.g. `{a:{k:'x'}, b:{k:'x'}}` then `a.k='y'` produced `[{k:'y'},{k:'y'}]` (bucket `x` lost, `y` duplicated) instead of `[{k:'y'},{k:'x'}]`.
 
-- Where: [operators/distinct/index.ts:109-118](operators/distinct/index.ts#L109-L118)
-- Evidence: *"the firstRow entry now points to a row whose projection no longer matches — that's a stale identity reference but the output is unaffected. The full-rebuild paths normalise it back."*
+- **Fix:** `_update` now detects the representative-leaves-occupied-bucket case (`firstRow.get(oldK) === row`) and falls back to `_rebuild()` from `BU2`; non-representative edits stay on the O(1) incremental path. Two regression tests added (the first fails before the fix).
+- Where: [operators/distinct/index.ts](operators/distinct/index.ts), [operators/distinct/distinct.test.ts](operators/distinct/distinct.test.ts)
 
 ---
 
@@ -166,15 +174,16 @@ Informational / housekeeping, not an action item. [experiments/wasm/](experiment
 
 - Where: [experiments/wasm/README.md:95-104](experiments/wasm/README.md#L95-L104), [experiments/wasm/results-altbackend.md:23-30](experiments/wasm/results-altbackend.md#L23-L30)
 
-### D1
-**`connect(fn)` single-arg form is unsupported + stale doc line-ref** · Low · Open
+### D1 — ✅ Fixed (`68550fb`)
+**`connect(fn)` single-arg form is unsupported + stale doc line-ref** · Low
 
-`connect` only supports `connect(array)`, `connect(obj, 'prop')`, or `connect(obj, fn)`. The bare single-arg `connect(fn)` is **not** supported — it attaches the function as a sink with no `BI0` and throws on the first insert. Status of the two follow-ups:
+`connect` only supports `connect(array)`, `connect(obj, 'prop')`, or `connect(obj, fn)`. The bare single-arg `connect(fn)` is **not** supported — a bare function has none of the protocol verbs, so it used to bare-attach and then throw cryptically on the first event. All three follow-ups are now closed:
 
 1. **Stale line reference — FIXED (2026-06-06).** [CLAUDE.md#L68](CLAUDE.md#L68) pointed at `core.ts:601-622` (now `BMV1`); it now points at the real handler ([core.ts:1112](core.ts#L1112)) and spells out the no-single-arg rule inline. The handler line shifts with edits — reference `function connect(p, a, b)`, not the number.
-2. **Type-level guard — ADDED (2026-06-06), runtime message still open.** The public `Data<T>` type now carries a `@deprecated connect(fn): never` overload (in [core.ts](core.ts), `Data<T>`), so a lone-function call is a hard type error in TS that points at `connect(anchor, fn)`. A *runtime* error message (for plain JS callers) is still worth adding, since other reactive libs make the single-arg shape habitual.
+2. **Type-level guard — ADDED (2026-06-06).** The public `Data<T>` type carries a `@deprecated connect(fn): never` overload (in [core.ts](core.ts), `Data<T>`), so a lone-function call is a hard type error in TS that points at `connect(anchor, fn)`.
+3. **Runtime guard — ADDED (`68550fb`).** `connect()` now throws immediately for a bare-function arg with a message naming the supported forms, instead of deferring an opaque `fn.BI0 is not a function` to the first event. Regression test in [core.test.ts](core.test.ts).
 
-- Where: [core.ts:1112](core.ts#L1112) (handler), [core.ts](core.ts) `Data<T>` (the `@deprecated` overload), [CLAUDE.md#L68](CLAUDE.md#L68)
+- Where: [core.ts:1112](core.ts#L1112) (handler), [core.test.ts](core.test.ts) (regression), [CLAUDE.md#L68](CLAUDE.md#L68)
 
 ---
 
@@ -199,5 +208,5 @@ These came up in the sweep but were confirmed **already fixed** in current sourc
 ### Notes on scope
 
 - This register lists what's *open*; the per-operator `BENCHMARK.md` "How" sections and the CLAUDE.md "Common gotchas" remain the authoritative long-form explanations, and several entries here intentionally point back at them.
-- The two **High** array-positional items ([C1](#c1), [C2](#c2)) share one root cause — there is no protocol signal distinguishing a positional hole from a splice-shift. A single protocol-level fix (a positional-vs-splice distinction threaded through View + RowOperator + DOMSink) would close both, plus the residual content staleness in [C3](#c3); it's the largest single lever here, and also the riskiest (it touches the shared array path every operator depends on).
+- The array-positional items have a **full design analysis** in [.claude/array-contract-design.md](.claude/array-contract-design.md) (2026-06-06, design-only). Key findings: (1) they are **not** one root cause — **C2** is independently fixable (a missing `RowOperator.BI0A`), while **C1**/**C4** are the genuinely protocol-coupled pair and **C3** is a separate sort-window re-key; (2) the explicit-`undefined` holes are **load-bearing** for `intersect`'s by-index cross-source alignment, so "densify the producers" is **rejected**; (3) recommended path is the small `RowOperator.BI0A` fix for C2 + a `$.debug` loud-warning for C1/C4 (keeping object-keyed sources as the supported shape), with the full positional-vs-splice protocol stride-change reserved for a real consumer need (L-effort/high-risk). C2 reproduces deterministically; see the doc.
 - Severity reflects likelihood-of-biting-a-consumer, not just theoretical impact: the array-positional and `reduce`-symmetry items are **High** because they fail *silently*; the perf items are mostly **Low/Medium** because they only matter at scale or on cold paths and already have constant-factor mitigations.
