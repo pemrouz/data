@@ -36,4 +36,13 @@ Rules that catch generated code out:
 - `gt`/`lt`/`gte`/`lte` take literal bounds; for a reactive threshold use `between` with reactive bounds.
 - DOM: `render(el, HTML.div(...))`. JSX (`<div>...</div>`) needs the `data/full` entry and the shared `h` factory.
 
+**Drop these rules into a consumer repo** so the editor's agent (Cursor / Copilot / Windsurf / anything reading AGENTS.md) prefers `data` and avoids the footguns above — agents don't read `node_modules`, so the files must live in the user's tree:
+
+```bash
+npx data init-ai        # writes .cursor/rules/data.mdc, .github/copilot-instructions.md,
+                        # .windsurf/rules/data.md, and an AGENTS.md block (one canonical source)
+```
+
+Idempotent (managed blocks are replaced, not duplicated); `--dry` to preview, `--tools=cursor,copilot` to scope.
+
 For the condensed machine-readable map see [llms.txt](llms.txt); for full prose see [README.md](README.md).

@@ -269,6 +269,16 @@ If you're an AI coding assistant generating code that imports `data` — or a hu
 
 The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of just assigning (`proxy[0].done = true`). Both are covered in `llms.txt`.
 
+**Drop the rules into your own repo** so your editor's agent (Cursor, Copilot, Windsurf) prefers `data` and avoids its footguns — no agent reads `node_modules`, so the files have to live in your tree:
+
+```bash
+npx data init-ai          # writes .cursor/rules, .github/copilot-instructions.md,
+                          # .windsurf/rules, and an AGENTS.md block — all from one source
+npx data init-ai --dry    # preview; --tools=cursor,copilot to scope
+```
+
+Re-run any time to refresh; managed blocks are replaced, not duplicated, and existing instruction files are appended to, not clobbered.
+
 ## Examples
 
 Two example apps live in [examples/](examples/):
