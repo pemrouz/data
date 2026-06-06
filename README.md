@@ -251,6 +251,15 @@ For internals — the View / Sink / notification model — see [.claude/architec
 
 Index with longer summaries and the dispatch model: [operators/README.md](operators/README.md).
 
+## Benchmarks
+
+Every operator is benchmarked in isolation against eight peers — crossfilter2, MobX, RxJS, Solid, Preact Signals, Vue reactivity, Svelte stores, React — on two workloads over 10 000 rows. Full per-operator tables: [operators/BENCHMARK.md](operators/BENCHMARK.md); harness in [comparisons/bench/operators/](comparisons/bench/operators/).
+
+- **Batch (1 000 row-mutations streamed back-to-back)** — `data` is **fastest on every operator measured**, from 1.1× (`to`) to ~29 000× (`reduce`). Each tick walks only the changed path while array-signal peers re-scan all rows per emit, so the gap widens with throughput.
+- **Single tick (one row mutated, then read)** — `data` is fastest on **15 of 17** operators; the closest peer trails by 1.3×–113×. Two are *not* wins: `length` (0.04×) and `to` (0.33×) — both sub-microsecond scalars where a peer's signal-equality short-circuit beats the dispatch cost. Both flip back to `data` on the batch metric.
+
+These are self-reported from this repo's harness (`npm run bench:ops` to reproduce) and measure **incremental update cost** — not cold full-rebuild or high-insert-rate workloads, where the advantage narrows.
+
 ## For AI agents & LLMs
 
 If you're an AI coding assistant generating code that imports `data` — or a human pointing one at this repo — start here:
