@@ -87,4 +87,29 @@ export class RowOperator extends Operator {
     }
     this.view.BR1(NR1)
   }
+
+  // Array-positional insert (the array-aware counterpart of BR1). By the time
+  // this fires the upstream has already spliced the row in at `at` — a row
+  // rotating into a windowed sort, or a mid-array `insert(row, at)`. Our
+  // `view.value` is the parallel array; we MUST splice in lockstep. The plain
+  // BI0 path (loop) would instead read `view.value[at]` — the occupant the
+  // insert displaced — as the row's "old" value, classify the insert as an
+  // *update* of that slot, overwrite the occupant, and never shift it down:
+  // the displaced row vanishes (the windowed-sort drop, C2). So process the
+  // row, splice the result in at `at` (a `delete` afterwards turns an excluded
+  // row into a proper hole, matching the rest of RowOperator's array
+  // convention so for-in skips it), and forward a positional BI0A so our own
+  // array-aware sinks shift too. Object upstreams never reach here — core only
+  // routes array inserts through BI0A — so the object path is untouched.
+  BI0A(I0) {
+    const NI0 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const now_val = this.process(this.p.value[at], at, undefined)
+      this.view.value.splice(at, 0, now_val)
+      if (now_val === undefined) delete this.view.value[at]
+      NI0.push(at, now_val)
+    }
+    this.view.BI0A(NI0)
+  }
 }

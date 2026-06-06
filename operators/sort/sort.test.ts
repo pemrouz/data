@@ -4,11 +4,31 @@ import { test } from 'node:test'
 import { $, value, createOperator } from '../../core.ts'
 import { sort, limit, AZColumnValue } from './index.ts'
 import { filter } from '../filter/index.ts'
+import { map } from '../map/index.ts'
 import { between } from '../between/index.ts'
 import { sum } from '../aggregate/index.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
+
+test('sort (za window) → map/filter follows window rotation without dropping a row (C2)', () => {
+  // A row rotating INTO a windowed sort reaches the downstream row op as a
+  // positional BI0A (insert at rank 0) preceded by a BR1A (evict the row that
+  // fell out). Before RowOperator.BI0A, the plain BI0 path read the displaced
+  // occupant at position 0 as the inserted row's "old" value, misclassified
+  // the insert as an update, and dropped the displaced row.
+  const src = $([{ v: 5 }, { v: 3 }, { v: 9 }, { v: 1 }])
+  const win = sort(src, 'v', 2)              // top-2 desc: [{v:9},{v:5}]
+  const mapped = map(win, r => r.v)
+  const kept = filter(win, r => r.v >= 6)
+  same(win[value], [{ v: 9 }, { v: 5 }])
+  same(mapped[value], [9, 5])
+  same(kept[value].filter(x => x !== undefined), [{ v: 9 }])
+  src.insert({ v: 100 })                      // enters at rank 0, evicts {v:5}
+  same(win[value], [{ v: 100 }, { v: 9 }])
+  same(mapped[value], [100, 9])              // pre-fix: [100] (9 dropped)
+  same(kept[value].filter(x => x !== undefined), [{ v: 100 }, { v: 9 }])
+})
 
 test('sort (za) - insert/update/remove', () => {
   const data = $({
