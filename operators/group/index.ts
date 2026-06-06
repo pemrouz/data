@@ -178,6 +178,15 @@ export class GroupValue extends Operator {
 
   // ─── Array-source paths ───────────────────────────────────────────────────
 
+  // Consumer-side hole/fill from an upstream sparse producer (between/…) over an
+  // array: a row left/entered the upstream view WITHOUT a position shift. The
+  // positional bucket bookkeeping (posMap idx, suffix shifts) assumes splices,
+  // so a hole event can't be threaded through it cleanly — rebuild instead
+  // (XU0 already skips the upstream's holes). Rare (array-source between→group),
+  // so the O(N) rebuild is acceptable.
+  BH1() { this.XU0(this.p.value) }
+  BF0() { this.XU0(this.p.value) }
+
   BR1A(R1) {
     const leaving = new Map()           // group → [idx, val, idx, val, ...]
     const removed = []                  // upstream positions removed in this batch
@@ -360,8 +369,21 @@ export class GroupValue extends Operator {
   //     cross-group move. A subsequent path for an already-moved row is skipped
   //     because the relocated row already carries every updated field.
   BU2(U2) {
-    if (this.isArr) return   // array buckets are positional; rows don't mutate
-                             // in place in the only array-source consumer
+    if (this.isArr) {
+      // Array buckets are positional (posMap holds {group, idx}); relocating a
+      // row whose GROUP KEY changed would mean splicing two bucket arrays and
+      // re-indexing — not a clean positional edit, so rebuild when any touched
+      // row's key moved. A non-key edit needs nothing: the bucket arrays hold
+      // the same row references the source mutated in place, so the new field
+      // value is already visible.
+      for (let i = 0; i < U2.length; i += 2) {
+        const name = U2[i][0]
+        const row = this.p.value[name]
+        if (row !== undefined && this.fn(row) !== this.posMap.get(name)?.group)
+          return this.XU0(this.p.value)
+      }
+      return
+    }
     const NU2 = []
     const NI2 = []
     const leaving = new Map()

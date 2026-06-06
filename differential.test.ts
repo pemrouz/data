@@ -202,8 +202,6 @@ function runScenario(scn, shape, seed) {
 // mitigation, so most array entries have a green object twin.
 const KNOWN_FAILURES = new Set([
   'length-fn [array]',           // length(fn) BU2 rebucket after a prior splice mis-keys
-  'group [array]',               // array-source group positional churn
-  'between→group [array]',       // C1
   'za-window→az-window [array]', // C3: chained windowed sort re-key
   'za-window→az-window [object]',// C3
 ])

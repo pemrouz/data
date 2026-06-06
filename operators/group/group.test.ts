@@ -10,6 +10,29 @@ import { between } from '../between/index.ts'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
+const groups = (g) => Object.fromEntries(
+  Object.entries(g[value]).map(([k, b]) => [k, Object.values(b).map((r) => r.id)]))
+
+test('group - array source rebuckets on an in-place group-key edit (C1)', () => {
+  // Array-source group's BU2 used to be a no-op, so changing a row's group key
+  // in place left it stranded in its old bucket. It now rebuilds on a key move.
+  const src = $([{ id: 0, g: 'a' }, { id: 1, g: 'b' }, { id: 2, g: 'a' }])
+  const g = group(src, (r) => r.g)
+  same(groups(g), { a: [0, 2], b: [1] })
+  src[2].g = 'b'                            // id:2 moves a → b
+  same(groups(g), { a: [0], b: [1, 2] })
+  src[0].g = 'b'                            // a empties (rebuild → source order)
+  same(groups(g), { b: [0, 1, 2] })
+})
+
+test('group - over between on an ARRAY source follows bound moves (C1)', () => {
+  const src = $([{ id: 0, g: 'a', v: 10 }, { id: 1, g: 'b', v: 50 }, { id: 2, g: 'a', v: 90 }])
+  const g = group(between(src, 'v', [40, 100]), (r) => r.g)
+  same(groups(g), { b: [1], a: [2] })       // v in [40,100]: id1(b), id2(a)
+  src[0].v = 45                             // id0 enters range (BF0) → bucket a
+  same(groups(g), { a: [0, 2], b: [1] })
+})
+
 test('group - object', () => {
   const res = $({
     1: { num: 1.1 }, 2: { num: 2.2 }, 3: { num: 1.9 },
