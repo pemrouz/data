@@ -698,10 +698,17 @@ export class View {
   // producer emits BH1/BF0: we refresh only the touched children (no V1 shift)
   // and route to a sink's BH1/BF0 if it has one. A sink WITHOUT them (an
   // aggregate, say — position-agnostic) falls back to BR1/BI0, which is correct:
-  // it just drops/adds the row. Only positional sinks (RowOperator, a
-  // downstream sparse op, the DOM) implement BH1/BF0 to mirror the hole instead
-  // of shifting. BH1/BF0 live on View only — never on Value — so a plain Value
-  // sink never inherits one and always takes the fallback.
+  // it just drops/adds the row. Operator positional sinks (RowOperator, a
+  // downstream sparse op, sort) implement BH1/BF0 to mirror the hole instead
+  // of shifting. The DOMSink intentionally does NOT — it falls back to BR1/BI0
+  // (see render/index.ts). That fallback is wrong for a hole (BR1 pops the tail,
+  // not slot k), but no shipped consumer ever binds a sparse producer straight
+  // to the DOM: sort/group/limit re-densify before the sink, and the examples
+  // densify or bind defensively. A correct DOMSink BH1/BF0 is blocked by two
+  // structural facts (create_node/remove_node are tail-relative, and core fires
+  // the V1 content refresh below BEFORE the sink's BH1/BF0) — see ISSUES.md C4.
+  // BH1/BF0 live on View only — never on Value — so a plain Value sink never
+  // inherits one and always takes the fallback.
   BH1(R1) {
     if (!R1.length) return
     for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0()
