@@ -14,11 +14,10 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 | [P4](#p4) | `to()` runs its `fn` on every `BU2` even when the result is reference-equal | Perf | Low | Open |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
-| [D2](#d2) | CLAUDE.md "known pre-existing gap" note for `group`-over-array stale DOM rows is likely stale | Docs | Low | Open (verify + update) |
 
 Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (mitigated by convention)* = every shipped example already avoids it; *Open (external blocker)* = blocked on something outside the repo.
 
-> Everything previously tracked here as C1/C2/C3/C5/C6/C7/D1 (fixed), P2/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
+> Everything previously tracked here as C1/C2/C3/C5/C6/C7/D1/D2 (fixed/verified), P2/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
 
 ---
 
@@ -79,13 +78,6 @@ The Pages site ([index.html](index.html) + `assets/` + `examples/` + operator do
 
 - Where: [.github/workflows/pages.yml](.github/workflows/pages.yml), [.gitignore](.gitignore).
 - Resolution: revert to the Actions workflow and re-ignore `dist/` once billing is restored.
-
-### D2
-**CLAUDE.md "known pre-existing gap" note for `group`-over-array stale DOM rows is likely stale** · Low · Open (verify + update)
-
-CLAUDE.md's kanban example entry ends with: *"Known pre-existing gap (unrelated): `group` over an array source builds array-shaped buckets whose inner render can leave stale rows on a front-removal array shift — see the flaky `crossfilter brush leaves no stale DOM rows` spec."* The render-layer fix for stale DOM rows landed in `ddf3a44` (snapshot keys before `remove_node`; see [DECISIONS.md](DECISIONS.md) → Earlier fixes), and `tests/crossfilter.spec.ts` passes — so the note is probably stale. Verify the spec is no longer flaky under load, then update or remove the CLAUDE.md note.
-
-- Where: the kanban entry in [CLAUDE.md](CLAUDE.md) (search "Known pre-existing gap"), [tests/crossfilter.spec.ts](tests/crossfilter.spec.ts).
 
 ---
 
