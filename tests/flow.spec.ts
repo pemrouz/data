@@ -29,6 +29,16 @@ test('flow essay loads, every figure mounts without console errors', async ({ pa
   // the records show the REAL deltas, not abstract glyphs.
   await expect(page.locator('#dz-records .drec').first()).toContainText('insert')
 
+  // the cast diagram (orders → active → perRegion; orders → avg) is present.
+  await expect(page.locator('#fig-cast svg .c-name')).toHaveCount(4)
+
+  // §4 selectivity is a records × views matrix (one row per change), not chips.
+  await expect(page.locator('#sel-strip .selm-row')).toHaveCount(4)
+
+  // the rendered essay uses no § section symbol anywhere.
+  const sectionSymbols = await page.evaluate(() => (document.body.innerText.match(/§/g) || []).length)
+  expect(sectionSymbols).toBe(0)
+
   expect(errors).toEqual([])
 })
 
@@ -88,7 +98,7 @@ test('the change history pins to the left margin on scroll and scrubs', async ({
   await page.evaluate(() => document.getElementById('selectivity')!.scrollIntoView())
   await expect(page.locator('#tl-pin')).toHaveClass(/show/, { timeout: 3000 })
   await expect(page.locator('#tl-pin-strip .pchip')).toHaveCount(4)
-  await expect(page.locator('#tl-pin-label')).toContainText(/§4/)
+  await expect(page.locator('#tl-pin-label')).toContainText(/selectivity/)
 })
 
 test('§5: a change to orders becomes the change active hands on', async ({ page }) => {

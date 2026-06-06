@@ -81,7 +81,7 @@ const selStrip  = document.getElementById('sel-strip')
 const pinStrip  = document.getElementById('tl-pin-strip')
 let recEls = []
 let pinChipEls = []
-let selChipEls = []
+let selRowEls = []
 /* figure updaters registered by their mount fns; syncHead drives them all so
  * every figure is a function of the one shared playhead. */
 const figureUpdaters = []
@@ -97,13 +97,6 @@ const glyphOf = rec =>
   rec.field === 'active' ? '↻' : '△'
 
 const downChanged = rec => [...(rec.changed || [])].filter(f => f !== 'orders')
-
-// a dot per fold the record actually MOVED — its selectivity footprint.
-function feedDots (rec) {
-  return ['active', 'perRegion', 'avg']
-    .filter(f => rec.changed && rec.changed.has(f))
-    .map(f => `<i class="feed-${f}"></i>`).join('')
-}
 
 /* the literal delta a record carries — { type, key/at, value } made readable. */
 function recordParts (rec) {
@@ -123,15 +116,19 @@ function recordParts (rec) {
 
 function buildRecords () {
   recordsEl.innerHTML = ''
-  selStrip.innerHTML = ''
   pinStrip.innerHTML = ''
   recEls = []
   pinChipEls = []
-  selChipEls = []
+  selRowEls = []
+  // §4 matrix header (records × views)
+  selStrip.innerHTML =
+    '<div class="selm-head"><span>change</span>' +
+    '<span class="sh-active">active</span><span class="sh-region">perRegion</span><span class="sh-avg">avg</span></div>'
+
   model.log.forEach((rec, i) => {
     const p = recordParts(rec)
 
-    // the real change record — full literal delta, doubles as scrub track
+    // the real change record (left of §1) — full literal delta, doubles as scrub track
     const r = document.createElement('div')
     r.className = 'drec'
     r.dataset.i = i
@@ -145,22 +142,25 @@ function buildRecords () {
     recordsEl.appendChild(r)
     recEls.push(r)
 
-    // §4 mirror chip — same record, feed-focused
-    const s = document.createElement('div')
-    s.className = 'chip'
-    s.dataset.type = rec.type
-    s.style.width = '34px'
-    s.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="chip-feeds">${feedDots(rec)}</span>`
-    s.addEventListener('mouseenter', () => { describeSel(rec); lightFolds(rec) })
-    s.addEventListener('mouseleave', () => { clearLitFolds(); updateSel() })
-    selStrip.appendChild(s)
-    selChipEls.push(s)
+    // §4 selectivity matrix row — a filled dot under each view this change moved
+    const cell = f => `<span class="sm-cell ${rec.changed && rec.changed.has(f) ? 'on' : ''}" data-v="${f}"></span>`
+    const row = document.createElement('div')
+    row.className = 'selm-row'
+    row.dataset.type = rec.type
+    row.dataset.i = i
+    row.innerHTML = `<span class="sm-change"><span class="g">${glyphOf(rec)}</span>${p.id}</span>` +
+      cell('active') + cell('perRegion') + cell('avg')
+    row.addEventListener('mouseenter', () => { describeSel(rec); lightFolds(rec) })
+    row.addEventListener('mouseleave', () => { clearLitFolds(); updateSel() })
+    row.addEventListener('click', () => setHead(i + 1))
+    selStrip.appendChild(row)
+    selRowEls.push(row)
 
-    // pinned mini-chip — same record, follows the scroll
+    // pinned rail line — a clean mini-timeline entry (type tick + glyph + id), not a pill
     const pc = document.createElement('div')
     pc.className = 'pchip'
     pc.dataset.type = rec.type
-    pc.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="pchip-id">${p.id.split('.')[0]}</span><span class="chip-feeds">${feedDots(rec)}</span>`
+    pc.innerHTML = `<span class="chip-g">${glyphOf(rec)}</span><span class="pchip-id">${p.id.split('.')[0]}</span>`
     pinStrip.appendChild(pc)
     pinChipEls.push(pc)
   })
@@ -239,7 +239,7 @@ const headRec = () => model.log[model.head() - 1] || null
 
 /* §4 reflects the head record too: mark its chip, default the detail to it. */
 function updateSel () {
-  paintHead(selChipEls, model.head())
+  paintHead(selRowEls, model.head())
   const rec = headRec()
   const el = document.getElementById('sel-detail')
   if (el) el.innerHTML = rec ? `${verbOf(rec)} — ${selectivityTail(rec)}` : 'add a change, or scrub the history'
@@ -498,12 +498,12 @@ function mountDomFold () {
 function mountSpotlights () {
   // section id -> { fold to spotlight, pin label }
   const map = {
-    'view-fold':    { fold: 'active',    label: '§2 · stays live' },
-    'cost':         { fold: null,        label: '§3 · cost of a change' },
-    'selectivity':  { fold: null,        label: '§4 · selectivity' },
-    'composition':  { fold: 'perRegion', label: '§5 · composed' },
-    'determinism':  { fold: null,        label: '§6 · no deltas' },
-    'dom-fold':     { fold: 'orders',    label: '§7 · the DOM' },
+    'view-fold':    { fold: 'active',    label: 'a view is a derivation' },
+    'cost':         { fold: null,        label: 'cost of a change' },
+    'selectivity':  { fold: null,        label: 'selectivity' },
+    'composition':  { fold: 'perRegion', label: 'derivations compose' },
+    'determinism':  { fold: null,        label: 'no deltas by hand' },
+    'dom-fold':     { fold: 'orders',    label: 'the DOM' },
   }
   const pinLabel = document.getElementById('tl-pin-label')
   const io = new IntersectionObserver(entries => {
@@ -545,7 +545,3 @@ mountDomFold()
 mountSpotlights()
 buildRecords()
 syncHead()
-document.getElementById('sel-legend').innerHTML =
-  ['active', 'perRegion', 'avg'].map(f =>
-    `<span class="lk"><span class="sw feed-${f}"></span>${f}</span>`).join('') +
-  `<span class="lk muted">a dot per derived view the change moves</span>`

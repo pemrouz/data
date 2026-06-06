@@ -85,18 +85,8 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
   margin: 1.75rem 0; padding: 1.25rem; background: var(--panel);
   border: 1px solid var(--rule); border-radius: 8px;
 }
-/* break wide figures out of the prose column */
-.fig.duality, .fig.cost, .fig.sel {
-  margin-left: calc(50% - 50vw + 1.25rem);
-  margin-right: calc(50% - 50vw + 1.25rem);
-  max-width: calc(100vw - 2.5rem); width: auto;
-}
-/* on wide screens, break out to the RIGHT only — the left margin belongs to the
- * pinned change history. */
-@media (min-width: 1100px) {
-  .fig.duality { margin-left: 0; margin-right: -260px; max-width: none; }
-  .fig.cost, .fig.sel { margin-left: 0; margin-right: -150px; max-width: none; }
-}
+/* Figures sit in the prose column (no break-out) so nothing juts past the text;
+ * the pinned change-history rail lives in the fixed left margin, clear of them. */
 
 /* a brief highlight pulse, shared by records / edge / dom-fold flashes. */
 @keyframes pflash {
@@ -193,80 +183,77 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
   scrollbar-width: thin;
 }
 .tl-pin-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* a clean line per record (a mini-timeline), not a pill: a colour-tick for the
+ * change type + glyph + id, the head row picked out in accent. */
 .pchip {
-  flex: 0 0 auto; height: 21px;
-  display: flex; align-items: center; gap: 4px;
-  border-radius: 3px; border: 1px solid var(--rule); background: var(--panel-2);
-  font: 0.58rem var(--mono); color: var(--faint); cursor: pointer; padding: 0 5px;
-  transition: opacity 120ms, border-color 120ms;
+  flex: 0 0 auto; height: 19px;
+  display: flex; align-items: center; gap: 5px;
+  font: 0.58rem var(--mono); color: var(--faint); cursor: pointer; padding: 0 4px;
+  border-left: 2px solid var(--rule); border-radius: 0 2px 2px 0;
+  transition: opacity 120ms, color 120ms, border-color 120ms, background 120ms;
 }
+.pchip[data-type="insert"] { border-left-color: var(--f-active); }
+.pchip[data-type="remove"] { border-left-color: var(--neg); }
+.pchip[data-type="update"] { border-left-color: var(--f-avg); }
 .pchip[data-type="insert"] .chip-g { color: var(--pos); }
 .pchip[data-type="remove"] .chip-g { color: var(--neg); }
-.pchip .chip-g { font-size: 0.78rem; line-height: 1; }
+.pchip[data-type="update"] .chip-g { color: var(--f-avg); }
+.pchip .chip-g { font-size: 0.72rem; line-height: 1; }
 .pchip .pchip-id { color: var(--faint); }
-.pchip.ahead { opacity: 0.32; }
-.pchip.head { border-color: var(--accent); border-bottom-width: 2px; }
-.pchip .chip-feeds { display: flex; gap: 2px; margin-left: auto; }
-.pchip .chip-feeds i { width: 4px; height: 4px; border-radius: 50%; }
+.pchip.ahead { opacity: 0.3; }
+.pchip.head { color: var(--ink); background: #fdf2ee; border-left-color: var(--accent); }
 /* only show the left rail when the page is wide enough to have a margin for it */
 @media (max-width: 1180px) { .tl-pin { display: none; } }
 
 /* =========================================================================
- * the instrument — timeline + folds
+ * the cast — a derivation diagram (orders → active → perRegion; orders → avg)
  * ========================================================================= */
-.tl { margin-bottom: 1.1rem; }
-.tl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
-.tl-t { font: 500 0.7rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
-.tl-sub { font: 0.74rem var(--mono); color: var(--faint); }
-.tl-sub b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.tl-sub code { background: none; padding: 0; color: var(--dim); }
+.fig.cast { margin: 1.5rem 0; }
+.fig.cast pre.code { margin: 0.9rem 0 0; }
+.cast svg { width: 100%; height: auto; display: block; overflow: visible; max-width: 620px; margin: 0 auto; }
+.cast .c-box { fill: var(--paper); stroke-width: 1.5; }
+.cast .c-name { font: 600 13px var(--mono); }
+.cast .c-edge { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+.cast .c-op { font: 10.5px var(--mono); fill: var(--dim); }
+.cast .c-arrow { fill: var(--rule); }
+.cast .c-src .c-box    { stroke: var(--f-orders); } .cast .c-src .c-name    { fill: var(--f-orders); }
+.cast .c-active .c-box { stroke: var(--f-active); } .cast .c-active .c-name { fill: var(--f-active); }
+.cast .c-region .c-box { stroke: var(--f-region); } .cast .c-region .c-name { fill: var(--f-region); }
+.cast .c-avg .c-box    { stroke: var(--f-avg); }    .cast .c-avg .c-name    { fill: var(--f-avg); }
 
-.tl-strip {
-  display: flex; gap: 3px; align-items: stretch;
-  padding: 0.5rem 0.4rem; min-height: 56px;
+/* =========================================================================
+ * §4 selectivity — a records × views matrix (a filled dot where a change
+ * moved that view). Replaces the old chip strip.
+ * ========================================================================= */
+.selm {
+  display: flex; flex-direction: column; gap: 2px;
   background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px;
-  overflow-x: auto; cursor: ew-resize; user-select: none;
-  scrollbar-width: thin;
+  padding: 0.45rem; max-height: 232px; overflow-y: auto; scrollbar-width: thin; user-select: none;
 }
-.tl-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.chip {
-  position: relative; flex: 0 0 auto; width: 30px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  border-radius: 4px; border: 1px solid var(--rule); background: var(--panel-2);
-  font: 0.62rem var(--mono); color: var(--faint); cursor: pointer;
-  transition: opacity 120ms, transform 80ms, border-color 120ms, background 120ms;
+.selm-head, .selm-row {
+  display: grid; grid-template-columns: 1fr 4rem 5.4rem 4rem; align-items: center;
+  gap: 0.3rem; font: 12px var(--mono); font-variant-numeric: tabular-nums;
 }
-.chip .chip-g { font-size: 0.85rem; line-height: 1; }
-.chip .chip-k { font-variant-numeric: tabular-nums; }
-/* type identities */
-.chip[data-type="insert"] { border-color: #b9cdbf; }
-.chip[data-type="update"] { border-color: #c9c2b0; }
-.chip[data-type="remove"] { border-color: #e0b3a8; }
-.chip[data-type="insert"] .chip-g { color: var(--pos); }
-.chip[data-type="remove"] .chip-g { color: var(--neg); }
-/* playhead state: behind = applied, ahead = not yet */
-.chip.ahead { opacity: 0.32; }
-.chip.behind { opacity: 1; }
-.chip.head { border-color: var(--accent); border-right-width: 3px; box-shadow: 1px 0 0 0 var(--accent); }
-.chip:hover { transform: translateY(-2px); border-color: var(--accent); }
-/* feed tint dots under the glyph: solid = the record CHANGED that fold,
- * hollow ring = it REACHED the fold but the output didn't move. */
-.chip-feeds { display: flex; gap: 3px; height: 7px; }
-.chip-feeds i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.feed-active { background: var(--f-active); }
-.feed-perRegion { background: var(--f-region); }
-.feed-avg { background: var(--f-avg); }
-.feed-orders { background: var(--f-orders); }
+.selm-head { color: var(--faint); font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0 0.35rem 0.4rem; margin-bottom: 0.15rem; border-bottom: 1px solid var(--rule-soft); }
+.selm-head span:not(:first-child) { text-align: center; }
+.selm-head .sh-active { color: var(--f-active); }
+.selm-head .sh-region { color: var(--f-region); }
+.selm-head .sh-avg { color: var(--f-avg); }
+.selm-row { padding: 0.24rem 0.35rem; border-radius: 4px; border: 1px solid transparent; color: var(--ink); cursor: pointer; transition: opacity 120ms, background 120ms, border-color 120ms; }
+.selm-row .sm-change { display: flex; align-items: center; gap: 0.45rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.selm-row .sm-change .g { font-size: 0.82rem; flex: 0 0 auto; }
+.selm-row[data-type="insert"] .sm-change .g { color: var(--pos); }
+.selm-row[data-type="remove"] .sm-change .g { color: var(--neg); }
+.selm-row[data-type="update"] .sm-change .g { color: var(--f-avg); }
+.sm-cell { justify-self: center; width: 9px; height: 9px; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1px var(--rule); }
+.sm-cell.on { box-shadow: none; }
+.sm-cell.on[data-v="active"]    { background: var(--f-active); }
+.sm-cell.on[data-v="perRegion"] { background: var(--f-region); }
+.sm-cell.on[data-v="avg"]       { background: var(--f-avg); }
+.selm-row.ahead { opacity: 0.38; }
+.selm-row.head { border-color: var(--accent); background: #fdf2ee; }
+.selm-row:hover { border-color: var(--accent); }
 
-.tl-detail {
-  font: 0.76rem var(--mono); color: var(--dim); margin: 0.6rem 0 0.8rem;
-  min-height: 1.1rem; font-variant-numeric: tabular-nums;
-}
-.tl-detail b { color: var(--ink); }
-.tl-detail .tag { color: var(--accent); }
-
-.tl-controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
-.tl-spacer { flex: 1; }
 .tlb {
   background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
   color: var(--ink); font: 500 0.8rem var(--mono); padding: 0.5rem 0.8rem;
@@ -380,14 +367,12 @@ pre.code code { background: none; padding: 0; font-size: inherit; border-radius:
 .cost-veil-hint { font: 0.74rem var(--mono); }
 
 /* =========================================================================
- * §4 selectivity
+ * selectivity (matrix styles live up by the cast diagram)
  * ========================================================================= */
-.sel-legend { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 0.8rem; font: 0.72rem var(--mono); color: var(--dim); }
-.sel-legend .lk { display: inline-flex; align-items: center; gap: 0.35rem; }
-.sel-legend .sw { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.sel-strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 0.5rem; background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px; min-height: 52px; }
+.sel-cap { font: 0.72rem var(--mono); color: var(--faint); margin-bottom: 0.7rem; }
 .sel-detail { font: 0.76rem var(--mono); color: var(--dim); margin-top: 0.6rem; min-height: 1.1rem; }
 .sel-detail b { color: var(--ink); }
+.sel-detail .tag { color: var(--accent); }
 
 /* =========================================================================
  * §5 a log at every edge

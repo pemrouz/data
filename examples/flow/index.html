@@ -34,7 +34,7 @@
   </header>
 
   <!-- ===================================================================
-       §1 — A table and its changes are the same thing (the duality)
+       1 — A table and its changes are the same thing (the duality)
        =================================================================== -->
   <section id="duality">
     <div class="hd"><span class="hno">01</span><h2>A table and its changes are the same thing</h2></div>
@@ -91,10 +91,34 @@
     <p>
       Everything else on this page is a <strong>view derived from that table</strong>
       — a filter, a count, an average — and each stays correct as the changes flow.
-      Here are three, each kept live off the table above:
+      Here are three. The diagram is how they derive from one another and from the
+      table; the code is all you write; the panels below are their live values:
     </p>
 
-    <div class="folds-cap">derived views — each defined off another, each kept live</div>
+    <figure class="fig cast" id="fig-cast">
+      <svg viewBox="0 0 680 170" role="img" aria-label="derivation diagram: orders → active → perRegion, and orders → avg">
+        <defs>
+          <marker id="cast-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="c-arrow" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <polyline class="c-edge" points="120,80 185,80 185,38 250,38" marker-end="url(#cast-arrow)"/>
+        <polyline class="c-edge" points="370,38 470,38" marker-end="url(#cast-arrow)"/>
+        <polyline class="c-edge" points="120,90 185,90 185,132 250,132" marker-end="url(#cast-arrow)"/>
+        <text class="c-op" x="217" y="31" text-anchor="middle">filter</text>
+        <text class="c-op" x="420" y="29" text-anchor="middle">length</text>
+        <text class="c-op" x="217" y="126" text-anchor="middle">avg</text>
+        <g class="c-src"><rect class="c-box" x="10" y="65" width="110" height="40" rx="6"/><text class="c-name" x="65" y="89" text-anchor="middle">orders</text></g>
+        <g class="c-active"><rect class="c-box" x="250" y="18" width="120" height="40" rx="6"/><text class="c-name" x="310" y="42" text-anchor="middle">active</text></g>
+        <g class="c-region"><rect class="c-box" x="470" y="18" width="150" height="40" rx="6"/><text class="c-name" x="545" y="42" text-anchor="middle">perRegion</text></g>
+        <g class="c-avg"><rect class="c-box" x="250" y="112" width="120" height="40" rx="6"/><text class="c-name" x="310" y="136" text-anchor="middle">avg</text></g>
+      </svg>
+      <pre class="code"><code>const active    = orders.filter(o =&gt; o.active)
+const perRegion = active.length(o =&gt; o.region)
+const avg       = orders.avg('value')</code></pre>
+    </figure>
+
+    <div class="folds-cap">the three views, live off the table</div>
     <div class="folds" id="folds">
       <div class="fold" data-fold="active">
         <div class="fold-h"><span class="fold-t">active</span><span class="fold-sig"><code>orders.filter(o =&gt; o.active)</code></span></div>
@@ -118,7 +142,7 @@
   </section>
 
   <!-- ===================================================================
-       §2 — A view is a table derived from another
+       2 — A view is a table derived from another
        =================================================================== -->
   <section id="view-fold">
     <div class="hd"><span class="hno">02</span><h2>A view is a table derived from another</h2></div>
@@ -131,7 +155,7 @@
       relationship you wrote once simply stays true.
     </p>
     <p>
-      This is where the duality from §1 starts to pay. A derivation between tables —
+      This is where the duality starts to pay. A derivation between tables —
       <em>active</em> from <em>orders</em> — casts a shadow: a derivation between
       their <strong>changes</strong>. <code>filter</code> doesn't only map a table to
       a table; it maps a <em>change</em> in <code>orders</code> to a change in
@@ -146,7 +170,7 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
   </section>
 
   <!-- ===================================================================
-       §3 — Flow the change, not the table
+       3 — Flow the change, not the table
        =================================================================== -->
   <section id="cost">
     <div class="hd"><span class="hno">03</span><h2>Flow the change, not the table</h2></div>
@@ -198,9 +222,9 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
     </figure>
     <p>
       Recompute is <code>O(N)</code> — ten times the table, ten times the cost, on
-      every change. The runtime refuses that bargain. You saw in §1 that a change is a
-      tiny, self-contained thing, and in §2 that every derivation has a change-shadow;
-      so it pushes the one change <em>through</em> the shadow — flip one membership,
+      every change. The runtime refuses that bargain. You've seen that a change is a
+      tiny, self-contained thing, and that every derivation has a change-shadow; so it
+      pushes the one change <em>through</em> the shadow — flip one membership,
       adjust one bucket, nudge one running total. The work is proportional to the
       <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The <code>O(Δ)</code>
       meter above is the real footprint of the change at the playhead — scrub the rail
@@ -209,7 +233,7 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
   </section>
 
   <!-- ===================================================================
-       §4 — Selectivity
+       4 — Selectivity
        =================================================================== -->
   <section id="selectivity">
     <div class="hd"><span class="hno">04</span><h2>A change reaches only the views that read it</h2></div>
@@ -226,14 +250,14 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
       This isn't asserted; and to <em>show</em> it, the figure diffs each view's output
       the instant before and after each change — a measurement aid, not how the runtime
       works (it never needs to look: a change either has a shadow in a view or it
-      doesn't). The strip below carries a dot for every derived view a change actually
-      <em>moved</em>. Scrub the history or hover a change to light them, and notice how
-      each kind moves a different, small handful.
+      doesn't). The matrix below is one row per change, with a filled dot under every
+      derived view it actually <em>moved</em>. Hover or scrub a row, and notice how each
+      kind of change moves a different, small handful.
     </p>
     <figure class="fig sel" id="fig-sel">
-      <div class="sel-legend" id="sel-legend"></div>
-      <div class="sel-strip" id="sel-strip"></div>
-      <div class="sel-detail" id="sel-detail">hover a change above, or scrub the history</div>
+      <div class="sel-cap" id="sel-legend">one row per change · a filled dot marks a view its output moved</div>
+      <div class="selm" id="sel-strip"></div>
+      <div class="sel-detail" id="sel-detail">hover or scrub a change</div>
     </figure>
     <p>
       That's what keeps the model composable. Add a tenth derived view and the
@@ -244,7 +268,7 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
   </section>
 
   <!-- ===================================================================
-       §5 — Derivations compose
+       5 — Derivations compose
        =================================================================== -->
   <section id="composition">
     <div class="hd"><span class="hno">05</span><h2>Derivations compose</h2></div>
@@ -280,12 +304,12 @@ const perRegion = active.length(o =&gt; o.region)   // a derivation of a derivat
   </section>
 
   <!-- ===================================================================
-       §6 — You never touch a delta
+       6 — You never touch a delta
        =================================================================== -->
   <section id="determinism">
     <div class="hd"><span class="hno">06</span><h2>You never touch a delta</h2></div>
     <p>
-      Everything in §3 and §4 — the small change, threaded only through the views
+      Everything so far — the small change, threaded only through the views
       that read it — is happening under the floor. You can see it on the left, as
       the change history. But notice what your <em>code</em> looks like: it is the
       derivations, and nothing else. You never wrote an <code>onInsert</code>, never
@@ -325,8 +349,8 @@ render(el, perRegion, …)
     </figure>
     <p>
       And even that isn't the cheap version — the <code>map(os =&gt; os.filter(…))</code>
-      re-scans the whole array on every event, the same <code>O(N)</code> recompute from
-      §3. Make it genuinely incremental and you're threading deltas through every stage
+      re-scans the whole array on every event, the same <code>O(N)</code> recompute we
+      measured earlier. Make it genuinely incremental and you're threading deltas through every stage
       by hand, the logic you care about lost in the plumbing. <code>data</code> gives you
       the right column at the left column's best cost: you write the derivations, the
       runtime pays only the change. The readability of recompute, the cost of hand-tuned
@@ -335,7 +359,7 @@ render(el, perRegion, …)
   </section>
 
   <!-- ===================================================================
-       §7 — The DOM is the last derivation
+       7 — The DOM is the last derivation
        =================================================================== -->
   <section id="dom-fold">
     <div class="hd"><span class="hno">07</span><h2>The DOM is the last derivation</h2></div>
@@ -380,7 +404,7 @@ render(el, HTML.ul(orders, (li, row) =&gt; …))     // into the DOM</code></pre
   </section>
 
   <!-- ===================================================================
-       §8 — Best of both worlds
+       8 — Best of both worlds
        =================================================================== -->
   <section id="why">
     <div class="hd"><span class="hno">08</span><h2>Best of both worlds</h2></div>
@@ -395,7 +419,7 @@ render(el, HTML.ul(orders, (li, row) =&gt; …))     // into the DOM</code></pre
       a <em>view</em> and a stream of changes and lets it stay current without polling.
     </p>
     <p>
-      And there's a second dividend, straight from §1. Because a table and its changes
+      And there's a second dividend, straight from the duality. Because a table and its changes
       are duals, writing your views this way hands you the change stream itself — for
       nothing. That stream is exactly what you need to undo an action, sync two
       replicas, audit what happened, or hydrate a fresh client and keep it live. The
