@@ -71,8 +71,11 @@ export class GroupValue extends Operator {
       const name = R1[i++]
       // Use `has`, not `get(...) === undefined`: a row whose group key IS
       // undefined (fn returns undefined for unclassified rows → the "undefined"
-      // bucket) is legitimately tracked; only a genuinely untracked name throws.
-      if (!this.posMap.has(name)) throw new Error('unexpected group r1: ' + name + ' ' + typeof name)
+      // bucket) is legitimately tracked. A genuinely untracked name is a no-op:
+      // a sparse producer upstream (between/intersect/union/except) emits BR1
+      // for a slot it only marked `undefined` — a row that never entered any
+      // bucket here — so there is nothing to remove. Skip it rather than throw.
+      if (!this.posMap.has(name)) continue
       const group = this.posMap.get(name)
       this.posMap.delete(name)
       const bucket = this.view.value[group]

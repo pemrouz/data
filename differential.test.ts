@@ -208,7 +208,6 @@ const KNOWN_FAILURES = new Set([
   'between→az [array]',          // C1: hole feeds sort accessor
   'filter→between [array]',      // C1: filter holes feed between
   'between→group [array]',       // C1
-  'between→group [object]',      // between-over-object sparse-undefined → group
   'za-window→az-window [array]', // C3: chained windowed sort re-key
   'za-window→az-window [object]',// C3
 ])
