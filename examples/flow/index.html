@@ -51,8 +51,8 @@
       <em>where</em> — nothing more:
     </p>
     <pre class="code"><code>{ type: 'insert', at: '7',  value: { region: 'west', active: true, value: 74 } }
-{ type: 'update', key: ['5', 'active'], value: false }   // row #5 went inactive
-{ type: 'remove', key: ['3'] }                            // row #3 is gone</code></pre>
+{ type: 'update', key: ['5', 'active'], value: false }  // row #5 went inactive
+{ type: 'remove', key: ['3'] }                          // row #3 is gone</code></pre>
     <p>
       Below is the same data in both forms. On the left, the real change records the
       runtime emits — not a hand-drawn imitation, the actual deltas. On the right,
@@ -163,8 +163,8 @@ const avg       = orders.avg('value')</code></pre>
       <em>active</em> current — and, as the next section shows, they cost wildly
       differently.
     </p>
-    <pre class="code"><code>const orders = $({…})                          // keyed by id, like the table above
-const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
+    <pre class="code"><code>const orders = $({…})                        // keyed by id, like the table above
+const active = orders.filter(o => o.active)  // a live view, not a one-off
 // read `active` any time — it is always the current subset. You wrote the
 // relationship; the runtime keeps it true as `orders` changes.</code></pre>
   </section>
@@ -177,9 +177,9 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
     <p>
       When one order changes, how do <em>active</em>, <em>perRegion</em>, and
       <em>avg</em> stay current? The obvious way is to recompute them — re-derive each
-      view over every row. Before you scale that: as the table gets bigger, what
-      happens to the cost of handling that <em>one</em> change? Place your bet, then
-      drag the table size up.
+      view over every row. Below, both strips are the same table of <em>N</em> rows:
+      one change touches the green tick; recompute re-scans the red. Drag <em>N</em>
+      up and watch what each approach has to touch.
     </p>
 
     <figure class="fig cost" id="fig-cost">
@@ -198,15 +198,6 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
             <div class="sweep-n" id="sweep-ref-n">—</div>
           </div>
         </div>
-        <div class="cost-veil" id="cost-veil">
-          <div class="cost-veil-q">One row changes. The naive way re-derives the views over <b>all N rows</b>. As the table grows, how does the cost of that one change grow?</div>
-          <div class="cost-veil-opts">
-            <button class="tlb" data-bet="flat">stays flat</button>
-            <button class="tlb" data-bet="linear">grows with the table</button>
-            <button class="tlb" data-bet="quad">faster and faster</button>
-          </div>
-          <div class="cost-veil-hint muted">data pays the same at any size — the question is the other line.</div>
-        </div>
       </div>
       <div class="cost-controls">
         <label class="cost-n">table size N
@@ -221,9 +212,10 @@ const active = orders.filter(o =&gt; o.active)   // a live view, not a one-off
       </div>
     </figure>
     <p>
-      Recompute is <code>O(N)</code> — ten times the table, ten times the cost, on
-      every change. The runtime refuses that bargain. You've seen that a change is a
-      tiny, self-contained thing, and that every derivation has a change-shadow; so it
+      Recompute is <code>O(N)</code>: its cost climbs in lockstep with the table —
+      every row, every change. The runtime refuses that bargain. You've seen that a
+      change is a tiny, self-contained thing, and that every derivation has a
+      change-shadow; so it
       pushes the one change <em>through</em> the shadow — flip one membership,
       adjust one bucket, nudge one running total. The work is proportional to the
       <em>change</em>, <code>O(Δ)</code>, flat in <code>N</code>. (The lit row above is
@@ -398,9 +390,9 @@ render(el, perRegion, …)
       framework doesn't know what a div is. It knows what a change is.
     </p>
     <pre class="code"><code>// Three sinks, one set of changes.
-orders.tap(change =&gt; console.log(change))      // into a console
-orders.connect(myArray)                          // into an array
-render(el, HTML.ul(orders, (li, row) =&gt; …))     // into the DOM</code></pre>
+orders.tap(change => console.log(change))    // into a console
+orders.connect(myArray)                      // into an array
+render(el, HTML.ul(orders, (li, row) => …))  // into the DOM</code></pre>
   </section>
 
   <!-- ===================================================================

@@ -67,11 +67,8 @@ test('§1/§2: scrubbing the records applies fewer changes → a smaller table',
 test('§3: the sweep lights one row for data, all N for recompute, scaling with N', async ({ page }) => {
   await page.goto('/examples/flow/')
 
-  await page.locator('#cost-veil .tlb[data-bet=linear]').click()
-  await expect(page.locator('#cost-veil')).toHaveClass(/gone/)
-  await expect(page.locator('#cost-note')).toContainText(/right/)
-
-  // data strip lights exactly one row; recompute strip sweeps the whole table.
+  // no veil/quiz — the sweep shows directly. data lights exactly one row;
+  // recompute sweeps the whole table.
   await expect(page.locator('#sweep-data .sweep-bar.hit')).toHaveCount(1)
   await expect(page.locator('#sweep-ref')).toHaveClass(/swept/)
   await expect(page.locator('#sweep-data-n')).toContainText(/row/)

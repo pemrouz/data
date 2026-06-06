@@ -336,7 +336,6 @@ const sweepDataN = document.getElementById('sweep-data-n')
 const sweepRefN  = document.getElementById('sweep-ref-n')
 const SHOWN_MAX  = 180          // ticks we can draw; the label carries the true N
 let costN = 6000
-let costRevealed = false
 
 // data's footprint at the playhead — the views the change moved (excl. the base).
 function dataWorkAtHead () {
@@ -357,15 +356,14 @@ function markHit () {
 // runs on every playhead move (a figureUpdater): move the lit row + relabel,
 // but DON'T rebuild or re-animate the recompute sweep.
 function updateCostLabel () {
-  if (!costRevealed) { sweepDataN.textContent = '—'; sweepRefN.textContent = '—'; return }
   markHit()
   const views = Math.max(0, dataWorkAtHead() - 1)
   sweepDataN.innerHTML = `<b>1</b> row${views ? ` + ${views} view${views === 1 ? '' : 's'}` : ''}`
 }
 
-// runs on reveal + N change: rebuild both strips and play the recompute sweep.
+// rebuild both strips and play the recompute sweep (on load, N change, and when
+// §3 scrolls into view — no quiz gate; the sweep just shows).
 function rebuildSweep () {
-  if (!costRevealed) return
   const shown = shownBars()
   const bars = '<i class="sweep-bar"></i>'.repeat(shown)
   sweepData.innerHTML = bars
@@ -379,18 +377,9 @@ function rebuildSweep () {
 }
 
 function mountCost () {
-  const veil = document.getElementById('cost-veil')
-  const note = document.getElementById('cost-note')
-  veil.querySelectorAll('[data-bet]').forEach(btn => btn.addEventListener('click', () => {
-    const right = btn.dataset.bet === 'linear'
-    costRevealed = true
-    veil.classList.add('gone')
-    rebuildSweep()
-    note.innerHTML = `${right ? '<b class="win">right.</b>' : 'not quite —'} recompute re-scans <b>all N</b> rows for a one-row change — ten times the table, ten times the work; data touches one row at any size. Drag N, or scrub the rail.`
-  }))
   document.getElementById('cost-n').addEventListener('change', e => { costN = +e.target.value; rebuildSweep() })
   figureUpdaters.push(updateCostLabel)   // move the lit row when the playhead moves
-  updateCostLabel()
+  rebuildSweep()
 }
 
 /* ====================================================================== *
@@ -485,6 +474,7 @@ function mountSpotlights () {
       document.querySelectorAll('.fold').forEach(f => f.classList.remove('spotlight'))
       if (m.fold) { const el = document.querySelector(`.fold[data-fold="${m.fold}"]`); if (el) el.classList.add('spotlight') }
       if (pinLabel) pinLabel.textContent = m.label
+      if (e.target.id === 'cost') rebuildSweep()   // play the recompute sweep on arrival
     }
   }, { threshold: 0.4 })
   for (const id of Object.keys(map)) { const s = document.getElementById(id); if (s) io.observe(s) }
