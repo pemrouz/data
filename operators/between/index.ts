@@ -307,49 +307,45 @@ export class BetweenValue extends Operator {
     }
   }
 
+  // Insert/remove DEFER `sorted` maintenance via the same dirty-flag
+  // amortization `_replaceRow` (BU2/BU1) already uses. `sorted` is read ONLY by
+  // `set extent`, which calls `_resort()` when `sortedDirty` is set — so an
+  // insert/remove only needs the membership decision (lo_val/hi_val, not
+  // `sorted`) plus the view.value write, then marks `sorted` dirty. A stream of
+  // inserts/removes between two brushes is therefore O(1) each (object:
+  // dropping the O(N) indexOf+splice; array: dropping the O(N) key-shift loop
+  // and the O(N²) batch-remove key-shift recompute) instead of O(N) per row.
+  // The next brush pays one O(N log N) `_resort` — the births/deaths workload
+  // (object-keyed population, frequent inserts/removes, occasional brush). For
+  // arrays the view.value splice that mirrors the source's positional shift is
+  // inherent to arrays and remains O(N); only the redundant sorted bookkeeping
+  // is shed. (Dropping the old `sortedDirty → coarse XU0` bailout is safe NOW:
+  // it had existed to stop the incremental sorted maintenance from
+  // double-counting against a stale `sorted`, but it was ALSO load-bearing as a
+  // self-heal masking the C8 spurious-BR1 bug in `set extent` — re-emitting a
+  // remove for an already-excluded row, which a downstream length/sum/avg sink
+  // turned into a negative count. C8 is now fixed at its root [c3130ba], so the
+  // heal is no longer needed: insert/remove after an in-place edit emit
+  // incremental BI0/BR1 rather than a coarse resnapshot. Guarded by the
+  // between→length/sum/avg differential scenarios.)
   BI0(I0) {
     if (this.view.value === this.p.value) return this.view.BI0(I0)
-    // A prior in-place edit (BU1/BU2 → _replaceRow) left `sorted` stale. The
-    // incremental shift+place below assumes `sorted` is the clean PRE-insert
-    // layout, but _resort() rebuilds from the already-mutated p.value (the
-    // inserted row is present), so shift+place would double-count it — minting
-    // an out-of-bounds key the bisect then dereferences (`p.value[badKey][col]`
-    // → crash on arrays; a duplicate `sorted` entry on objects). Fall back to a
-    // full rebuild: p.value already reflects the insert, so XU0 captures it.
-    // O(N), but rare (brushes don't dirty `sorted`; pure insert churn never sets
-    // the flag) and array between insert is already O(N). Emits a coarse XU0
-    // instead of incremental BI0 — downstream + DOM sink both reconcile from it.
-    if (this.sortedDirty) { this.sortedDirty = false; return this.XU0(this.p.value) }
-
-    // Array source: a non-end insert at position `at` shifts every existing
-    // upstream key >= at up by one. We have to translate `sorted` and the
-    // sparse `view.value` to match before we can place the new row.
-    if (this.isArr) {
-      for (let i = 0; i < I0.length; i += 2) {
-        const atNum = +I0[i]
-        if (atNum >= this.sorted.length) continue  // pure end-push, no shift
-        for (let j = 0; j < this.sorted.length; j++) {
-          const k = +this.sorted[j]
-          if (k >= atNum) this.sorted[j] = '' + (k + 1)
-        }
-        // splice the view at `at` to mirror the source's splice; the new
-        // slot is filled below if the row is in range.
-        this.view.value.splice(atNum, 0, undefined)
-      }
-    }
 
     const NI0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const row = I0[i + 1]
       const colVal = row?.[this.col]
-      const nidx = this.find(this.sorted, colVal)
-      this.sorted.splice(nidx, 0, at)
+      // Array source: the source already spliced p.value at `at` (shifting
+      // every later position); mirror that into our sparse view.value so
+      // positions stay index-aligned. Object keys are stable — no splice.
+      if (this.isArr) this.view.value.splice(+at, 0, undefined)
       if (this._inRange(colVal)) {
         this.view.value[at] = row
         NI0.push(at, row)
       }
     }
+    this.sortedDirty = true
     this.lo_index = undefined
     this.hi_index = undefined
     if (NI0.length) this.view.BI0(NI0)
@@ -357,28 +353,17 @@ export class BetweenValue extends Operator {
 
   BR1(R1) {
     if (this.view.value === this.p.value) return this.view.BR1(R1)
-    // See BI0: a stale `sorted` from a prior in-place edit makes the
-    // incremental shift below double-count the just-removed row (p.value is
-    // already spliced). Rebuild from the post-remove p.value instead.
-    if (this.sortedDirty) { this.sortedDirty = false; return this.XU0(this.p.value) }
 
     const NR1 = []
-    const removedKeys = this.isArr ? [] : null
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i]
       const oldVal = this.view.value[name]
-      const oidx = this.sorted.indexOf(name)
-      if (oidx !== -1) this.sorted.splice(oidx, 1)
       if (this.isArr) {
-        removedKeys.push(+name)
-        // Splice the view in lockstep with the source's array shift; if
-        // the row was in view its slot disappears, otherwise the hole at
-        // that position disappears (which is what we want). ALWAYS emit the
-        // splice (even when the removed slot was a hole, oldVal===undefined):
-        // a downstream row op keeps a parallel array and must splice the same
-        // position or its layout drifts one slot per holed-row removal (a
-        // surviving row becomes a ghost). The [name, undefined] pair tells it
-        // "position `name` was removed" without claiming a row left the view.
+        // Splice the view in lockstep with the source's array shift. ALWAYS
+        // emit the splice (even a holed slot, oldVal===undefined): a downstream
+        // row op keeps a parallel array and must splice the same position or its
+        // layout drifts one slot per holed-row removal (a surviving row becomes
+        // a ghost). The [name, oldVal] pair carries the removal at that position.
         this.view.value.splice(name, 1)
         NR1.push(name, oldVal)
       } else if (oldVal !== undefined) {
@@ -386,18 +371,7 @@ export class BetweenValue extends Operator {
         NR1.push(name, oldVal)
       }
     }
-
-    if (this.isArr && removedKeys.length) {
-      removedKeys.sort((a, b) => a - b)
-      // Shift remaining `sorted` keys to match the post-splice source.
-      for (let i = 0; i < this.sorted.length; i++) {
-        const k = +this.sorted[i]
-        let shift = 0
-        for (const r of removedKeys) { if (r < k) shift++; else break }
-        if (shift) this.sorted[i] = '' + (k - shift)
-      }
-    }
-
+    this.sortedDirty = true
     this.lo_index = undefined
     this.hi_index = undefined
     if (NR1.length) this.view.BR1(NR1)

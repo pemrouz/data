@@ -97,6 +97,16 @@ When two rows share a projection key and the *representative* (the instance cach
 
 - Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` four bound-walk loops).
 
+### P1 — `between` insert/remove deferred its sorted-index maintenance (object O(1)) ✅
+`1d3bc15` (deferral), `105cfc7` (revert), `<commit-p1>` (re-land)
+
+`between`'s `BI0`/`BR1` maintained the `sorted` index incrementally on every source insert/remove — O(N) per row (object: `sorted.indexOf` + `splice`; array: a key-shift loop plus an O(N²) batch-remove recompute). But `sorted` is read **only** by `set extent` (which already calls `_resort()` when `sortedDirty`), so the per-row bookkeeping was redundant: `BI0`/`BR1` only need the membership decision (`_inRange`, which reads `lo_val`/`hi_val`) and the `view.value` write, then `sortedDirty = true` — the same dirty-flag amortization `_replaceRow` (`BU2`/`BU1`) already used. Deferring makes **object** insert/remove O(1) per row, unblocking the object-keyed births/deaths workload. (**Array** insert/remove stays O(N): the `view.value.splice` that mirrors the source's positional shift is inherent to the array representation, not redundant bookkeeping — object keys are the right choice for high-churn births/deaths, as the [swarm example](examples/swarm/README.md) notes.)
+
+This first landed in `1d3bc15`, then was **reverted** (`105cfc7`) because dropping the deferral's now-vestigial `sortedDirty → coarse XU0` bailout had ALSO been load-bearing as a self-heal masking the **C8** spurious-`BR1` bug — without it, `between→length`/`sum`/`avg` desynced (counts went negative) and `between→filter` over arrays grew a ghost row. Re-landed here once **C8 was fixed at its root** (the heal is no longer needed) and the differential-harness gap was closed. Proven correctness-neutral vs the C8-fixed HEAD by a 9,600-sequence insert/remove-heavy stress over every between-rooted chain (between, →filter/map/az, →length/sum/avg, filter→between): identical desync count with and without the deferral, so it adds no new desync.
+
+- Perf (10k object source): **remove churn 1000 rows 105.87ms → 0.91ms (~116×)**, insert churn 7.54ms → 2.48ms (~3×); the `narrow/widen` brush path is unchanged (does no inserts → never dirties `sorted`). Without the deferral the remove-churn perf case exceeds its 50ms threshold (fails); with it, 0.91ms. Two perf cases re-added to [operators/between/between.perf.ts](operators/between/between.perf.ts).
+- Where: [operators/between/index.ts](operators/between/index.ts) (`BI0`/`BR1`), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
+
 ---
 
 ## Won't fix / skipped

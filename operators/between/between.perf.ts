@@ -40,3 +40,32 @@ test('between narrow filter - 10000 rows', () => {
   console.log(`  between narrow/widen 10k: ${elapsed.toFixed(2)}ms`)
   ok(elapsed < 100)
 })
+
+// P1: insert/remove on an object source defer `sorted` maintenance (the same
+// dirty-flag amortization BU2 uses) so each is O(1) instead of O(N) indexOf +
+// splice per row. This is the births/deaths workload (e.g. an object-keyed
+// population streaming inserts/removes with brushes only occasionally).
+test('between insert churn - object 10k + 1000', () => {
+  const src = $(makeData(10000))
+  const bounds = $({ lo: 200, hi: 800 })
+  between(src, 'val', [bounds.lo, bounds.hi])
+  let id = 100000
+  const elapsed = measure(() => {
+    for (let i = 0; i < 1000; i++) (src as any).insert({ val: Math.random() * 1000 }, 'n' + (id++))
+  }, 3)
+  console.log(`  between insert churn obj +1000: ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 50)
+})
+
+test('between remove churn - object 10k - 5×1000', () => {
+  const src = $(makeData(10000))
+  const bounds = $({ lo: 200, hi: 800 })
+  between(src, 'val', [bounds.lo, bounds.hi])
+  let base = 0
+  const elapsed = measure(() => {
+    for (let i = 0; i < 1000; i++) delete src[base + i]   // distinct keys per rep
+    base += 1000
+  }, 5)
+  console.log(`  between remove churn obj -1000: ${elapsed.toFixed(2)}ms`)
+  ok(elapsed < 50)
+})
