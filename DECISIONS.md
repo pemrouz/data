@@ -35,6 +35,15 @@ When two windowed sorts are chained (`za(col,n).az(col,n)`), the inner window ro
 - Proof: 10 chained-sort permutations added to [differential.test.ts](differential.test.ts) (now 84 cases, `KNOWN_FAILURES` empty). The phantom-DOM `"-1"`-key symptom stays fixed by the `oidx >= 0` guard.
 - Change-stream consequence: a single-row window rotation now emits `update`s, not `remove`+`insert` (no `undefined` flash on a rotated child view) — matching the batch-window path; [index.test.ts](index.test.ts)'s `za` change-stream was updated to match.
 
+### C4 — sparse producer bound straight to the DOM rendered phantom rows ✅
+
+`between`/`intersect`/`union`/`except` build sparse arrays with **explicit `undefined`** at excluded slots (load-bearing for `intersect`'s by-index correlation — not `delete`'d). The DOM layer iterated `for (const i in value)`, walking those holes as enumerable, so a row template bound **directly** to such a view minted a phantom `<li>` per excluded slot (`r.col.to(fmt)` → `fmt(undefined)`). The **object-half** was closed first (`1e0dc00`: object sinks skip explicit-`undefined` keys — safe because object `create_node` is already index-relative). The **array-half** is now closed too: `DOMSink` detects a sparse array (`_sparse`) and reconciles it **index-keyed** (`_reconcile_sparse`/`_create_at`/`_remove_at`, `node[k] ↔ data[k]`), and implements `BH1`/`BF0` so a producer's hole-remove/hole-fill drops/creates the node *at* index k without shifting survivors. This works *because* core's `View.BH1`/`BF0` fire the V1 content refresh on the touched child **before** the sink's `BH1`/`BF0`, and an index-keyed node is not double-applied (the exact hazard that had this deferred). Dense arrays (sort/group/limit) never hole, so they keep the tail-relative `create_node`/`remove_node` path untouched; the initial sparse build appends in index order (O(P), not the naive O(P²) per-create scan).
+
+The earlier write-up declared this "no clean fix, no shipped consumer" — both premises shifted: the swarm (array `between → intersect` cohort) and crossfilter (array `za → between/intersect → length(fn)`) examples are array-source sparse-chain consumers at the **data** layer, and a row template can now bind a sparse producer directly. (Reading the raw `view[value]` still surfaces `undefined` slots — densify when you iterate it yourself.)
+
+- Where: `DOMSink._sparse`/`_reconcile_sparse`/`_create_at`/`_append_at`/`_remove_at`/`BH1`/`BF0` and the sparse-array branch in `XU0` in [render/index.ts](render/index.ts); `View.BH1`/`BF0` in [core.ts](core.ts).
+- Proof: `render - array sparse producer (between) renders only in-range rows in index order, no phantom holes (C4 array-half)` in [render/list.test.ts](render/list.test.ts) (init / widen-all / narrow / re-widen exercises fresh build + `BF0`/`BH1`); the object-half test sits beside it. Full `npm test` green, `npm run perf` in-band.
+
 ### C5 — 3-arg `reduce` symmetry guard ✅
 `9187782`
 

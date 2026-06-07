@@ -8,30 +8,14 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows when a row template binds them directly | Correctness · render | Medium | Open (mitigated by convention) |
 | [P1](#p1) | `between` insert/remove sorted-bookkeeping was O(N); now deferred (object → O(1)); array `view.value` splice remains O(N) | Perf | Low | Open (object half fixed) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
-Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (mitigated by convention)* = every shipped example already avoids it; *Open (external blocker)* = blocked on something outside the repo.
+Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
 
-> Everything previously tracked here as C1/C2/C3/C5/C6/C7/D1/D2 (fixed/verified), P2/P4/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
-
----
-
-## Correctness
-
-### C4
-**Sparse producers emit explicit `undefined` slots → phantom DOM rows** · Medium · Open (mitigated by convention)
-
-`between`/`intersect`/`union`/`except` build sparse arrays where excluded indices are set to explicit `undefined` (e.g. `view.value[name] = undefined`) rather than `delete`'d. The render layer iterates with `for (const i in value)` ([render/index.ts:124-126](render/index.ts#L124-L126)), which walks those slots as enumerable — so a row template bound **directly** to such a view creates a DOM node for each excluded slot and a binding like `r.pnl.to(fmtPnl)` resolves to `fmtPnl(undefined) → "NaN"`. RowOperator-based ops (`filter`, `gt`/`lt`/`gte`/`lte`, `map`) use `delete`, leaving true holes that `for-in` skips, so they don't hit this on a clean render.
-
-Note this is the **render-layer** residual only — the *data*-layer hole-vs-splice desync (chaining operators after a sparse producer) was closed by the C1 `BH1`/`BF0` work (see [DECISIONS.md](DECISIONS.md)). What remains is the initial-render enumeration.
-
-- Where: [render/index.ts:124-126](render/index.ts#L124-L126), [operators/between/index.ts](operators/between/index.ts), [operators/intersect/index.ts](operators/intersect/index.ts), [CLAUDE.md](CLAUDE.md) (sparse-render gotcha).
-- **Mitigation:** densify first (`vp.to(arr => arr.filter(r => r !== undefined))` — see the `dense()` helper in [assets/demos.js](assets/demos.js)) or write bindings defensively (handle `r.col === undefined`, as [examples/library/main.js](examples/library/main.js) does).
-- ⚠️ **No clean standalone fix — and the obvious one is *proven* broken.** A naive `if (value[i] === undefined) continue;` in the DOMSink loop is **only safe for object (keyed) sinks**. For an **array** sink — exactly what these producers emit — `create_node` is *positional* (it tail-appends and binds slot *k* to `data[k]`), so skipping a middle `undefined` would misalign every subsequent slot's binding and drop the real tail row. The seemingly-obvious next step — give `DOMSink` its own `BH1`/`BF0` (the protocol `core.ts` even names it as a candidate sink) — was implemented and **empirically refuted**: (1) `create_node`/`remove_node` are *tail-relative* (push/pop the tail, bind `data[tail]`), so a hole-aware init that skips slot *k* still binds node-0 to the hole and drifts `tail` out of alignment — it reproduces the original drop-the-tail/empty-row bug at init; (2) core's `Value.BF0`/`BH1` fire the V1 positional **content refresh** (`get_named(k).XU0()`) on the slot *before* the sink's `BF0`/`BH1` runs, so a manual `insertBefore` in `DOMSink.BF0` *double-applies* the fill → duplicate rows. A genuine fix must rewrite `create_node`/`remove_node` to be array-index-relative (not tail-relative) **and** reconcile with the pre-fired V1 refresh — a large, high-risk change for a path **no shipped consumer reaches** (sort/group/limit re-densify before the DOM sink; the examples densify or bind defensively). Until a real consumer needs a sparse producer bound straight to the DOM, the convention *is* the fix: densify (`vp.to(arr => arr.filter(r => r !== undefined))`) or bind defensively.
+> Everything previously tracked here as C1/C2/C3/C4/C5/C6/C7/D1/D2 (fixed/verified), P2/P4/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
 
 ---
 
