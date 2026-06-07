@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- Source for assets/og.png (the 1200×630 social-share card). Regenerate with:
+     npx serve . then screenshot #og at 1200×630 — see the snippet in the
+     2026-06-07 website-review commit, or just open this file at 1200×630 and
+     screenshot the .og element. Kept in tree so the card can be re-rendered if
+     the headline/brand changes. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0c0c0d; --ink: #edece8; --dim: #9a9a93; --faint: #80807a;
+    --rule: #26262b; --accent: #ff5e3a; --pos: #67dba1;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #000; }
+  .og {
+    width: 1200px; height: 630px; background: var(--bg); color: var(--ink);
+    font-family: var(--mono); padding: 72px 80px; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .og-top { display: flex; align-items: baseline; justify-content: space-between; }
+  .mark { font: 600 32px var(--mono); letter-spacing: -0.02em; }
+  .mark b { color: var(--accent); }
+  .tag { font: 500 18px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .head { font: 500 90px/1.04 var(--mono); letter-spacing: -0.03em; max-width: 18ch; }
+  .head em { font-style: normal; color: var(--accent); }
+  .sub { font: 400 27px/1.5 var(--mono); color: var(--dim); max-width: 46ch; margin-top: 26px; }
+  .sub b { color: var(--ink); font-weight: 500; }
+  .og-foot { display: flex; align-items: center; gap: 28px; font: 500 22px var(--mono); color: var(--dim); }
+  .chip { background: #141417; border: 1px solid var(--rule); border-radius: 7px; padding: 12px 20px; color: var(--ink); }
+  .chip .d { color: var(--accent); margin-right: 8px; }
+  .dot { color: var(--faint); }
+  /* faint depth-chart staircase motif, bottom-right */
+  .motif { position: absolute; right: 0; bottom: 0; width: 520px; height: 300px; opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="og" id="og">
+  <div class="og-top">
+    <span class="mark"><b>$</b> data</span>
+    <span class="tag">incremental computation for typescript</span>
+  </div>
+  <div>
+    <div class="head">Only do the work that <em>changed</em>.</div>
+    <div class="sub">A reactive data library where work scales with the <b>change</b>, not the dataset. Wrap a value, chain operators, bind to the DOM.</div>
+  </div>
+  <div class="og-foot">
+    <span class="chip"><span class="d">$</span>npm install data</span>
+    <span class="dot">·</span><span>0 dependencies</span>
+    <span class="dot">·</span><span>no virtual DOM</span>
+    <span class="dot">·</span><span>MIT</span>
+  </div>
+  <svg class="motif" viewBox="0 0 520 300" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+    <polyline points="0,250 80,250 80,210 170,210 170,160 260,160 260,120 360,120 360,70 520,70"
+      fill="none" stroke="#ff5e3a" stroke-width="3" stroke-opacity="0.55"/>
+    <polyline points="0,250 80,250 80,210 170,210 170,160 260,160 260,120 360,120 360,70 520,70 520,300 0,300"
+      fill="#ff5e3a" fill-opacity="0.07" stroke="none"/>
+  </svg>
+</div>
+</body>
+</html>
