@@ -2,14 +2,13 @@
 
 A living register of issues that still need attention: correctness limitations, performance debt, and tooling/docs gaps that are open or deliberately deferred-but-live. **Resolved fixes, won't-fix decisions, and closed-out experiments live in [DECISIONS.md](DECISIONS.md)** — check there before re-investigating anything.
 
-Last swept 2026-06-06. Line numbers are approximate and drift with edits — treat the file/function reference as authoritative, not the exact line. Most entries are *documented* limitations the shipped examples already work around by construction (object-keyed sources, defensive bindings, densifying); the handful that fail **silently** are flagged **High**. Severity reflects likelihood-of-biting-a-consumer, not theoretical impact.
+Last swept 2026-06-07. Line numbers are approximate and drift with edits — treat the file/function reference as authoritative, not the exact line. Most entries are *documented* limitations the shipped examples already work around by construction (object-keyed sources, defensive bindings, densifying); a handful that fail **silently** would be flagged **High** (none open right now). Severity reflects likelihood-of-biting-a-consumer, not theoretical impact.
 
 ## Summary
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [P1](#p1) | `between` insert/remove is O(N) (key-shift + `sorted.splice`); a deferral was tried (`1d3bc15`) then **reverted** — it desynced `between→length`/`between→filter` | Perf | Medium | Deferred (deferral reverted) |
-| [C8](#c8) | `between`'s `set extent` narrow/widen loop can emit a **spurious `BR1`** for an already-excluded row → `between→length`/`sum`/`avg` desyncs (count can go negative) | Correctness | High | Open (pre-existing, newly found) |
+| [P1](#p1) | `between` insert/remove is O(N) (key-shift + `sorted.splice`); a deferral was tried (`1d3bc15`) then **reverted** — it desynced `between→length`/`between→filter`. C8 (its blocker) is now fixed → re-attempt unblocked | Perf | Medium | Deferred (C8 cleared) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -20,26 +19,14 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 
 ---
 
-## Correctness
-
-### C8
-**`between`'s `set extent` emits a spurious `BR1` for an already-excluded row → `between→length`/`sum`/`avg` desync** · High · Open (pre-existing, newly found)
-
-The narrow/widen loops in `between`'s `set extent` ([operators/between/index.ts](operators/between/index.ts)) can re-emit a `BR1` (remove) for a row that has *already* left the view (e.g. excluded by a prior brush). `between`'s own `view.value` stays correct (it's recomputed structurally), but a downstream **counting/aggregating** sink (`length()`/`sum()`/`avg()`) decrements on the phantom remove and desyncs — the count can drift to **0 or negative**. An adversarial differential (20k random object sequences) measured ~33.6% desync on *edit+brush* sequences, present in the code **independently of P1** (P1's `XU0` self-heal had been masking it on the insert/remove path; reverting P1 restores that mask but not the underlying fix). Shipped-reachable: the [swarm example](examples/swarm/README.md) does `intersect → length` over a population that mutates in place *and* brushes a cohort.
-
-- Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` narrow/widen loops push `BR1`/`BH1` without checking the slot is currently in view).
-- Fix direction: skip a row whose `view.value` slot is already `undefined` before pushing it to `R1`. Add a `between→length`/`sum`/`avg` scenario to [differential.test.ts](differential.test.ts) (the current harness has `between→filter`/`map`/`group`/`distinct`/`az` but **no aggregate**, which is why it slipped through).
-
----
-
 ## Performance debt
 
 ### P1
-**`between` insert/remove is O(N); a deferral was attempted and reverted** · Medium · Deferred (deferral reverted)
+**`between` insert/remove is O(N); a deferral was attempted, reverted, and is now re-attemptable** · Medium · Deferred (C8 cleared)
 
 `between`'s sorted-index maintenance splices on insert; the array-source insert path is O(N) per insert (key-shift loop + `sorted.splice`), and object remove is O(N) (`sorted.indexOf` + `splice`). The `BU2` brushing path was already optimised to defer the splice behind a dirty flag (the crossfilter brushing hot path), so this only bites on insert/remove churn. It's why the [swarm example](examples/swarm/README.md) keeps a **fixed population** — births/deaths (`BI0`/`BR1` per agent) would put every operator on the O(N) path.
 
-A deferral (`1d3bc15`: drop incremental `sorted` maintenance from `BI0`/`BR1`, rebuild lazily on the next brush) made object insert/remove O(1) (~100× on remove churn) **but was reverted** — it removed a coarse-`XU0` self-heal that had been masking [C8](#c8) on the insert/remove path, so `between→length`/`sum`/`avg` desynced (counts went negative) and `between→filter` over arrays grew a ghost row. Re-attempt only **after** C8's root-cause (the spurious `BR1`) is fixed and a `between→length` differential scenario exists to guard it.
+A deferral (`1d3bc15`: drop incremental `sorted` maintenance from `BI0`/`BR1`, rebuild lazily on the next brush) made object insert/remove O(1) (~100× on remove churn) **but was reverted** — it removed a coarse-`XU0` self-heal that had been masking the C8 spurious-`BR1` bug on the insert/remove path, so `between→length`/`sum`/`avg` desynced (counts went negative) and `between→filter` over arrays grew a ghost row. **C8's root cause is now fixed** (see [DECISIONS.md → C8](DECISIONS.md)) and guarded by `between→length`/`sum`/`avg` scenarios in [differential.test.ts](differential.test.ts), so the deferral can be re-landed: the self-heal is no longer load-bearing.
 
 - Where: [operators/between/index.ts](operators/between/index.ts) (key-shift loop, `sorted.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
 

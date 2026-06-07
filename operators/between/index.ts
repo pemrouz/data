@@ -113,6 +113,17 @@ export class BetweenValue extends Operator {
     // we test its `col` against the new bound to know when to stop. Bounds
     // are inclusive on both ends, so the widen branches use `<=` / `>=`
     // against the new bound to pull the boundary row in.
+    // Each loop emits ONLY when the slot's membership actually transitions, so
+    // the BR1/BH1/BI0/BF0 stream is a faithful delta of `view.value`. A loop's
+    // walk is bounded only by the MOVING bound (`col > new_hi` etc.), so when a
+    // bound sweeps PAST the opposite boundary it steps onto rows that were
+    // already out of view (e.g. col < lo_val while narrowing high). Those slots
+    // are already holes; re-emitting a remove for them would make a downstream
+    // counting sink (length/sum/avg) decrement twice and drift to 0/negative
+    // (C8). The `view.value[ti]` defined/undefined guard suppresses the phantom
+    // event while leaving the index walk (proven correct for between's own
+    // value) untouched. Symmetric guard on the widen loops prevents a phantom
+    // re-insert of a row already in view.
     let ti, tv
     if (new_hi < this.hi_val) {
       while (
@@ -120,8 +131,7 @@ export class BetweenValue extends Operator {
         (tv[this.col] > new_hi)
       ) {
         this.hi_index--
-        R1.push(ti, tv)
-        this.view.value[ti] = undefined
+        if (this.view.value[ti] !== undefined) { R1.push(ti, tv); this.view.value[ti] = undefined }
       }
       if (this.lo_index > this.hi_index) this.lo_index = this.hi_index
     }
@@ -132,8 +142,7 @@ export class BetweenValue extends Operator {
         (tv[this.col] < new_lo)
       ) {
         this.lo_index++
-        R1.push(ti, tv)
-        this.view.value[ti] = undefined
+        if (this.view.value[ti] !== undefined) { R1.push(ti, tv); this.view.value[ti] = undefined }
       }
       if (this.hi_index < this.lo_index) this.hi_index = this.lo_index
     }
@@ -144,8 +153,7 @@ export class BetweenValue extends Operator {
         (tv[this.col] <= new_hi)
       ) {
         this.hi_index++
-        I0.push(ti, tv)
-        this.view.value[ti] = tv
+        if (this.view.value[ti] === undefined) { I0.push(ti, tv); this.view.value[ti] = tv }
       }
     }
 
@@ -155,8 +163,7 @@ export class BetweenValue extends Operator {
         (tv[this.col] >= new_lo)
       ) {
         this.lo_index--
-        I0.push(ti, tv)
-        this.view.value[ti] = tv
+        if (this.view.value[ti] === undefined) { I0.push(ti, tv); this.view.value[ti] = tv }
       }
     }
 

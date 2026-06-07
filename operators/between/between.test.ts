@@ -4,6 +4,8 @@ import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { between } from './index.ts'
 import { filter } from '../filter/index.ts'
+import { length } from '../length/index.ts'
+import { sum } from '../aggregate/index.ts'
 
 const dense = (a) => (Array.isArray(a) ? a.filter((x) => x !== undefined) : a)
 
@@ -237,4 +239,42 @@ test('between - narrowing a reactive bound to a point range keeps the boundary r
   const ba = between(arr, 'gx', [lo3, hi3])
   hi3[value] = 2; lo3[value] = 2                                    // -> [2,2]
   same(dense(ba[value]), [{ gx: 2 }])                              // pre-fix: [] (boundary row dropped)
+})
+
+// Regression (C8): `set extent`'s narrow loops walk `sorted` bounded only by the
+// MOVING bound (`col > new_hi` / `col < new_lo`), so a brush that sweeps one
+// bound PAST the opposite boundary steps onto rows that were already out of view
+// (their slot is a hole) and re-emitted a remove for each. between's own
+// `view.value` stayed correct, but a downstream COUNTING/AGGREGATING sink
+// (length/sum/avg) decremented on the phantom remove and drifted to 0 / negative.
+// The differential harness missed this (it had no between→aggregate scenario);
+// it now does. Each sweep below starts from a fresh window so the pre-fix value
+// is exact, not compounded.
+test('between → length/sum stays correct when a brush sweeps a bound past the opposite bound (C8)', () => {
+  // k0..k8 with v = 0,11,…,88; window [20,70] holds k2..k6 (v 22,33,44,55,66).
+  const mk = () => $(Object.fromEntries(Array.from({ length: 9 }, (_, i) => ['k' + i, { v: i * 11 }])))
+
+  // (a) sweep the LOW bound UP, past the high boundary -> empty window.
+  const sA = mk(), bA = $([20, 70])
+  const wA = between(sA, 'v', bA)
+  const cA = length(wA), tA = sum(wA, 'v')
+  same(cA[value], 5)
+  same(tA[value], 220)
+  bA[value] = [90, 100]
+  // narrow-low walks past k7(77)/k8(88) — already excluded (> hi_val 70). Pre-fix
+  // it re-emitted a remove for each, so the count drifted to -2 and the running
+  // sum to -165 (negative). Post-fix both drain cleanly to 0.
+  same(cA[value], 0)
+  same(tA[value], 0)
+
+  // (b) sweep the HIGH bound DOWN, past the low boundary -> just k0(0).
+  const sB = mk(), bB = $([20, 70])
+  const wB = between(sB, 'v', bB)
+  const cB = length(wB), tB = sum(wB, 'v')
+  same(cB[value], 5)
+  bB[value] = [0, 10]
+  // narrow-high walks past k1(11) — already excluded (< lo_val 20) — before
+  // widen-low admits k0(0). Pre-fix the phantom remove of k1 dropped count to 0.
+  same(cB[value], 1)
+  same(tB[value], 0)                // only k0, v=0
 })

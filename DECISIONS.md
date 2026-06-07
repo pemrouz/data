@@ -88,6 +88,15 @@ When two rows share a projection key and the *representative* (the instance cach
 
 - Where: [operators/between/index.ts](operators/between/index.ts) (`set extent`); regression test `between - narrowing a reactive bound to a point range keeps the boundary rows` in [operators/between/between.test.ts](operators/between/between.test.ts). Surfaced while auditing the `BH1`/`BF0` protocol (it reproduces on object *and* array sources, so it is not a hole/splice issue).
 
+### C8 — `between`'s `set extent` emitted a spurious remove for an already-excluded row ✅
+`cb00e89`
+
+`between`'s `set extent` narrow/widen loops walk `sorted` bounded **only by the moving bound** (`col > new_hi` for narrow-high, `col < new_lo` for narrow-low). When a brush sweeps one bound **past the opposite boundary** (e.g. narrow the high bound below `lo_val`), the loop steps onto rows that were already out of view — their `view.value` slot is already a hole — and re-emitted a `BR1`/`BH1` (remove) for each. `between`'s own `view.value` stayed correct (recomputed structurally), but a downstream **counting/aggregating** sink (`length`/`sum`/`avg`) decremented on the phantom remove and drifted to **0 or negative** (a reproducer brushing `[20,70]→[90,100]` yielded `length === -2`). This was **pre-existing and independent of [P1](ISSUES.md#p1)** — P1's coarse-`XU0` self-heal on the insert/remove path had been masking it, which is why reverting the P1 deferral re-exposed it. Shipped-reachable via the [swarm example](examples/swarm/README.md) (`intersect → length` over an in-place-mutating, brushed population).
+
+**Fix:** each loop now emits **only when the slot's membership actually transitions** — guard `R1.push` with `view.value[ti] !== undefined` (and the widen `I0.push` with `=== undefined`) — so the emitted `BR1`/`BH1`/`BI0`/`BF0` stream is a faithful delta of `view.value`. The index walk itself is unchanged (it was already correct for between's own value). The differential-harness gap that let it slip through is closed: `between→length`/`sum`/`avg` scenarios added to [differential.test.ts](differential.test.ts), plus a deterministic regression `between → length/sum stays correct when a brush sweeps a bound past the opposite bound (C8)` in [operators/between/between.test.ts](operators/between/between.test.ts). Verified with a 3000-sequence stress (no desync). Clears the blocker on re-landing the P1 deferral.
+
+- Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` four bound-walk loops).
+
 ---
 
 ## Won't fix / skipped

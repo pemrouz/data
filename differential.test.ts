@@ -145,6 +145,13 @@ const SCENARIOS = [
   { tag: 'filter→between', bound: true, project: (s, c) => s.filter((r) => r.v > 10).between('v', c.bound) },
   { tag: 'filter→sum', scalar: true, project: (s) => s.filter((r) => r.v > 25).sum('v') },
   { tag: 'za-window→length', scalar: true, project: (s) => s.za('v', 3).length() },
+  // Aggregates downstream of `between` (C8): a counting/summing sink decrements
+  // on every BR1/BH1 `between` emits, so a spurious remove (re-emitting a row
+  // that already left the view) drifts the count to 0 / negative. The brush+edit
+  // mutation mix exercises the `set extent` narrow loop that was the culprit.
+  { tag: 'between→length', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).length() },
+  { tag: 'between→sum', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).sum('v') },
+  { tag: 'between→avg', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).avg('v') },
 ]
 
 // mutation kinds
