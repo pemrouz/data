@@ -98,7 +98,7 @@ When two rows share a projection key and the *representative* (the instance cach
 - Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` four bound-walk loops).
 
 ### P1 — `between` insert/remove deferred its sorted-index maintenance (object O(1)) ✅
-`1d3bc15` (deferral), `105cfc7` (revert), `<commit-p1>` (re-land)
+`1d3bc15` (deferral), `105cfc7` (revert), `d294eee` (re-land)
 
 `between`'s `BI0`/`BR1` maintained the `sorted` index incrementally on every source insert/remove — O(N) per row (object: `sorted.indexOf` + `splice`; array: a key-shift loop plus an O(N²) batch-remove recompute). But `sorted` is read **only** by `set extent` (which already calls `_resort()` when `sortedDirty`), so the per-row bookkeeping was redundant: `BI0`/`BR1` only need the membership decision (`_inRange`, which reads `lo_val`/`hi_val`) and the `view.value` write, then `sortedDirty = true` — the same dirty-flag amortization `_replaceRow` (`BU2`/`BU1`) already used. Deferring makes **object** insert/remove O(1) per row, unblocking the object-keyed births/deaths workload. (**Array** insert/remove stays O(N): the `view.value.splice` that mirrors the source's positional shift is inherent to the array representation, not redundant bookkeeping — object keys are the right choice for high-churn births/deaths, as the [swarm example](examples/swarm/README.md) notes.)
 
