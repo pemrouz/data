@@ -40,20 +40,5 @@ which dominated this bench at ~82ms for the batch. Deferring brings it to
 10ms while keeping `set extent` (the crossfilter brushing path) correct
 via the dirty flag.
 
-- BI0/BR1 (source insert/remove) now defer the same way (P1): they make
-  the membership decision (`_inRange`, which needs only `lo_val`/`hi_val`)
-  and write `view.value`, then set `sortedDirty = true` — they never touch
-  `sorted`. The old incremental maintenance paid O(N) per row (object:
-  `sorted.indexOf` + `splice`; array: a key-shift loop, plus an O(N²)
-  key-shift recompute for batch removes). This is the births/deaths
-  workload — an object-keyed population streaming inserts/removes with
-  brushes only occasionally. Measured on a 10k object source: **remove
-  churn 1000 rows 60.99ms → 0.60ms (~100×)**, insert churn 2.61ms →
-  2.31ms; the `narrow/widen` brush path is unchanged (it does no
-  inserts, so `sortedDirty` is never set and no `_resort` fires). For an
-  array source the `view.value` splice that mirrors the source's
-  positional shift is inherent to arrays and stays O(N); only the
-  redundant sorted bookkeeping is shed.
-
 Run `BENCH_OPS=between npm run bench:ops` to refresh — update this file
 when the numbers change materially.

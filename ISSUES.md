@@ -8,7 +8,8 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [P1](#p1) | `between` insert/remove sorted-bookkeeping was O(N); now deferred (object → O(1)); array `view.value` splice remains O(N) | Perf | Low | Open (object half fixed) |
+| [P1](#p1) | `between` insert/remove is O(N) (key-shift + `sorted.splice`); a deferral was tried (`1d3bc15`) then **reverted** — it desynced `between→length`/`between→filter` | Perf | Medium | Deferred (deferral reverted) |
+| [C8](#c8) | `between`'s `set extent` narrow/widen loop can emit a **spurious `BR1`** for an already-excluded row → `between→length`/`sum`/`avg` desyncs (count can go negative) | Correctness | High | Open (pre-existing, newly found) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -19,17 +20,28 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 
 ---
 
+## Correctness
+
+### C8
+**`between`'s `set extent` emits a spurious `BR1` for an already-excluded row → `between→length`/`sum`/`avg` desync** · High · Open (pre-existing, newly found)
+
+The narrow/widen loops in `between`'s `set extent` ([operators/between/index.ts](operators/between/index.ts)) can re-emit a `BR1` (remove) for a row that has *already* left the view (e.g. excluded by a prior brush). `between`'s own `view.value` stays correct (it's recomputed structurally), but a downstream **counting/aggregating** sink (`length()`/`sum()`/`avg()`) decrements on the phantom remove and desyncs — the count can drift to **0 or negative**. An adversarial differential (20k random object sequences) measured ~33.6% desync on *edit+brush* sequences, present in the code **independently of P1** (P1's `XU0` self-heal had been masking it on the insert/remove path; reverting P1 restores that mask but not the underlying fix). Shipped-reachable: the [swarm example](examples/swarm/README.md) does `intersect → length` over a population that mutates in place *and* brushes a cohort.
+
+- Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` narrow/widen loops push `BR1`/`BH1` without checking the slot is currently in view).
+- Fix direction: skip a row whose `view.value` slot is already `undefined` before pushing it to `R1`. Add a `between→length`/`sum`/`avg` scenario to [differential.test.ts](differential.test.ts) (the current harness has `between→filter`/`map`/`group`/`distinct`/`az` but **no aggregate**, which is why it slipped through).
+
+---
+
 ## Performance debt
 
 ### P1
-**`between` insert/remove sorted-bookkeeping was O(N); now deferred (object → O(1)); array `view.value` splice remains O(N)** · Low · Open (object half fixed)
+**`between` insert/remove is O(N); a deferral was attempted and reverted** · Medium · Deferred (deferral reverted)
 
-The redundant `sorted`-index maintenance on insert/remove is gone: `BI0`/`BR1` now defer it behind the same `sortedDirty` flag `BU2` already uses (the next brush rebuilds `sorted` via `_resort`). They make the membership decision (`_inRange`, which reads only `lo_val`/`hi_val`) and write `view.value`, then mark dirty — they never touch `sorted`. So **object-source** insert/remove is now O(1) per row (was O(N) `sorted.indexOf` + `splice`, plus an O(N²) key-shift recompute for batch array removes) — measured ~100× on remove churn (60.99 ms → 0.60 ms for 1000 removes / 10k rows; insert 2.61 ms → 2.31 ms; the crossfilter brush path is unchanged since it does no inserts).
+`between`'s sorted-index maintenance splices on insert; the array-source insert path is O(N) per insert (key-shift loop + `sorted.splice`), and object remove is O(N) (`sorted.indexOf` + `splice`). The `BU2` brushing path was already optimised to defer the splice behind a dirty flag (the crossfilter brushing hot path), so this only bites on insert/remove churn. It's why the [swarm example](examples/swarm/README.md) keeps a **fixed population** — births/deaths (`BI0`/`BR1` per agent) would put every operator on the O(N) path.
 
-What stays O(N) is **array-source** insert/remove only: the `view.value.splice` that mirrors the source's positional array shift is inherent to arrays (every later index re-numbers), and can't go sub-O(N) while keys *are* positions. So the [swarm example](examples/swarm/README.md)'s fixed-population constraint is **lifted for an object-keyed population** (births/deaths now cheap), but an array-keyed source still pays the splice per insert/remove.
+A deferral (`1d3bc15`: drop incremental `sorted` maintenance from `BI0`/`BR1`, rebuild lazily on the next brush) made object insert/remove O(1) (~100× on remove churn) **but was reverted** — it removed a coarse-`XU0` self-heal that had been masking [C8](#c8) on the insert/remove path, so `between→length`/`sum`/`avg` desynced (counts went negative) and `between→filter` over arrays grew a ghost row. Re-attempt only **after** C8's root-cause (the spurious `BR1`) is fixed and a `between→length` differential scenario exists to guard it.
 
-- Where: [operators/between/index.ts](operators/between/index.ts) (`BI0`/`BR1` defer to `sortedDirty` + `_resort`; the residual array `view.value.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
-- Resolution: object half done. The array half is fundamental to positional array semantics — use an object-keyed source (as the [flow example](examples/flow/) already does) for high insert/remove churn.
+- Where: [operators/between/index.ts](operators/between/index.ts) (key-shift loop, `sorted.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
 
 ### P3
 **3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit)** · Low · Open (BU1 half fixed)
