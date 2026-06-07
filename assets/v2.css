@@ -188,8 +188,17 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
   border-bottom: 1px solid var(--rule);
   background: var(--bg-2);
 }
-.cat-row:last-child { border-bottom: 0; }
 .cat-row:hover { background: var(--bg-3); }
+/* collapsible catalogue: each operator is a <details class="cat-item"> with the
+ * .cat-row as its <summary>; the live .cat-demo only renders when open. Default
+ * one (filter) open. Caret is absolutely-positioned so it never disturbs the
+ * row grid (incl. the mobile 1fr-auto reflow). */
+.cat-item { background: var(--bg-2); }
+.cat-item:last-child:not([open]) > .cat-row { border-bottom: 0; }
+summary.cat-row { position: relative; cursor: pointer; list-style: none; padding-left: 1.95rem; }
+summary.cat-row::-webkit-details-marker { display: none; }
+summary.cat-row::before { content: '▸'; position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 0.72rem; line-height: 1; transition: transform 120ms ease; }
+.cat-item[open] > summary.cat-row::before { transform: translateY(-50%) rotate(90deg); }
 .cat-op { font: 500 0.85rem var(--mono); color: var(--accent); border: 0; white-space: nowrap; }
 .cat-op:hover { text-decoration: underline; }
 .cat-desc { color: var(--dim); font-size: 0.86rem; min-width: 0; }
@@ -223,7 +232,7 @@ section.essay, section.operators, section.quickstart, section.devtools-section {
   padding: 0.85rem 1rem 1rem;
   font: 0.78rem var(--mono);
 }
-.cat-demo:last-child { border-bottom: 0; }
+.cat-item:last-child > .cat-demo { border-bottom: 0; }
 .cat-demo .demo-chips { margin-bottom: 0.6rem; }
 .cat-demo .demo-panel { min-width: 0; }
 /* Pin variable-content cards to a stable height so streaming ticks (rows
