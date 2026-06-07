@@ -13,7 +13,7 @@
 // maps excluding undefined. This tolerates the hole-vs-splice REPRESENTATION
 // difference (which is legal) while still catching wrong/missing/extra ROWS.
 //
-// This file is NOT in the default `npm test` glob yet — run it explicitly:
+// This file IS in the default `npm test` glob (see package.json). Run it alone:
 //   node --experimental-strip-types --test differential.test.ts
 import { test } from 'node:test'
 import { strictEqual as eq, ok } from 'node:assert'
@@ -114,6 +114,15 @@ const SCENARIOS = [
   { tag: 'reverse', project: (s) => s.reverse() },
   { tag: 'to', scalar: true, project: (s) => s.to((a) => (a ? Object.values(a).filter(Boolean).length : 0)) },
   { tag: 'group', project: (s) => s.group((r) => r.g) },
+  // ---- set-algebra producers (C12: the harness had NO intersect/union/except
+  // head-operator coverage, which is why their array-source remove-churn desync
+  // went unseen). Facets derive from the same source so membership correlates
+  // by key/index.
+  { tag: 'intersect', project: (s) => s.intersect(s.filter((r) => r.v > 25)) },
+  { tag: 'intersect2', project: (s) => s.intersect(s.filter((r) => r.v > 25), s.filter((r) => r.v < 80)) },
+  { tag: 'intersect-between', bound: true, project: (s, c) => s.intersect(s.between('v', c.bound)) },
+  { tag: 'union', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)) },
+  { tag: 'except', project: (s) => s.except(s.filter((r) => r.v > 60)) },
   { tag: 'reduce2', scalar: true, project: (s) => s.reduce((a, r) => a + (r ? r.v : 0), 0) },
   {
     tag: 'reduce3', scalar: true,
@@ -218,14 +227,22 @@ function runScenario(scn, shape, seed) {
   return { ok: true }
 }
 
-// No known failures. The C1 (hole-vs-splice) and C3 (chained windowed/array
-// sort) families are closed: bounded windows emit content-stable rotations,
-// ascending sorts track array index shifts, sort implements BF0/BH1, and
-// filter's predicate-flip path emits holes. The registry stays here (and the
-// loop below still asserts a listed case must FAIL) so any future regression
-// that reintroduces a desync can be parked and tracked rather than silently
-// widened away.
-const KNOWN_FAILURES = new Set([])
+// The C1 (hole-vs-splice) and C3 (chained windowed/array sort) families are
+// closed. Parked here: the set-algebra producers (intersect/union/except) over
+// an ARRAY source under insert/remove/in-place-edit churn — a C1-family
+// array-positional gap (their bitmask/view isn't fully maintained across array
+// splices). This is C12 in ISSUES.md; the OBJECT shapes are correct (the
+// except-BU2 fix closed the only object bug). Not shipped-reachable: examples
+// use object-keyed or fixed-population sources for set algebra. A listed case
+// that starts PASSING fails the loop below (so a fix must delete it from here),
+// guarding against silent widening.
+const KNOWN_FAILURES = new Set([
+  'intersect [array]',
+  'intersect2 [array]',
+  'intersect-between [array]',
+  'union [array]',
+  'except [array]',
+])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {

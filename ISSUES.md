@@ -8,7 +8,7 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C12](#c12) | `intersect` over an **array** source desyncs on a *remove sequence* (a ghost row accumulates); the differential harness has **no `intersect` coverage** | Correctness | Low | Open (not shipped-reachable) |
+| [C12](#c12) | set-algebra producers (`intersect`/`union`/`except`) desync over an **array** source under churn (C1-family array-positional gap); object shapes fixed; 5 array cases parked in `KNOWN_FAILURES` | Correctness | Low | Open (not shipped-reachable, object half fixed) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -22,16 +22,16 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 ## Correctness
 
 ### C12
-**`intersect` over an array source desyncs on a remove sequence (ghost row)** · Low · Open (not shipped-reachable)
+**set-algebra producers (`intersect`/`union`/`except`) desync over an ARRAY source under churn** · Low · Open (not shipped-reachable, object shapes fixed)
 
-`intersect(source, …facets)` over an **array** source drifts under a *sequence* of source removes (`delete arr[i]`, which leaves a hole — no splice): a single remove is handled, but repeated remove churn accumulates a **ghost row** in the intersect output (measured ~all of a 25-step random-remove sequence desyncs; e.g. live `[22,33,55,66]` vs a fresh rebuild's `[33,55,66]`). The intersect membership bitmask / row tracking isn't kept consistent as holes accumulate.
+`intersect`/`union`/`except` over an **array** source drift under insert / remove / in-place-edit churn — a C1-family array-positional gap: their bitmask/`view.value` isn't fully maintained across array splices and hole accumulation (e.g. `intersect` accumulates a **ghost row** over a remove sequence; `intersect2` desyncs on the first array insert; `union`/`except` array desync on an in-place edit). The harness now **covers** the family: five scenarios — `intersect [array]`, `intersect2 [array]`, `intersect-between [array]`, `union [array]`, `except [array]` — are parked in `KNOWN_FAILURES` in [differential.test.ts](differential.test.ts) (the registry **fails if one starts passing**, so a fix must delete it). The **OBJECT shapes are all correct** — the only object bug (`except` re-materialising a row pushed into the exclusion by an in-place edit, because its `BU2` ignored exclusion membership) is **fixed** (see [DECISIONS.md → C12 (object half)](DECISIONS.md)).
 
-Surfaced while resolving the [DECISIONS.md → C11](DECISIONS.md) `limit` investigation — `intersect→limit` "remove array" failures were traced to `intersect` itself (they reproduce with **no `limit`**). The **differential harness has no `intersect` scenarios at all**, which is why this went unseen (it covers `between`-rooted chains, sorts, aggregates, but not `intersect`/`union`/`except` as the head operator).
+Surfaced while resolving the [DECISIONS.md → C11](DECISIONS.md) `limit` investigation — `intersect→limit` "remove array" failures were traced to `intersect` itself (they reproduce with **no `limit`**). The harness had **no set-algebra head-operator scenarios at all**, which is why the family's array gaps went unseen.
 
-**Not shipped-reachable**: no example removes rows from an `intersect`'s array source — crossfilter (`flights.intersect(dims)`) and swarm (`pop.intersect(…)`) use **static / fixed-population** sources, and the library's source is a fixed media list. `intersect` over an **object** source under removes is correct.
+**Not shipped-reachable**: no example mutates an `intersect`/`union`/`except` array source under churn — crossfilter (`flights.intersect(dims)`) and swarm (`pop.intersect(…)`) use **static / fixed-population** sources, and the library's source is a fixed media list (its facets re-point via `$(view)` swaps, not in-place source edits). Object-keyed sources are the workaround.
 
-- Where: [operators/intersect/index.ts](operators/intersect/index.ts) (array-source membership maintenance across hole accumulation).
-- Fix direction: add `intersect`/`union`/`except` (head-operator) scenarios to [differential.test.ts](differential.test.ts) — array **and** object, with the standard insert/remove/update/brush mix — to pin the bug and guard the family; then make the array-source membership tracking hole-stable under remove churn. Object-keyed sources are the workaround until fixed.
+- Where: [operators/intersect/index.ts](operators/intersect/index.ts), [operators/union/index.ts](operators/union/index.ts), [operators/except/index.ts](operators/except/index.ts) (array-source `_enter`/`_leave` bitmask + `view.value` maintenance across array splice/hole churn; likely need `BI0A`/`BR1A` handlers like the C1 family).
+- Fix direction: the C1-family array-positional rework for the bitmask producers — keep the per-name bitmask and sparse `view.value` consistent through array inserts (shift), removes (hole/shift), and facet hole-fills/removes; delete each scenario from `KNOWN_FAILURES` as it goes green; gate on the crossfilter/swarm/library Playwright specs (the shipped object/static paths must stay correct).
 
 ---
 

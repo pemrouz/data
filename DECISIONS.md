@@ -140,7 +140,17 @@ Pre-existing and **independent of C8/P1** — it reproduces identically on pre-C
 
 - Verified: `between→limit` array (insert/remove/update/brush/mix) clean across a 300-seed×… stress; deterministic regression `limit on a sparse producer survives a sideways brush without duplicating` in [operators/sort/sort.test.ts](operators/sort/sort.test.ts).
 - Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BI0` array branch).
-- **Two non-`limit` findings from the same investigation:** (1) `limit` over an **object** source is **iteration-order-loose** (the parent's object key order is mutation-history-dependent — a brush deletes+re-adds keys, moving them to the end — so "first n in iteration order" drifts vs a fresh rebuild; *not a bug*, the same history-dependence `distinct` has, now noted in [CLAUDE.md](CLAUDE.md)). (2) `intersect` over an **array** desyncs on a remove **sequence** (a ghost row accumulates) — a separate **`intersect`** bug independent of `limit`, filed as [ISSUES.md → C12](ISSUES.md) (the differential harness has **no `intersect` coverage**, which is why it slipped). Neither is shipped-reachable.
+- **Two non-`limit` findings from the same investigation:** (1) `limit` over an **object** source is **iteration-order-loose** (the parent's object key order is mutation-history-dependent — a brush deletes+re-adds keys, moving them to the end — so "first n in iteration order" drifts vs a fresh rebuild; *not a bug*, the same history-dependence `distinct` has, now noted in [CLAUDE.md](CLAUDE.md)). (2) the set-algebra producers desync over an **array** source under churn — investigated in C12 below.
+
+### C12 (object half) — `except`'s `BU2` ignored exclusion membership ✅
+`848131d`
+
+Investigating the C11 `intersect→limit` "remove array" failure led to giving the differential harness its first **set-algebra head-operator coverage** (`intersect`/`union`/`except`, array+object — it had none, which is why the whole family's gaps were invisible). That surfaced one clean **object-shape** bug: `except(p, other)` over an object **re-materialised a row that an in-place edit had pushed INTO the exclusion**. The facet (a filter) correctly emits an insert when its predicate flips, and `except`'s `BI0`-from-other drops the row — but the *same* source edit also fans a `BU2` to `except`'s primary, and `except` had **no `BU2`**, so the base default re-added the row, undoing the drop (`k1.v 11→200` left `k1` stuck in the output at 200).
+
+**Fix:** `except.BU2` now mirrors its (already-correct) `BU1` — from `other` it's a no-op (the row stays excluded regardless of value); from primary it forwards the nested update **only for rows still in the output** (skips excluded ones), so it can't re-add a dropped row. Regression: `except - in-place edit into the exclusion drops the row (BU2)` in [operators/except/except.test.ts](operators/except/except.test.ts). Fixed all OBJECT-shape set-algebra differential scenarios.
+
+- Where: [operators/except/index.ts](operators/except/index.ts) (`ExceptValue.BU2`).
+- **Array half STILL OPEN** — tracked as [ISSUES.md → C12](ISSUES.md): `intersect`/`union`/`except` over an **array** source desync under insert/remove/in-place-edit churn (a C1-family array-positional gap in their bitmask/`view.value` maintenance). Five `[array]` scenarios are parked in the harness's `KNOWN_FAILURES`. Not shipped-reachable (examples use object-keyed or fixed/static sources). Needs the C1-family array-positional rework for the bitmask producers.
 
 ---
 
