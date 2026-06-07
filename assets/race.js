@@ -21,9 +21,11 @@
  * heavy ones (react/rxjs/svelte/crossfilter) don't stall on the first frames,
  * then let you push the slider back up.
  *
- * A second panel below the carousel inlines the full 231k-row multidim
- * brushing comparison (all nine libraries at once) — lazy-loaded in an iframe
- * when it nears the viewport so the page doesn't pay ~36MB on first paint.
+ * A second panel below the carousel inlines ONE library's 231k-row multidim
+ * brushing row — the SAME engine selected above, re-mounted on carousel change
+ * (kept warm via [hidden], not destroyed). Lazy-loaded via dynamic import (NOT
+ * an iframe) when it nears the viewport so the page doesn't pay ~36MB on first
+ * paint.
  *
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 

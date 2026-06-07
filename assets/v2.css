@@ -287,7 +287,6 @@ summary.cat-row::before { content: '▸'; position: absolute; left: 0.9rem; top:
 }
 
 /* ---------- live demos ---------- */
-.demos-intro { margin-top: 1rem; }
 .stream-btn { background: transparent; color: var(--dim); border: 1px solid var(--rule); font: 500 0.72rem var(--mono); padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer; margin-left: 0.4rem; }
 .stream-btn:hover { color: var(--accent); border-color: var(--accent); }
 .demo-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.75rem; }
