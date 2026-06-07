@@ -118,7 +118,18 @@ Pre-existing and **independent of C8/P1** — it reproduces identically on pre-C
 
 - Verified: `between→az/za` (array+object, bounded+unbounded) clean across an 800-seed brush+churn stress; differential gains a `between→za` scenario alongside the existing `between→az`; deterministic regression `between → az keeps order through a sideways brush` in [operators/between/between.test.ts](operators/between/between.test.ts).
 - Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` emission order).
-- NB: the same stress surfaced **separate, still-open** pre-existing desyncs in `limit`-after-a-sort (`az→limit` fails even without `between`) and `top` over an **object** source — a different family (not the brush/`BF0`/`BH1` path), untouched by this fix and not covered by the differential harness. Tracked for a follow-up, not closed here.
+- NB: the same stress surfaced a **separate** pre-existing `limit`-after-a-sort desync, now fixed in C10 below. (`top` over an object source was a **non-bug** — the probe misused `top`, which takes only `n`; `top` is correct on scalar array and object sources.)
+
+### C10 — `limit` after a re-ordering sort dropped the sort's positional verbs ✅
+`<commit-c10>`
+
+`az('v').limit(k)` / `za('v').limit(k)` desynced when the upstream sort re-ordered: a removal, a window rotation, or a rank shuffle reaches `limit` as the **array-positional verbs `BR1A` / `BI0A` / `BMV1`**, each carrying a SHIFT (every rank after the touched one slides). `LimitValue` tracks `keys` as **stable source positions** and refills by forward-scanning (`nextAfter`/`nextObjectKey`), so it can't follow a re-ranking parent — and it didn't implement those verbs at all, so they were silently dropped, leaving stale/duplicated rows (e.g. a row jumping `v:70→1` left `[5,1,5]` where `[1,5,10]` was correct). Surfaced by the C9 investigation's stress (the bug is independent of C9 — it reproduces on a plain `az(...).limit(...)` with no `between`).
+
+**Fix:** implement `BR1A`/`BI0A`/`BMV1` on `LimitValue` as a window **recompute** from the parent's (already-updated) value. These verbs are emitted **only by sorts** — sparse producers (`between`/`intersect`/`union`/`except`) signal membership with `BR1`/`BF0`/`BH1`, never these — so the fix is surgical to the `sort→limit` chain and leaves the incremental brush path (the one crossfilter relies on) untouched. O(n) per event, n = the small limit size.
+
+- Verified: `az→limit`/`za→limit` (array+object, insert/remove/update, order-sensitive) clean across a 300-seed×4 churn stress and added as differential scenarios; deterministic regression `limit after a sort tracks rank moves and removals (az → limit)` in [operators/sort/sort.test.ts](operators/sort/sort.test.ts). **No regression**: the crossfilter chain (`za→intersect→limit`, brush) is 0/60 in a Node repro and the crossfilter Playwright spec passes; `intersect`→`limit` over an array under a brush (the shipped shape) was and stays correct.
+- Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BR1A`/`BI0A`/`BMV1`).
+- **Still open** (tracked, not shipped-reachable): `limit` *directly* after a **sparse producer over an array** desyncs on a source **remove** (between/intersect → `limit`, array — the array splice shifts source positions but `limit`'s `BR1` doesn't shift its `keys`), and over an **object** source on a **brush** (`BF0`/`BH1` refill). Crossfilter's actual shape (`intersect→limit` brush over an array) is correct; the broken combos aren't used by any shipped example (library uses bounded `za(col,n)` instead of `.limit()`). These need a shift-aware `limit` rework — see [ISSUES.md](ISSUES.md).
 
 ---
 

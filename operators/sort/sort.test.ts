@@ -377,6 +377,27 @@ test('limit (obj) - key leaving via assignment-to-undefined refills like delete'
   same(cu, cd)
 })
 
+// Regression: a sort feeding limit re-orders its output, so a removal or a rank
+// crossing reaches limit as the array-positional BR1A/BI0A/BMV1 verbs. limit
+// tracks `keys` as stable source positions and refills by forward-scanning, so
+// it cannot follow a re-ranking parent — it used to DROP those verbs entirely,
+// leaving stale/duped rows (id3 jumping 70→1 produced [5,1,5] instead of
+// [1,5,10]). limit now recomputes its window from the parent on those verbs.
+// (Only a sort emits them; sparse producers signal membership with BR1/BF0/BH1.)
+test('limit after a sort tracks rank moves and removals (az → limit)', () => {
+  const src = $([{ id: 0, v: 50 }, { id: 1, v: 10 }, { id: 2, v: 30 }, { id: 3, v: 70 }, { id: 4, v: 20 }])
+  const sorted = createOperator(src, AZColumnValue, 'v')   // az('v')
+  const top3 = limit(sorted, 3)
+  const vals = () => top3[value].map((r) => r.v)
+  same(vals(), [10, 20, 30])
+  ;(src as any).insert({ id: 5, v: 5 })   // new smallest enters the window
+  same(vals(), [5, 10, 20])
+  src[3].v = 1                            // 70 → 1: id3 jumps to rank 0 (rank move)
+  same(vals(), [1, 5, 10])               // pre-fix: [5, 1, 5]
+  delete src[1]                          // remove v10 (BR1A from the sort)
+  same(vals(), [1, 5, 20])               // pre-fix: [5, 1, 5]
+})
+
 test('limit (obj) - new key joins when window has headroom', () => {
   const data = $({ a: 1, b: 2 })
   const res = limit(data, 3)

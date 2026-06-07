@@ -713,6 +713,21 @@ export class LimitValue extends Operator {
     }
   }
 
+  // A SORT parent (az/za) re-orders its output: a removal, a window rotation, or
+  // a rank shuffle reaches us as the array-positional verbs BR1A / BI0A / BMV1,
+  // each of which carries a SHIFT (every rank after the touched one slides). We
+  // track `keys` as stable source positions and refill via a forward scan, so we
+  // can't cheaply follow a re-ranking parent — `keys` would point at the wrong
+  // post-shift rows. Recompute the window from the parent's (already-updated)
+  // value instead. This path fires ONLY for a sort→limit chain: sparse producers
+  // (between/intersect/union/except) signal membership with BR1/BF0/BH1, never
+  // these, so the incremental brush path stays untouched. O(n) per event with
+  // n = the (small) limit size. Without this, `az('v').limit(k)` dropped/duped
+  // rows whenever a row left the sort or crossed a rank boundary.
+  BR1A(){ this.XU0(this.p.value) }
+  BI0A(){ this.XU0(this.p.value) }
+  BMV1(){ this.XU0(this.p.value) }
+
   BR2(){}
   BU2(){}
   BI2(){}

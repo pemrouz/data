@@ -146,6 +146,12 @@ const SCENARIOS = [
   { tag: 'filter→between', bound: true, project: (s, c) => s.filter((r) => r.v > 10).between('v', c.bound) },
   { tag: 'filter→sum', scalar: true, project: (s) => s.filter((r) => r.v > 25).sum('v') },
   { tag: 'za-window→length', scalar: true, project: (s) => s.za('v', 3).length() },
+  // limit downstream of a SORT: a sort re-orders its output, reaching limit as
+  // the array-positional BR1A/BI0A/BMV1 verbs. limit recomputes its window on
+  // those (it can't follow a re-ranking parent incrementally) — without that,
+  // `az('v').limit(k)` dropped/duped rows on a removal or rank crossing.
+  { tag: 'az→limit', project: (s) => s.az('v').limit(4) },
+  { tag: 'za→limit', project: (s) => s.za('v').limit(4) },
   // Aggregates downstream of `between` (C8): a counting/summing sink decrements
   // on every BR1/BH1 `between` emits, so a spurious remove (re-emitting a row
   // that already left the view) drifts the count to 0 / negative. The brush+edit
