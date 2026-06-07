@@ -108,7 +108,7 @@ This first landed in `1d3bc15`, then was **reverted** (`105cfc7`) because droppi
 - Where: [operators/between/index.ts](operators/between/index.ts) (`BI0`/`BR1`), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
 
 ### C9 — a sort directly downstream of `between` mis-ordered rows on a sideways brush ✅
-`<commit-c9>`
+`4bc4278`
 
 A sort (`az`/`za`, bounded or unbounded) chained **directly** off `between` mis-ordered rows on a *sideways* brush — one whose `set extent` both removes some rows and admits others in the same call. `set extent` writes `view.value` for BOTH the holes and the fills before emitting, and emitted the **fills (`BF0`/`BI0`) before the holes (`BH1`/`BR1`)**. A sort ranks a fill by bisecting `this.p.value[this.sorted[mid]]` (`bisect_left`/`bisect_right` in [utils.ts](utils.ts)) — it dereferences the between view at every position still in its `sorted`. With fills emitted first, the not-yet-removed positions are already **holes** in `view.value`, so the bisect read `col(undefined)` (which compares false in both directions) and ranked the newcomer at the wrong end — e.g. `between([33,66])→az`, brush `[22,55]` then `[50,70]`, gave `[66,55]` where `[55,66]` is correct.
 
