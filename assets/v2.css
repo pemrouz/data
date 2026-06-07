@@ -56,7 +56,21 @@ code { font: 0.9em var(--mono); color: var(--accent); }
 .icon-link { display: inline-flex; align-items: center; border: 0; color: inherit; }
 .icon-link svg { display: block; width: 1.05rem; height: 1.05rem; fill: currentColor; }
 .icon-link:hover { color: var(--accent); }
-@media (max-width: 640px) { .masthead .date { display: none; } }
+@media (max-width: 640px) {
+  /* hide the date AND the flex-1 rule (it rendered as a stray dash by the
+     wordmark); keep the nav right-aligned without it. */
+  .masthead .date, .masthead .rule { display: none; }
+  .mast-nav { margin-left: auto; gap: 0.85rem; }
+}
+/* tiny screens: drop the in-page text anchors (cramped at 390px), keep the
+   wordmark + github/npm icons. */
+@media (max-width: 460px) { .mast-nav a:not(.icon-link) { display: none; } }
+/* touch: bump tappable controls toward the WCAG 2.5.8 (24px) target floor. */
+@media (pointer: coarse) {
+  .mast-nav a, .cta-link { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+  .demo-chips .chip, .stream-btn, .race-ctrl button, .race-ctrl .carousel button { min-height: 34px; }
+  .race-ctrl .carousel button { min-width: 34px; }
+}
 
 /* ---------- lede ---------- */
 .lede { padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(1.5rem, 4vw, 3rem); }
