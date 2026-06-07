@@ -607,13 +607,7 @@ export class View {
       }
       this.V1(offset)
     }
-    for (const x of this.sinks) {
-      const sink = x.deref()
-      if (!sink) { this.sinks.delete(sink); continue }
-      arr && sink.BR1A && sink.BR1A !== Value.prototype.BR1A
-        ? sink.BR1A(R1, this)
-        : sink.BR1(R1, this)
-    }
+    this.fanout(arr ? 'BR1A' : undefined, 'BR1', R1)
   }
 
   BR2(R2){
@@ -685,9 +679,7 @@ export class View {
       }
       this.V1(offset)
     }
-    this.sink(sink => (sink.BI0A && sink.BI0A !== Value.prototype.BI0A)
-      ? sink.BI0A(I0, this)
-      : sink.BI0(I0, this))
+    this.fanout('BI0A', 'BI0', I0)
   }
 
   // Hole remove / hole fill — the positional-stable counterparts of BR1A/BI0A.
@@ -711,21 +703,13 @@ export class View {
   BH1(R1) {
     if (!R1.length) return
     for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0()
-    for (const x of this.sinks) {
-      const sink = x.deref()
-      if (!sink) { this.sinks.delete(x); continue }
-      sink.BH1 ? sink.BH1(R1, this) : sink.BR1(R1, this)
-    }
+    this.fanout('BH1', 'BR1', R1)
   }
 
   BF0(I0) {
     if (!I0.length) return
     for (let i = 0; i < I0.length; i += 2) this.get_named(I0[i])?.XU0()
-    for (const x of this.sinks) {
-      const sink = x.deref()
-      if (!sink) { this.sinks.delete(x); continue }
-      sink.BF0 ? sink.BF0(I0, this) : sink.BI0(I0, this)
-    }
+    this.fanout('BF0', 'BI0', I0)
   }
 
   BI2(I2){
@@ -762,7 +746,7 @@ export class View {
     }
     for (const x of this.sinks) {
       const sink = x.deref()
-      if (!sink) { this.sinks.delete(sink); continue }
+      if (!sink) { this.sinks.delete(x); continue }
       if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
         sink.BMV1(M1, this)
       } else {
@@ -808,6 +792,29 @@ export class View {
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
       fn(sink)
+    }
+  }
+
+  // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
+  // implementation, else fall back to `fallback`. The four array-positional
+  // dispatch sites (BR1→BR1A, BI0A, BH1, BF0) collapse onto this. "Has its own"
+  // means: for BR1A/BI0A — distinct from Value.prototype's default (Value
+  // defines those, so a bare Value sink must NOT masquerade as array-aware);
+  // for BH1/BF0 — merely present (Value defines neither, so `proto` is undefined
+  // and any method counts). A sink without `verb` takes `fallback` (BR1/BI0),
+  // which is correct for position-agnostic sinks (aggregates, length). Pass
+  // `verb = undefined` to force the fallback (object BR1 — no array variant).
+  // `verb`/`fallback` are constant string literals at each call site, so V8
+  // specializes `sink[verb]` back to a fixed-offset access after inlining.
+  fanout(verb, fallback, payload){
+    const proto = verb && Value.prototype[verb]
+    for (const x of this.sinks) {
+      const sink = x.deref?.()
+      if (!sink) { this.sinks.delete(x); continue }
+      const m = verb && sink[verb]
+      m && (proto === undefined || m !== proto)
+        ? m.call(sink, payload, this)
+        : sink[fallback](payload, this)
     }
   }
 
