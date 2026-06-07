@@ -141,6 +141,7 @@ const SCENARIOS = [
   { tag: 'between→group', bound: true, project: (s, c) => s.between('v', c.bound).group((r) => r.g) },
   { tag: 'between→distinct', bound: true, normalize: gKeyset, project: (s, c) => s.between('v', c.bound).distinct((r) => r.g) },
   { tag: 'between→az', bound: true, project: (s, c) => s.between('v', c.bound).az('v') },
+  { tag: 'between→za', bound: true, project: (s, c) => s.between('v', c.bound).za('v') },
   { tag: 'filter→az', project: (s) => s.filter((r) => r.v > 10).az('v') },
   { tag: 'filter→between', bound: true, project: (s, c) => s.filter((r) => r.v > 10).between('v', c.bound) },
   { tag: 'filter→sum', scalar: true, project: (s) => s.filter((r) => r.v > 25).sum('v') },

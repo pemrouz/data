@@ -107,6 +107,19 @@ This first landed in `1d3bc15`, then was **reverted** (`105cfc7`) because droppi
 - Perf (10k object source): **remove churn 1000 rows 105.87ms → 0.91ms (~116×)**, insert churn 7.54ms → 2.48ms (~3×); the `narrow/widen` brush path is unchanged (does no inserts → never dirties `sorted`). Without the deferral the remove-churn perf case exceeds its 50ms threshold (fails); with it, 0.91ms. Two perf cases re-added to [operators/between/between.perf.ts](operators/between/between.perf.ts).
 - Where: [operators/between/index.ts](operators/between/index.ts) (`BI0`/`BR1`), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
 
+### C9 — a sort directly downstream of `between` mis-ordered rows on a sideways brush ✅
+`<commit-c9>`
+
+A sort (`az`/`za`, bounded or unbounded) chained **directly** off `between` mis-ordered rows on a *sideways* brush — one whose `set extent` both removes some rows and admits others in the same call. `set extent` writes `view.value` for BOTH the holes and the fills before emitting, and emitted the **fills (`BF0`/`BI0`) before the holes (`BH1`/`BR1`)**. A sort ranks a fill by bisecting `this.p.value[this.sorted[mid]]` (`bisect_left`/`bisect_right` in [utils.ts](utils.ts)) — it dereferences the between view at every position still in its `sorted`. With fills emitted first, the not-yet-removed positions are already **holes** in `view.value`, so the bisect read `col(undefined)` (which compares false in both directions) and ranked the newcomer at the wrong end — e.g. `between([33,66])→az`, brush `[22,55]` then `[50,70]`, gave `[66,55]` where `[55,66]` is correct.
+
+**Fix:** emit **removes before fills** in `set extent` (swap the two trailing `if` blocks). The sort then drops the holed positions from its `sorted` before it bisects any fill, so every position it dereferences is a live row. Removes-before-inserts is the safe order for any positional consumer anyway; a counting/aggregating sink is order-agnostic, so nothing else is affected.
+
+Pre-existing and **independent of C8/P1** — it reproduces identically on pre-C8 `15e1605` (and the brush path was unchanged by either). **Not shipped-reachable**: `intersect`/`union`/`except` recompute their own membership and re-emit clean `BF0`/`BH1`, so they *launder* the ordering — verified `intersect(between)→za`, `except(intersect(between))→za` (the shipped library chain), and `union(between,filter)→za` all clean (0/300 each), the full library Playwright spec passes 5/5, and no example chains a sort directly off `between`. Surfaced by the P1 re-land stress.
+
+- Verified: `between→az/za` (array+object, bounded+unbounded) clean across an 800-seed brush+churn stress; differential gains a `between→za` scenario alongside the existing `between→az`; deterministic regression `between → az keeps order through a sideways brush` in [operators/between/between.test.ts](operators/between/between.test.ts).
+- Where: [operators/between/index.ts](operators/between/index.ts) (`set extent` emission order).
+- NB: the same stress surfaced **separate, still-open** pre-existing desyncs in `limit`-after-a-sort (`az→limit` fails even without `between`) and `top` over an **object** source — a different family (not the brush/`BF0`/`BH1` path), untouched by this fix and not covered by the differential harness. Tracked for a follow-up, not closed here.
+
 ---
 
 ## Won't fix / skipped

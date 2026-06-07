@@ -174,8 +174,20 @@ export class BetweenValue extends Operator {
     // length stable so sibling sources stay index-aligned (intersect). Emit
     // BF0/BH1 so positional sinks mirror the hole instead of shifting. Object
     // sources have stable keys, so the plain BI0/BR1 path is correct there.
-    if (I0.length) this.isArr ? this.view.BF0(I0) : this.view.BI0(I0)
+    //
+    // REMOVES BEFORE FILLS. `set extent` has already written `view.value` for
+    // BOTH the holes (R1) and the fills (I0) before emitting. A downstream sort
+    // ranks a fill by bisecting `this.p.value[this.sorted[mid]]` — i.e. it
+    // dereferences OUR view at every position still in its `sorted`. If we emit
+    // the fills first, those not-yet-removed R1 indices are already holes in
+    // `view.value`, so the bisect reads `col(undefined)` and mis-ranks the new
+    // row (it lands at the tail — `between→az/za` under a brush). Emitting the
+    // removes first lets the sort drop those indices from its `sorted` before it
+    // bisects any fill, so every position it dereferences is a live row. (A
+    // counting/positional sink is order-agnostic; this only matters to a
+    // bisecting consumer, but removes-before-inserts is the safe order anyway.)
     if (R1.length) this.isArr ? this.view.BH1(R1) : this.view.BR1(R1)
+    if (I0.length) this.isArr ? this.view.BF0(I0) : this.view.BI0(I0)
   }
 
   // Whole-source replacement: rebuild `sorted` and seed `new_value` with

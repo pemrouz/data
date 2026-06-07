@@ -1,11 +1,13 @@
 ﻿// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { test } from 'node:test'
-import { $, value } from '../../core.ts'
+import { $, value, createOperator } from '../../core.ts'
 import { between } from './index.ts'
 import { filter } from '../filter/index.ts'
 import { length } from '../length/index.ts'
 import { sum } from '../aggregate/index.ts'
+import { AZColumnValue } from '../sort/index.ts'
+const az = (src, col, n) => createOperator(src, AZColumnValue, col, n)
 
 const dense = (a) => (Array.isArray(a) ? a.filter((x) => x !== undefined) : a)
 
@@ -277,4 +279,31 @@ test('between → length/sum stays correct when a brush sweeps a bound past the 
   // widen-low admits k0(0). Pre-fix the phantom remove of k1 dropped count to 0.
   same(cB[value], 1)
   same(tB[value], 0)                // only k0, v=0
+})
+
+// Regression: a sort directly downstream of `between` mis-ordered rows on a
+// SIDEWAYS brush (one that removes some rows AND admits others in the same
+// `set extent`). `set extent` writes `view.value` for BOTH the holes and the
+// fills before emitting, and used to emit the fills (BF0/BI0) BEFORE the holes
+// (BH1/BR1). A downstream sort ranks a fill by bisecting `p.value[sorted[mid]]`
+// — dereferencing the between view at every position still in its `sorted`. With
+// fills emitted first, the not-yet-removed positions are already holes, so the
+// bisect read `col(undefined)` and ranked the newcomer at the wrong end. Fixed
+// by emitting removes before fills, so the sort drops the holed positions from
+// `sorted` before it bisects any fill. (Laundered by intersect/union/except —
+// they re-emit their own membership — so only a sort DIRECTLY on between bit.)
+test('between → az keeps order through a sideways brush (removes + fills in one set extent)', () => {
+  // rows v = 0,11,…,88 at indices 0..8.
+  const src = $(Array.from({ length: 9 }, (_, i) => ({ id: i, v: i * 11 })))
+  const bound = $([33, 66])
+  const view = between(src, 'v', bound)
+  const sorted = az(view, 'v')
+  const vals = () => sorted[value].filter((r) => r !== undefined).map((r) => r.v)
+  same(vals(), [33, 44, 55, 66])
+
+  bound[value] = [22, 55]            // narrow-high drops 66, widen-low admits 22
+  same(vals(), [22, 33, 44, 55])
+
+  bound[value] = [50, 70]            // sideways: drop 22/33/44 (holes), admit 66 (fill)
+  same(vals(), [55, 66])             // pre-fix: [66, 55] — 66 bisected over the holes to rank 0
 })
