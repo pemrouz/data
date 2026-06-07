@@ -682,6 +682,16 @@ export class LimitValue extends Operator {
       for (let i = 0; i < I0.length; i += 2) {
         const numKey = +I0[i]
         const val = I0[i + 1]
+        // Over an array, View.BI0 routes to BI0A — so this plain-BI0 branch is
+        // reached ONLY as the BF0 (hole-fill) fallback from a sparse producer
+        // (between/intersect/…). A hole fill carries NO shift, and the position
+        // may ALREADY be in the window: a sibling BH1→BR1 (hole-remove) batch in
+        // the same cascade refills from the parent's already-updated value
+        // (`nextAfter`), which can pull in a slot this BF0 batch then re-reports.
+        // Without this dedup that double-adds the row (a duplicate + an evicted
+        // survivor — `between→az`-shaped grids never hit it because they don't
+        // limit, but `between→limit` brushed sideways did: [44,55,55]).
+        if (this.findPos(numKey) !== -1) continue
         if (this.keys.length < this.n) {
           const pos = this.insertPos(numKey)
           this.keys.splice(pos, 0, numKey)

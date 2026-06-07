@@ -129,7 +129,18 @@ Pre-existing and **independent of C8/P1** — it reproduces identically on pre-C
 
 - Verified: `az→limit`/`za→limit` (array+object, insert/remove/update, order-sensitive) clean across a 300-seed×4 churn stress and added as differential scenarios; deterministic regression `limit after a sort tracks rank moves and removals (az → limit)` in [operators/sort/sort.test.ts](operators/sort/sort.test.ts). **No regression**: the crossfilter chain (`za→intersect→limit`, brush) is 0/60 in a Node repro and the crossfilter Playwright spec passes; `intersect`→`limit` over an array under a brush (the shipped shape) was and stays correct.
 - Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BR1A`/`BI0A`/`BMV1`).
-- **Still open** (tracked, not shipped-reachable): `limit` *directly* after a **sparse producer over an array** desyncs on a source **remove** (between/intersect → `limit`, array — the array splice shifts source positions but `limit`'s `BR1` doesn't shift its `keys`), and over an **object** source on a **brush** (`BF0`/`BH1` refill). Crossfilter's actual shape (`intersect→limit` brush over an array) is correct; the broken combos aren't used by any shipped example (library uses bounded `za(col,n)` instead of `.limit()`). These need a shift-aware `limit` rework — see [ISSUES.md](ISSUES.md).
+- Follow-up: the sparse-producer→`limit` remainder was investigated in C11 below — one genuine `limit` bug (brush-array double-add) fixed; the rest turned out to be an `intersect` bug + inherent object order-looseness.
+
+### C11 — `limit` directly on a sparse producer double-added a row on a sideways brush ✅
+`<commit-c11>`
+
+`between(…).limit(k)` / `intersect(…).limit(k)` over an **array**, brushed *sideways* (a brush whose cascade both removes some rows and admits others), **duplicated** a row — e.g. `between([10,50])→limit(3)` brushed to `[34,85]` gave `[44,55,55]` where `[44,55,66]` is correct. A sparse producer updates its `view.value` for ALL holes+fills, then emits removes (`BH1→BR1`) before fills (`BF0→BI0`). `limit`'s `BR1` batch refills from the parent's already-updated value (`nextAfter`), pulling in a slot the `BF0` batch then re-reports; `limit`'s array `BI0` (the `BF0` fallback — over an array `View.BI0` routes to `BI0A`, so plain `BI0` is reached **only** as the hole-fill fallback) didn't **dedup**, so it re-inserted that slot (a duplicate + an evicted survivor).
+
+**Fix:** dedup `limit`'s array `BI0` against the current window (`if findPos(pos) !== -1 continue`) — a hole-fill of an already-windowed position is a no-op. One bisect per event; the object branch already dedups. **No regression**: `intersect→limit` brush-over-array (crossfilter's shape) stays correct (0/300 stress; crossfilter Playwright spec passes); `az/za/raw limit` unaffected.
+
+- Verified: `between→limit` array (insert/remove/update/brush/mix) clean across a 300-seed×… stress; deterministic regression `limit on a sparse producer survives a sideways brush without duplicating` in [operators/sort/sort.test.ts](operators/sort/sort.test.ts).
+- Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BI0` array branch).
+- **Two non-`limit` findings from the same investigation:** (1) `limit` over an **object** source is **iteration-order-loose** (the parent's object key order is mutation-history-dependent — a brush deletes+re-adds keys, moving them to the end — so "first n in iteration order" drifts vs a fresh rebuild; *not a bug*, the same history-dependence `distinct` has, now noted in [CLAUDE.md](CLAUDE.md)). (2) `intersect` over an **array** desyncs on a remove **sequence** (a ghost row accumulates) — a separate **`intersect`** bug independent of `limit`, filed as [ISSUES.md → C12](ISSUES.md) (the differential harness has **no `intersect` coverage**, which is why it slipped). Neither is shipped-reachable.
 
 ---
 

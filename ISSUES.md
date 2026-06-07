@@ -8,7 +8,7 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C11](#c11) | `limit` **directly** after a sparse producer (`between`/`intersect`) desyncs on a source remove-over-array or brush-over-object (positions shift; `limit` doesn't track) | Correctness | Low | Open (not shipped-reachable) |
+| [C12](#c12) | `intersect` over an **array** source desyncs on a *remove sequence* (a ghost row accumulates); the differential harness has **no `intersect` coverage** | Correctness | Low | Open (not shipped-reachable) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -21,18 +21,17 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 
 ## Correctness
 
-### C11
-**`limit` directly after a sparse producer desyncs on array-remove / object-brush** · Low · Open (not shipped-reachable)
+### C12
+**`intersect` over an array source desyncs on a remove sequence (ghost row)** · Low · Open (not shipped-reachable)
 
-`LimitValue` tracks its window as `keys` = **stable source positions**, refilled by a forward scan. When `limit` sits **directly** on a sparse producer (`between`/`intersect`/`union`/`except`) it desyncs in two cases:
+`intersect(source, …facets)` over an **array** source drifts under a *sequence* of source removes (`delete arr[i]`, which leaves a hole — no splice): a single remove is handled, but repeated remove churn accumulates a **ghost row** in the intersect output (measured ~all of a 25-step random-remove sequence desyncs; e.g. live `[22,33,55,66]` vs a fresh rebuild's `[33,55,66]`). The intersect membership bitmask / row tracking isn't kept consistent as holes accumulate.
 
-- **array source, row removed**: the producer splices its array (every later position shifts down one) and emits `BR1`, but `limit`'s `BR1` removes the one key without shifting its *other* keys — so they point at the wrong post-splice rows.
-- **object source, brush**: a bound move arrives as `BF0`/`BH1` (hole fill/remove); `limit`'s object refill (`nextObjectKey`) mishandles it.
+Surfaced while resolving the [DECISIONS.md → C11](DECISIONS.md) `limit` investigation — `intersect→limit` "remove array" failures were traced to `intersect` itself (they reproduce with **no `limit`**). The **differential harness has no `intersect` scenarios at all**, which is why this went unseen (it covers `between`-rooted chains, sorts, aggregates, but not `intersect`/`union`/`except` as the head operator).
 
-The `sort→limit` family (the array-positional `BR1A`/`BI0A`/`BMV1` verbs) was **fixed** in [DECISIONS.md → C10](DECISIONS.md); this entry is the remaining *sparse-producer→limit* path. **Not shipped-reachable**: crossfilter's actual shape — `intersect→limit` **brush over an array** — is correct and stays correct; the [library example](examples/library/README.md) uses a bounded `za(col, n)` window rather than `.limit()`. The broken combos are an author chaining `.limit()` *directly* on a brushed/removing sparse view.
+**Not shipped-reachable**: no example removes rows from an `intersect`'s array source — crossfilter (`flights.intersect(dims)`) and swarm (`pop.intersect(…)`) use **static / fixed-population** sources, and the library's source is a fixed media list. `intersect` over an **object** source under removes is correct.
 
-- Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BR1` array-shift; object `BF0`/`BH1` handling).
-- Fix direction: make `LimitValue`'s array `BR1` shift `keys > removedPos` down by one (mirror the source splice), and add object `BF0`/`BH1` handlers. **Risk:** must NOT regress the currently-correct `intersect→limit` brush-over-array path (crossfilter) — gate any change on the crossfilter differential + Playwright spec. Add `between→limit`/`intersect→limit` differential scenarios (currently absent) to pin it.
+- Where: [operators/intersect/index.ts](operators/intersect/index.ts) (array-source membership maintenance across hole accumulation).
+- Fix direction: add `intersect`/`union`/`except` (head-operator) scenarios to [differential.test.ts](differential.test.ts) — array **and** object, with the standard insert/remove/update/brush mix — to pin the bug and guard the family; then make the array-source membership tracking hole-stable under remove churn. Object-keyed sources are the workaround until fixed.
 
 ---
 

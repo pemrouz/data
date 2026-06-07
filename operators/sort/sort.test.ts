@@ -398,6 +398,25 @@ test('limit after a sort tracks rank moves and removals (az → limit)', () => {
   same(vals(), [1, 5, 20])               // pre-fix: [5, 1, 5]
 })
 
+// Regression: `limit` directly on a sparse producer (between/intersect) over an
+// ARRAY, brushed SIDEWAYS (some rows leave AND others enter in one cascade), used
+// to DUPLICATE a row. The producer updates its view.value for ALL holes+fills,
+// then emits removes (BH1→BR1) before fills (BF0→BI0). limit's BR1 batch refills
+// from the parent's already-updated value (`nextAfter`), pulling in a slot the
+// BF0 batch then re-reports — and limit's array BI0 (the BF0 fallback) didn't
+// dedup, so it re-inserted that slot (a duplicate + an evicted survivor:
+// [44,55,55] where [44,55,66] is right). Fixed by deduping the array BI0 against
+// the current window. (Object-source limit is iteration-order-loose — like
+// distinct — so this guard is array-only, where position order is stable.)
+test('limit on a sparse producer survives a sideways brush without duplicating (between → limit)', () => {
+  const src = $(Array.from({ length: 9 }, (_, i) => ({ id: i, v: i * 11 })))  // v 0,11,…,88
+  const bound = $([10, 50])
+  const win = limit(between(src, 'v', bound), 3)
+  same(win[value].map((r) => r.v), [11, 22, 33])
+  bound[value] = [34, 85]                          // 11/22/33 leave; 44/55/66/77 enter
+  same(win[value].map((r) => r.v), [44, 55, 66])   // pre-fix: [44, 55, 55] (dup)
+})
+
 test('limit (obj) - new key joins when window has headroom', () => {
   const data = $({ a: 1, b: 2 })
   const res = limit(data, 3)
