@@ -57,21 +57,28 @@ if (dtBtn) {
   })
 }
 
-/* ---------- syntax highlighter ---------- */
-const KEYWORDS = /\b(import|from|const|let|var|function|return|new|if|else|for|of|in|true|false|null|undefined|delete|class|extends|export|default|async|await|typeof|instanceof|Infinity)\b/g
+/* ---------- syntax highlighter ----------
+ * Single-pass tokenizer: one ordered alternation matches a comment, string,
+ * number, keyword, or punctuation as a WHOLE token, and each segment (matched
+ * or in-between) is HTML-escaped on its own. The previous multi-pass version
+ * re-ran the keyword/number/punctuation passes over text already inside a
+ * comment/string sentinel, which highlighted `new` inside a comment and split
+ * the `;` out of `&lt;` — rendering the quickstart's `<li>` as `<;li>`.
+ * Matching whole tokens (so nothing inside a comment/string is re-tokenized)
+ * and escaping per-segment (incl. `>`) fixes both. */
+const TOKEN = /(\/\/[^\n]*)|(`(?:\\.|[^`])*`|'(?:\\.|[^'])*'|"(?:\\.|[^"])*")|\b(\d+\.?\d*)\b|\b(import|from|const|let|var|function|return|new|if|else|for|of|in|true|false|null|undefined|delete|class|extends|export|default|async|await|typeof|instanceof|Infinity)\b|([(){}[\];,])/g
+const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 document.querySelectorAll('pre.code').forEach(el => {
   if (el.dataset.hl === 'off') return
-  let s = el.textContent
-  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-  s = s.replace(/(\/\/[^\n]*)/g, '\x00C\x01$1\x02')
-  s = s.replace(/(['"`])((?:\\.|(?!\1).)*)\1/g, '\x00S\x01$1$2$1\x02')
-  s = s.replace(/\b(\d+\.?\d*)\b/g, '\x00N\x01$1\x02')
-  s = s.replace(KEYWORDS, '\x00K\x01$1\x02')
-  s = s.replace(/[(){}[\];,]/g, m => `\x00P\x01${m}\x02`)
-  s = s
-    .replace(/\x00C\x01/g, '<span class="tok-com">').replace(/\x00S\x01/g, '<span class="tok-str">')
-    .replace(/\x00N\x01/g, '<span class="tok-num">').replace(/\x00K\x01/g, '<span class="tok-key">')
-    .replace(/\x00P\x01/g, '<span class="tok-pun">')
-    .replace(/\x02/g, '</span>')
-  el.innerHTML = s
+  const src = el.textContent
+  let out = '', last = 0, m
+  TOKEN.lastIndex = 0
+  while ((m = TOKEN.exec(src))) {
+    out += esc(src.slice(last, m.index))
+    const cls = m[1] ? 'tok-com' : m[2] ? 'tok-str' : m[3] ? 'tok-num' : m[4] ? 'tok-key' : 'tok-pun'
+    out += `<span class="${cls}">${esc(m[0])}</span>`
+    last = m.index + m[0].length
+  }
+  out += esc(src.slice(last))
+  el.innerHTML = out
 })
