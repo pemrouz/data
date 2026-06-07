@@ -170,7 +170,10 @@ test('between - reactive bounds', async () => {
     { type: 'remove', value: { num: 10 }, key: [ '2' ] },
     { type: 'remove', value: { num: 50 }, key: [ '3' ] },
     { type: 'remove', value: { num: 90 }, key: [ '1' ] },
-    { type: 'update', value: {}, key: [] },
+    // The final `filters.lo = 100` narrows [99,100] -> [100,100] on an
+    // already-empty view: no row crosses, so it emits NOTHING. (Before the
+    // point-range fix, the `new_lo === new_hi` branch fired a spurious
+    // `XU0({})` reset here even though nothing changed.)
   ])
 })
 
@@ -205,4 +208,36 @@ test('between - insert after an in-place column edit does not crash (array + obj
   obj.a.v = 60
   ;(obj as any).insert({ v: 40 }, 'c')
   same(wo[value], { a: { v: 60 }, c: { v: 40 } })
+})
+
+// Regression: narrowing a reactive bound down to a POINT range [v, v] must keep
+// the rows with col === v — bounds are inclusive — not collapse to empty. The
+// old `set extent` special-cased new_lo === new_hi to an empty view, which
+// contradicted both the constructor (a fresh `between(col,[v,v])` keeps col===v)
+// and the inclusive narrow loops, so a brush dragged to zero width silently
+// dropped the boundary rows (the swarm gx/gy cohort-brush path).
+test('between - narrowing a reactive bound to a point range keeps the boundary rows', () => {
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
+
+  // object source — narrow the high bound down onto the low bound
+  const src = $({ a: { gx: 1 }, b: { gx: 2 }, c: { gx: 3 } })
+  const lo = $(1), hi = $(3)
+  const b = between(src, 'gx', [lo, hi])
+  same(clean(b[value]), { a: { gx: 1 }, b: { gx: 2 }, c: { gx: 3 } })
+  hi[value] = 1                                                     // [1,3] -> [1,1]
+  same(clean(b[value]), { a: { gx: 1 } })                          // pre-fix: {} (row a dropped)
+  same(clean(b[value]), clean(between(src, 'gx', [$(1), $(1)])[value]))  // identical to a fresh [1,1]
+
+  // narrow the low bound up onto the high bound, to a different interior point
+  const lo2 = $(1), hi2 = $(2)
+  const b2 = between(src, 'gx', [lo2, hi2])
+  lo2[value] = 2                                                    // [1,2] -> [2,2]
+  same(clean(b2[value]), { b: { gx: 2 } })                         // pre-fix: {} (row b dropped)
+
+  // array source — both bounds converge to a point
+  const arr = $([{ gx: 1 }, { gx: 2 }, { gx: 3 }])
+  const lo3 = $(1), hi3 = $(3)
+  const ba = between(arr, 'gx', [lo3, hi3])
+  hi3[value] = 2; lo3[value] = 2                                    // -> [2,2]
+  same(dense(ba[value]), [{ gx: 2 }])                              // pre-fix: [] (boundary row dropped)
 })

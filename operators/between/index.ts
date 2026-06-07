@@ -82,12 +82,13 @@ export class BetweenValue extends Operator {
       return this.view.XU0(this.view.value = this.p.value)
     }
 
-    if (new_lo === new_hi) {
-      this.hi_index = this.lo_index = undefined;
-      [this.lo_val, this.hi_val] = [new_lo, new_hi]
-      return this.view.XU0(this.view.value = isArray(this.p.value) ? [] : {})
-    }
-
+    // NB: a *point* range (new_lo === new_hi) is NOT special-cased to empty.
+    // Bounds are inclusive on both ends, so `[v, v]` selects rows with
+    // `col === v` — exactly what a fresh `between(col, [v, v])` yields and what
+    // the incremental walk below produces (narrow-high keeps `col === new_hi`,
+    // narrow-low keeps `col === new_lo`). The old collapse-to-empty shortcut
+    // contradicted the constructor and dropped the boundary rows when a reactive
+    // bound was narrowed down to a single value.
     if (this.view.value === this.p.value) {
       this.view.value = isArray(this.p.value) ? [...this.p.value] : {...this.p.value}
     }

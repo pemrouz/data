@@ -70,6 +70,12 @@ When two rows share a projection key and the *representative* (the instance cach
 
 - Where: [core.ts](core.ts) (`function connect(p, a, b)`); regression test in [core.test.ts](core.test.ts).
 
+### B1 — `between` narrowing a reactive bound to a point range `[v, v]` dropped the boundary rows ✅
+
+`between`'s bounds are inclusive on both ends — a fresh `between(col, [v, v])` selects rows with `col === v`, and the incremental narrow loops keep `col === new_hi`/`col === new_lo`. But `set extent` special-cased `new_lo === new_hi` with a collapse-to-empty shortcut (`view.XU0(isArray ? [] : {})`), contradicting the constructor: dragging a reactive bound down to a single value (the swarm gx/gy cohort brush, any zero-width brush) silently emptied the view instead of selecting the equal-valued rows. Removed the shortcut; the (already-correct, inclusive) incremental walk now handles a point range. **Change-stream consequence:** narrowing to a point on an *already-empty* view now emits **nothing** (no row crosses) rather than a spurious `XU0({})` reset — `between - reactive bounds` ([operators/between/between.test.ts](operators/between/between.test.ts)) and its duplicate `between - variable` ([index.test.ts](index.test.ts)) were updated to drop the phantom trailing `update {}`.
+
+- Where: [operators/between/index.ts](operators/between/index.ts) (`set extent`); regression test `between - narrowing a reactive bound to a point range keeps the boundary rows` in [operators/between/between.test.ts](operators/between/between.test.ts). Surfaced while auditing the `BH1`/`BF0` protocol (it reproduces on object *and* array sources, so it is not a hole/splice issue).
+
 ---
 
 ## Won't fix / skipped

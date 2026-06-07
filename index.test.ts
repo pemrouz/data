@@ -1341,12 +1341,13 @@ test('update (dir, dir)', () => {
       { type: 'insert', value: { num: 10 }, key: [], at: '2' },
       { type: 'insert', value: { num: 50 }, key: [], at: '3' },
       { type: 'insert', value: { num: 90 }, key: [], at: '1' },
-      // lo 100
+      // lo 99
       { type: 'remove', value: { num: 10 }, key: [ '2' ] },
       { type: 'remove', value: { num: 50 }, key: [ '3' ] },
       { type: 'remove', value: { num: 90 }, key: [ '1' ] },
-      // R0
-      { type: 'update', value: {}, key: [] },
+      // lo 100: [99,100] -> [100,100] on an already-empty view — no row
+      // crosses, so nothing is emitted. (Before the point-range fix, the
+      // new_lo === new_hi branch fired a spurious `XU0({})` reset here.)
     ])
   })
   
