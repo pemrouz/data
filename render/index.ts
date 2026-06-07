@@ -105,6 +105,14 @@ class DOMSink {
     this.nodes[k] = node.create(this.parent, next !== Infinity ? this.nodes[next] : undefined)
   }
 
+  // Append the node for present index `k` to the tail (no positional scan).
+  // Only safe when every later present index is created after this one — i.e.
+  // the in-increasing-order build from an empty node set in `_reconcile_sparse`.
+  _append_at(k) {
+    const node = this.node.generate(k, this.node.data[k])
+    this.nodes[k] = node.create(this.parent, undefined)
+  }
+
   _remove_at(k) {
     this.nodes[k]?.remove()
     delete this.nodes[k]
@@ -120,8 +128,16 @@ class DOMSink {
     const gone = []
     for (const i in this.nodes) if (value[+i] === undefined) gone.push(+i)
     for (let j = 0; j < gone.length; j++) this._remove_at(gone[j])
+    // If no node survives the holing pass, the present slots below are visited
+    // in increasing index order from an empty set, so each is a pure tail
+    // append — skip `_create_at`'s O(present) next-scan (which makes a fresh
+    // sparse build O(P²)). When survivors remain (a re-snapshot that fills a
+    // gap between existing nodes) we must position by index via `_create_at`.
+    let survivors = false
+    for (const _ in this.nodes) { survivors = true; break }
     for (let i = 0; i < value.length; i++)
-      if (value[i] !== undefined && !this.nodes[i]) this._create_at(i)
+      if (value[i] !== undefined && !this.nodes[i])
+        survivors ? this._create_at(i) : this._append_at(i)
   }
 
   // Once the parent DOM is detached from the document the binding can never
