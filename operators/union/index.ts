@@ -88,7 +88,16 @@ export class UnionValue extends Operator {
   // leaves the union. If still nonzero, the row stays — but its value may
   // need re-picking (the source we just lost might have been the source we
   // were getting the value from).
-  BR1(R1, v) {
+  BR1(R1, v) { this._leave(R1, v, false) }
+
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same logic as BR1;
+  // emits BH1 for the rows that leave the union so a positional sink (a DOMSink
+  // bound straight to this view) mirrors the hole instead of splice-shifting.
+  // Mirrors between/intersect's consumer BH1.
+  BH1(R1, v) { this._leave(R1, v, true) }
+
+  _leave(R1, v, hole) {
     if (!R1.length) return
     const { off } = this.sources.get(v)
     const NR1 = []
@@ -112,7 +121,7 @@ export class UnionValue extends Operator {
       }
     }
     if (NU1.length) this.view.BU1(NU1)
-    if (NR1.length) this.view.BR1(NR1)
+    if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1)
   }
 
   BU1(U1, v) {
@@ -130,7 +139,14 @@ export class UnionValue extends Operator {
     if (NU1.length) this.view.BU1(NU1)
   }
 
-  BI0(I0, v){
+  BI0(I0, v){ this._enter(I0, v, false) }
+
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same logic as BI0; emits BF0 for rows that enter the
+  // union so a positional sink fills in place rather than tail-appending.
+  BF0(I0, v){ this._enter(I0, v, true) }
+
+  _enter(I0, v, hole){
     if (!I0.length) return
     const { one } = this.sources.get(v)
     const me = this.view.value ??= isArray(this.p.value) ? [] : {}
@@ -153,7 +169,7 @@ export class UnionValue extends Operator {
         NU1.push(name, newVal)
       }
     }
-    if (NI0.length) this.view.BI0(NI0)
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0)
     if (NU1.length) this.view.BU1(NU1)
   }
 }

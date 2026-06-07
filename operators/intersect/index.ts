@@ -144,7 +144,18 @@ export class IntersectValue extends Operator {
   // BR1. The `(bits & off) === zero` check tests "after clearing, only this
   // source's bit was set" which is equivalent to "the row was previously at
   // all-bits-set"; `zero` is precomputed once per call.
-  BR1(R1, v) {
+  BR1(R1, v) { this._leave(R1, v, false) }
+
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same membership
+  // logic as BR1; emits BH1 downstream (a hole, not a splice) so a positional
+  // sink (the DOMSink bound straight to this view) mirrors the hole instead of
+  // popping its tail. Without this, core falls the upstream BH1 back to BR1,
+  // which over an array routes to BR1A (splice-shift) and corrupts an
+  // index-keyed sink. Mirrors between's consumer BH1.
+  BH1(R1, v) { this._leave(R1, v, true) }
+
+  _leave(R1, v, hole) {
     if (!R1.length) return
     const { off } = this.sources.get(v)
     const NR1 = []
@@ -163,7 +174,7 @@ export class IntersectValue extends Operator {
       // could see filters[name] still saying "all bits set" and re-emit.
       this.filters[name] = bits & off
     }
-    if (NR1.length) this.view.BR1(NR1)
+    if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1)
   }
 
   BU1(U1){
@@ -182,7 +193,16 @@ export class IntersectValue extends Operator {
     if (NU1.length) this.view.BU1(NU1)
   }
 
-  BI0(I0, v){
+  BI0(I0, v){ this._enter(I0, v, false) }
+
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same membership logic as BI0; emits BF0 downstream so a
+  // positional sink fills the slot in place rather than tail-appending. Mirrors
+  // between's consumer BF0. (The "first time seen" bitmask-init branch is inert
+  // here — a hole-fill is for a row that was already tracked.)
+  BF0(I0, v){ this._enter(I0, v, true) }
+
+  _enter(I0, v, hole){
     if (!I0.length) return
     const { all, sources, filters } = this
     const { one } = sources.get(v)
@@ -207,7 +227,7 @@ export class IntersectValue extends Operator {
         NI0.push(name, me[name] = this.p.value[name])
       }
     }
-    if (NI0.length) this.view.BI0(NI0)
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0)
   }
 
   // Nested-key events (deep updates on rows). Two gates:

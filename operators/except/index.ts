@@ -62,10 +62,19 @@ export class ExceptValue extends Operator {
   // BR1 from primary: row left p → drop from output if it was there.
   // BR1 from other: row left other → row may now pass through; if p has
   // it, add it to output.
-  BR1(R1, v) {
+  BR1(R1, v) { this._removeFrom(R1, v, false) }
+
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same logic as BR1;
+  // emits holes (BF0 admit / BH1 drop) so a positional sink mirrors them in
+  // place instead of splice-shifting. Mirrors between/intersect/union.
+  BH1(R1, v) { this._removeFrom(R1, v, true) }
+
+  _removeFrom(R1, v, hole) {
     if (!R1.length) return
+    const arr = isArray(this.view.value)
     if (v === this.otherView) {
-      // `other` lost rows. Each affected key may now be admissible.
+      // `other` lost rows. Each affected key may now be admissible (ENTER).
       const NI0 = []
       for (let i = 0; i < R1.length; i += 2) {
         const name = R1[i]
@@ -75,10 +84,10 @@ export class ExceptValue extends Operator {
           NI0.push(name, pVal)
         }
       }
-      if (NI0.length) this.view.BI0(NI0)
+      if (NI0.length) hole && arr ? this.view.BF0(NI0) : this.view.BI0(NI0)
       return
     }
-    // Primary lost rows.
+    // Primary lost rows (LEAVE).
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i]
@@ -87,7 +96,7 @@ export class ExceptValue extends Operator {
         delete this.view.value[name]
       }
     }
-    if (NR1.length) this.view.BR1(NR1)
+    if (NR1.length) hole && arr ? this.view.BH1(NR1) : this.view.BR1(NR1)
   }
 
   // BU1 from primary: value at key changed; if key passes the filter, emit.
@@ -110,9 +119,17 @@ export class ExceptValue extends Operator {
 
   // BI0 from primary: maybe admit. BI0 from other: row appeared in other,
   // so if we were showing it, drop it.
-  BI0(I0, v) {
+  BI0(I0, v) { this._insertFrom(I0, v, false) }
+
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same logic as BI0; emits holes (BH1 drop / BF0 admit).
+  BF0(I0, v) { this._insertFrom(I0, v, true) }
+
+  _insertFrom(I0, v, hole) {
     if (!I0.length) return
+    const arr = isArray(this.view.value)
     if (v === this.otherView) {
+      // `other` gained rows → drop any we were showing (LEAVE).
       const NR1 = []
       for (let i = 0; i < I0.length; i += 2) {
         const name = I0[i]
@@ -121,10 +138,10 @@ export class ExceptValue extends Operator {
           delete this.view.value[name]
         }
       }
-      if (NR1.length) this.view.BR1(NR1)
+      if (NR1.length) hole && arr ? this.view.BH1(NR1) : this.view.BR1(NR1)
       return
     }
-    // Primary insert.
+    // Primary insert (ENTER).
     const NI0 = []
     const me = this.view.value ??= isArray(this.p.value) ? [] : {}
     for (let i = 0; i < I0.length; i += 2) {
@@ -134,7 +151,7 @@ export class ExceptValue extends Operator {
       me[name] = val
       NI0.push(name, val)
     }
-    if (NI0.length) this.view.BI0(NI0)
+    if (NI0.length) hole && arr ? this.view.BF0(NI0) : this.view.BI0(NI0)
   }
 }
 

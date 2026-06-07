@@ -115,3 +115,56 @@ test('render - array sparse producer (between) renders only in-range rows in ind
   bound[value] = [20, 35];  same('narrow');    eq(dom(), '30')               // 0,1,2,3 hole out; 4 stays
   bound[value] = [40, 60];  same('re-widen');  eq(dom(), '50,55')            // 1,3 fill, 4 holes out
 })
+
+test('render - intersect/union/except over an ARRAY bound to the DOM track an incremental bound move (C4 array-half, all sparse producers)', () => {
+  // The C4 array-half fix wired DOMSink's index-keyed sparse path, but only
+  // `between` emitted BH1/BF0 at first — intersect/union/except emitted plain
+  // BR1/BI0 which core routes to the splice-shift BR1A/BI0A, corrupting the
+  // index-keyed `nodes` (wrong rows + phantom trailing <li>). Now all three
+  // emit BH1/BF0 over arrays, so a sparse producer of any kind composes with a
+  // row template bound straight to the DOM — init AND incremental update.
+  const mk = () => $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
+  const mount = (viewOf) => {
+    const src = mk()
+    const ctl = viewOf(src)            // returns { view, move }
+    const root = new El('root')
+    render(root, HTML.ul(HTML.li(ctl.view, (n, r) => n.text(r.v))))
+    const dom = () => root.children.map(li => li.text).join(',')
+    const dat = () => ctl.view[value].filter(x => x !== undefined).map(r => r.v).join(',')
+    return { dom, dat, move: ctl.move }
+  }
+
+  // intersect: rows in [0,100] AND [40,60] -> {50,55}; widen the second to all
+  {
+    let bound
+    const t = mount((src) => {
+      bound = $([40, 60])
+      return { view: src.between('v', $([0, 100])).intersect(src.between('v', bound)) }
+    })
+    eq(t.dom(), t.dat(), `intersect init: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '50,55')
+    bound[value] = [0, 100]
+    eq(t.dom(), t.dat(), `intersect update: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '10,50,90,55,30')
+  }
+  // union: rows in [40,60] OR [80,100] -> {50,90,55}; move second band to [0,20]
+  {
+    let bound
+    const t = mount((src) => {
+      bound = $([80, 100])
+      return { view: src.between('v', $([40, 60])).union(src.between('v', bound)) }
+    })
+    eq(t.dom(), t.dat(), `union init: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '50,90,55')
+    bound[value] = [0, 20]   // 10 enters
+    eq(t.dom(), t.dat(), `union update: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '10,50,55')
+  }
+  // except: rows NOT in [0,60] -> {90}; narrow exclusion to [0,40] so 50,55 re-enter
+  {
+    let ex
+    const t = mount((src) => {
+      ex = $([0, 60])
+      return { view: src.except(src.between('v', ex)) }
+    })
+    eq(t.dom(), t.dat(), `except init: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '90')
+    ex[value] = [0, 40]   // 50,55 leave exclusion -> enter output
+    eq(t.dom(), t.dat(), `except update: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '50,90,55')
+  }
+})
