@@ -9,7 +9,7 @@ Last swept 2026-06-06. Line numbers are approximate and drift with edits — tre
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
 | [C4](#c4) | Sparse producers (`between`/`intersect`/`union`/`except`) emit explicit `undefined` slots → phantom DOM rows when a row template binds them directly | Correctness · render | Medium | Open (mitigated by convention) |
-| [P1](#p1) | `between` array-insert path is O(N) (defers swarm births/deaths) | Perf | Medium | Deferred |
+| [P1](#p1) | `between` insert/remove sorted-bookkeeping was O(N); now deferred (object → O(1)); array `view.value` splice remains O(N) | Perf | Low | Open (object half fixed) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
@@ -38,11 +38,14 @@ Note this is the **render-layer** residual only — the *data*-layer hole-vs-spl
 ## Performance debt
 
 ### P1
-**`between` array-insert path is O(N)** · Medium · Deferred
+**`between` insert/remove sorted-bookkeeping was O(N); now deferred (object → O(1)); array `view.value` splice remains O(N)** · Low · Open (object half fixed)
 
-`between`'s sorted-index maintenance splices on insert; the array-source insert path is O(N) per insert (key-shift loop + `sorted.splice`). The `BU2` brushing path was already optimised to defer the splice behind a dirty flag (the crossfilter brushing hot path), so this only bites on insert/remove churn. It's why the [swarm example](examples/swarm/README.md) keeps a **fixed population** — births/deaths (`BI0`/`BR1` per agent) would put every operator on the O(N) path.
+The redundant `sorted`-index maintenance on insert/remove is gone: `BI0`/`BR1` now defer it behind the same `sortedDirty` flag `BU2` already uses (the next brush rebuilds `sorted` via `_resort`). They make the membership decision (`_inRange`, which reads only `lo_val`/`hi_val`) and write `view.value`, then mark dirty — they never touch `sorted`. So **object-source** insert/remove is now O(1) per row (was O(N) `sorted.indexOf` + `splice`, plus an O(N²) key-shift recompute for batch array removes) — measured ~100× on remove churn (60.99 ms → 0.60 ms for 1000 removes / 10k rows; insert 2.61 ms → 2.31 ms; the crossfilter brush path is unchanged since it does no inserts).
 
-- Where: [operators/between/index.ts](operators/between/index.ts) (key-shift loop, `sorted.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
+What stays O(N) is **array-source** insert/remove only: the `view.value.splice` that mirrors the source's positional array shift is inherent to arrays (every later index re-numbers), and can't go sub-O(N) while keys *are* positions. So the [swarm example](examples/swarm/README.md)'s fixed-population constraint is **lifted for an object-keyed population** (births/deaths now cheap), but an array-keyed source still pays the splice per insert/remove.
+
+- Where: [operators/between/index.ts](operators/between/index.ts) (`BI0`/`BR1` defer to `sortedDirty` + `_resort`; the residual array `view.value.splice`), [examples/swarm/README.md](examples/swarm/README.md), [operators/between/BENCHMARK.md](operators/between/BENCHMARK.md).
+- Resolution: object half done. The array half is fundamental to positional array semantics — use an object-keyed source (as the [flow example](examples/flow/) already does) for high insert/remove churn.
 
 ### P3
 **3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit)** · Low · Open (BU1 half fixed)

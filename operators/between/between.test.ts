@@ -175,13 +175,16 @@ test('between - reactive bounds', async () => {
 })
 
 // Regression: on an ARRAY source, an in-place edit of the between column (BU2,
-// or a whole-row BU1) sets `sortedDirty`; the NEXT insert then ran _resort()
-// (which rebuilt `sorted` from the already-mutated p.value) AND the incremental
-// array shift+place, double-counting the new row and minting an out-of-bounds
-// key the bisect dereferenced → `Cannot read properties of undefined (reading
-// 'v')` thrown to the caller's .insert(). This is the crossfilter/swarm shape
-// (stream inserts while attributes mutate in place). Now the dirty path rebuilds
-// via XU0. Object sources had the silent-duplicate analogue.
+// or a whole-row BU1) sets `sortedDirty`; the OLD incremental insert path then
+// ran _resort() (which rebuilt `sorted` from the already-mutated p.value) AND an
+// incremental array shift+place, double-counting the new row and minting an
+// out-of-bounds key the bisect dereferenced → `Cannot read properties of
+// undefined (reading 'v')` thrown to the caller's .insert(). This is the
+// crossfilter/swarm shape (stream inserts while attributes mutate in place).
+// Since P1, BI0/BR1 defer ALL `sorted` maintenance to the next brush's
+// _resort() (they never touch `sorted`), so there is nothing to double-count —
+// the insert applies incrementally and `sorted` rebuilds lazily. Object sources
+// had the silent-duplicate analogue, equally gone.
 test('between - insert after an in-place column edit does not crash (array + object)', () => {
   // array
   const arr = $([{ v: 50, g: 0 }])
