@@ -8,7 +8,7 @@
   --bg-3:    #1b1b1f;
   --ink:     #edece8;
   --dim:     #9a9a93;
-  --faint:   #5c5c58;
+  --faint:   #80807a;          /* lifted from #5c5c58 to reach WCAG AA (~4.6:1 on bg-2) — carries cat-sig, order-book prices, labels */
   --rule:    #26262b;
   --accent:  #ff5e3a;          /* data — alive */
   --peer:    #7d8aa3;          /* mobx — cool */
@@ -28,6 +28,9 @@ html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6
 ::selection { background: var(--accent); color: var(--bg); }
 a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--faint); }
 a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.skip-link { position: absolute; left: 0.5rem; top: -3rem; z-index: 100; background: var(--accent); color: var(--bg); padding: 0.5rem 0.9rem; border: 0; border-radius: 4px; font: 600 0.8rem var(--mono); }
+.skip-link:focus { top: 0.5rem; }
 .muted { color: var(--dim); }
 .dim { color: var(--faint); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -410,6 +413,13 @@ footer .lic { color: var(--faint); }
   .rcard-foot { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mrow { transition: none; animation: none; }
-  .md-bar-fill { transition: none; }
+  /* comprehensive reset — the previous block only covered .mrow + .md-bar-fill,
+     leaving cellflash/rowin/.tcount-fill/.gcard transitions live. The race rAF
+     loop already settles-once under reduced-motion in race.js. */
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
