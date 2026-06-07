@@ -117,6 +117,31 @@ export class ExceptValue extends Operator {
     if (NU1.length) this.view.BU1(NU1)
   }
 
+  // BU2 (a nested in-place edit, `src[k].f = x`). From `other`: the row stays
+  // excluded regardless of its value, so our output is unchanged — no-op. From
+  // primary: the row's field changed in place. The membership decision belongs
+  // to `other` (a facet emits BI0/BR1 when the edit flips its predicate); our
+  // job is only to NOT clobber that. Without this, the base BU2 default
+  // re-materialised the row into `view.value` — re-adding a row the facet's
+  // BI0 had just correctly dropped (an in-place edit that pushed a row INTO the
+  // exclusion left it stuck in the output). Forward the nested update only for
+  // rows still in the output (not excluded); skip excluded ones so they stay
+  // dropped. The row object is shared with the source, so the value is already
+  // current — we only propagate the notification.
+  BU2(U2, v) {
+    if (v === this.otherView) return
+    if (!U2.length) return
+    const NU2 = []
+    for (let i = 0; i < U2.length; i += 2) {
+      const key = U2[i]
+      const name = key[0]
+      if (this.otherView.value?.[name] !== undefined) continue   // excluded — don't re-add
+      if (this.view.value?.[name] === undefined) continue         // not in output — nothing to forward
+      NU2.push(key, U2[i + 1])
+    }
+    if (NU2.length) this.view.BU2(NU2)
+  }
+
   // BI0 from primary: maybe admit. BI0 from other: row appeared in other,
   // so if we were showing it, drop it.
   BI0(I0, v) { this._insertFrom(I0, v, false) }
