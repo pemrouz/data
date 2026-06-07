@@ -41,6 +41,9 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
   }
   </script>
+  <!-- peers (mobx/solid/react/…) load from esm.sh on carousel selection — warm the connection early -->
+  <link rel="preconnect" href="https://esm.sh" crossorigin>
+  <link rel="dns-prefetch" href="https://esm.sh">
   <link rel="stylesheet" href="./assets/v2.css">
   <link rel="stylesheet" href="./assets/multidim.css">
 </head>
