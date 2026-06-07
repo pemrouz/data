@@ -2,19 +2,37 @@
 
 A living register of issues that still need attention: correctness limitations, performance debt, and tooling/docs gaps that are open or deliberately deferred-but-live. **Resolved fixes, won't-fix decisions, and closed-out experiments live in [DECISIONS.md](DECISIONS.md)** — check there before re-investigating anything.
 
-Last swept 2026-06-07. Line numbers are approximate and drift with edits — treat the file/function reference as authoritative, not the exact line. Most entries are *documented* limitations the shipped examples already work around by construction (object-keyed sources, defensive bindings, densifying); a handful that fail **silently** would be flagged **High** (none open right now). Severity reflects likelihood-of-biting-a-consumer, not theoretical impact.
+Last swept 2026-06-08. Line numbers are approximate and drift with edits — treat the file/function reference as authoritative, not the exact line. Most entries are *documented* limitations the shipped examples already work around by construction (object-keyed sources, defensive bindings, densifying); a handful that fail **silently** would be flagged **High** (none open right now). Severity reflects likelihood-of-biting-a-consumer, not theoretical impact.
 
 ## Summary
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
+| [C11](#c11) | `limit` **directly** after a sparse producer (`between`/`intersect`) desyncs on a source remove-over-array or brush-over-object (positions shift; `limit` doesn't track) | Correctness | Low | Open (not shipped-reachable) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
-Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
+Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Open (not shipped-reachable)* = real but no shipped example hits it; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
 
-> Everything previously tracked here as C1/C2/C3/C4/C5/C6/C7/D1/D2 (fixed/verified), P2/P4/P6 (won't-fix), and T2 (closed-out), plus the "Recently resolved" appendix, has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) has an empty `KNOWN_FAILURES`.
+> Everything previously tracked here as C1–C10/D1/D2 (fixed/verified) and P1/P2/P4/P6 (re-landed / won't-fix), plus T2 (closed-out), has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family is closed; the differential harness ([differential.test.ts](differential.test.ts)) carries `between→length/sum/avg`, `between→az/za`, and `az/za→limit` scenarios with an empty `KNOWN_FAILURES`.
+
+---
+
+## Correctness
+
+### C11
+**`limit` directly after a sparse producer desyncs on array-remove / object-brush** · Low · Open (not shipped-reachable)
+
+`LimitValue` tracks its window as `keys` = **stable source positions**, refilled by a forward scan. When `limit` sits **directly** on a sparse producer (`between`/`intersect`/`union`/`except`) it desyncs in two cases:
+
+- **array source, row removed**: the producer splices its array (every later position shifts down one) and emits `BR1`, but `limit`'s `BR1` removes the one key without shifting its *other* keys — so they point at the wrong post-splice rows.
+- **object source, brush**: a bound move arrives as `BF0`/`BH1` (hole fill/remove); `limit`'s object refill (`nextObjectKey`) mishandles it.
+
+The `sort→limit` family (the array-positional `BR1A`/`BI0A`/`BMV1` verbs) was **fixed** in [DECISIONS.md → C10](DECISIONS.md); this entry is the remaining *sparse-producer→limit* path. **Not shipped-reachable**: crossfilter's actual shape — `intersect→limit` **brush over an array** — is correct and stays correct; the [library example](examples/library/README.md) uses a bounded `za(col, n)` window rather than `.limit()`. The broken combos are an author chaining `.limit()` *directly* on a brushed/removing sparse view.
+
+- Where: [operators/sort/index.ts](operators/sort/index.ts) (`LimitValue.BR1` array-shift; object `BF0`/`BH1` handling).
+- Fix direction: make `LimitValue`'s array `BR1` shift `keys > removedPos` down by one (mirror the source splice), and add object `BF0`/`BH1` handlers. **Risk:** must NOT regress the currently-correct `intersect→limit` brush-over-array path (crossfilter) — gate any change on the crossfilter differential + Playwright spec. Add `between→limit`/`intersect→limit` differential scenarios (currently absent) to pin it.
 
 ---
 
