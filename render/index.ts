@@ -79,6 +79,51 @@ class DOMSink {
     }
   }
 
+  // ── Index-keyed array path (sparse producers: between/intersect/union/except
+  // bound straight to the DOM) ──────────────────────────────────────────────
+  // Distinct from create_node/remove_node (which are TAIL-relative — correct
+  // for dense splice arrays where tail == index). These bind node[k] ↔ data[k]
+  // at a fixed position so a hole can be removed/filled without shifting
+  // survivors, mirroring the BH1/BF0 protocol. Used only when the array is
+  // sparse (XU0) or for BH1/BF0 events (which dense arrays never emit).
+
+  // A true if any in-bounds slot is a hole (empty or explicit-undefined).
+  _sparse(v) {
+    for (let i = 0; i < v.length; i++) if (v[i] === undefined) return true
+    return false
+  }
+
+  // Create the node for present index `k`, inserted before the node at the
+  // smallest present index > k (or appended if none) so DOM order tracks index
+  // order. Idempotent: a BF0 for an already-present slot is a no-op (its content
+  // was already refreshed by core's V1 pre-fire).
+  _create_at(k) {
+    if (this.nodes[k]) return
+    const node = this.node.generate(k, this.node.data[k])
+    let next = Infinity
+    for (const j in this.nodes) { const jn = +j; if (jn > k && jn < next) next = jn }
+    this.nodes[k] = node.create(this.parent, next !== Infinity ? this.nodes[next] : undefined)
+  }
+
+  _remove_at(k) {
+    this.nodes[k]?.remove()
+    delete this.nodes[k]
+  }
+
+  // Reconcile the live DOM with a sparse array value: drop nodes whose slot
+  // became a hole, create nodes for newly-present slots (positioned by index).
+  // Handles the dense→sparse transition too (a between whose bounds were full
+  // domain, then narrowed): the prior dense nodes are already node[i] ↔ data[i],
+  // so index-keyed removal/creation composes cleanly.
+  _reconcile_sparse(value) {
+    this.nodes ??= []
+    const gone = []
+    for (const i in this.nodes) if (value[+i] === undefined) gone.push(+i)
+    for (let j = 0; j < gone.length; j++) this._remove_at(gone[j])
+    for (let i = 0; i < value.length; i++)
+      if (value[i] !== undefined && !this.nodes[i]) this._create_at(i)
+  }
+
   // Once the parent DOM is detached from the document the binding can never
   // produce a visible mutation again. We could keep applying changes to the
   // detached subtree but it just wastes work and corrupts our nodes/buckets
@@ -121,17 +166,23 @@ class DOMSink {
     }
 
     const arr = isArray(value)
+    // Sparse ARRAY (a between/intersect/union/except view bound straight to a
+    // row template): present rows are scattered among holes (empty at
+    // construction, explicit-`undefined` after a bound move) while the array
+    // length stays stable. The dense tail-relative build below would bind
+    // node-j to `data[j]` (wrong — j is the dense count, not the data index)
+    // and the for-in would also mint a phantom for an explicit-`undefined`
+    // slot. Reconcile index-keyed instead (node[i] ↔ data[i] for present i,
+    // positioned by index); BH1/BF0 then maintain it the same way. Dense arrays
+    // (sort/group/limit) never hole, so they never take this branch — their
+    // tail-relative path is untouched.
+    if (arr && this._sparse(value)) return this._reconcile_sparse(value)
     this.nodes ??= arr ? [] : {}
     for (const i in value)
       // Object (keyed) sinks: skip explicit-`undefined` slots that sparse
-      // producers (between/intersect/union/except) leave at excluded keys. Here
-      // create_node is index-relative (`nodes[k]` bound to `data[k]`), so
-      // skipping a hole can't misalign survivors — it just avoids a phantom row
-      // bound to `undefined` (a NaN/empty cell) when a DOMSink connects to a
-      // view that already had rows leave. The ARRAY path is tail-relative, so a
-      // mid-hole skip there would drift every later binding; leave array slots
-      // alone (excluded array slots are empty holes at construction, which
-      // for-in skips anyway; live array holes are the C4 array-protocol case).
+      // producers leave at excluded keys. Here create_node is index-relative
+      // (`nodes[k]` bound to `data[k]`), so skipping a hole can't misalign
+      // survivors — it just avoids a phantom row bound to `undefined`.
       if (!prev_nodes[i] && (arr || value[i] !== undefined))
         this.create_node(i) // if (this.nodes[k]) maybe reorder
     // Same V8 quirk: snapshot the keys to drop before mutating, otherwise
@@ -169,6 +220,23 @@ class DOMSink {
       const value = I0[i]
       this.create_node(name)
     }
+  }
+
+  // Hole remove / hole fill from a sparse producer over an ARRAY. Positional-
+  // stable (no shift): drop/create the node AT index k, leaving survivors put.
+  // Core's View.BH1/BF0 pre-fires the touched child's XU0 (so a fill's content
+  // is already set on the child view _create_at binds, and a remove's child
+  // goes undefined just before its node is dropped) — index-keyed, so no
+  // double-apply. Dense arrays never emit these; they only reach a DOMSink
+  // bound directly to a between/intersect/union/except view.
+  BH1(R1) {
+    if (this._detached()) return
+    for (let i = 0; i < R1.length; i += 2) this._remove_at(+R1[i])
+  }
+
+  BF0(I0) {
+    if (this._detached()) return
+    for (let i = 0; i < I0.length; i += 2) this._create_at(+I0[i])
   }
 
   BR2(BR2){}

@@ -92,3 +92,26 @@ test('render - object sparse producer renders no phantom row for an excluded key
   eq(root.children.length, 1)
   eq(root.children[0].text, '50')
 })
+
+test('render - array sparse producer (between) renders only in-range rows in index order, no phantom holes (C4 array-half)', () => {
+  // A between over an ARRAY source bound straight to a row template. Excluded
+  // slots are holes (empty at construction, explicit-undefined after a bound
+  // move); the array length is stable and survivors keep their index. The DOM
+  // must show exactly the present (in-range) rows in index order — no phantom
+  // <li> for a hole, no drifted binding, no wrong row removed when a bound
+  // moves. Driven by BF0 (hole fill) / BH1 (hole remove) on the DOMSink, plus
+  // an index-keyed sparse XU0 build.
+  const data = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
+  const bound = $([40, 60])
+  const view = data.between('v', bound)         // in range: idx 1 (50), idx 3 (55)
+  const root = new El('root')
+  render(root, HTML.ul(HTML.li(view, (n, r) => n.text(r.v))))
+  const dom = () => root.children.map(li => li.text).join(',')
+  const dat = () => view[value].filter(x => x !== undefined).map(r => r.v).join(',')
+  const same = (label) => eq(dom(), dat(), `${label}: dom=[${dom()}] data=[${dat()}]`)
+
+  same('init'); eq(dom(), '50,55')
+  bound[value] = [0, 100];  same('widen-all'); eq(dom(), '10,50,90,55,30')   // holes 0,2,4 fill in order
+  bound[value] = [20, 35];  same('narrow');    eq(dom(), '30')               // 0,1,2,3 hole out; 4 stays
+  bound[value] = [40, 60];  same('re-widen');  eq(dom(), '50,55')            // 1,3 fill, 4 holes out
+})
