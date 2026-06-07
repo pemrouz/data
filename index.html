@@ -34,6 +34,8 @@
 </head>
 <body>
 
+<div id="copy-live" class="sr-only" aria-live="polite"></div>
+
 <div class="wrap">
 
   <header class="masthead">
@@ -60,7 +62,7 @@
       operators, bind to the DOM. No virtual DOM, no diffing.
     </p>
     <div class="cta">
-      <code class="install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
+      <button class="install" type="button" data-copy="npm install data" title="click to copy" aria-label="Copy install command: npm install data"><span class="dim" aria-hidden="true">$</span> npm install data</button>
       <a class="cta-link" href="#quickstart">quickstart ↓</a>
       <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
     </div>
@@ -73,9 +75,9 @@
       <span class="race-title">one engine · two workloads · flip through nine</span>
       <div class="race-ctrl">
         <span class="ctrl carousel">
-          <button id="race-prev" title="previous engine">‹</button>
-          <select id="race-lib"></select>
-          <button id="race-next" title="next engine">›</button>
+          <button id="race-prev" title="previous engine" aria-label="previous engine">‹</button>
+          <select id="race-lib" aria-label="reactive engine"></select>
+          <button id="race-next" title="next engine" aria-label="next engine">›</button>
           <span class="race-pos" id="race-pos">1 / 9</span>
         </span>
         <label class="ctrl rate-ctrl">rate
@@ -186,7 +188,7 @@
   <!-- ===== §3 quickstart ===== -->
   <section class="quickstart" id="quickstart">
     <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
-    <code class="install" data-copy="npm install data" title="click to copy"><span class="dim">$</span> npm install data</code>
+    <button class="install" type="button" data-copy="npm install data" title="click to copy" aria-label="Copy install command: npm install data"><span class="dim" aria-hidden="true">$</span> npm install data</button>
 
     <div class="entries">
       <div class="entry"><code>data</code><span>lean core — <code>$</code>, <code>render</code>, <code>HTML</code>, <code>SVG</code></span></div>

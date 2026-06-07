@@ -61,12 +61,18 @@ function syncFilter () {
 }
 const chips = $$('#filter-chips')
 TENORS.forEach(tn => {
-  const chip = document.createElement('span')
+  const chip = document.createElement('button')
+  chip.type = 'button'
   chip.className = 'chip' + (tn === tenor ? ' on' : '')
   chip.textContent = tn
+  chip.setAttribute('aria-pressed', String(tn === tenor))
   chip.addEventListener('click', () => {
     tenor = tn
-    chips.querySelectorAll('.chip').forEach(el => el.classList.toggle('on', el === chip))
+    chips.querySelectorAll('.chip').forEach(el => {
+      const on = el === chip
+      el.classList.toggle('on', on)
+      el.setAttribute('aria-pressed', String(on))
+    })
     syncFilter()
   })
   chips.appendChild(chip)

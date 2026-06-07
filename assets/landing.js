@@ -34,6 +34,11 @@ document.querySelectorAll('[data-copy]').forEach(el => {
       await navigator.clipboard.writeText(el.dataset.copy)
       el.setAttribute('data-state', 'copied ✓')
       setTimeout(() => el.removeAttribute('data-state'), 1400)
+      // the data-state badge is a CSS ::after — invisible to AT, so also
+      // announce success through a polite live region (cleared first to force
+      // a re-announce when the same command is copied twice).
+      const live = document.getElementById('copy-live')
+      if (live) { live.textContent = ''; setTimeout(() => { live.textContent = `Copied: ${el.dataset.copy}` }, 30) }
     } catch { /* clipboard unavailable — selecting the text still works */ }
   })
 })
