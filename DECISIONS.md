@@ -132,7 +132,7 @@ Pre-existing and **independent of C8/P1** — it reproduces identically on pre-C
 - Follow-up: the sparse-producer→`limit` remainder was investigated in C11 below — one genuine `limit` bug (brush-array double-add) fixed; the rest turned out to be an `intersect` bug + inherent object order-looseness.
 
 ### C11 — `limit` directly on a sparse producer double-added a row on a sideways brush ✅
-`<commit-c11>`
+`99d8d40`
 
 `between(…).limit(k)` / `intersect(…).limit(k)` over an **array**, brushed *sideways* (a brush whose cascade both removes some rows and admits others), **duplicated** a row — e.g. `between([10,50])→limit(3)` brushed to `[34,85]` gave `[44,55,55]` where `[44,55,66]` is correct. A sparse producer updates its `view.value` for ALL holes+fills, then emits removes (`BH1→BR1`) before fills (`BF0→BI0`). `limit`'s `BR1` batch refills from the parent's already-updated value (`nextAfter`), pulling in a slot the `BF0` batch then re-reports; `limit`'s array `BI0` (the `BF0` fallback — over an array `View.BI0` routes to `BI0A`, so plain `BI0` is reached **only** as the hole-fill fallback) didn't **dedup**, so it re-inserted that slot (a duplicate + an evicted survivor).
 
