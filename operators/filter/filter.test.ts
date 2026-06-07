@@ -91,3 +91,19 @@ test('filter - array source delete propagates shift', () => {
     { keep: true, n: 1 }, { keep: true, n: 3 }, { keep: true, n: 99 },
   ])
 })
+
+// Regression: a genuine MID-array positional insert upstream of filter must not
+// drop the displaced row (the C2 / RowOperator.BI0A path; sibling of the map
+// test). Tail-only inserts in the differential harness left this uncovered —
+// removing RowOperator.BI0A still passed the suite. core routes the array
+// insert-at-position through BI0A; without the splice-aware override the
+// displaced surviving row is misclassified as an update and lost.
+test('filter - mid-array positional insert keeps the displaced row (BI0A / C2)', () => {
+  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const f = filter(src, (r) => r.v >= 15)
+  same(f[value].filter((x) => x !== undefined), [{ v: 20 }, { v: 30 }])
+  ;(src as any).insert({ v: 99 }, 1)        // passes the predicate, splices at 1
+  same(f[value].filter((x) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
+  ;(src as any).insert({ v: 5 }, 0)         // fails the predicate, splices at 0
+  same(f[value].filter((x) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
+})

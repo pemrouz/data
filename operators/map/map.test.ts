@@ -31,3 +31,22 @@ test('map - update/insert/remove', async () => {
   ])
   same(mapped[value], { '0': 80 })
 })
+
+// Regression: a genuine MID-array positional insert upstream of map must not
+// drop the displaced row (the C2 / RowOperator.BI0A path). The differential
+// harness only ever TAIL-appends array sources, so this path was a coverage
+// blind spot — removing RowOperator.BI0A still passed the whole suite while a
+// mid-array insert silently dropped a row. core routes an array insert-at-
+// position through BI0A; without RowOperator's splice-aware BI0A, loop() reads
+// the displaced occupant as the inserted row's "old" value, misclassifies the
+// insert as an update of that slot, overwrites the occupant, and never shifts
+// it down — so the displaced row vanishes (map would give [10,99,30]).
+test('map - mid-array positional insert keeps the displaced row (BI0A / C2)', () => {
+  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const m = map(src, (r) => r.v)
+  same(m[value], [10, 20, 30])
+  ;(src as any).insert({ v: 99 }, 1)        // splice in at index 1
+  same(m[value], [10, 99, 20, 30])          // pre-BI0A: [10,99,30] (20 dropped)
+  ;(src as any).insert({ v: 77 }, 0)        // splice at the front too
+  same(m[value], [77, 10, 99, 20, 30])
+})
