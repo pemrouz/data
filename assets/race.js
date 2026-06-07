@@ -329,7 +329,7 @@ export async function createRace ({ grid, multidimHost, libSel, prevBtn, nextBtn
     refs = buildCard(lib)
     grid.appendChild(refs.el) // append first so the canvases have a measured size
     refs.ob = setupOrderbook(refs.obEl)
-    wave = makeWave(refs.waveCanvas, refs.cpu, refs.ratio)
+    wave = makeWave(refs.waveCanvas, refs.cpu, refs.ratio, isDataSelected)
 
     dataEng.settle(); if (!isDataSelected) peerEng.settle()
     drawCard()

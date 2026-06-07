@@ -170,7 +170,7 @@ function drawSide (ctx, counts, dir, mid, yFor, yMid, scale, usableW, w) {
 // line. Each series carries a 20-frame rolling average so sub-quantum
 // performance.now() resolution (100µs in non-isolated Chrome) doesn't make the
 // trace binary. cpuEl gets the engine's smoothed p50; ratioEl gets ×-vs-data.
-export function makeWave (canvas, cpuEl, ratioEl) {
+export function makeWave (canvas, cpuEl, ratioEl, selfBaseline = false) {
   const CAP = 110, SMOOTH = 20
   const dpr = Math.max(1, window.devicePixelRatio || 1)
   const ctx = canvas.getContext('2d')
@@ -233,7 +233,9 @@ export function makeWave (canvas, cpuEl, ratioEl) {
       const pm = p50(main), pb = p50(base)
       if (cpuEl) { cpuEl.textContent = fmtCpu(pm); cpuEl.classList.toggle('over', pm > 16) }
       const ratio = pb > 0.0005 ? pm / pb : 0
-      if (ratioEl) ratioEl.textContent = ratio > 0 ? fmtRatio(ratio) + ' data' : '—'
+      // data-vs-data is a tautology (≈1.0×) — show "baseline" instead, matching
+      // the footer's setBase suppression. A real ratio shows only for a peer.
+      if (ratioEl) ratioEl.textContent = selfBaseline ? 'baseline' : (ratio > 0 ? fmtRatio(ratio) + ' data' : '—')
       draw()
       return ratio
     },
