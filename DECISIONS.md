@@ -180,7 +180,19 @@ This sidesteps a **separate latent `RowOperator` bug** (a filter/map/compare arr
 Regression: `union - array, derived facets: tail insert + shifting remove stay aligned` in [operators/union/union.test.ts](operators/union/union.test.ts); `union [array]` deleted from `KNOWN_FAILURES`. Tests 416/416; union perf unchanged; library Playwright spec (union within a facet) green.
 
 - Where: [operators/union/index.ts](operators/union/index.ts) (`UnionValue.BI0A`/`BR1A`).
-- **`except` array STILL OPEN** — one `[array]` scenario remains parked.
+- **`except` array** then the last remaining — fixed in the next entry.
+
+### C12 (array half — except) — array-positional `BR1A`/`BI0A`, the last set-algebra producer ✅
+
+`except` over an ARRAY source (p = the raw source `s`, `other` = a filter facet of it) desynced the same way: an array remove shifted later indices, but `except` dropped/holed by name (object `_removeFrom`, no splice), so removing an EXCLUDED row deleted a DRIFTED visible survivor. Fixed with the array-only handlers, the intersect mirror for the set-difference rule ("in p AND NOT in other"; no bitmask):
+- **`BR1A` (remove):** splice `view.value` only on the PRIMARY echo (`v === this.p`, the raw `s`, which echoes LAST as for intersect); a removal echoed by `other` is the same underlying delete (the row is gone from `s`) → no-op. (A row LEAVING `other` while staying in `s` is a membership re-admit — it arrives as BH1, already wired in `_removeFrom`, NOT BR1A.)
+- **`BI0A` (tail insert):** visibility decided on `other`'s echo — it carries its membership DIRECTLY (so a misaligned filter `other`, [C13](ISSUES.md), can't make a positional re-read miss the row) and p (`s`, raw) is already settled, so that echo knows both halves of "in p AND not in other". `other` always echoes a tail insert (RowOperator emits the positional insert even for an excluded slot), so it's complete; the primary's echo just keeps `view.value` length-aligned with `s`.
+
+Regression: `except - array, derived 'other': tail insert + shifting remove stay aligned` in [operators/except/except.test.ts](operators/except/except.test.ts); `except [array]` deleted from `KNOWN_FAILURES`.
+
+**C12 is now fully closed.** All three set-algebra producers are correct over array sources; the differential harness ([differential.test.ts](differential.test.ts)) runs every scenario, array and object, with an **empty `KNOWN_FAILURES`**. Tests 417/417; intersect/union/except perf unchanged; crossfilter/library/swarm Playwright specs green. The one residual is the separate, not-shipped-reachable `RowOperator` trailing-hole misalignment now tracked as [ISSUES.md → C13](ISSUES.md) (C12's consumers sidestep it via carried values).
+
+- Where: [operators/except/index.ts](operators/except/index.ts) (`ExceptValue.BR1A`/`BI0A`).
 
 ---
 

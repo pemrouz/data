@@ -70,6 +70,61 @@ export class ExceptValue extends Operator {
   // place instead of splice-shifting. Mirrors between/intersect/union.
   BH1(R1, v) { this._removeFrom(R1, v, true) }
 
+  // ── Array structural remove / insert (C12) ────────────────────────────────
+  // Core routes an ARRAY source's positional remove/insert through BR1A/BI0A
+  // (object sources keep the BR1/BI0 _removeFrom/_insertFrom path, untouched). A
+  // splice shifts every later index, so `view.value` MUST splice in lockstep or
+  // the index space drifts from the (shifting) source and a later positional
+  // event hits the wrong slot (the C12 array desync — removing an EXCLUDED row
+  // deleted a drifted VISIBLE one). except has no bitmask — membership is just
+  // "in p AND not in other". Like intersect, except's PRIMARY (`this.p`, the
+  // canonical index identity) is the raw source `s` and echoes LAST; `other`
+  // (the filter facet) echoes first.
+  BR1A(R1, v) {
+    // Only the primary's removal shifts the index space. A removal echoed by
+    // `other` is the SAME underlying delete (the row is gone from `s` too) — a
+    // no-op; a row LEAVING `other` while staying in `s` is a membership re-admit
+    // that arrives as BH1 (see _removeFrom), not BR1A.
+    if (v !== this.p) return
+    const NR1 = []
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i]
+      const oldVal = this.view.value[at]
+      this.view.value.splice(at, 1)
+      if (oldVal !== undefined) NR1.push(at, oldVal)
+    }
+    if (NR1.length) this.view.BR1(NR1)
+  }
+
+  // Array structural insert (tail). except shows the row iff it's in p AND NOT
+  // in `other`. Decide visibility on `other`'s echo: it carries its membership
+  // DIRECTLY (a filter `other` with trailing exclusions is index-misaligned, so
+  // a positional re-read of `other.value[at]` can miss the row), and p (=s, raw)
+  // is already settled, so that echo knows both halves. `other` always echoes a
+  // tail insert (RowOperator.BI0A emits the positional insert even for an
+  // excluded slot), so this is complete. The primary's echo is the index
+  // authority — it just keeps `view.value` length-aligned with `s`, so an
+  // excluded (holed) insert still extends the array. (Mid-array inserts
+  // unsupported, as in intersect/union.)
+  BI0A(I0, v) {
+    if (v === this.p) {
+      if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length
+      return
+    }
+    if (v !== this.otherView) return
+    const me = this.view.value
+    const NI0 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const inOther = I0[i + 1] !== undefined
+      const pRow = this.p.value[at]
+      if (!inOther && pRow !== undefined && me[at] === undefined) {
+        NI0.push(at, me[at] = pRow)
+      }
+    }
+    if (NI0.length) this.view.BI0(NI0)
+  }
+
   _removeFrom(R1, v, hole) {
     if (!R1.length) return
     const arr = isArray(this.view.value)

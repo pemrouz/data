@@ -227,18 +227,16 @@ function runScenario(scn, shape, seed) {
   return { ok: true }
 }
 
-// The C1 (hole-vs-splice) and C3 (chained windowed/array sort) families are
-// closed. Parked here: the set-algebra producers (intersect/union/except) over
-// an ARRAY source under insert/remove/in-place-edit churn — a C1-family
-// array-positional gap (their bitmask/view isn't fully maintained across array
-// splices). This is C12 in ISSUES.md; the OBJECT shapes are correct (the
-// except-BU2 fix closed the only object bug). Not shipped-reachable: examples
-// use object-keyed or fixed-population sources for set algebra. A listed case
-// that starts PASSING fails the loop below (so a fix must delete it from here),
-// guarding against silent widening.
-const KNOWN_FAILURES = new Set([
-  'except [array]',
-])
+// The C1 (hole-vs-splice), C3 (chained windowed/array sort) and C12 (set-algebra
+// producers over an ARRAY source) families are all CLOSED — every scenario here,
+// array and object, now matches a from-scratch rebuild. C12's array half was the
+// last to land: intersect/union/except grew array-only BI0A/BR1A handlers that
+// splice their bitmask/view in lockstep with the shifting source (see
+// DECISIONS.md C12 array-half entries). KNOWN_FAILURES is intentionally empty;
+// any listed case that starts PASSING fails the loop below (so a fix must delete
+// it from here), guarding against silent widening — keep it empty unless a NEW
+// gap is being parked with an ISSUES.md entry.
+const KNOWN_FAILURES = new Set([])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {

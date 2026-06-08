@@ -66,3 +66,42 @@ test('except - reactive: insert into source admits if not in other', () => {
   a[9] = 'z'
   same(res[value], { 1: 'a', 2: 'b' })   // 9 is in `other`, so excluded
 })
+
+// Regression (C12, array half): except over a DERIVED array source — p is the
+// raw array `s` and `other` is a filter of it (the set-difference shape) — used
+// to drift under remove churn: an array remove SHIFTS later indices, but except
+// dropped/holed by name (object semantics, no splice), so its sparse view.value
+// drifted from the (shifting) source and removing an EXCLUDED row deleted a
+// drifted VISIBLE one (a survivor vanished). The array-only BR1A (primary `s`
+// splices; an `other` echo of the same underlying delete is a no-op) + BI0A
+// (visibility decided from `other`'s carried membership) fix it. Locks the live
+// view across tail inserts (admitted + excluded) and shifting removes.
+const denseV = (vp) => (vp[value] || []).filter((r) => r !== undefined).map((r) => r.v)
+test('except - array, derived `other`: tail insert + shifting remove stay aligned', () => {
+  const s = $([{ v: 10 }, { v: 70 }, { v: 20 }, { v: 90 }, { v: 50 }])
+  // rows NOT in `other` (v > 60) ⇒ v ≤ 60 ⇒ {10,20,50}.
+  const res = except(s, filter(s, (r) => r.v > 60))
+  same(denseV(res).sort((a, b) => a - b), [10, 20, 50])
+
+  // Tail insert ADMITTED (≤ 60, not in other).
+  s.insert({ v: 40 })
+  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+
+  // Tail insert EXCLUDED (> 60, in other) — must NOT appear.
+  s.insert({ v: 80 })
+  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+
+  // Remove an EXCLUDED middle row (index 3 = {v:90}); later indices shift down —
+  // no visible survivor may be lost (the seed-42 desync).
+  delete s[3]
+  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+
+  // Remove a VISIBLE middle row (index 2 = {v:20}); pure shift.
+  delete s[2]
+  same(denseV(res).sort((a, b) => a - b), [10, 40, 50])
+
+  // In-place edit pushing a survivor INTO the exclusion still works post-shift.
+  // s = [{10},{70},{50},{40},{80}]; bump {10} above 60.
+  s[0].v = 75
+  same(denseV(res).sort((a, b) => a - b), [40, 50])
+})
