@@ -237,7 +237,6 @@ function runScenario(scn, shape, seed) {
 // that starts PASSING fails the loop below (so a fix must delete it from here),
 // guarding against silent widening.
 const KNOWN_FAILURES = new Set([
-  'union [array]',
   'except [array]',
 ])
 

@@ -169,6 +169,19 @@ Regression: `intersect - array, derived facets: tail insert + shifting remove st
 - Where: [operators/intersect/index.ts](operators/intersect/index.ts) (`IntersectValue.BI0A`/`BR1A`).
 - **`union`/`except` array STILL OPEN** — same array-positional rework, with each operator's own primary-echo ordering; two `[array]` scenarios remain parked in `KNOWN_FAILURES`.
 
+### C12 (array half — union) — array-positional `BI0A`/`BR1A` + carried-value pick ✅
+
+`union` over an ARRAY source desynced under the same churn, the same way (index drift: removes never spliced its bitmask/`view.value`). Fixed with the array-only `BI0A`/`BR1A` mirror of intersect, adapted to union's semantics ("any bit set" not "all"; value from the first source holding the row):
+- **`BR1A` (remove):** splice only on the PRIMARY echo (`v === this.p`), no-op on a secondary. NB union's primary is itself a derived facet, so it echoes FIRST (intersect/except's primary echoes LAST) — keying the splice to the primary identity is order-independent, so it works for both. (Every facet derives from one underlying array, so a structural delete is gone from all of them; the primary splice handles it. Two genuinely INDEPENDENT array sources, where a secondary remove should re-pick rather than drop, aren't supported for arrays — none shipped; the object path keeps the full `_leave` re-pick.)
+- **`BI0A` (tail insert):** each source folds its membership bit in from its carried value (a hole `undefined` clears it). The visible value is the carried row of the FIRST (highest-priority) source holding it — taken from the **carried value, NOT `_pick`**. Why: `_pick` re-reads `source.value[at]` positionally, but a filter facet whose trailing rows are excluded has a `.length` shorter than the underlying array, so its OWN internal positions are index-misaligned (a tail insert `splice`d past its length lands at the wrong slot) and a positional read misses the row. `one === 1 << priority`, so `one - 1` masks every higher-priority source — this source supplies the value iff it has the row and no higher-priority one does; a higher source echoing later overwrites to a BU1. The object path keeps `_pick` (stable keys, aligned reads).
+
+This sidesteps a **separate latent `RowOperator` bug** (a filter/map/compare array with trailing exclusions is internally length-misaligned). A root fix — padding the `RowOperator` array output to source length — was prototyped and reverted: it changes the emitted array shape (the `compare - array source with delete propagates shift` test asserts the un-padded form), so it's a broader, separate change, noted in [ISSUES.md → C12](ISSUES.md). The differential's `union [array]` passed before only by luck (its inserts always hit the trailing-aligned facet); the new `union - array, derived facets …` regression test forces the misaligned-facet case.
+
+Regression: `union - array, derived facets: tail insert + shifting remove stay aligned` in [operators/union/union.test.ts](operators/union/union.test.ts); `union [array]` deleted from `KNOWN_FAILURES`. Tests 416/416; union perf unchanged; library Playwright spec (union within a facet) green.
+
+- Where: [operators/union/index.ts](operators/union/index.ts) (`UnionValue.BI0A`/`BR1A`).
+- **`except` array STILL OPEN** — one `[array]` scenario remains parked.
+
 ---
 
 ## Won't fix / skipped

@@ -84,6 +84,72 @@ export class UnionValue extends Operator {
     this.view.XU0(this.view.value = new_value)
   }
 
+  // ── Array structural insert / remove (C12) ───────────────────────────────
+  // Core routes an ARRAY source's positional insert/remove through BI0A/BR1A;
+  // object sources keep the BI0/BR1 _enter/_leave path (untouched). A splice
+  // shifts every later index, so the per-index `filters` bitmask and the sparse
+  // `view.value` must splice in lockstep or the index space drifts from the
+  // (shifting) sources and every later positional event hits the wrong slot
+  // (C12 array desync). See operators/intersect for the full rationale; union
+  // differs only in the membership test ("any bit set" vs "all") and that its
+  // value is `_pick`ed from the first source holding the row.
+  //
+  // NB union's PRIMARY (`this.p`) is itself a derived facet, so it echoes FIRST
+  // (intersect/except's primary echoes last). That's why the structural splice
+  // is keyed to the primary identity (order-independent) and a SECONDARY array
+  // removal is a no-op: every facet derives from one underlying array, so a
+  // structural delete is gone from ALL of them and the primary splice already
+  // dropped it. (Two genuinely INDEPENDENT array sources — where a secondary
+  // remove should re-pick rather than drop — aren't supported for arrays; no
+  // such union is shipped. Object sources keep the full _leave re-pick.)
+  BR1A(R1, v) {
+    if (v !== this.p) return
+    const NR1 = []
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i]
+      const oldVal = this.view.value[at]
+      this.filters.splice(at, 1)
+      this.view.value.splice(at, 1)
+      if (oldVal !== undefined) NR1.push(at, oldVal)
+    }
+    if (NR1.length) this.view.BR1(NR1)
+  }
+
+  // STRUCTURAL INSERT (tail). Each source self-reports its membership bit from
+  // the carried value (a real row sets it, a hole `undefined` clears it),
+  // accumulating order-independently; the row enters the union the moment ANY
+  // bit is set. The new tail slot grows `filters`/`view.value` naturally
+  // (mid-array inserts unsupported, as in intersect).
+  //
+  // The visible value is the row of the FIRST (highest-priority, earliest in
+  // argument order) source holding it — taken from the echo's CARRIED value, NOT
+  // re-read from the source array via `_pick`: a filter source whose trailing
+  // rows are excluded has a `.length` shorter than the underlying array, so its
+  // own internal positions are index-misaligned and a positional read can miss a
+  // row it logically holds. `one` is `1 << priority`, so `one - 1` masks every
+  // higher-priority source; this source supplies the value iff it has the row
+  // and no higher-priority one does. A higher-priority source echoing later
+  // overwrites to a BU1. (`_pick` stays correct for the OBJECT path, where keys
+  // are stable and source reads align.)
+  BI0A(I0, v) {
+    const { one, off } = this.sources.get(v)
+    const higher = one - 1
+    const me = this.view.value
+    const NI0 = [], NU1 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const val = I0[i + 1]
+      const prev = this.filters[at] || 0
+      const bits = this.filters[at] = val !== undefined ? (prev | one) : (prev & off)
+      if (bits === 0 || val === undefined || (bits & higher)) continue
+      if (me[at] === undefined) { me[at] = val; NI0.push(at, val) }
+      else if (me[at] !== val) { me[at] = val; NU1.push(at, val) }
+    }
+    if (me.length < this.filters.length) me.length = this.filters.length
+    if (NI0.length) this.view.BI0(NI0)
+    if (NU1.length) this.view.BU1(NU1)
+  }
+
   // BR1 from any source: clear that source's bit. If bits hit zero, the row
   // leaves the union. If still nonzero, the row stays — but its value may
   // need re-picking (the source we just lost might have been the source we
