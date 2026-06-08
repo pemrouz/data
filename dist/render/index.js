@@ -60,6 +60,62 @@ var DOMSink = class {
       delete this.nodes[k];
     }
   }
+  // ── Index-keyed array path (sparse producers: between/intersect/union/except
+  // bound straight to the DOM) ──────────────────────────────────────────────
+  // Distinct from create_node/remove_node (which are TAIL-relative — correct
+  // for dense splice arrays where tail == index). These bind node[k] ↔ data[k]
+  // at a fixed position so a hole can be removed/filled without shifting
+  // survivors, mirroring the BH1/BF0 protocol. Used only when the array is
+  // sparse (XU0) or for BH1/BF0 events (which dense arrays never emit).
+  // A true if any in-bounds slot is a hole (empty or explicit-undefined).
+  _sparse(v) {
+    for (let i = 0; i < v.length; i++) if (v[i] === void 0) return true;
+    return false;
+  }
+  // Create the node for present index `k`, inserted before the node at the
+  // smallest present index > k (or appended if none) so DOM order tracks index
+  // order. Idempotent: a BF0 for an already-present slot is a no-op (its content
+  // was already refreshed by core's V1 pre-fire).
+  _create_at(k) {
+    if (this.nodes[k]) return;
+    const node = this.node.generate(k, this.node.data[k]);
+    let next = Infinity;
+    for (const j in this.nodes) {
+      const jn = +j;
+      if (jn > k && jn < next) next = jn;
+    }
+    this.nodes[k] = node.create(this.parent, next !== Infinity ? this.nodes[next] : void 0);
+  }
+  // Append the node for present index `k` to the tail (no positional scan).
+  // Only safe when every later present index is created after this one — i.e.
+  // the in-increasing-order build from an empty node set in `_reconcile_sparse`.
+  _append_at(k) {
+    const node = this.node.generate(k, this.node.data[k]);
+    this.nodes[k] = node.create(this.parent, void 0);
+  }
+  _remove_at(k) {
+    this.nodes[k]?.remove();
+    delete this.nodes[k];
+  }
+  // Reconcile the live DOM with a sparse array value: drop nodes whose slot
+  // became a hole, create nodes for newly-present slots (positioned by index).
+  // Handles the dense→sparse transition too (a between whose bounds were full
+  // domain, then narrowed): the prior dense nodes are already node[i] ↔ data[i],
+  // so index-keyed removal/creation composes cleanly.
+  _reconcile_sparse(value2) {
+    this.nodes ??= [];
+    const gone = [];
+    for (const i in this.nodes) if (value2[+i] === void 0) gone.push(+i);
+    for (let j = 0; j < gone.length; j++) this._remove_at(gone[j]);
+    let survivors = false;
+    for (const _ in this.nodes) {
+      survivors = true;
+      break;
+    }
+    for (let i = 0; i < value2.length; i++)
+      if (value2[i] !== void 0 && !this.nodes[i])
+        survivors ? this._create_at(i) : this._append_at(i);
+  }
   // Once the parent DOM is detached from the document the binding can never
   // produce a visible mutation again. We could keep applying changes to the
   // detached subtree but it just wastes work and corrupts our nodes/buckets
@@ -93,9 +149,11 @@ var DOMSink = class {
       this.create_node(NODE);
       return;
     }
-    this.nodes ??= isArray(value2) ? [] : {};
+    const arr = isArray(value2);
+    if (arr && this._sparse(value2)) return this._reconcile_sparse(value2);
+    this.nodes ??= arr ? [] : {};
     for (const i in value2)
-      if (!prev_nodes[i])
+      if (!prev_nodes[i] && (arr || value2[i] !== void 0))
         this.create_node(i);
     const gone = [];
     for (const i in prev_nodes)
@@ -124,6 +182,21 @@ var DOMSink = class {
       I0[i];
       this.create_node(name);
     }
+  }
+  // Hole remove / hole fill from a sparse producer over an ARRAY. Positional-
+  // stable (no shift): drop/create the node AT index k, leaving survivors put.
+  // Core's View.BH1/BF0 pre-fires the touched child's XU0 (so a fill's content
+  // is already set on the child view _create_at binds, and a remove's child
+  // goes undefined just before its node is dropped) — index-keyed, so no
+  // double-apply. Dense arrays never emit these; they only reach a DOMSink
+  // bound directly to a between/intersect/union/except view.
+  BH1(R1) {
+    if (this._detached()) return;
+    for (let i = 0; i < R1.length; i += 2) this._remove_at(+R1[i]);
+  }
+  BF0(I0) {
+    if (this._detached()) return;
+    for (let i = 0; i < I0.length; i += 2) this._create_at(+I0[i]);
   }
   BR2(BR2) {
   }

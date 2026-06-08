@@ -45,6 +45,9 @@ function connect(p, a, b) {
     p.sinks.add(new WeakRef(sink));
     return a;
   }
+  if (typeof a === "function") throw new Error(
+    "connect(fn) isn't supported: a bare function can't act as a sink. Use connect(anchor, fn) to receive change records (the anchor object keeps the subscription alive past GC), connect([]) to collect events into an array, or connect(obj, 'prop') to mirror the value onto a property."
+  );
   p.sinks.add(new WeakRef(a));
   return a;
 }
@@ -387,14 +390,7 @@ var init_core = __esm({
           }
           this.V1(offset);
         }
-        for (const x of this.sinks) {
-          const sink = x.deref();
-          if (!sink) {
-            this.sinks.delete(sink);
-            continue;
-          }
-          arr && sink.BR1A && sink.BR1A !== Value.prototype.BR1A ? sink.BR1A(R1, this) : sink.BR1(R1, this);
-        }
+        this.fanout(arr ? "BR1A" : void 0, "BR1", R1);
       }
       BR2(R2) {
         for (let i = 0; i < R2.length; i++) {
@@ -454,7 +450,35 @@ var init_core = __esm({
           }
           this.V1(offset);
         }
-        this.sink((sink) => sink.BI0A && sink.BI0A !== Value.prototype.BI0A ? sink.BI0A(I0, this) : sink.BI0(I0, this));
+        this.fanout("BI0A", "BI0", I0);
+      }
+      // Hole remove / hole fill — the positional-stable counterparts of BR1A/BI0A.
+      // A sparse producer (between/intersect/union/except over an ARRAY) marks an
+      // excluded slot `undefined` WITHOUT splicing: the array length is unchanged
+      // and survivors do NOT shift. BR1A/BI0A would wrongly splice downstream
+      // (ghost rows / dropped survivors — the array-positional desync). Instead the
+      // producer emits BH1/BF0: we refresh only the touched children (no V1 shift)
+      // and route to a sink's BH1/BF0 if it has one. A sink WITHOUT them (an
+      // aggregate, say — position-agnostic) falls back to BR1/BI0, which is correct:
+      // it just drops/adds the row. Operator positional sinks (RowOperator, a
+      // downstream sparse op, sort) implement BH1/BF0 to mirror the hole instead
+      // of shifting. The DOMSink ALSO implements them (index-keyed _remove_at/
+      // _create_at, see render/index.ts) so a sparse producer can be bound straight
+      // to a row template without phantom holes — the V1 content refresh we fire
+      // here (get_named(k).XU0()) sets the touched child's value BEFORE the sink's
+      // BH1/BF0 runs, and because the DOMSink keys nodes by index that refresh is
+      // not double-applied (closed ISSUES.md C4). BH1/BF0 live on View only — never
+      // on Value — so a plain Value sink never inherits one and always takes the
+      // BR1/BI0 fallback.
+      BH1(R1) {
+        if (!R1.length) return;
+        for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0();
+        this.fanout("BH1", "BR1", R1);
+      }
+      BF0(I0) {
+        if (!I0.length) return;
+        for (let i = 0; i < I0.length; i += 2) this.get_named(I0[i])?.XU0();
+        this.fanout("BF0", "BI0", I0);
       }
       BI2(I2) {
         if (this.p) this.value = this.p.value?.[this.name];
@@ -490,7 +514,7 @@ var init_core = __esm({
         for (const x of this.sinks) {
           const sink = x.deref();
           if (!sink) {
-            this.sinks.delete(sink);
+            this.sinks.delete(x);
             continue;
           }
           if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
@@ -540,6 +564,29 @@ var init_core = __esm({
             continue;
           }
           fn(sink);
+        }
+      }
+      // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
+      // implementation, else fall back to `fallback`. The four array-positional
+      // dispatch sites (BR1→BR1A, BI0A, BH1, BF0) collapse onto this. "Has its own"
+      // means: for BR1A/BI0A — distinct from Value.prototype's default (Value
+      // defines those, so a bare Value sink must NOT masquerade as array-aware);
+      // for BH1/BF0 — merely present (Value defines neither, so `proto` is undefined
+      // and any method counts). A sink without `verb` takes `fallback` (BR1/BI0),
+      // which is correct for position-agnostic sinks (aggregates, length). Pass
+      // `verb = undefined` to force the fallback (object BR1 — no array variant).
+      // `verb`/`fallback` are constant string literals at each call site, so V8
+      // specializes `sink[verb]` back to a fixed-offset access after inlining.
+      fanout(verb, fallback, payload) {
+        const proto = verb && Value.prototype[verb];
+        for (const x of this.sinks) {
+          const sink = x.deref?.();
+          if (!sink) {
+            this.sinks.delete(x);
+            continue;
+          }
+          const m = verb && sink[verb];
+          m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
         }
       }
       each(fn) {

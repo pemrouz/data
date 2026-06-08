@@ -359,14 +359,7 @@ var View = class _View {
       }
       this.V1(offset);
     }
-    for (const x of this.sinks) {
-      const sink = x.deref();
-      if (!sink) {
-        this.sinks.delete(sink);
-        continue;
-      }
-      arr && sink.BR1A && sink.BR1A !== Value.prototype.BR1A ? sink.BR1A(R1, this) : sink.BR1(R1, this);
-    }
+    this.fanout(arr ? "BR1A" : void 0, "BR1", R1);
   }
   BR2(R2) {
     for (let i = 0; i < R2.length; i++) {
@@ -426,7 +419,35 @@ var View = class _View {
       }
       this.V1(offset);
     }
-    this.sink((sink) => sink.BI0A && sink.BI0A !== Value.prototype.BI0A ? sink.BI0A(I0, this) : sink.BI0(I0, this));
+    this.fanout("BI0A", "BI0", I0);
+  }
+  // Hole remove / hole fill — the positional-stable counterparts of BR1A/BI0A.
+  // A sparse producer (between/intersect/union/except over an ARRAY) marks an
+  // excluded slot `undefined` WITHOUT splicing: the array length is unchanged
+  // and survivors do NOT shift. BR1A/BI0A would wrongly splice downstream
+  // (ghost rows / dropped survivors — the array-positional desync). Instead the
+  // producer emits BH1/BF0: we refresh only the touched children (no V1 shift)
+  // and route to a sink's BH1/BF0 if it has one. A sink WITHOUT them (an
+  // aggregate, say — position-agnostic) falls back to BR1/BI0, which is correct:
+  // it just drops/adds the row. Operator positional sinks (RowOperator, a
+  // downstream sparse op, sort) implement BH1/BF0 to mirror the hole instead
+  // of shifting. The DOMSink ALSO implements them (index-keyed _remove_at/
+  // _create_at, see render/index.ts) so a sparse producer can be bound straight
+  // to a row template without phantom holes — the V1 content refresh we fire
+  // here (get_named(k).XU0()) sets the touched child's value BEFORE the sink's
+  // BH1/BF0 runs, and because the DOMSink keys nodes by index that refresh is
+  // not double-applied (closed ISSUES.md C4). BH1/BF0 live on View only — never
+  // on Value — so a plain Value sink never inherits one and always takes the
+  // BR1/BI0 fallback.
+  BH1(R1) {
+    if (!R1.length) return;
+    for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0();
+    this.fanout("BH1", "BR1", R1);
+  }
+  BF0(I0) {
+    if (!I0.length) return;
+    for (let i = 0; i < I0.length; i += 2) this.get_named(I0[i])?.XU0();
+    this.fanout("BF0", "BI0", I0);
   }
   BI2(I2) {
     if (this.p) this.value = this.p.value?.[this.name];
@@ -462,7 +483,7 @@ var View = class _View {
     for (const x of this.sinks) {
       const sink = x.deref();
       if (!sink) {
-        this.sinks.delete(sink);
+        this.sinks.delete(x);
         continue;
       }
       if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
@@ -512,6 +533,29 @@ var View = class _View {
         continue;
       }
       fn(sink);
+    }
+  }
+  // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
+  // implementation, else fall back to `fallback`. The four array-positional
+  // dispatch sites (BR1→BR1A, BI0A, BH1, BF0) collapse onto this. "Has its own"
+  // means: for BR1A/BI0A — distinct from Value.prototype's default (Value
+  // defines those, so a bare Value sink must NOT masquerade as array-aware);
+  // for BH1/BF0 — merely present (Value defines neither, so `proto` is undefined
+  // and any method counts). A sink without `verb` takes `fallback` (BR1/BI0),
+  // which is correct for position-agnostic sinks (aggregates, length). Pass
+  // `verb = undefined` to force the fallback (object BR1 — no array variant).
+  // `verb`/`fallback` are constant string literals at each call site, so V8
+  // specializes `sink[verb]` back to a fixed-offset access after inlining.
+  fanout(verb, fallback, payload) {
+    const proto = verb && Value.prototype[verb];
+    for (const x of this.sinks) {
+      const sink = x.deref?.();
+      if (!sink) {
+        this.sinks.delete(x);
+        continue;
+      }
+      const m = verb && sink[verb];
+      m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
     }
   }
   each(fn) {
@@ -855,6 +899,9 @@ function connect(p, a, b) {
     p.sinks.add(new WeakRef(sink));
     return a;
   }
+  if (typeof a === "function") throw new Error(
+    "connect(fn) isn't supported: a bare function can't act as a sink. Use connect(anchor, fn) to receive change records (the anchor object keeps the subscription alive past GC), connect([]) to collect events into an array, or connect(obj, 'prop') to mirror the value onto a property."
+  );
   p.sinks.add(new WeakRef(a));
   return a;
 }
@@ -924,8 +971,13 @@ var RowOperator = class extends Operator {
       }
     }
     this.view.BU1(NU1);
-    this.view.BI0(NI0);
-    this.view.BR1(NR1);
+    if (isArray(this.view.value)) {
+      this.view.BF0(NI0);
+      this.view.BH1(NR1);
+    } else {
+      this.view.BI0(NI0);
+      this.view.BR1(NR1);
+    }
   }
   // Whole-value reset: rebuild the snapshot from scratch. Non-object values
   // collapse the operator to undefined since per-row semantics don't apply
@@ -988,6 +1040,63 @@ var RowOperator = class extends Operator {
       }
     }
     this.view.BR1(NR1);
+  }
+  // Array-positional insert (the array-aware counterpart of BR1). By the time
+  // this fires the upstream has already spliced the row in at `at` — a row
+  // rotating into a windowed sort, or a mid-array `insert(row, at)`. Our
+  // `view.value` is the parallel array; we MUST splice in lockstep. The plain
+  // BI0 path (loop) would instead read `view.value[at]` — the occupant the
+  // insert displaced — as the row's "old" value, classify the insert as an
+  // *update* of that slot, overwrite the occupant, and never shift it down:
+  // the displaced row vanishes (the windowed-sort drop, C2). So process the
+  // row, splice the result in at `at` (a `delete` afterwards turns an excluded
+  // row into a proper hole, matching the rest of RowOperator's array
+  // convention so for-in skips it), and forward a positional BI0A so our own
+  // array-aware sinks shift too. Object upstreams never reach here — core only
+  // routes array inserts through BI0A — so the object path is untouched.
+  BI0A(I0) {
+    const NI0 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const now_val = this.process(this.p.value[at], at, void 0);
+      this.view.value.splice(at, 0, now_val);
+      if (now_val === void 0) delete this.view.value[at];
+      NI0.push(at, now_val);
+    }
+    this.view.BI0A(NI0);
+  }
+  // Hole remove (counterpart of BR1, for a sparse producer that marked a slot
+  // undefined WITHOUT splicing). The row simply left our view too: clear our
+  // slot to a hole, keeping length and positions aligned with the upstream — do
+  // NOT splice (that would shift survivors the producer never moved). Forward a
+  // BH1 so our own positional sinks mirror the hole rather than shifting.
+  BH1(R1) {
+    const NR1 = [];
+    for (let i = 0; i < R1.length; i++) {
+      const name = R1[i++];
+      const value2 = this.view.value?.[name];
+      if (value2 !== void 0) {
+        delete this.view.value[name];
+        NR1.push(name, value2);
+      }
+    }
+    this.view.BH1(NR1);
+  }
+  // Hole fill (counterpart of BI0A). The producer re-admitted a row into a
+  // previously-holed position — length unchanged, no shift. Re-run `process`
+  // and fill our slot in place if the row passes (otherwise leave it a hole).
+  // Forward a BF0 so downstream fills in place too.
+  BF0(I0) {
+    const NF0 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const name = I0[i];
+      const now_val = this.process(this.p.value[name], name, void 0);
+      if (now_val !== void 0) {
+        this.view.value[name] = now_val;
+        NF0.push(name, now_val);
+      }
+    }
+    this.view.BF0(NF0);
   }
 };
 
@@ -1097,11 +1206,6 @@ var BetweenValue = class extends Operator {
       [this.lo_val, this.hi_val] = [new_lo, new_hi];
       return this.view.XU0(this.view.value = this.p.value);
     }
-    if (new_lo === new_hi) {
-      this.hi_index = this.lo_index = void 0;
-      [this.lo_val, this.hi_val] = [new_lo, new_hi];
-      return this.view.XU0(this.view.value = isArray(this.p.value) ? [] : {});
-    }
     if (this.view.value === this.p.value) {
       this.view.value = isArray(this.p.value) ? [...this.p.value] : { ...this.p.value };
     }
@@ -1112,37 +1216,45 @@ var BetweenValue = class extends Operator {
     if (new_hi < this.hi_val) {
       while ((tv = this.p.value[ti = this.sorted[this.hi_index - 1]]) && tv[this.col] > new_hi) {
         this.hi_index--;
-        R1.push(ti, tv);
-        this.view.value[ti] = void 0;
+        if (this.view.value[ti] !== void 0) {
+          R1.push(ti, tv);
+          this.view.value[ti] = void 0;
+        }
       }
       if (this.lo_index > this.hi_index) this.lo_index = this.hi_index;
     }
     if (new_lo > this.lo_val) {
       while ((tv = this.p.value[ti = this.sorted[this.lo_index]]) && tv[this.col] < new_lo) {
         this.lo_index++;
-        R1.push(ti, tv);
-        this.view.value[ti] = void 0;
+        if (this.view.value[ti] !== void 0) {
+          R1.push(ti, tv);
+          this.view.value[ti] = void 0;
+        }
       }
       if (this.hi_index < this.lo_index) this.hi_index = this.lo_index;
     }
     if (new_hi > this.hi_val) {
       while ((tv = this.p.value[ti = this.sorted[this.hi_index]]) && tv[this.col] <= new_hi) {
         this.hi_index++;
-        I0.push(ti, tv);
-        this.view.value[ti] = tv;
+        if (this.view.value[ti] === void 0) {
+          I0.push(ti, tv);
+          this.view.value[ti] = tv;
+        }
       }
     }
     if (new_lo < this.lo_val) {
       while ((tv = this.p.value[ti = this.sorted[this.lo_index - 1]]) && tv[this.col] >= new_lo) {
         this.lo_index--;
-        I0.push(ti, tv);
-        this.view.value[ti] = tv;
+        if (this.view.value[ti] === void 0) {
+          I0.push(ti, tv);
+          this.view.value[ti] = tv;
+        }
       }
     }
     this.lo_val = new_lo;
     this.hi_val = new_hi;
-    if (I0.length) this.view.BI0(I0);
-    if (R1.length) this.view.BR1(R1);
+    if (R1.length) this.isArr ? this.view.BH1(R1) : this.view.BR1(R1);
+    if (I0.length) this.isArr ? this.view.BF0(I0) : this.view.BI0(I0);
   }
   // Whole-source replacement: rebuild `sorted` and seed `new_value` with
   // rows already inside the bounds. The bound indexes are wiped so the next
@@ -1157,13 +1269,14 @@ var BetweenValue = class extends Operator {
     const new_value = this.isArr ? [] : {};
     this.sorted = [];
     iter(value2, (i, v) => {
+      if (v === void 0) return;
       this.sorted.push("" + i);
       if (v[col] >= this.lo_val && v[col] <= this.hi_val)
         new_value[i] = value2[i];
     });
     this.sorted.sort((a, b) => {
-      const va = value2[a][col];
-      const vb = value2[b][col];
+      const va = value2[a]?.[col];
+      const vb = value2[b]?.[col];
       return va > vb ? 1 : va < vb ? -1 : 0;
     });
     super.XU0(new_value);
@@ -1195,12 +1308,16 @@ var BetweenValue = class extends Operator {
       this.view.BU1([name, row]);
     } else if (!wasIn && isIn) {
       this.view.value[name] = row;
-      this.view.BI0([name, row]);
+      this.isArr ? this.view.BF0([name, row]) : this.view.BI0([name, row]);
     } else if (wasIn && !isIn) {
       const oldVal = this.view.value[name];
-      if (this.isArr) this.view.value[name] = void 0;
-      else delete this.view.value[name];
-      this.view.BR1([name, oldVal]);
+      if (this.isArr) {
+        this.view.value[name] = void 0;
+        this.view.BH1([name, oldVal]);
+      } else {
+        delete this.view.value[name];
+        this.view.BR1([name, oldVal]);
+      }
     }
     this.sortedDirty = true;
     this.lo_index = void 0;
@@ -1214,7 +1331,9 @@ var BetweenValue = class extends Operator {
     const v = this.p.value;
     if (!v || typeof v !== "object") return;
     this.sorted = [];
-    iter(v, (i) => this.sorted.push("" + i));
+    iter(v, (i, row) => {
+      if (row !== void 0) this.sorted.push("" + i);
+    });
     const col = this.col;
     this.sorted.sort((a, b) => {
       const va = v[a]?.[col];
@@ -1245,76 +1364,101 @@ var BetweenValue = class extends Operator {
       }
     }
   }
+  // Insert/remove DEFER `sorted` maintenance via the same dirty-flag
+  // amortization `_replaceRow` (BU2/BU1) already uses. `sorted` is read ONLY by
+  // `set extent`, which calls `_resort()` when `sortedDirty` is set — so an
+  // insert/remove only needs the membership decision (lo_val/hi_val, not
+  // `sorted`) plus the view.value write, then marks `sorted` dirty. A stream of
+  // inserts/removes between two brushes is therefore O(1) each (object:
+  // dropping the O(N) indexOf+splice; array: dropping the O(N) key-shift loop
+  // and the O(N²) batch-remove key-shift recompute) instead of O(N) per row.
+  // The next brush pays one O(N log N) `_resort` — the births/deaths workload
+  // (object-keyed population, frequent inserts/removes, occasional brush). For
+  // arrays the view.value splice that mirrors the source's positional shift is
+  // inherent to arrays and remains O(N); only the redundant sorted bookkeeping
+  // is shed. (Dropping the old `sortedDirty → coarse XU0` bailout is safe NOW:
+  // it had existed to stop the incremental sorted maintenance from
+  // double-counting against a stale `sorted`, but it was ALSO load-bearing as a
+  // self-heal masking the C8 spurious-BR1 bug in `set extent` — re-emitting a
+  // remove for an already-excluded row, which a downstream length/sum/avg sink
+  // turned into a negative count. C8 is now fixed at its root [c3130ba], so the
+  // heal is no longer needed: insert/remove after an in-place edit emit
+  // incremental BI0/BR1 rather than a coarse resnapshot. Guarded by the
+  // between→length/sum/avg differential scenarios.)
   BI0(I0) {
     if (this.view.value === this.p.value) return this.view.BI0(I0);
-    if (this.sortedDirty) {
-      this.sortedDirty = false;
-      return this.XU0(this.p.value);
-    }
-    if (this.isArr) {
-      for (let i = 0; i < I0.length; i += 2) {
-        const atNum = +I0[i];
-        if (atNum >= this.sorted.length) continue;
-        for (let j = 0; j < this.sorted.length; j++) {
-          const k = +this.sorted[j];
-          if (k >= atNum) this.sorted[j] = "" + (k + 1);
-        }
-        this.view.value.splice(atNum, 0, void 0);
-      }
-    }
     const NI0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
       const row = I0[i + 1];
       const colVal = row?.[this.col];
-      const nidx = this.find(this.sorted, colVal);
-      this.sorted.splice(nidx, 0, at);
+      if (this.isArr) this.view.value.splice(+at, 0, void 0);
       if (this._inRange(colVal)) {
         this.view.value[at] = row;
         NI0.push(at, row);
       }
     }
+    this.sortedDirty = true;
     this.lo_index = void 0;
     this.hi_index = void 0;
     if (NI0.length) this.view.BI0(NI0);
   }
   BR1(R1) {
     if (this.view.value === this.p.value) return this.view.BR1(R1);
-    if (this.sortedDirty) {
-      this.sortedDirty = false;
-      return this.XU0(this.p.value);
-    }
     const NR1 = [];
-    const removedKeys = this.isArr ? [] : null;
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i];
       const oldVal = this.view.value[name];
-      const oidx = this.sorted.indexOf(name);
-      if (oidx !== -1) this.sorted.splice(oidx, 1);
       if (this.isArr) {
-        removedKeys.push(+name);
         this.view.value.splice(name, 1);
-        if (oldVal !== void 0) NR1.push(name, oldVal);
+        NR1.push(name, oldVal);
       } else if (oldVal !== void 0) {
         delete this.view.value[name];
         NR1.push(name, oldVal);
       }
     }
-    if (this.isArr && removedKeys.length) {
-      removedKeys.sort((a, b) => a - b);
-      for (let i = 0; i < this.sorted.length; i++) {
-        const k = +this.sorted[i];
-        let shift = 0;
-        for (const r of removedKeys) {
-          if (r < k) shift++;
-          else break;
-        }
-        if (shift) this.sorted[i] = "" + (k - shift);
-      }
-    }
+    this.sortedDirty = true;
     this.lo_index = void 0;
     this.hi_index = void 0;
     if (NR1.length) this.view.BR1(NR1);
+  }
+  // Consumer-side hole/fill: when between sits downstream of another sparse
+  // producer (filter/map/between/…), a row entering/leaving the UPSTREAM view
+  // arrives as BF0/BH1 (hole fill / hole remove — no array shift). Treat them
+  // as membership transitions WITHOUT splicing: the position is stable, only
+  // its occupancy changed. Mark `sorted` dirty so the next bound move rebuilds
+  // it (skipping holes), and forward BH1/BF0 so our own positional sinks mirror.
+  BH1(R1) {
+    if (this.view.value === this.p.value) return this.view.BH1(R1);
+    const NR1 = [];
+    for (let i = 0; i < R1.length; i += 2) {
+      const name = R1[i];
+      const oldVal = this.view.value[name];
+      if (oldVal !== void 0) {
+        this.view.value[name] = void 0;
+        NR1.push(name, oldVal);
+      }
+    }
+    this.sortedDirty = true;
+    this.lo_index = void 0;
+    this.hi_index = void 0;
+    if (NR1.length) this.view.BH1(NR1);
+  }
+  BF0(I0) {
+    if (this.view.value === this.p.value) return this.view.BF0(I0);
+    const NF0 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const name = I0[i];
+      const row = this.p.value[name];
+      if (row !== void 0 && this._inRange(row[this.col])) {
+        this.view.value[name] = row;
+        NF0.push(name, row);
+      }
+    }
+    this.sortedDirty = true;
+    this.lo_index = void 0;
+    this.hi_index = void 0;
+    if (NF0.length) this.view.BF0(NF0);
   }
   BR2(R2) {
     if (this.view.value === this.p.value) return this.view.BR2(R2);
@@ -1418,11 +1562,12 @@ var ZAValue = class extends Operator {
       const oidx = this.get_index(R1[i]);
       if (oidx === -1) continue;
       this.sorted.splice(oidx, 1);
+      if (this.n === Infinity) {
+        super.BR1A([oidx]);
+        continue;
+      }
       if (oidx >= this.n) continue;
-      super.BR1A([oidx]);
-      const len = this.view.value.length;
-      if (this.sorted.length > len)
-        super.BI0A([len, this.p.value[this.sorted[len]]]);
+      this._window();
     }
   }
   // Drop a batch of keys from `sorted` in one pass, then reconcile the
@@ -1461,7 +1606,7 @@ var ZAValue = class extends Operator {
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i];
       removedKeys.push(+name);
-      const oidx = this.sorted.indexOf(name);
+      const oidx = this.sorted.indexOf("" + name);
       if (oidx === -1) continue;
       this.sorted.splice(oidx, 1);
       if (oidx < this.n) inWindow.push(oidx);
@@ -1477,6 +1622,10 @@ var ZAValue = class extends Operator {
         }
         if (shift) this.sorted[i] = "" + (k - shift);
       }
+    }
+    if (this.n !== Infinity) {
+      if (inWindow.length) this._window();
+      return;
     }
     inWindow.sort((a, b) => a - b);
     for (let j = 0; j < inWindow.length; j++) super.BR1A([inWindow[j] - j]);
@@ -1507,7 +1656,7 @@ var ZAValue = class extends Operator {
       }
       sorted.splice(oidx, 1);
       let nidx = this.find(this.col(this.p.value[name]));
-      sorted.splice(nidx, 0, name);
+      sorted.splice(nidx, 0, "" + name);
       if (oidx === nidx) {
         if (oidx < n) {
           this.view.value[oidx] = value2;
@@ -1515,12 +1664,8 @@ var ZAValue = class extends Operator {
         }
         continue;
       }
-      if (oidx >= n && nidx >= n) ; else if (oidx >= n && nidx < n) {
-        super.BR1A([n - 1]);
-        super.BI0A([nidx, p.value[sorted[nidx]]]);
-      } else if (oidx < n && nidx >= n) {
-        super.BR1A([oidx]);
-        super.BI0A([n - 1, p.value[sorted[n - 1]]]);
+      if (oidx >= n && nidx >= n) ; else if (oidx >= n !== nidx >= n) {
+        this._window();
       } else if (oidx < n && nidx < n) {
         super.BU1([oidx, value2]);
         super.BMV1([oidx, nidx]);
@@ -1535,6 +1680,7 @@ var ZAValue = class extends Operator {
   // collapses to a no-op shift since nothing needs moving.
   BI0(I0) {
     if (!this.isArr && this.n !== Infinity && I0.length > 2) return this._batchInsert(I0);
+    let touched = false;
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
       const value2 = I0[i + 1];
@@ -1546,12 +1692,14 @@ var ZAValue = class extends Operator {
         }
       }
       const new_idx = this.find(this.col(this.p.value[at]));
-      this.sorted.splice(new_idx, 0, at);
-      if (new_idx >= this.n) continue;
-      if (this.view.value.length === this.n)
-        super.BR1A([this.n - 1]);
-      super.BI0A([new_idx, value2]);
+      this.sorted.splice(new_idx, 0, "" + at);
+      if (this.n === Infinity) {
+        super.BI0A([new_idx, value2]);
+        continue;
+      }
+      if (new_idx < this.n) touched = true;
     }
+    if (touched) this._window();
   }
   // Splice a batch of new keys into `sorted` at their ranks, then reconcile the
   // window. Insertion can only grow or hold the window: grow via tail BI0A when
@@ -1560,7 +1708,7 @@ var ZAValue = class extends Operator {
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
       const nidx = this.find(this.col(this.p.value[at]));
-      this.sorted.splice(nidx, 0, at);
+      this.sorted.splice(nidx, 0, "" + at);
     }
     const sorted = this.sorted;
     const newLen = this.n < sorted.length ? this.n : sorted.length;
@@ -1571,6 +1719,42 @@ var ZAValue = class extends Operator {
     const NU1 = [];
     for (let i = 0; i < newLen; i++) {
       const row = this.p.value[sorted[i]];
+      if (this.view.value[i] !== row) {
+        this.view.value[i] = row;
+        NU1.push("" + i, row);
+      }
+    }
+    if (NU1.length) this.view.BU1(NU1);
+  }
+  // Reconcile the materialized window against the current `sorted` order with
+  // the minimal CONTENT-STABLE deltas: a TAIL-ONLY BR1A/BI0A for a genuine
+  // size change, then BU1 for each slot whose occupant rotated. This is the
+  // single-row generalisation of _batchRemove/_batchInsert, used for every
+  // bounded-window rotation (a row crossing the window boundary keeps the
+  // window size n and only rotates content at fixed positions).
+  //
+  // Why not the old mid-window evict-BR1A + insert-BI0A pair: those splice at an
+  // INTERIOR index, and a downstream positional consumer that itself maintains
+  // order — another (windowed) sort — reads each splice as "a row left/entered
+  // at position k, everything shifts", corrupting its position->rank map; worse,
+  // the window is in an inconsistent intermediate state BETWEEN the evict and
+  // the insert, so a sort reading p.value mid-pair re-ranks against a transient.
+  // A tail splice shifts nothing, and a BU1 carries "position k's content
+  // changed" — both compose correctly through a downstream sort. This closes the
+  // chained-windowed-sort desync (C3). Bounded windows only: an unbounded sort
+  // has no steady tail (every row is materialized), so its removes/inserts stay
+  // genuine mid-array splices.
+  _window() {
+    const { sorted, n, p } = this;
+    const newLen = n < sorted.length ? n : sorted.length;
+    while (this.view.value.length > newLen) super.BR1A([this.view.value.length - 1]);
+    while (this.view.value.length < newLen) {
+      const i = this.view.value.length;
+      super.BI0A([i, p.value[sorted[i]]]);
+    }
+    const NU1 = [];
+    for (let i = 0; i < newLen; i++) {
+      const row = p.value[sorted[i]];
       if (this.view.value[i] !== row) {
         this.view.value[i] = row;
         NU1.push("" + i, row);
@@ -1624,8 +1808,44 @@ var ZAValue = class extends Operator {
       this.view.BI2([[`${nidx}`, ...rest], value2, at]);
     }
   }
+  // Positional-stable hole fill / hole remove. A sparse producer over an ARRAY
+  // (between/intersect/union/except, or filter's predicate-flip path) admits/
+  // excludes a row at a FIXED position WITHOUT splicing — siblings don't shift.
+  // So rank the row in/out of `sorted` WITHOUT the array index-shift that
+  // BI0/BR1A apply for a real splice. Without these, View.BF0/BH1 falls back to
+  // BI0/BR1, whose shift bookkeeping would slide every `sorted` key on a hole
+  // fill — the filter→windowed-sort desync. Bounded windows reconcile via
+  // _window; an unbounded sort splices its (dense) materialized output directly.
+  BF0(I0) {
+    let touched = false;
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const new_idx = this.find(this.col(this.p.value[at]));
+      this.sorted.splice(new_idx, 0, "" + at);
+      if (this.n === Infinity) {
+        super.BI0A([new_idx, I0[i + 1]]);
+        continue;
+      }
+      if (new_idx < this.n) touched = true;
+    }
+    if (touched) this._window();
+  }
+  BH1(R1) {
+    let touched = false;
+    for (let i = 0; i < R1.length; i += 2) {
+      const oidx = this.get_index(R1[i]);
+      if (oidx === -1) continue;
+      this.sorted.splice(oidx, 1);
+      if (this.n === Infinity) {
+        super.BR1A([oidx]);
+        continue;
+      }
+      if (oidx < this.n) touched = true;
+    }
+    if (touched) this._window();
+  }
   get_index(id) {
-    return this.sorted.indexOf(id);
+    return this.sorted.indexOf("" + id);
   }
   has(id) {
     return !!~this.get_index(id);
@@ -1645,6 +1865,7 @@ var ZANumberValue = class extends ZAValue {
 var AZValue = class extends ZAValue {
   XU0(value2) {
     if (typeof value2 !== "object") return this.XR0();
+    this.isArr = isArray(value2);
     this.sorted = Object.keys(value2).filter((k) => value2[k] !== void 0).sort((a, b) => {
       const va = this.col(value2[a]);
       const vb = this.col(value2[b]);
@@ -1832,6 +2053,7 @@ var LimitValue = class extends Operator {
       for (let i = 0; i < I0.length; i += 2) {
         const numKey = +I0[i];
         const val = I0[i + 1];
+        if (this.findPos(numKey) !== -1) continue;
         if (this.keys.length < this.n) {
           const pos = this.insertPos(numKey);
           this.keys.splice(pos, 0, numKey);
@@ -1858,6 +2080,26 @@ var LimitValue = class extends Operator {
         super.BI0A([this.view.value.length, val]);
       }
     }
+  }
+  // A SORT parent (az/za) re-orders its output: a removal, a window rotation, or
+  // a rank shuffle reaches us as the array-positional verbs BR1A / BI0A / BMV1,
+  // each of which carries a SHIFT (every rank after the touched one slides). We
+  // track `keys` as stable source positions and refill via a forward scan, so we
+  // can't cheaply follow a re-ranking parent — `keys` would point at the wrong
+  // post-shift rows. Recompute the window from the parent's (already-updated)
+  // value instead. This path fires ONLY for a sort→limit chain: sparse producers
+  // (between/intersect/union/except) signal membership with BR1/BF0/BH1, never
+  // these, so the incremental brush path stays untouched. O(n) per event with
+  // n = the (small) limit size. Without this, `az('v').limit(k)` dropped/duped
+  // rows whenever a row left the sort or crossed a rank boundary.
+  BR1A() {
+    this.XU0(this.p.value);
+  }
+  BI0A() {
+    this.XU0(this.p.value);
+  }
+  BMV1() {
+    this.XU0(this.p.value);
   }
   BR2() {
   }
@@ -1961,7 +2203,7 @@ var GroupValue = class extends Operator {
     const leaving = /* @__PURE__ */ new Map();
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++];
-      if (!this.posMap.has(name)) throw new Error("unexpected group r1: " + name + " " + typeof name);
+      if (!this.posMap.has(name)) continue;
       const group = this.posMap.get(name);
       this.posMap.delete(name);
       const bucket = this.view.value[group];
@@ -2054,6 +2296,18 @@ var GroupValue = class extends Operator {
     if (NR2.length) this.view.BR2(NR2);
   }
   // ─── Array-source paths ───────────────────────────────────────────────────
+  // Consumer-side hole/fill from an upstream sparse producer (between/…) over an
+  // array: a row left/entered the upstream view WITHOUT a position shift. The
+  // positional bucket bookkeeping (posMap idx, suffix shifts) assumes splices,
+  // so a hole event can't be threaded through it cleanly — rebuild instead
+  // (XU0 already skips the upstream's holes). Rare (array-source between→group),
+  // so the O(N) rebuild is acceptable.
+  BH1() {
+    this.XU0(this.p.value);
+  }
+  BF0() {
+    this.XU0(this.p.value);
+  }
   BR1A(R1) {
     const leaving = /* @__PURE__ */ new Map();
     const removed = [];
@@ -2212,7 +2466,15 @@ var GroupValue = class extends Operator {
   //     cross-group move. A subsequent path for an already-moved row is skipped
   //     because the relocated row already carries every updated field.
   BU2(U2) {
-    if (this.isArr) return;
+    if (this.isArr) {
+      for (let i = 0; i < U2.length; i += 2) {
+        const name = U2[i][0];
+        const row = this.p.value[name];
+        if (row !== void 0 && this.fn(row) !== this.posMap.get(name)?.group)
+          return this.XU0(this.p.value);
+      }
+      return;
+    }
     const NU2 = [];
     const NI2 = [];
     const leaving = /* @__PURE__ */ new Map();
@@ -2319,6 +2581,7 @@ var LengthFnValue = class extends Operator {
   XU0(value2) {
     const new_value = {};
     this.mapping = {};
+    this.isArr = isArray(value2);
     iter(value2, (i, v) => {
       if (v === void 0) return;
       (this.mapping[i] = new_value[this.fn(v)] ??= { value: 0 }).value++;
@@ -2327,6 +2590,7 @@ var LengthFnValue = class extends Operator {
   }
   BR1(R1) {
     if (!R1.length) return;
+    if (this.isArr) return this.XU0(this.p.value);
     const { mapping } = this;
     for (let i = 0; i < R1.length; i++) {
       const n = R1[i++];
@@ -2355,6 +2619,7 @@ var LengthFnValue = class extends Operator {
   }
   BI0(I0) {
     if (!I0.length) return;
+    if (this.isArr) return this.XU0(this.p.value);
     const { mapping, view: view2, fn } = this;
     for (let i = 0; i < I0.length; i++) {
       const n = I0[i++];
@@ -2437,6 +2702,68 @@ var IntersectValue = class extends Operator {
     });
     this.view.XU0(this.view.value = new_value);
   }
+  // ── Array structural insert / remove (C12) ───────────────────────────────
+  // Core routes an ARRAY source's positional insert/remove through BI0A/BR1A
+  // (object sources keep the BI0/BR1 _enter/_leave path above, untouched). A
+  // splice shifts every later index, so the per-index `filters` bitmask and the
+  // sparse `view.value` MUST splice in lockstep or our index space drifts from
+  // the (shifting) sources and every later positional event hits the wrong slot
+  // — the C12 array desync. The object _leave/_enter path's `delete`/named-set
+  // never shifts, which is correct for stable object keys but wrong for array
+  // positions.
+  // STRUCTURAL REMOVE. `this.p` is the canonical index space ("`this.p.value[name]`
+  // stays the canonical row identity"). Only a removal from the PRIMARY shifts
+  // that space, so only the primary echo splices `filters`/`view.value`. A
+  // removal reported by a SECONDARY source is a membership change at a stable
+  // position — the row left THAT source but the primary's index space didn't
+  // move — so it routes to the by-name `_leave` (clear the bit, hole the slot if
+  // it drops below `all`), exactly the object path. This split is what keeps two
+  // INDEPENDENT arrays' intersect correct (only one shifts) while a DERIVED
+  // crossfilter-style removal (every source echoes; the primary splices last —
+  // see below) reconciles to one clean delete.
+  //
+  // Echo order in the DERIVED case: the secondaries hole their slot first
+  // (emitting the real remove), then the primary splices the now-holed slot out
+  // (oldVal === undefined → no phantom second remove) and the survivor below it
+  // slides up. (`union`/`except` have their own primary ordering — handled in
+  // their files.)
+  BR1A(R1, v) {
+    if (v !== this.p) return this._leave(R1, v, true);
+    const NR1 = [];
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i];
+      const oldVal = this.view.value[at];
+      this.filters.splice(at, 1);
+      this.view.value.splice(at, 1);
+      if (oldVal !== void 0) NR1.push(at, oldVal);
+    }
+    if (NR1.length) this.view.BR1(NR1);
+  }
+  // STRUCTURAL INSERT (tail). Each source self-reports ITS membership bit for the
+  // new position from the carried value: a real row sets the bit, a hole
+  // (`undefined` — the positional insert an array RowOperator emits for a slot
+  // its predicate excluded) CLEARS it. The bug this fixes (C12 intersect2) was
+  // the object _enter path setting the bit unconditionally for that hole. Bits
+  // accumulate across echoes order-independently (we never read other sources —
+  // mid-cascade they may not have shifted); the new tail slot grows `filters`
+  // and `view.value` naturally. Mid-array inserts into an array set-algebra
+  // source are not supported (not shipped-reachable: the underlying mutation is
+  // always a tail append or a delete).
+  BI0A(I0, v) {
+    const { one, off } = this.sources.get(v);
+    const NI0 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const val = I0[i + 1];
+      const bits = this.filters[at] || 0;
+      this.filters[at] = val !== void 0 ? bits | one : bits & off;
+      if (this.filters[at] === this.all && this.view.value[at] === void 0) {
+        NI0.push(at, this.view.value[at] = this.p.value[at]);
+      }
+    }
+    if (this.view.value.length < this.filters.length) this.view.value.length = this.filters.length;
+    if (NI0.length) this.view.BI0(NI0);
+  }
   // One source emptied: clear its bit on every tracked row. We never look
   // at the primary source for row identity here, just iterate the bitmask
   // table. The view itself collapses to empty because at least one source
@@ -2478,6 +2805,19 @@ var IntersectValue = class extends Operator {
   // source's bit was set" which is equivalent to "the row was previously at
   // all-bits-set"; `zero` is precomputed once per call.
   BR1(R1, v) {
+    this._leave(R1, v, false);
+  }
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same membership
+  // logic as BR1; emits BH1 downstream (a hole, not a splice) so a positional
+  // sink (the DOMSink bound straight to this view) mirrors the hole instead of
+  // popping its tail. Without this, core falls the upstream BH1 back to BR1,
+  // which over an array routes to BR1A (splice-shift) and corrupts an
+  // index-keyed sink. Mirrors between's consumer BH1.
+  BH1(R1, v) {
+    this._leave(R1, v, true);
+  }
+  _leave(R1, v, hole) {
     if (!R1.length) return;
     const { off } = this.sources.get(v);
     const NR1 = [];
@@ -2493,7 +2833,7 @@ var IntersectValue = class extends Operator {
       }
       this.filters[name] = bits & off;
     }
-    if (NR1.length) this.view.BR1(NR1);
+    if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1);
   }
   BU1(U1) {
     if (!U1.length) return;
@@ -2511,6 +2851,17 @@ var IntersectValue = class extends Operator {
     if (NU1.length) this.view.BU1(NU1);
   }
   BI0(I0, v) {
+    this._enter(I0, v, false);
+  }
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same membership logic as BI0; emits BF0 downstream so a
+  // positional sink fills the slot in place rather than tail-appending. Mirrors
+  // between's consumer BF0. (The "first time seen" bitmask-init branch is inert
+  // here — a hole-fill is for a row that was already tracked.)
+  BF0(I0, v) {
+    this._enter(I0, v, true);
+  }
+  _enter(I0, v, hole) {
     if (!I0.length) return;
     const { all, sources, filters } = this;
     const { one } = sources.get(v);
@@ -2531,7 +2882,7 @@ var IntersectValue = class extends Operator {
         NI0.push(name, me[name] = this.p.value[name]);
       }
     }
-    if (NI0.length) this.view.BI0(NI0);
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0);
   }
   // Nested-key events (deep updates on rows). Two gates:
   //   1. The event must come from `this.p` (the primary source). A
@@ -2999,6 +3350,7 @@ var TapBareValue = class extends Operator {
 };
 
 // operators/distinct/index.ts
+var REBUILD = /* @__PURE__ */ Symbol("distinct.rebuild");
 var DistinctValue = class extends Operator {
   constructor(p, fn) {
     super();
@@ -3077,6 +3429,7 @@ var DistinctValue = class extends Operator {
         if (idx >= 0) this.output.splice(idx, 1);
         changed = true;
       } else {
+        if (this.firstRow.get(oldK) === row) return REBUILD;
         this.counts.set(oldK, c2);
       }
     }
@@ -3109,7 +3462,9 @@ var DistinctValue = class extends Operator {
     for (let i = 0; i < U2.length; i += 2) {
       const path = U2[i];
       const name = path[0];
-      if (this._update(name, v?.[name])) changed = true;
+      const r = this._update(name, v?.[name]);
+      if (r === REBUILD) return this._rebuild();
+      if (r) changed = true;
     }
     if (changed) this.view.XU0(this.view.value = this.output);
   }
@@ -3134,6 +3489,23 @@ var DistinctValue = class extends Operator {
 };
 
 // operators/reduce/index.ts
+var _approxEqual = (a, b) => a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+var _deepEqual = (a, b) => {
+  if (a === b) return true;
+  const ta = typeof a;
+  if (ta !== typeof b) return false;
+  if (ta === "number") return _approxEqual(a, b) || Number.isNaN(a) && Number.isNaN(b);
+  if (a && b && ta === "object") {
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    for (let i = 0; i < ka.length; i++) {
+      const k = ka[i];
+      if (!Object.prototype.hasOwnProperty.call(b, k) || !_deepEqual(a[k], b[k])) return false;
+    }
+    return true;
+  }
+  return false;
+};
 var ReduceValue = class extends Operator {
   constructor(p, fn, init) {
     super();
@@ -3188,6 +3560,7 @@ var ReduceIncrementalValue = class extends Operator {
     this.add = add;
     this.remove = remove;
     this.init = init;
+    this._cache = /* @__PURE__ */ new Map();
     this._rebuild();
   }
   matches(add, remove, init) {
@@ -3196,13 +3569,36 @@ var ReduceIncrementalValue = class extends Operator {
   _seed() {
     return typeof this.init === "function" ? this.init() : this.init;
   }
+  // Dev-only symmetry check (see the class comment): re-fold from scratch and
+  // compare to the incremental accumulator. A mismatch means `remove` didn't
+  // invert `add` for some row. Gated behind `$.debug` because the re-fold is
+  // O(N) per delta — it exists to make the silent-desync trap catchable.
+  _verify(where) {
+    if (!$.debug) return;
+    let truth = this._seed();
+    const v = this.p.value;
+    if (v && typeof v === "object") iter(v, (k, row) => {
+      if (row === void 0) return;
+      truth = this.add(truth, row, k);
+    });
+    if (!_deepEqual(truth, this.view.value) && typeof console !== "undefined")
+      console.warn(
+        `[data] reduce(add, remove, init): the incremental accumulator drifted from a fresh fold after ${where}. The usual cause is a \`remove\` that doesn't exactly invert \`add\` for a row (the symmetry contract).`,
+        "\n  incremental =",
+        this.view.value,
+        "\n  fresh fold  =",
+        truth
+      );
+  }
   _rebuild() {
     let acc = this._seed();
+    this._cache.clear();
     const v = this.p.value;
     if (v && typeof v === "object") {
       iter(v, (k, row) => {
         if (row === void 0) return;
         acc = this.add(acc, row, k);
+        this._cache.set("" + k, row);
       });
     }
     this.view.XU0(this.view.value = acc);
@@ -3220,8 +3616,10 @@ var ReduceIncrementalValue = class extends Operator {
       const v = I0[i + 1];
       if (v === void 0) continue;
       acc = this.add(acc, v, I0[i]);
+      this._cache.set("" + I0[i], v);
     }
     this.view.XU0(this.view.value = acc);
+    this._verify("BI0");
   }
   BR1(R1) {
     if (!R1.length) return;
@@ -3230,16 +3628,40 @@ var ReduceIncrementalValue = class extends Operator {
       const v = R1[i + 1];
       if (v === void 0) continue;
       acc = this.remove(acc, v, R1[i]);
+      this._cache.delete("" + R1[i]);
     }
     this.view.XU0(this.view.value = acc);
+    this._verify("BR1");
   }
-  // BU1: row's slot was overwritten with a new value, but the framework
-  // doesn't carry the old value at this entry point. Rebuild is the
-  // semantically safe fallback. Crossfilter-shaped workloads (rows
-  // immutable, filters mutate) don't hit this path.
-  BU1() {
-    this._rebuild();
+  // BU1: a slot was overwritten in place (`data[k] = newRow`). The
+  // notification carries only the new value, but the per-key cache holds the
+  // OLD row (a whole-slot overwrite changes the reference, so cached ≠ new),
+  // so subtract its contribution then add the new one — O(Δ), no rebuild.
+  // Value.BU1 routes brand-new keys to BI0, so BU1 only ever sees keys that
+  // were already present; the cache hit is guaranteed for any row that
+  // contributed (a fresh fold + every BI0 seeds it). The `!== undefined`
+  // guard is against the *cache miss*, so a present-but-falsy row (value `0`)
+  // is still correctly subtracted.
+  BU1(U1) {
+    if (!U1.length) return;
+    let acc = this.view.value;
+    for (let i = 0; i < U1.length; i += 2) {
+      const key = "" + U1[i];
+      const next = U1[i + 1];
+      const prev = this._cache.get(key);
+      if (prev !== void 0) acc = this.remove(acc, prev, U1[i]);
+      if (next !== void 0) {
+        acc = this.add(acc, next, U1[i]);
+        this._cache.set(key, next);
+      } else this._cache.delete(key);
+    }
+    this.view.XU0(this.view.value = acc);
+    this._verify("BU1");
   }
+  // BU2: a NESTED field of an existing row was edited in place
+  // (`data[k].f = x`). The row reference is unchanged, so the cache already
+  // holds the mutated row — there's no pre-edit value to subtract. Rebuild
+  // (which also re-seeds the cache, keeping BU1 consistent afterwards).
   BU2() {
     this._rebuild();
   }
@@ -3321,11 +3743,91 @@ var UnionValue = class extends Operator {
     });
     this.view.XU0(this.view.value = new_value);
   }
+  // ── Array structural insert / remove (C12) ───────────────────────────────
+  // Core routes an ARRAY source's positional insert/remove through BI0A/BR1A;
+  // object sources keep the BI0/BR1 _enter/_leave path (untouched). A splice
+  // shifts every later index, so the per-index `filters` bitmask and the sparse
+  // `view.value` must splice in lockstep or the index space drifts from the
+  // (shifting) sources and every later positional event hits the wrong slot
+  // (C12 array desync). See operators/intersect for the full rationale; union
+  // differs only in the membership test ("any bit set" vs "all") and that its
+  // value is `_pick`ed from the first source holding the row.
+  //
+  // NB union's PRIMARY (`this.p`) is itself a derived facet, so it echoes FIRST
+  // (intersect/except's primary echoes last). That's why the structural splice
+  // is keyed to the primary identity (order-independent) and a SECONDARY array
+  // removal is a no-op: every facet derives from one underlying array, so a
+  // structural delete is gone from ALL of them and the primary splice already
+  // dropped it. (Two genuinely INDEPENDENT array sources — where a secondary
+  // remove should re-pick rather than drop — aren't supported for arrays; no
+  // such union is shipped. Object sources keep the full _leave re-pick.)
+  BR1A(R1, v) {
+    if (v !== this.p) return;
+    const NR1 = [];
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i];
+      const oldVal = this.view.value[at];
+      this.filters.splice(at, 1);
+      this.view.value.splice(at, 1);
+      if (oldVal !== void 0) NR1.push(at, oldVal);
+    }
+    if (NR1.length) this.view.BR1(NR1);
+  }
+  // STRUCTURAL INSERT (tail). Each source self-reports its membership bit from
+  // the carried value (a real row sets it, a hole `undefined` clears it),
+  // accumulating order-independently; the row enters the union the moment ANY
+  // bit is set. The new tail slot grows `filters`/`view.value` naturally
+  // (mid-array inserts unsupported, as in intersect).
+  //
+  // The visible value is the row of the FIRST (highest-priority, earliest in
+  // argument order) source holding it — taken from the echo's CARRIED value, NOT
+  // re-read from the source array via `_pick`: a filter source whose trailing
+  // rows are excluded has a `.length` shorter than the underlying array, so its
+  // own internal positions are index-misaligned and a positional read can miss a
+  // row it logically holds. `one` is `1 << priority`, so `one - 1` masks every
+  // higher-priority source; this source supplies the value iff it has the row
+  // and no higher-priority one does. A higher-priority source echoing later
+  // overwrites to a BU1. (`_pick` stays correct for the OBJECT path, where keys
+  // are stable and source reads align.)
+  BI0A(I0, v) {
+    const { one, off } = this.sources.get(v);
+    const higher = one - 1;
+    const me = this.view.value;
+    const NI0 = [], NU1 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const val = I0[i + 1];
+      const prev = this.filters[at] || 0;
+      const bits = this.filters[at] = val !== void 0 ? prev | one : prev & off;
+      if (bits === 0 || val === void 0 || bits & higher) continue;
+      if (me[at] === void 0) {
+        me[at] = val;
+        NI0.push(at, val);
+      } else if (me[at] !== val) {
+        me[at] = val;
+        NU1.push(at, val);
+      }
+    }
+    if (me.length < this.filters.length) me.length = this.filters.length;
+    if (NI0.length) this.view.BI0(NI0);
+    if (NU1.length) this.view.BU1(NU1);
+  }
   // BR1 from any source: clear that source's bit. If bits hit zero, the row
   // leaves the union. If still nonzero, the row stays — but its value may
   // need re-picking (the source we just lost might have been the source we
   // were getting the value from).
   BR1(R1, v) {
+    this._leave(R1, v, false);
+  }
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same logic as BR1;
+  // emits BH1 for the rows that leave the union so a positional sink (a DOMSink
+  // bound straight to this view) mirrors the hole instead of splice-shifting.
+  // Mirrors between/intersect's consumer BH1.
+  BH1(R1, v) {
+    this._leave(R1, v, true);
+  }
+  _leave(R1, v, hole) {
     if (!R1.length) return;
     const { off } = this.sources.get(v);
     const NR1 = [];
@@ -3349,7 +3851,7 @@ var UnionValue = class extends Operator {
       }
     }
     if (NU1.length) this.view.BU1(NU1);
-    if (NR1.length) this.view.BR1(NR1);
+    if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1);
   }
   BU1(U1, v) {
     if (!U1.length) return;
@@ -3364,6 +3866,15 @@ var UnionValue = class extends Operator {
     if (NU1.length) this.view.BU1(NU1);
   }
   BI0(I0, v) {
+    this._enter(I0, v, false);
+  }
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same logic as BI0; emits BF0 for rows that enter the
+  // union so a positional sink fills in place rather than tail-appending.
+  BF0(I0, v) {
+    this._enter(I0, v, true);
+  }
+  _enter(I0, v, hole) {
     if (!I0.length) return;
     const { one } = this.sources.get(v);
     const me = this.view.value ??= isArray(this.p.value) ? [] : {};
@@ -3383,7 +3894,7 @@ var UnionValue = class extends Operator {
         NU1.push(name, newVal);
       }
     }
-    if (NI0.length) this.view.BI0(NI0);
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0);
     if (NU1.length) this.view.BU1(NU1);
   }
 };
@@ -3438,7 +3949,67 @@ var ExceptValue = class extends Operator {
   // BR1 from other: row left other → row may now pass through; if p has
   // it, add it to output.
   BR1(R1, v) {
+    this._removeFrom(R1, v, false);
+  }
+  // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
+  // holed a row in source v — positional-stable, no shift. Same logic as BR1;
+  // emits holes (BF0 admit / BH1 drop) so a positional sink mirrors them in
+  // place instead of splice-shifting. Mirrors between/intersect/union.
+  BH1(R1, v) {
+    this._removeFrom(R1, v, true);
+  }
+  // ── Array structural remove / insert (C12) ────────────────────────────────
+  // Core routes an ARRAY source's positional remove/insert through BR1A/BI0A
+  // (object sources keep the BR1/BI0 _removeFrom/_insertFrom path, untouched). A
+  // splice shifts every later index, so `view.value` MUST splice in lockstep or
+  // the index space drifts from the (shifting) source and a later positional
+  // event hits the wrong slot (the C12 array desync — removing an EXCLUDED row
+  // deleted a drifted VISIBLE one). except has no bitmask — membership is just
+  // "in p AND not in other". Like intersect, except's PRIMARY (`this.p`, the
+  // canonical index identity) is the raw source `s` and echoes LAST; `other`
+  // (the filter facet) echoes first.
+  BR1A(R1, v) {
+    if (v !== this.p) return;
+    const NR1 = [];
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i];
+      const oldVal = this.view.value[at];
+      this.view.value.splice(at, 1);
+      if (oldVal !== void 0) NR1.push(at, oldVal);
+    }
+    if (NR1.length) this.view.BR1(NR1);
+  }
+  // Array structural insert (tail). except shows the row iff it's in p AND NOT
+  // in `other`. Decide visibility on `other`'s echo: it carries its membership
+  // DIRECTLY (a filter `other` with trailing exclusions is index-misaligned, so
+  // a positional re-read of `other.value[at]` can miss the row), and p (=s, raw)
+  // is already settled, so that echo knows both halves. `other` always echoes a
+  // tail insert (RowOperator.BI0A emits the positional insert even for an
+  // excluded slot), so this is complete. The primary's echo is the index
+  // authority — it just keeps `view.value` length-aligned with `s`, so an
+  // excluded (holed) insert still extends the array. (Mid-array inserts
+  // unsupported, as in intersect/union.)
+  BI0A(I0, v) {
+    if (v === this.p) {
+      if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length;
+      return;
+    }
+    if (v !== this.otherView) return;
+    const me = this.view.value;
+    const NI0 = [];
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i];
+      const inOther = I0[i + 1] !== void 0;
+      const pRow = this.p.value[at];
+      if (!inOther && pRow !== void 0 && me[at] === void 0) {
+        NI0.push(at, me[at] = pRow);
+      }
+    }
+    if (NI0.length) this.view.BI0(NI0);
+  }
+  _removeFrom(R1, v, hole) {
     if (!R1.length) return;
+    const arr = isArray(this.view.value);
     if (v === this.otherView) {
       const NI0 = [];
       for (let i = 0; i < R1.length; i += 2) {
@@ -3449,7 +4020,7 @@ var ExceptValue = class extends Operator {
           NI0.push(name, pVal);
         }
       }
-      if (NI0.length) this.view.BI0(NI0);
+      if (NI0.length) hole && arr ? this.view.BF0(NI0) : this.view.BI0(NI0);
       return;
     }
     const NR1 = [];
@@ -3460,7 +4031,7 @@ var ExceptValue = class extends Operator {
         delete this.view.value[name];
       }
     }
-    if (NR1.length) this.view.BR1(NR1);
+    if (NR1.length) hole && arr ? this.view.BH1(NR1) : this.view.BR1(NR1);
   }
   // BU1 from primary: value at key changed; if key passes the filter, emit.
   // BU1 from other: row updated in `other`; doesn't change membership in
@@ -3479,10 +4050,43 @@ var ExceptValue = class extends Operator {
     }
     if (NU1.length) this.view.BU1(NU1);
   }
+  // BU2 (a nested in-place edit, `src[k].f = x`). From `other`: the row stays
+  // excluded regardless of its value, so our output is unchanged — no-op. From
+  // primary: the row's field changed in place. The membership decision belongs
+  // to `other` (a facet emits BI0/BR1 when the edit flips its predicate); our
+  // job is only to NOT clobber that. Without this, the base BU2 default
+  // re-materialised the row into `view.value` — re-adding a row the facet's
+  // BI0 had just correctly dropped (an in-place edit that pushed a row INTO the
+  // exclusion left it stuck in the output). Forward the nested update only for
+  // rows still in the output (not excluded); skip excluded ones so they stay
+  // dropped. The row object is shared with the source, so the value is already
+  // current — we only propagate the notification.
+  BU2(U2, v) {
+    if (v === this.otherView) return;
+    if (!U2.length) return;
+    const NU2 = [];
+    for (let i = 0; i < U2.length; i += 2) {
+      const key = U2[i];
+      const name = key[0];
+      if (this.otherView.value?.[name] !== void 0) continue;
+      if (this.view.value?.[name] === void 0) continue;
+      NU2.push(key, U2[i + 1]);
+    }
+    if (NU2.length) this.view.BU2(NU2);
+  }
   // BI0 from primary: maybe admit. BI0 from other: row appeared in other,
   // so if we were showing it, drop it.
   BI0(I0, v) {
+    this._insertFrom(I0, v, false);
+  }
+  // BF0 (consumer): an upstream sparse producer filled a hole in source v —
+  // positional-stable. Same logic as BI0; emits holes (BH1 drop / BF0 admit).
+  BF0(I0, v) {
+    this._insertFrom(I0, v, true);
+  }
+  _insertFrom(I0, v, hole) {
     if (!I0.length) return;
+    const arr = isArray(this.view.value);
     if (v === this.otherView) {
       const NR1 = [];
       for (let i = 0; i < I0.length; i += 2) {
@@ -3492,7 +4096,7 @@ var ExceptValue = class extends Operator {
           delete this.view.value[name];
         }
       }
-      if (NR1.length) this.view.BR1(NR1);
+      if (NR1.length) hole && arr ? this.view.BH1(NR1) : this.view.BR1(NR1);
       return;
     }
     const NI0 = [];
@@ -3504,7 +4108,7 @@ var ExceptValue = class extends Operator {
       me[name] = val;
       NI0.push(name, val);
     }
-    if (NI0.length) this.view.BI0(NI0);
+    if (NI0.length) hole && arr ? this.view.BF0(NI0) : this.view.BI0(NI0);
   }
 };
 
@@ -3722,6 +4326,62 @@ var DOMSink = class {
       delete this.nodes[k];
     }
   }
+  // ── Index-keyed array path (sparse producers: between/intersect/union/except
+  // bound straight to the DOM) ──────────────────────────────────────────────
+  // Distinct from create_node/remove_node (which are TAIL-relative — correct
+  // for dense splice arrays where tail == index). These bind node[k] ↔ data[k]
+  // at a fixed position so a hole can be removed/filled without shifting
+  // survivors, mirroring the BH1/BF0 protocol. Used only when the array is
+  // sparse (XU0) or for BH1/BF0 events (which dense arrays never emit).
+  // A true if any in-bounds slot is a hole (empty or explicit-undefined).
+  _sparse(v) {
+    for (let i = 0; i < v.length; i++) if (v[i] === void 0) return true;
+    return false;
+  }
+  // Create the node for present index `k`, inserted before the node at the
+  // smallest present index > k (or appended if none) so DOM order tracks index
+  // order. Idempotent: a BF0 for an already-present slot is a no-op (its content
+  // was already refreshed by core's V1 pre-fire).
+  _create_at(k) {
+    if (this.nodes[k]) return;
+    const node = this.node.generate(k, this.node.data[k]);
+    let next = Infinity;
+    for (const j in this.nodes) {
+      const jn = +j;
+      if (jn > k && jn < next) next = jn;
+    }
+    this.nodes[k] = node.create(this.parent, next !== Infinity ? this.nodes[next] : void 0);
+  }
+  // Append the node for present index `k` to the tail (no positional scan).
+  // Only safe when every later present index is created after this one — i.e.
+  // the in-increasing-order build from an empty node set in `_reconcile_sparse`.
+  _append_at(k) {
+    const node = this.node.generate(k, this.node.data[k]);
+    this.nodes[k] = node.create(this.parent, void 0);
+  }
+  _remove_at(k) {
+    this.nodes[k]?.remove();
+    delete this.nodes[k];
+  }
+  // Reconcile the live DOM with a sparse array value: drop nodes whose slot
+  // became a hole, create nodes for newly-present slots (positioned by index).
+  // Handles the dense→sparse transition too (a between whose bounds were full
+  // domain, then narrowed): the prior dense nodes are already node[i] ↔ data[i],
+  // so index-keyed removal/creation composes cleanly.
+  _reconcile_sparse(value2) {
+    this.nodes ??= [];
+    const gone = [];
+    for (const i in this.nodes) if (value2[+i] === void 0) gone.push(+i);
+    for (let j = 0; j < gone.length; j++) this._remove_at(gone[j]);
+    let survivors = false;
+    for (const _ in this.nodes) {
+      survivors = true;
+      break;
+    }
+    for (let i = 0; i < value2.length; i++)
+      if (value2[i] !== void 0 && !this.nodes[i])
+        survivors ? this._create_at(i) : this._append_at(i);
+  }
   // Once the parent DOM is detached from the document the binding can never
   // produce a visible mutation again. We could keep applying changes to the
   // detached subtree but it just wastes work and corrupts our nodes/buckets
@@ -3755,9 +4415,11 @@ var DOMSink = class {
       this.create_node(NODE);
       return;
     }
-    this.nodes ??= isArray(value2) ? [] : {};
+    const arr = isArray(value2);
+    if (arr && this._sparse(value2)) return this._reconcile_sparse(value2);
+    this.nodes ??= arr ? [] : {};
     for (const i in value2)
-      if (!prev_nodes[i])
+      if (!prev_nodes[i] && (arr || value2[i] !== void 0))
         this.create_node(i);
     const gone = [];
     for (const i in prev_nodes)
@@ -3786,6 +4448,21 @@ var DOMSink = class {
       I0[i];
       this.create_node(name);
     }
+  }
+  // Hole remove / hole fill from a sparse producer over an ARRAY. Positional-
+  // stable (no shift): drop/create the node AT index k, leaving survivors put.
+  // Core's View.BH1/BF0 pre-fires the touched child's XU0 (so a fill's content
+  // is already set on the child view _create_at binds, and a remove's child
+  // goes undefined just before its node is dropped) — index-keyed, so no
+  // double-apply. Dense arrays never emit these; they only reach a DOMSink
+  // bound directly to a between/intersect/union/except view.
+  BH1(R1) {
+    if (this._detached()) return;
+    for (let i = 0; i < R1.length; i += 2) this._remove_at(+R1[i]);
+  }
+  BF0(I0) {
+    if (this._detached()) return;
+    for (let i = 0; i < I0.length; i += 2) this._create_at(+I0[i]);
   }
   BR2(BR2) {
   }
