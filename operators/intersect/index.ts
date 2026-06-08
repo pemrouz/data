@@ -96,6 +96,74 @@ export class IntersectValue extends Operator {
     this.view.XU0(this.view.value = new_value)
   }
 
+  // ── Array structural insert / remove (C12) ───────────────────────────────
+  // Core routes an ARRAY source's positional insert/remove through BI0A/BR1A
+  // (object sources keep the BI0/BR1 _enter/_leave path above, untouched). A
+  // splice shifts every later index, so the per-index `filters` bitmask and the
+  // sparse `view.value` MUST splice in lockstep or our index space drifts from
+  // the (shifting) sources and every later positional event hits the wrong slot
+  // — the C12 array desync. The object _leave/_enter path's `delete`/named-set
+  // never shifts, which is correct for stable object keys but wrong for array
+  // positions.
+
+  // STRUCTURAL REMOVE. `this.p` is the canonical index space ("`this.p.value[name]`
+  // stays the canonical row identity"). Only a removal from the PRIMARY shifts
+  // that space, so only the primary echo splices `filters`/`view.value`. A
+  // removal reported by a SECONDARY source is a membership change at a stable
+  // position — the row left THAT source but the primary's index space didn't
+  // move — so it routes to the by-name `_leave` (clear the bit, hole the slot if
+  // it drops below `all`), exactly the object path. This split is what keeps two
+  // INDEPENDENT arrays' intersect correct (only one shifts) while a DERIVED
+  // crossfilter-style removal (every source echoes; the primary splices last —
+  // see below) reconciles to one clean delete.
+  //
+  // Echo order in the DERIVED case: the secondaries hole their slot first
+  // (emitting the real remove), then the primary splices the now-holed slot out
+  // (oldVal === undefined → no phantom second remove) and the survivor below it
+  // slides up. (`union`/`except` have their own primary ordering — handled in
+  // their files.)
+  BR1A(R1, v) {
+    if (v !== this.p) return this._leave(R1, v, true)
+    const NR1 = []
+    for (let i = 0; i < R1.length; i += 2) {
+      const at = R1[i]
+      const oldVal = this.view.value[at]
+      this.filters.splice(at, 1)
+      this.view.value.splice(at, 1)
+      if (oldVal !== undefined) NR1.push(at, oldVal)
+    }
+    if (NR1.length) this.view.BR1(NR1)
+  }
+
+  // STRUCTURAL INSERT (tail). Each source self-reports ITS membership bit for the
+  // new position from the carried value: a real row sets the bit, a hole
+  // (`undefined` — the positional insert an array RowOperator emits for a slot
+  // its predicate excluded) CLEARS it. The bug this fixes (C12 intersect2) was
+  // the object _enter path setting the bit unconditionally for that hole. Bits
+  // accumulate across echoes order-independently (we never read other sources —
+  // mid-cascade they may not have shifted); the new tail slot grows `filters`
+  // and `view.value` naturally. Mid-array inserts into an array set-algebra
+  // source are not supported (not shipped-reachable: the underlying mutation is
+  // always a tail append or a delete).
+  BI0A(I0, v) {
+    const { one, off } = this.sources.get(v)
+    const NI0 = []
+    for (let i = 0; i < I0.length; i += 2) {
+      const at = I0[i]
+      const val = I0[i + 1]
+      const bits = this.filters[at] || 0
+      this.filters[at] = val !== undefined ? (bits | one) : (bits & off)
+      if (this.filters[at] === this.all && this.view.value[at] === undefined) {
+        NI0.push(at, this.view.value[at] = this.p.value[at])
+      }
+    }
+    // Keep `view.value` length-aligned with `filters` so a holed (excluded) tail
+    // insert still extends the output array — otherwise a later remove would
+    // splice the two at divergent lengths.
+    if (this.view.value.length < this.filters.length) this.view.value.length = this.filters.length
+    if (NI0.length) this.view.BI0(NI0)
+  }
+
   // One source emptied: clear its bit on every tracked row. We never look
   // at the primary source for row identity here, just iterate the bitmask
   // table. The view itself collapses to empty because at least one source

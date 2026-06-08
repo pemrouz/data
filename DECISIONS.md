@@ -150,7 +150,24 @@ Investigating the C11 `intersect→limit` "remove array" failure led to giving t
 **Fix:** `except.BU2` now mirrors its (already-correct) `BU1` — from `other` it's a no-op (the row stays excluded regardless of value); from primary it forwards the nested update **only for rows still in the output** (skips excluded ones), so it can't re-add a dropped row. Regression: `except - in-place edit into the exclusion drops the row (BU2)` in [operators/except/except.test.ts](operators/except/except.test.ts). Fixed all OBJECT-shape set-algebra differential scenarios.
 
 - Where: [operators/except/index.ts](operators/except/index.ts) (`ExceptValue.BU2`).
-- **Array half STILL OPEN** — tracked as [ISSUES.md → C12](ISSUES.md): `intersect`/`union`/`except` over an **array** source desync under insert/remove/in-place-edit churn (a C1-family array-positional gap in their bitmask/`view.value` maintenance). Five `[array]` scenarios are parked in the harness's `KNOWN_FAILURES`. Not shipped-reachable (examples use object-keyed or fixed/static sources). Needs the C1-family array-positional rework for the bitmask producers.
+- **Array half** then tracked as [ISSUES.md → C12](ISSUES.md); the `intersect` slice of it is now fixed (next entry); `union`/`except` array remain.
+
+### C12 (array half — intersect) — array-positional `BI0A`/`BR1A` for the bitmask producer ✅
+
+`intersect` over an **ARRAY** source desynced under insert/remove churn. Two root causes, both array-only (the OBJECT path was correct):
+
+1. **Index drift on remove.** An array remove SHIFTS every later index, but `intersect` handled removes with the OBJECT `_leave` path (`delete`/hole, no splice), so its per-index `filters` bitmask and sparse `view.value` never shifted — the index space drifted from the (shifting) source and every later positional event (`BU1`/`BU2`/`BF0`) hit the wrong slot (a ghost row accumulated). 2. **Hole-bit on insert (`intersect2`).** A tail insert excluded by a secondary facet was still admitted: the secondary's positional `BI0A` carries `undefined` for the excluded slot (a hole the array `RowOperator` emits — the `BI0A` protocol *always* carries the positional insert), and the object `_enter` path set the membership bit unconditionally.
+
+**Fix** — array-only `BI0A`/`BR1A` handlers (core's fanout routes an array source's structural events to `*A`, leaving the object `BI0`/`BR1` `_enter`/`_leave` path untouched):
+- **`BR1A` (remove):** only the **primary** echo (`v === this.p`, the canonical index identity) splices `filters`+`view.value`; a removal reported by a **secondary** routes to the by-name `_leave` (clear the bit, hole the slot — no shift, the primary's index space didn't move). This is what keeps two INDEPENDENT arrays' intersect correct (only one shifts) while a DERIVED crossfilter-style removal (every facet echoes; primary splices last) reconciles to one clean delete. The primary splice skips emitting for an already-holed slot, so the secondary's real remove isn't doubled.
+- **`BI0A` (tail insert):** each source self-reports ITS bit from the carried value — a real row sets it, a hole (`undefined`) **clears** it — accumulating order-independently (we never read other sources mid-cascade, where they may not have shifted yet); the new tail slot grows `filters`/`view.value` naturally and fills + emits when it reaches `all`.
+
+**Why not cross-source length-sync (first attempt, reverted):** a filter facet that excludes the *last* array element has a shorter `.length` (trailing holes don't count), so "splice once when our length differs from the reporting source's" mis-fired (double-splice). Keying the splice to the **primary identity** instead is both order-independent and length-robust. NB the primary echoes LAST for intersect/except but FIRST for union (its `p` is itself a facet) — the handler must not assume an order.
+
+Regression: `intersect - array, derived facets: tail insert + shifting remove stay aligned` in [operators/intersect/intersect.test.ts](operators/intersect/intersect.test.ts); the three `intersect*/array` differential scenarios deleted from `KNOWN_FAILURES`. Gated on `npm test` (414), `npm run perf` (intersect unchanged), and the crossfilter/library/swarm Playwright specs (the shipped object/static paths stay correct — intersect there sees only bound moves, never array structural events).
+
+- Where: [operators/intersect/index.ts](operators/intersect/index.ts) (`IntersectValue.BI0A`/`BR1A`).
+- **`union`/`except` array STILL OPEN** — same array-positional rework, with each operator's own primary-echo ordering; two `[array]` scenarios remain parked in `KNOWN_FAILURES`.
 
 ---
 

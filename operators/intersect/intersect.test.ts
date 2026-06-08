@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { $, value, view } from '../../core.ts'
 import { intersect } from './index.ts'
 import { between } from '../between/index.ts'
+import { filter } from '../filter/index.ts'
 
 // Regression: intersect's CONSTRUCTOR seeded its bitmask with `i in res.value`,
 // but between/union/except leave EXPLICIT `undefined` at excluded slots (the
@@ -102,6 +103,50 @@ test('intersect - arrays', () => {
     { type: 'update', key: [], value: [] }
   ])
   same(res[value], [])
+})
+
+// Regression (C12, array half): an intersect over a DERIVED array source —
+// every facet is a filter of one underlying array, the crossfilter shape — used
+// to desync under insert/remove churn. Two distinct bugs:
+//   (1) a tail insert excluded by a secondary facet still got admitted, because
+//       the secondary's positional BI0A carries `undefined` for the excluded
+//       slot (a hole, not membership) and the object _enter path set the bit
+//       unconditionally; and
+//   (2) an array remove SHIFTS later indices, but the bitmask/view used object
+//       (`delete`/hole) semantics and never spliced, so the index space drifted
+//       from the (shifting) source and every later positional event hit the
+//       wrong slot.
+// The array-only BI0A/BR1A handlers fix both. This locks the live view against a
+// from-scratch rebuild across a tail insert (admitted + excluded) and a
+// shifting remove. The differential harness covers the same ground across many
+// seeds; this is the focused, readable guard.
+const denseV = (vp) => (vp[value] || []).filter((r) => r !== undefined).map((r) => r.v)
+test('intersect - array, derived facets: tail insert + shifting remove stay aligned', () => {
+  const s = $([{ v: 10 }, { v: 30 }, { v: 50 }, { v: 70 }, { v: 90 }])
+  // Two facets derived from s — the crossfilter pattern. 25 < v < 80 ⇒ {30,50,70}.
+  const res = intersect(s, filter(s, (r) => r.v > 25), filter(s, (r) => r.v < 80))
+  same(denseV(res), [30, 50, 70])
+
+  // Tail insert ADMITTED (passes both facets).
+  s.insert({ v: 60 })
+  same(denseV(res), [30, 50, 70, 60])
+
+  // Tail insert EXCLUDED by the < 80 facet (bug 1) — must NOT be admitted.
+  s.insert({ v: 200 })
+  same(denseV(res), [30, 50, 70, 60])
+
+  // Remove a middle row (index 2 = {v:50}); later indices shift down (bug 2).
+  delete s[2]
+  same(denseV(res), [30, 70, 60])
+
+  // Remove the head (index 0 = {v:10}, not in the intersection) — pure shift.
+  delete s[0]
+  same(denseV(res), [30, 70, 60])
+
+  // A surviving row leaving via an in-place edit still works post-shift.
+  // After the two removes s = [{30},{70},{90},{60},{200}]; bump {30} out of range.
+  s[0].v = 5
+  same(denseV(res), [70, 60])
 })
 
 // Crossfilter "leave-one-out" pattern: dimensions are named once in a plain
