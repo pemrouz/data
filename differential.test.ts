@@ -152,6 +152,13 @@ const SCENARIOS = [
   { tag: 'between→az', bound: true, project: (s, c) => s.between('v', c.bound).az('v') },
   { tag: 'between→za', bound: true, project: (s, c) => s.between('v', c.bound).za('v') },
   { tag: 'filter→az', project: (s) => s.filter((r) => r.v > 10).az('v') },
+  // TRAILING-excluded predicate (v < 60 drops the highest-v rows, and every
+  // fresh insert draws v ≥ 200 so the tail stays excluded) — the C13 shape:
+  // a RowOperator over an array whose own output is SHORTER than the source
+  // (XU0 never assigns trailing excluded indices), chained into a positional
+  // consumer. Leading-excluded predicates (v > N) never catch this.
+  { tag: 'lt→map (trailing-excluded)', project: (s) => s.lt('v', 60).map((r) => r.v) },
+  { tag: 'lt→az (trailing-excluded)', project: (s) => s.lt('v', 60).az('v') },
   { tag: 'filter→between', bound: true, project: (s, c) => s.filter((r) => r.v > 10).between('v', c.bound) },
   { tag: 'filter→sum', scalar: true, project: (s) => s.filter((r) => r.v > 25).sum('v') },
   { tag: 'za-window→length', scalar: true, project: (s) => s.za('v', 3).length() },
@@ -171,14 +178,16 @@ const SCENARIOS = [
 ]
 
 // mutation kinds
+const freshRow = () => ({ id: 1000 + Math.floor(rnd() * 100000), g: 'g' + Math.floor(rnd() * 3), v: nextV() })
 function mutate(kind, S, isArr, ctx) {
   const v = S[value]
-  const keysNow = isArr ? v.map((_, i) => i).filter((i) => v[i] !== undefined) : Object.keys(v)
+  const keysNow = isArr
+    ? v.map((_, i) => i).filter((i) => v[i] !== undefined)
+    : Object.keys(v).filter((k) => v[k] !== undefined)
   if (kind === 'insert') {
-    const id = 1000 + Math.floor(rnd() * 100000)
-    const row = { id, g: 'g' + Math.floor(rnd() * 3), v: nextV() }
+    const row = freshRow()
     if (isArr) S.insert(row)
-    else S['k' + id] = row
+    else S['k' + row.id] = row
   } else if (kind === 'remove' && keysNow.length) {
     const k = pick(keysNow)
     if (isArr) delete S[k]
@@ -192,10 +201,38 @@ function mutate(kind, S, isArr, ctx) {
   } else if (kind === 'bound' && ctx.bound) {
     const lo = Math.floor(rnd() * 50), hi = lo + 10 + Math.floor(rnd() * 50)
     ctx.bound[value] = [lo, hi]
+  } else if (kind === 'slot-undef' && keysNow.length) {
+    // clear a slot/key in place — the documented leave-via-undefined idiom.
+    // Arrays keep their length (a positional hole), objects keep the key.
+    S[pick(keysNow)] = undefined
+  } else if (kind === 'refill') {
+    // write a fresh row back into a previously-cleared slot. For arrays this
+    // is a HOLE FILL (nothing shifted) and must not be emitted as a splice.
+    const holes = isArr
+      ? v.map((_, i) => i).filter((i) => i in v && v[i] === undefined)
+      : Object.keys(v).filter((k) => v[k] === undefined)
+    if (holes.length) S[pick(holes)] = freshRow()
+  } else if (kind === 'row-overwrite' && keysNow.length) {
+    // whole-slot BU1 (data[k] = newRow) — not a nested field edit
+    S[pick(keysNow)] = freshRow()
+  } else if (kind === 'patch-batch' && keysNow.length >= 2) {
+    // batched whole-row overwrites through the patch() built-in: one BU1
+    // carrying multiple pairs, all committed before any sink is notified
+    const k1 = pick(keysNow)
+    let k2 = pick(keysNow)
+    if (k2 === k1) k2 = keysNow[(keysNow.indexOf(k1) + 1) % keysNow.length]
+    S.patch([k1, freshRow(), k2, freshRow()])
+  } else if (kind === 'mid-insert') {
+    // positional insert-at for arrays (BI0A splice mid-array); plain key
+    // insert for objects (no position semantics there)
+    const row = freshRow()
+    if (isArr) S.insert(row, Math.floor(rnd() * (v.length + 1)))
+    else S['k' + row.id] = row
   }
 }
 
-const MUT_KINDS = ['insert', 'remove', 'update-v', 'update-g', 'bound']
+const MUT_KINDS = ['insert', 'remove', 'update-v', 'update-g', 'bound',
+  'slot-undef', 'refill', 'row-overwrite', 'patch-batch', 'mid-insert']
 
 function runScenario(scn, shape, seed) {
   _seed = seed
@@ -228,15 +265,98 @@ function runScenario(scn, shape, seed) {
 }
 
 // The C1 (hole-vs-splice), C3 (chained windowed/array sort) and C12 (set-algebra
-// producers over an ARRAY source) families are all CLOSED — every scenario here,
-// array and object, now matches a from-scratch rebuild. C12's array half was the
-// last to land: intersect/union/except grew array-only BI0A/BR1A handlers that
-// splice their bitmask/view in lockstep with the shifting source (see
-// DECISIONS.md C12 array-half entries). KNOWN_FAILURES is intentionally empty;
-// any listed case that starts PASSING fails the loop below (so a fix must delete
-// it from here), guarding against silent widening — keep it empty unless a NEW
-// gap is being parked with an ISSUES.md entry.
-const KNOWN_FAILURES = new Set([])
+// producers over an ARRAY source) families are all CLOSED under the ORIGINAL
+// mutation vocabulary (tail insert / delete / field edit / bound move). The
+// 2026-06-11 re-examination showed that vocabulary was exactly the corridor the
+// bugs lived outside of, so the harness now also drives: slot-undef (clear in
+// place), refill (write into a cleared slot), row-overwrite (whole-slot BU1),
+// patch-batch (multi-row BU1 via patch()), and mid-insert (positional array
+// insert) — plus the trailing-excluded `lt→…` scenarios (the C13 shape).
+//
+// Every entry below is a real, reproduced bug from the re-examination, parked
+// here while its wave of fixes lands (finding ids in brackets — see the
+// re-examination report). The registry asserts each listed case still FAILS:
+// the moment a fix makes one pass, the loop below errors until the entry is
+// deleted, so this list burns down monotonically and can't silently rot.
+// Target state: empty.
+const KNOWN_FAILURES = new Set([
+  // — core refill-as-splice [1] + RowOperator hole/XU0/undefined guards [9,10] (Waves C/D)
+  'filter [array]',
+  'filter [object]',
+  'gt [array]',
+  'map [array]',
+  'map [object]',
+  'filter→between [array]',
+  'filter→between [object]',
+  'filter→sum [array]',
+  'filter→sum [object]',
+  // — trailing-excluded RowOperator over array, the C13 shape [25] (Wave D)
+  'lt→az (trailing-excluded) [array]',
+  'lt→map (trailing-excluded) [array]',
+  // — sort: undefined-leave ghosts [15], patch-batch bisect [14], limit undefined [16] (Wave E)
+  'az [array]',
+  'az [object]',
+  'az-window→za-window [array]',
+  'az-window→za-window [object]',
+  'az→limit [array]',
+  'az→limit [object]',
+  'filter→az [array]',
+  'filter→az [object]',
+  'filter→za-window→az-window [array]',
+  'filter→za-window→az-window [object]',
+  'za [array]',
+  'za [object]',
+  'za-window [array]',
+  'za-window [object]',
+  'za-window→az-window [array]',
+  'za-window→az-window [object]',
+  'za-window→az-window→map [array]',
+  'za-window→az-window→map [object]',
+  'za-window→distinct [array]',
+  'za-window→distinct [object]',
+  'za-window→filter [array]',
+  'za-window→filter [object]',
+  'za-window→map [array]',
+  'za-window→map [object]',
+  'za-window→za-window [array]',
+  'za-window→za-window [object]',
+  'za→az (unbounded chain) [array]',
+  'za→az (unbounded chain) [object]',
+  'za→limit [array]',
+  'za→limit [object]',
+  // — between over an array source under slot-undef/refill/patch churn [21] (Wave F)
+  'between [array]',
+  'between→avg [array]',
+  'between→az [array]',
+  'between→distinct [array]',
+  'between→filter [array]',
+  'between→group [array]',
+  'between→length [array]',
+  'between→map [array]',
+  'between→sum [array]',
+  'between→za [array]',
+  // — intersect/union/except under the widened churn [22,23,24,27] (Wave F)
+  'except [array]',
+  'except [object]',
+  'intersect [array]',
+  'intersect [object]',
+  'intersect-between [array]',
+  'intersect2 [array]',
+  'intersect2 [object]',
+  'union [array]',
+  'union [object]',
+  // — group/length/keys/values/reverse/reduce3 [28,29,30,31,33] (Wave G)
+  'group [array]',
+  'group [object]',
+  'keys [object]',
+  'length [array]',
+  'length [object]',
+  'length-fn [array]',
+  'length-fn [object]',
+  'reduce3 [array]',
+  'reverse [object]',
+  'values [object]',
+])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {
