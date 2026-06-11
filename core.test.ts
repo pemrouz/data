@@ -588,3 +588,33 @@ test('connect - null delta values flow through record sinks', () => {
     { type: 'update', key: [], value: null },
   ])
 })
+
+// Regression: `typeof null === 'object'` slipped past the auto-vivify guards in
+// BU1/BU2/BI0/BI2, so `$(null).a = 1` threw ('Cannot set properties of null')
+// while $(undefined) and every other primitive root vivified to an object per
+// the transparent-mutation contract. Same gap after a root BECOMES null at
+// runtime (s[value] = null; s.b = 2).
+test('mutation - null roots vivify like every other primitive', () => {
+  const a = $(null)
+  a.x = 1
+  same(a[value], { x: 1 })
+
+  const b = $({ k: 1 })
+  b[value] = null
+  b.k = 2                      // BU1 upsert path on a null backing value
+  same(b[value], { k: 2 })
+
+  const c = $(null)
+  c.patch(['m', 1, 'n', 2])    // batched BU1 on a null root
+  same(c[value], { m: 1, n: 2 })
+
+  const d = $(null)
+  d.insert(5, 'p')             // BI0 path
+  same(d[value], { p: 5 })
+
+  const e = $({ q: 1 })
+  e[value] = null
+  e.r = { s: 1 }
+  e.r.s = 2                    // BU2 deep path after re-vivify
+  same(e[value], { r: { s: 2 } })
+})

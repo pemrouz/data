@@ -394,7 +394,7 @@ export class Value {
   BU1(U1) {
     const NU1 = []
     const NI0 = []
-    if (typeof this.view.value !== 'object') this.view.value = {}
+    if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
       const value = U1[i]
@@ -415,7 +415,7 @@ export class Value {
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
   BU2(U2){
-    if (typeof this.view.value !== 'object') this.view.value = {}
+    if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < U2.length; i++) {
       const key = U2[i++]
       const value = U2[i]
@@ -436,7 +436,7 @@ export class Value {
   // for arrays so insert-at-position carries shift semantics.
   BI0(I0){
     if (isArray(this.view.value)) return this.BI0A(I0)
-    if (typeof this.view.value !== 'object') this.view.value = {}
+    if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < I0.length; i++) {
       const at = I0[i++] ??= ''+$.random(this.view.value)
       const value = I0[i]
@@ -493,7 +493,7 @@ export class Value {
   }
 
   BI2(I2){
-    if (typeof this.view.value !== 'object') this.view.value = {}
+    if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++]
       const value = I2[i++]
