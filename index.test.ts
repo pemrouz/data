@@ -606,43 +606,31 @@ test('update (dir, dir)', () => {
   })
   
   test('todos', () => {
+    // Toggle-a-todo round trip: a `to()` view on a child recomputes on each
+    // change and a connect([]) sink on the same child records the value
+    // stream. (This test was assertion-free console.log debris — it passed
+    // no matter what; it now asserts the behaviour it drives.)
     const states = []
-    const states2 = []
     const items = $({
-        0: { completed: false, title: 'foo' },
-        1: { completed: true, title: 'boo' },
+      0: { completed: false, title: 'foo' },
+      1: { completed: true, title: 'boo' },
     })
     const item = items[0]
-
-    item.completed.connect(states2)
-    item.completed.to(() => {
-      console.log('item.completed changed')
-      states.push(item.completed[value])
-    })
+    const stream = item.completed.connect([])
+    const toView = item.completed.to(() => { states.push(item.completed[value]) })
 
     item.completed = !item.completed[value]
+    same(stream, [
+      { type: 'update', key: [], value: false },
+      { type: 'update', key: [], value: true },
+    ])
+    same(states, [false, true])
+    same(item[value], { completed: true, title: 'foo' })
 
-    // item.completed = true
-    console.log({ states, states2 })
-    console.log({ result: item.completed[value], result2: item[value]?.completed })
-    // const changes1 = res.connect([])
-    // const changes2 = res.a.connect([])
-    // res.a = 10
-    // // console.log("changes1", changes1)
-    // // console.log("changes2", changes2)
-    // // console.log("res[value]", res[value])
-    // // console.log("res.a[value]", res.a[value])
-    // // process.exit()
-    // same(changes1, [
-    //   { type: 'update', key: [], value: {} }
-    // , { type: 'insert', key: [], value: 10, at: 'a' }
-    // ])
-    // same(changes2, [
-    //   { type: 'update', key: [], value: undefined }
-    // , { type: 'update', key: [], value: 10 }
-    // ])
-    // same(res[value], { a: 10 })
-    // same(res.a[value], 10)
+    item.completed = !item.completed[value]
+    same(states, [false, true, false])
+    same(items[value][0].completed, false)
+    same(toView[value], undefined) // the side-effect fn projects to undefined
   })
 
   test('array indexing', () => {

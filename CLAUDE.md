@@ -13,9 +13,12 @@ A small TypeScript reactive data library. `$(value)` wraps a value or array into
 `*.js`; build output goes to `dist/` (gitignored). There are **no committed
 `.js` siblings of `.ts` sources** — that scheme was retired. A handful of
 hand-written `.js` files remain in tree (e.g.
-[render/render.test.js](render/render.test.js),
 [assets/landing.js](assets/landing.js), `examples/crossfilter/flights*.js`)
-because they have no `.ts` counterpart.
+because they have no `.ts` counterpart. (The old `render/render.test.js`
+stub — four empty tests and console noise — was deleted; real render unit
+coverage lives in [render/list.test.ts](render/list.test.ts) and
+[render/devtools_link.test.ts](render/devtools_link.test.ts), plus the
+Playwright specs.)
 
 `tsup` produces eight sub-path entries that line up 1:1 with the `"exports"`
 map in [package.json](package.json):
