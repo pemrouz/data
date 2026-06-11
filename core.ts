@@ -1107,6 +1107,13 @@ export class ViewProxy {
     }
     if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
     if (type === 'last')    return new ViewProxy(p.get_or_create_named(lastKey(p.value)))
+    // JSON.stringify probes `.toJSON` — a callable child view like any other —
+    // and calls it (with the holder's key as the argument). Resolve with the
+    // raw snapshot, same spirit as the thenable guard above: serializing a
+    // proxy is routine state logging and must not throw. A key literally named
+    // 'toJSON' stays readable as data via property access (proxy.toJSON[value]);
+    // only *calling* it is the serialization probe.
+    if (type === 'toJSON') return p.value
     const OperatorClass = Operators[type]?.(...args)
     if (OperatorClass) {
       // Same dedup logic as createOperator, inline because we already have p.
@@ -1124,12 +1131,19 @@ export class ViewProxy {
     if (type === 'remove') return this.view.res.remove(p.key)
     if (type === 'update') return this.view.res.update(value, p.key)
     if (type === 'insert') return this.view.res.insert(value, p.key, at)
-    throw new Error(`Unknown operator '${type}'. ` +
-      `Chainable operators (.filter, .between, .length, etc.) register when you ` +
-      `import from 'data' (the default entry) or 'data/full' (adds JSX). You're ` +
-      `seeing this because the dispatch table is empty — likely an import from ` +
-      `'data/lean' (the registration-free core). Switch to 'data', or register ` +
-      `the operators you need onto the exported 'Operators' table yourself.`)
+    // Two distinct failure modes deserve two diagnoses: an EMPTY table means
+    // the side-effect registration never ran (the data/lean entry), while a
+    // populated table means this particular name isn't an operator (a typo,
+    // or calling a data key as a method).
+    const registered = Object.keys(Operators)
+    throw new Error(`Unknown operator '${type}'. ` + (registered.length === 0
+      ? `The dispatch table is empty — likely an import from 'data/lean' (the ` +
+        `registration-free core). Chainable operators (.filter, .between, ` +
+        `.length, etc.) register when you import from 'data' (the default ` +
+        `entry) or 'data/full' (adds JSX). Switch to 'data', or register the ` +
+        `operators you need onto the exported 'Operators' table yourself.`
+      : `No operator with that name is registered (${registered.length} ` +
+        `operators are: ${registered.sort().join(', ')}).`))
   }
 
   getPrototypeOf(target){

@@ -618,3 +618,27 @@ test('mutation - null roots vivify like every other primitive', () => {
   e.r.s = 2                    // BU2 deep path after re-vivify
   same(e[value], { r: { s: 2 } })
 })
+
+// Regression: JSON.stringify(proxy) used to throw 'Unknown operator toJSON' —
+// stringify probes .toJSON (a callable child view), calls it, and landed in
+// the operator-dispatch fall-through. Serializing state is routine logging;
+// it now resolves with the raw snapshot, like the thenable guard.
+test('JSON.stringify(proxy) serializes the snapshot', () => {
+  same(JSON.stringify($({ a: 1, b: [1, null] })), '{"a":1,"b":[1,null]}')
+  same(JSON.stringify($(5)), '5')
+  same(JSON.stringify({ nested: $({ x: 1 }) }), '{"nested":{"x":1}}')
+  const t = $({ toJSON: 1 })       // a key literally named toJSON stays data
+  same(t.toJSON[value], 1)
+})
+
+// Regression: the unknown-operator error unconditionally claimed "the dispatch
+// table is empty — likely an import from 'data/lean'", even when operators WERE
+// registered (where it misdirected every typo'd name at a nonexistent lean
+// import). core.test.ts runs against the bare core, so the table IS empty here;
+// the populated-table variant is asserted in index.test.ts.
+test('unknown operator - empty-table diagnosis points at data/lean', () => {
+  let e
+  try { $({}).bogus() } catch (err) { e = err }
+  ok(/Unknown operator 'bogus'/.test(e?.message), e?.message)
+  ok(/dispatch table is empty/.test(e?.message), e?.message)
+})

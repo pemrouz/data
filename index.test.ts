@@ -1607,3 +1607,14 @@ test('update (dir, dir)', () => {
   //   }
   //   same(obj_values, [1, 2])
   // })
+// Regression: with operators registered (this file imports the full entry),
+// an unknown name must NOT claim the dispatch table is empty / blame a
+// 'data/lean' import — it should list what IS registered so a typo'd operator
+// (or a data key called as a method) is diagnosable.
+test('unknown operator - populated-table diagnosis lists registered names', () => {
+  let e
+  try { $({}).bogus() } catch (err) { e = err }
+  if (!/Unknown operator 'bogus'/.test(e?.message)) throw e ?? new Error('no throw')
+  if (/dispatch table is empty/.test(e.message)) throw new Error('wrong diagnosis: ' + e.message)
+  if (!/filter/.test(e.message)) throw new Error('expected registered-name list: ' + e.message)
+})
