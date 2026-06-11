@@ -30,8 +30,11 @@ const isObject = v => v.constructor === Object
 // consumer can mutate freely without ever leaking back into the live tree.
 // `d[view] ? d[view].value` short-circuits the structuredClone for nested
 // proxies — those carry the live ref and would throw on clone otherwise.
+// `d == null` (not `=== undefined`): null is ordinary data and must pass
+// through — `null[view]` would throw mid-cascade, aborting fan-out after the
+// backing value was already committed.
 const sclone = d =>
-  d === undefined ? undefined
+  d == null ? d
 : d[view] ? d[view].value
 : structuredClone(d)
 

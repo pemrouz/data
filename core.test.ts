@@ -542,3 +542,49 @@ test('patch - new keys become inserts, existing keys propagate per-path', () => 
     { type: 'update', key: [], value: 30 },
   ])
 })
+
+// Regression: sclone guarded only undefined before dereferencing d[view], so a
+// null delta value — ordinary JSON data — threw TypeError INSIDE the cascade
+// whenever a record-producing sink (connect([]) / connect(obj, fn)) was
+// attached. The backing value was already committed by then, so every sink
+// missed the event and the exception escaped to the innocent mutator.
+test('connect - null delta values flow through record sinks', () => {
+  const res = $({ a: 1 })
+  const changes = res.connect([])
+  const seen = []
+  res.connect({}, c => seen.push(c.value))
+
+  res.b = null            // insert of null
+  res.a = null            // update to null
+  res.c = { d: 1 }
+  res.c.d = null          // nested update to null
+  same(res[value], { a: null, b: null, c: { d: null } })
+  same(changes, [
+    { type: 'update', key: [], value: { a: 1 } },
+    { type: 'insert', key: [], value: null, at: 'b' },
+    { type: 'update', key: ['a'], value: null },
+    { type: 'insert', key: [], value: { d: 1 }, at: 'c' },
+    { type: 'update', key: ['c', 'd'], value: null },
+  ])
+  same(seen, [{ a: 1 }, null, null, { d: 1 }, null]) // first entry = connect-time snapshot
+
+  // array inserts of null take the BI0 path
+  const arr = $([1, 2])
+  const arrChanges = arr.connect([])
+  arr[2] = null
+  same(arr[value], [1, 2, null])
+  same(arrChanges, [
+    { type: 'update', key: [], value: [1, 2] },
+    { type: 'insert', key: [], value: null, at: '2' },
+  ])
+
+  // root replacement to null
+  const root = $({ x: 1 })
+  const rootChanges = root.connect([])
+  root[value] = null
+  same(root[value], null)
+  same(rootChanges, [
+    { type: 'update', key: [], value: { x: 1 } },
+    { type: 'update', key: [], value: null },
+  ])
+})
