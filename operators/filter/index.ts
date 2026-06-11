@@ -4,10 +4,14 @@ import { createOperator } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
 // Walks a key path against a (possibly nested) row. Returns undefined if any
-// segment is missing — `r?.[...]` short-circuits the rest.
+// segment is missing. NB: must not be written as `while (p.length) r = r?.[p.shift()]`
+// — once `r` is nullish, optional chaining short-circuits past the `p.shift()`,
+// `p` never drains, and the loop spins forever.
 function get(k, r){
-  const p = k.concat([])
-  while (p.length) r = r?.[p.shift()]
+  for (const seg of k) {
+    if (r == null) return undefined
+    r = r[seg]
+  }
   return r
 }
 

@@ -107,3 +107,25 @@ test('filter - mid-array positional insert keeps the displaced row (BI0A / C2)',
   ;(src as any).insert({ v: 5 }, 0)         // fails the predicate, splices at 0
   same(f[value].filter((x) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
 })
+
+// Regression: filter(['path','seg'], v) used to INFINITE-LOOP on any row whose
+// nested path hit a nullish intermediate — `r?.[p.shift()]` short-circuits past
+// the shift() once r is nullish, so the path array never drained. A row simply
+// missing an intermediate segment (ordinary data) froze the process at 100% cpu
+// with no error, at construction or inside any later cascade.
+test('filter - nested-path form terminates on missing/null intermediate segments', () => {
+  const res = $({
+    a: { x: { y: 1 } },   // full path present — kept
+    b: { g: 2 },          // x missing — must classify as excluded, not hang
+    c: { x: null },       // null intermediate — same
+    d: null,              // null row — same
+  })
+  const filtered = filter(res, ['x', 'y'], 1)
+  same(filtered[value], { a: { x: { y: 1 } } })
+  res.e = { x: { y: 1 } }                  // mutation cascade walks the path too
+  same(filtered[value], { a: { x: { y: 1 } }, e: { x: { y: 1 } } })
+  res.e = { x: {} }                        // leaves via a now-missing leaf
+  same(filtered[value], { a: { x: { y: 1 } } })
+  // truthy (2-arg) nested form takes the same walker
+  same(filter(res, ['x', 'y'])[value], { a: { x: { y: 1 } } })
+})
