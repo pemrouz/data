@@ -64,11 +64,15 @@ export class FilterObjectValue extends FilterValue {
 }
 
 // `filter('key')` (truthy) and `filter('key', val)` (equality on top-level key).
+// `r?.` (not `r.`): the protocol legitimately hands process() an undefined row —
+// clearing a key (`src.k = undefined` is a BU1 leave) and the sparse-view XU0
+// walk both do — and an unguarded deref threw mid-cascade. The other argument
+// shapes (CompareValue, FilterColumnValue, FilterObjectValue) already guard.
 export class FilterStringValue extends FilterValue {
   constructor(p, name, value) {
     super(p, value === undefined
-      ? r => !!r[name]
-      : r => r[name] === value
+      ? r => !!r?.[name]
+      : r => r?.[name] === value
     )
   }
 }

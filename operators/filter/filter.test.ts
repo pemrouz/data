@@ -129,3 +129,22 @@ test('filter - nested-path form terminates on missing/null intermediate segments
   // truthy (2-arg) nested form takes the same walker
   same(filter(res, ['x', 'y'])[value], { a: { x: { y: 1 } } })
 })
+
+// Regression: filter('key') / filter('key', val) lowered to bare `r[name]`
+// derefs. The protocol legitimately delivers undefined rows to process() —
+// `src.k = undefined` arrives as a BU1 leave, and a sparse view's XU0 walk
+// hands undefined slots through — so both forms threw TypeError mid-cascade
+// while the function / object / nested-path forms (all guarded) survived.
+test('filter - string forms classify an undefined row as a leave, not a crash', () => {
+  const src = $({ a: { on: 1 }, b: { on: 0 } })
+  const truthy = filter(src, 'on')
+  const eq = filter(src, 'on', 1)
+  same(truthy[value], { a: { on: 1 } })
+  same(eq[value], { a: { on: 1 } })
+  src.a = undefined                 // BU1 [a, undefined] — a leave
+  same(truthy[value], {})
+  same(eq[value], {})
+  src.a = { on: 1 }                 // re-enters
+  same(truthy[value], { a: { on: 1 } })
+  same(eq[value], { a: { on: 1 } })
+})
