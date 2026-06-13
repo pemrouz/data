@@ -1634,3 +1634,30 @@ test('array refill of an in-bounds hole — downstream operators stay aligned', 
   a[2] = 3
   same(af[value].filter((x) => x !== undefined), [1, 2, 3])
 })
+
+// Regression (C2): Value.BI0's object branch dedup'd the backing write (skip
+// when value unchanged) but dispatched the ORIGINAL payload, so a duplicate
+// insert at an existing key emitted a phantom BI0 and an insert at an existing
+// key with a NEW value emitted an insert (not an update). Incremental sinks
+// trust the delta stream, so length()/sum() drifted permanently. BI0 now
+// filters no-ops and splits existing-key overwrites into BU1, like BU1 does.
+test('insert dedup - repeated/overwriting insert at a key does not drift aggregates', () => {
+  const s = $({})
+  const len = s.length()
+  const sum = s.sum()
+  const ev = s.connect([])
+  s.insert(7, 'k')
+  s.insert(7, 'k') // no-op: same value
+  s.insert(7, 'k') // no-op
+  same(s[value], { k: 7 })
+  same(len[value], 1)
+  same(sum[value], 7)
+  s.insert(8, 'k') // overwrite -> update, not insert
+  same(s[value], { k: 8 })
+  same(len[value], 1)
+  same(sum[value], 8)
+  same(ev.slice(1), [
+    { type: 'insert', key: [], value: 7, at: 'k' },
+    { type: 'update', key: ['k'], value: 8 },
+  ])
+})

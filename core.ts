@@ -452,13 +452,26 @@ export class Value {
   BI0(I0){
     if (isArray(this.view.value)) return this.BI0A(I0)
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
+    // Filter and classify like BU1 (just above): a no-op insert (same value at
+    // an existing key) emits NOTHING, and an insert at an EXISTING key with a
+    // different value is an overwrite -> BU1 (update), not a phantom BI0. Only
+    // a genuinely new key fans out as BI0. Incremental counting/aggregating
+    // sinks trust the delta stream ("no phantom events" is a core invariant —
+    // DECISIONS C8), so dispatching the raw I0 used to drift length()/sum()
+    // permanently and feed connect([]) duplicate insert records no fold could
+    // reconcile.
+    const NI0 = []
+    const NU1 = []
     for (let i = 0; i < I0.length; i++) {
       const at = I0[i++] ??= ''+$.random(this.view.value)
       const value = I0[i]
-      if (this.view.value?.[at] === value) continue
+      const old = this.view.value?.[at]
+      if (old === value) continue
+      old === undefined ? NI0.push(at, value) : NU1.push(at, value)
       this.view.value[at] = value
     }
-    this.view.BI0(I0)
+    this.view.BU1(NU1)
+    this.view.BI0(NI0)
   }
 
   // BI0A: array insert-at-position. Undefined `at` means "push to end" and
