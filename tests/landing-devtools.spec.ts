@@ -1,44 +1,64 @@
 // @ts-nocheck
-// Smoke test for the devtools section of the landing page. The static
-// mockup at index.html mirrors the live panel's shape — three tabs labelled
-// inspect/events/profile, a Tree/DAG layout segment, a DAG graph pane with
-// →N chips on its nodes, a card stack on the inspector. If the panel's tab
-// names or toolbar shape change, this catches the mockup drifting away.
+// Smoke test for the devtools mount on the landing page.
 //
-// Lives next to the devtools-panel spec because the same memory anchor
-// applies: any panel change that affects the marketing mockup should fail
-// this and force an update.
+// History: this used to assert a STATIC `.dock-mock` marketing mockup mirrored
+// the live panel's shape. The v2 landing redesign (commit e28460e) deleted that
+// mockup and replaced it with a real, lazily-mounted panel — the
+// `#devtools-mount` button dynamically imports `data/devtools` and calls
+// `$.devtools.panel.open()` on the `$` the page already got from `data/full`.
+// So the old mockup-drift assertion was dead; this spec now exercises the
+// actual mount path users hit.
+//
+// That path is the cross-bundle case C6 closed: `feed.js` imports `$` from
+// `data/full` (dist/full.js), the button imports `data/devtools`
+// (dist/devtools/index.js) — two SEPARATE tsup bundles. Before the
+// Symbol.for/globalThis singleton fix, `data/devtools` attached `.devtools` to
+// its own `$`, so `$.devtools?.panel?.open?.()` on the page's `$` silently
+// no-opped and no panel ever appeared. This is the browser-level regression
+// guard for that fix; the panel's internal shape is covered exhaustively by
+// devtools-panel.spec.ts.
 import { test, expect } from '@playwright/test'
 
-test('landing devtools mockup matches the new panel shape', async ({ page }) => {
-  await page.goto('/')
-  await page.waitForSelector('.dock-mock', { timeout: 10_000 })
+// Wait until the panel has fully mounted: shell ref non-null AND its shadow
+// dock exists. Mirrors devtools-panel.spec's waitForPanel.
+const waitForPanel = async (page) => {
+  await page.waitForFunction(async () => {
+    const dt: any = await import('data/devtools')
+    const shell = dt.$?.devtools?.panel?.shell
+    return shell && shell.root && shell.root.querySelector('.dock')
+  }, { timeout: 10_000 })
+}
 
-  const state = await page.evaluate(() => {
-    const dock = document.querySelector('.dock-mock')!
-    const tabs = Array.from(dock.querySelectorAll('.dock-mock-tab')).map((t) => t.textContent?.trim())
-    const layouts = Array.from(dock.querySelectorAll('.dock-mock-seg-btn')).map((b) => b.textContent?.trim())
-    const dagActive = !!dock.querySelector('.dock-mock-seg-btn.dock-mock-seg-active')?.textContent?.includes('DAG')
-    const dnodes = dock.querySelectorAll('.dock-mock-dnode').length
-    const edges = dock.querySelectorAll('.dock-mock-edges path').length
-    const chips = Array.from(dock.querySelectorAll('.dock-mock-chip')).map((c) => c.textContent?.trim())
-    const cardTitles = Array.from(dock.querySelectorAll('.dock-pane-inspect .dock-mock-card-title'))
-      .map((t) => (t.firstChild?.textContent || t.textContent || '').trim())
-    return { tabs, layouts, dagActive, dnodes, edges, chips, cardTitles }
+test('landing page mounts the live devtools panel (cross-bundle C6)', async ({ page }) => {
+  await page.goto('/')
+  // The button is static HTML; clicking it triggers the lazy import + open().
+  await page.click('#devtools-mount')
+  await waitForPanel(page)
+
+  const state = await page.evaluate(async () => {
+    const dt: any = await import('data/devtools')
+    const shell = dt.$.devtools.panel.shell
+    return {
+      // The page's $ (from data/full) and the devtools bundle's $ must be the
+      // same object for .devtools.panel to exist at all — this is the C6 fact.
+      sharedDollar: dt.$ === (globalThis as any)[Symbol.for('data.$')],
+      hostInDom:    !!document.querySelector('.__ripple_panel_host'),
+      shadowClosed: shell.host.shadowRoot === null,
+      brand:        shell.root.querySelector('.brand')?.textContent,
+      layoutBtns:   Array.from(shell.root.querySelectorAll('.seg button')).map((b: any) => b.textContent),
+      tabBtns:      Array.from(shell.root.querySelectorAll('.insp-tabs button')).map((b: any) => b.textContent),
+      status:       document.querySelector('#devtools-status')?.textContent || '',
+    }
   })
 
-  // Tabs must be the three-tab inspector layout — not the legacy
-  // graph/events/profile (no separate Graph tab; the graph is the left pane).
-  expect(state.tabs).toEqual(['inspect', 'events', 'profile'])
-  // Layout segment exists with DAG as default.
-  expect(state.layouts).toEqual(['Tree', 'DAG'])
-  expect(state.dagActive).toBe(true)
-  // Static DAG graph: at least the root + a couple of operator nodes + a
-  // DOM-sink-ish terminal, plus edges between them.
-  expect(state.dnodes).toBeGreaterThanOrEqual(4)
-  expect(state.edges).toBeGreaterThanOrEqual(2)
-  // At least one →N chip on a node.
-  expect(state.chips.some((c) => /^→\d+$/.test(c || ''))).toBe(true)
-  // Inspect tab shows the four canonical cards.
-  expect(state.cardTitles).toEqual(['IDENTITY', 'CURRENT VALUE', 'CONNECTIONS', 'ACTIVITY'])
+  // Mount actually happened (the cross-bundle call resolved, not a silent no-op).
+  expect(state.hostInDom).toBe(true)
+  expect(state.shadowClosed).toBe(true)
+  expect(state.brand).toContain('devtools')
+  // Same panel shape the live-panel spec pins, asserted here against the
+  // landing page's own mount.
+  expect(state.layoutBtns).toEqual(['Tree', 'DAG'])
+  expect(state.tabBtns).toEqual(['inspect', 'events', 'profile'])
+  // The landing button's success wiring ran through.
+  expect(state.status.toLowerCase()).toContain('mounted')
 })
