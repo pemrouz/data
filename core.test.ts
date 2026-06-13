@@ -787,3 +787,17 @@ test('linked value rejects a cycle without poisoning the proxies', () => {
   b[value] = other
   same(b[value], { y: 9 })
 })
+
+// Regression (#56): Symbol.toPrimitive was `(hint) => hint ? toString : +value`,
+// but hint is always one of 'string'|'number'|'default' (all truthy), so the
+// numeric branch was dead — every coercion round-tripped through toString and
+// `+$(aDate)` was NaN. Only 'string' should take the string form.
+test('Symbol.toPrimitive - numeric coercion is numeric, not a string round-trip', () => {
+  const d = new Date('2024-01-01')
+  same(+$(d), d.getTime())       // number hint — was NaN
+  same(+$(5), 5)
+  same($(3) + 4, 7)              // default hint, numeric value -> numeric
+  same(`${$(7)}`, '7')          // string hint -> string
+  same('row:' + $('A'), 'row:A') // default hint, STRING value -> string (not NaN)
+  same(`${$('A')}`, 'A')        // string hint, string value
+})

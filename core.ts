@@ -1172,8 +1172,15 @@ export class ViewProxy {
   }
 
   // Special-cased property reads:
-  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint`
-  //     is "string" | "number" | "default"; truthy hint means string context.
+  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint` is
+  //     "string" | "number" | "default". The old `hint ? toString : +value`
+  //     treated every hint as truthy, so the numeric branch was dead and
+  //     `+$(aDate)` was NaN (string round-trip) instead of the timestamp. Now:
+  //     "number" → numeric (`+value`, the unary `+`/`-` case); "string" →
+  //     toString (`String()`/template); "default" (binary `+`) → the underlying
+  //     primitive AS-IS so the proxy coerces like its value (string concat for a
+  //     string row, numeric for a number, date-string for a Date) — an object
+  //     value falls back to toString since toPrimitive must return a primitive.
   //   Symbol.iterator    — lets `for (const x of proxy)` walk numeric indices.
   //   Symbols.reactive   — branding so foreign code can detect ViewProxies.
   //   Symbols.view       — internal: the underlying View object.
@@ -1181,9 +1188,12 @@ export class ViewProxy {
   //                        a child view named "value" instead — that's the
   //                        canonical gotcha noted in CLAUDE.md.
   get(t, name){
-    if (name === Symbol.toPrimitive) return (hint) => hint
-      ? this.view.value?.toString()
-      : +this.view.value
+    if (name === Symbol.toPrimitive) return (hint) => {
+      const v = this.view.value
+      if (hint === 'number') return +v
+      if (hint === 'string') return v?.toString()
+      return v !== null && typeof v === 'object' ? v.toString() : v   // 'default'
+    }
     if (name === Symbol.iterator) return this.iterator
     if (name === Symbols.reactive) return true
     if (name === Symbols.view) return this.view
