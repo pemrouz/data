@@ -11,6 +11,8 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 | [C14](#c14) | `intersect` over INDEPENDENT **array** sources doesn't admit a tail insert (the echoing source's bit never reaches `all` because siblings don't echo that index) | Correctness | Low | Open (not shipped-reachable; use object-keyed/derived sources) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
+| [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
+| [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
 Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Open (not shipped-reachable)* = real but no shipped example hits it; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
@@ -49,6 +51,17 @@ The incremental `reduce(add, remove, init)` form is O(Δ) on `BI0`/`BR1` (insert
 `distinct` is incremental on `BI0` (O(1) admits/bumps) and `BU2` (bucket migrations) but rebuilds on `BR1`/`BU1`/`XU0`, because the test suite encodes a "first-seen order tracks current source iteration order" semantic that isn't expressible as O(1) edits on remove. Common workloads (insert-heavy ingestion, attribute rewrites) stay incremental — this only bites remove-heavy churn.
 
 - Where: [operators/distinct/index.ts](operators/distinct/index.ts), [operators/distinct/BENCHMARK.md](operators/distinct/BENCHMARK.md).
+
+---
+
+### P7
+**Scalar aggregates / `length(fn)` over an ARRAY source rebuild O(N) on a structural change or membership flip** · Low · Open (correctness over speed)
+
+`AggregateValue` (sum/avg/max/min/some/every) and `LengthFnValue` key their per-row state by POSITION. Over an ARRAY source a structural insert/remove SHIFTS positions, so `BR1`/`BI0` re-sync via a full `XU0` rebuild (the position→value map can't be trusted incrementally) — correct but O(N). A sparse producer's length-stable membership flip (`BH1`/`BF0` from a `between`/`intersect` brush) is length-stable and *could* be an O(1) delta, but these operators deliberately do NOT implement `BH1`/`BF0`: an incremental delta there desynced the running total on a brush (live 121 vs want 55 in the differential harness), because `between`'s hole-flip emission doesn't map 1:1 onto the aggregate's position-keyed delta. So the flip falls back to `BR1`/`BI0` → the O(N) rebuild.
+
+**Why not fixed**: the rebuild is *correct*; an incremental BH1/BF0 was *wrong*. The shipped crossfilter brush is rAF-coalesced, so it pays the rebuild at most once per frame. A correct incremental path would need the producer to emit a clean per-position membership delta the aggregate can trust — a protocol change not worth the risk for a low-severity perf case. Object-keyed aggregates (stable keys) are already fully incremental.
+
+- Where: [operators/aggregate/index.ts](operators/aggregate/index.ts) (`AggregateValue.BR1`/`BI0` array rebuild; no `BH1`/`BF0`), [operators/length/index.ts](operators/length/index.ts) (`LengthFnValue` same).
 
 ---
 
