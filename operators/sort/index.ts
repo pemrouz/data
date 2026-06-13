@@ -174,12 +174,22 @@ export class ZAValue extends Operator {
   //                stream consumers; index-keyed DOM sinks refresh content
   //                positionally and treat the move itself as a no-op).
   BU1(U1){
+    // Multi-pair batch (a patch() of whole-row overwrites): the per-pair path
+    // below splices ONE key out of `sorted` then bisects against the rest — but
+    // p.value already holds the NEW value of EVERY pair, so the other not-yet-
+    // processed batch keys sit in `sorted` at their OLD ranks reading their NEW
+    // values: a non-monotonic array, and the bisect returns a wrong rank
+    // (silent, permanent mis-order). Reconcile the whole batch at once instead.
+    if (U1.length > 2) return this._batchUpdate(U1)
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
       const value = U1[i]
       const { n, p, sorted } = this
       let oidx = this.get_index(name)
-      if (oidx === -1) { this.BI0([name, value]); continue }
+      if (oidx === -1) {
+        if (value === undefined) continue   // leave of an already-absent row: nothing
+        this.BI0([name, value]); continue
+      }
 
       // Splice out *before* bisecting: by the time BU1 fires, p.value[name]
       // already holds the new sort value, so leaving `name` in `sorted`
@@ -189,6 +199,16 @@ export class ZAValue extends Operator {
       // increases that get classified as "no change" (oidx === nidx) and
       // leave the row at its old rank.
       sorted.splice(oidx, 1)
+      // value === undefined is a LEAVE (`src.k = undefined` — the documented
+      // leave idiom): the row is no longer a sortable member, so drop it from
+      // `sorted` and reconcile WITHOUT re-ranking (bisecting col(undefined)
+      // would re-insert a ghost — at the tail for za, at rank 0 for az, where
+      // it evicts a real windowed row).
+      if (value === undefined) {
+        if (n === Infinity) super.BR1A([oidx])
+        else if (oidx < n) this._window()
+        continue
+      }
       let nidx = this.find(this.col(this.p.value[name]))
       sorted.splice(nidx, 0, '' + name)   // keep sorted string-keyed (chained sort sends numbers)
       // No rank change: only forward the value update if the row is in the
@@ -291,6 +311,32 @@ export class ZAValue extends Operator {
       if (this.view.value[i] !== row) { this.view.value[i] = row; NU1.push('' + i, row) }
     }
     if (NU1.length) this.view.BU1(NU1)
+  }
+
+  // Re-rank a multi-pair BU1 batch (a patch of whole-row overwrites) soundly.
+  // Removing EVERY updated key from `sorted` up front leaves only unchanged
+  // keys, which are still monotonic, so each subsequent bisect against the
+  // remainder is correct (and stays correct as we splice each batch key back in
+  // at its rank — incremental insertion into a sorted array preserves order).
+  // Doing it pair-by-pair instead bisects against the other batch keys' stale
+  // ranks (their p.value is already updated) — the non-monotonic mis-order.
+  // Handles new keys (not yet in `sorted` -> just inserted at rank) and leaves
+  // (value === undefined -> removed, never re-inserted) uniformly. Array sources
+  // need no index shift here: a batch BU1 only ever carries existing-index value
+  // changes (core routes new/refilled array slots through BI0A/BF0, not BU1).
+  _batchUpdate(U1){
+    for (let i = 0; i < U1.length; i += 2) {
+      const oidx = this.get_index(U1[i])
+      if (oidx !== -1) this.sorted.splice(oidx, 1)   // monotonic remainder
+    }
+    for (let i = 0; i < U1.length; i += 2) {
+      const name = '' + U1[i]
+      const val = U1[i + 1]
+      if (val === undefined) continue                // leave: stays out of `sorted`
+      const nidx = this.find(this.col(this.p.value[name]))
+      this.sorted.splice(nidx, 0, name)
+    }
+    this._window()
   }
 
   // Reconcile the materialized window against the current `sorted` order with

@@ -460,3 +460,45 @@ test('sort - over a sparse (explicit-undefined) source skips excluded slots', ()
   bounds[value] = [4, 10]
   same(desc[value], [{ r: 9 }, { r: 7 }, { r: 5 }])
 })
+
+// Regression (E1 / #14): a patch() of multiple whole-row overwrites used to
+// mis-order za/az permanently — Value.BU1 commits ALL pairs before notifying,
+// so the per-pair bisect read the other batch keys' NEW values at their OLD
+// ranks (a non-monotonic array). A multi-pair BU1 now reconciles the whole
+// batch (remove all updated keys from `sorted`, then re-rank against the
+// monotonic remainder).
+test('za/az - patch of multiple overwrites re-ranks correctly', () => {
+  const src = $({ T: { v: 1000 }, B: { v: 998 }, A: { v: 900 }, C: { v: 800 } })
+  const za = sort(src, 'v')
+  src.patch(['A', { v: 1002 }, 'B', { v: 1004 }])
+  same(za[value].map((r) => r.v), [1004, 1002, 1000, 800])
+
+  const src2 = $({ T: { v: 1000 }, B: { v: 998 }, A: { v: 900 }, C: { v: 800 } })
+  const win = sort(src2, 'v', 2) // bounded window
+  src2.patch(['A', { v: 1002 }, 'B', { v: 1004 }])
+  same(win[value].map((r) => r.v), [1004, 1002])
+
+  const src3 = $({ a: { v: 1 }, b: { v: 2 }, c: { v: 3 } })
+  const az = createOperator(src3, AZColumnValue, 'v')
+  src3.patch(['a', { v: 10 }, 'c', { v: 0 }]) // a jumps up, c drops to bottom
+  same(az[value].map((r) => r.v), [0, 2, 10])
+})
+
+// Regression (E1 / #15): setting a row to undefined (the documented leave idiom)
+// used to leave a GHOST in `sorted` and the output — za kept a trailing
+// undefined, az inserted it at rank 0 and evicted a real windowed row. A
+// value===undefined pair is now treated as a leave (dropped, not re-ranked).
+test('za/az - setting a row to undefined leaves cleanly (no ghost)', () => {
+  const s1 = $({ a: { v: 10 }, b: { v: 20 }, c: { v: 30 }, d: { v: 40 } })
+  const win = createOperator(s1, AZColumnValue, 'v', 2)
+  same(win[value].map((r) => r.v), [10, 20])
+  s1.c = undefined
+  same(win[value].filter((x) => x !== undefined).map((r) => r.v), [10, 20])
+  same(win[value].length, 2) // no ghost slot
+
+  const s2 = $({ a: { v: 1 }, b: { v: 2 }, c: { v: 3 } })
+  const za = sort(s2, 'v')
+  s2.b = undefined
+  same(za[value].filter((x) => x !== undefined).map((r) => r.v), [3, 1])
+  same(za[value].length, 2)
+})
