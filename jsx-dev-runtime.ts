@@ -6,3 +6,6 @@
 // debugging metadata (source location, key checks). If a consumer wants
 // those, the production runtime is identical and equally functional.
 export { jsxDEV, Fragment } from './jsx/index.ts'
+// The dev runtime must export the same JSX namespace as jsx-runtime so
+// `jsxImportSource: "data"` resolves IntrinsicElements in dev mode too.
+export { JSX } from './jsx-runtime.ts'
