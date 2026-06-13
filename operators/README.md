@@ -19,14 +19,23 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 | Operator | What it does | Reactive args | Dedup |
 |---|---|---|---|
 | [filter](filter/) | rows matching a predicate (function, key/value, key path, or shape) | — | — |
-| [between](between/) | rows where a column falls in `[lo, hi]`; bounds may be reactive | bounds | column + range |
+| [between](between/) | rows where a column falls in `[lo, hi]`; bounds may be reactive | bounds | column + bound source |
 | [gt / lt / gte / lte](compare/) | rows where a column compares against a literal threshold; RowOperator-based, O(1) per tick | — | column + value |
-| [sort](sort/) — `za` / `az` / `top` / `limit` | sort descending / ascending / limit (no sort) | — | column + n |
-| [length](length/) | scalar row count, or `{[key]: count}` grouped by a function | — | — |
-| [intersect](intersect/) | rows present in source AND every additional view passed | sources | — |
-| [group](group/) | nest rows under keys returned by a function | — | — |
+| [sort](sort/) — `za` / `az` / `top` / `limit` | sort descending / ascending / windowed top-K (no re-sort) | — | column + n (all forms) |
+| [length](length/) | scalar row count, or `{[key]: {value: count}}` grouped by a function | — | — |
+| [sum / avg / max / min](aggregate/) | scalar aggregate over a column (or row values); empty set → `undefined` | — | column |
+| [some / every](aggregate/) | scalar boolean — does any / every row match a predicate | — | predicate |
+| [intersect](intersect/) | rows present in source AND every additional view (variadic, or a dims object) | sources | sources / `(dims, key)` |
+| [union](union/) | rows present in ANY source (value from the first source holding it) | sources | — |
+| [except](except/) | rows in source but not in `other` | other | — |
+| [group](group/) | nest rows under keys returned by a function (prunes emptied groups) | — | — |
+| [distinct](distinct/) | first-seen unique rows, by an optional projection | — | projection + init |
 | [map](map/) | per-row transform | — | — |
 | [to](to/) | whole-value transform; emits only on change | — | — |
+| [reduce](reduce/) | fold — `reduce(fn, init)` (rebuild) or `reduce(add, remove, init)` (incremental) | — | add + remove + init |
+| [tap](tap/) | passthrough side effect — `fn(change)` per row, or `fn()` once per emit | — | — |
+| [keys / values](keys/) | current `Object.keys` / `Object.values` as a reactive array | — | — |
+| [reverse](reverse/) | array order flipped | — | — |
 
 **Reactive args** — operators marked here accept other `ViewProxy`s as arguments and re-fire when those inputs change. Plain values are captured once.
 
