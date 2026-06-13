@@ -51,7 +51,16 @@ export class ReduceValue extends Operator {
   matches(fn, init) { return this.fn === fn && this.init === init }
 
   _rebuild() {
-    let acc = this.init
+    // Start each rebuild from a FRESH copy of init. The documented 2-arg use
+    // case is "object merging" — `reduce((acc,row)=>{acc.k=…; return acc}, {})`
+    // — which MUTATES the accumulator. Reusing the same init object across
+    // rebuilds accumulated contributions (3 -> 9 -> 24 instead of 3 -> 6 -> 15),
+    // and since view.value WAS that same object the publish gate
+    // `acc !== view.value` was permanently false (sinks never updated). Cloning
+    // a mutable init per rebuild fixes both: a fresh acc each time, distinct from
+    // view.value so the gate fires. Primitive inits (the immutable `(a,r)=>a+r`
+    // fold) pass through unchanged and still dedup by value.
+    let acc = this.init && typeof this.init === 'object' ? structuredClone(this.init) : this.init
     const v = this.p.value
     if (v && typeof v === 'object') {
       iter(v, (k, row) => {

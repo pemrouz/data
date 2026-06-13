@@ -249,3 +249,22 @@ test('reduce.incremental - dedup on (add, remove, init) identity', () => {
   eq(r1[value], 6)
   eq(r2[value], 6)
 })
+
+// Regression (#32): the 2-arg reduce(fn, init) reused the SAME init object on
+// every rebuild, so the documented object-merging idiom (mutate + return acc)
+// accumulated across rebuilds (3 -> 9 -> 24 instead of 3 -> 6 -> 15) AND the
+// publish gate `acc !== view.value` was permanently false (acc WAS view.value),
+// so sinks never updated. A mutable init is now cloned per rebuild.
+test('reduce (2-arg) - mutable object init does not accumulate across rebuilds', () => {
+  const src = $({ a: 1, b: 2 })
+  const r = reduce(src, (acc, row) => { acc.total = (acc.total || 0) + row; return acc }, {})
+  const ev = r.connect([])
+  same(r[value], { total: 3 })
+  src.c = 3
+  same(r[value], { total: 6 })          // was 9
+  src.a = 10
+  same(r[value], { total: 15 })         // was 24
+  eq(ev.length > 1, true)               // sinks DO receive updates now
+  // primitive immutable fold unaffected
+  eq(reduce($({ a: 1, b: 2 }), (a, x) => a + x, 0)[value], 3)
+})
