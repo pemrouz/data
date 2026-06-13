@@ -13,11 +13,11 @@ $(value)
               └─ Operator (extends Value)  — derived data (filter, sort, …)
 ```
 
-- `$` constructs a `ViewProxy` over a fresh `View`. If you pass another `ViewProxy`, it produces a `LinkedView` instead (`View.value` factory, [core.ts:657](../core.ts#L657); `LinkedView` class [core.ts:983](../core.ts#L983)).
-- `Value` ([core.ts:60](../core.ts#L60)) holds the data and exposes mutation entrypoints (`update`, `insert`, `remove`) which dispatch to the appropriate notification method based on key-path length.
-- `Operator extends Value` ([core.ts:233](../core.ts#L233)). Operators *also* receive notifications (as sinks of their parent) and *emit* notifications (as the source of their own view's sinks).
-- `View` ([core.ts:235](../core.ts#L235)) tracks the parent `View` (`p`), the path key from root (`key`), child views (`views: Map<name, WeakRef<View>>`), and subscribers (`sinks: Set<WeakRef<Sink>>`).
-- `ViewProxy` ([core.ts:531](../core.ts#L531)) translates JS proxy traps into `Value` mutations:
+- `$` constructs a `ViewProxy` over a fresh `View`. If you pass another `ViewProxy`, it produces a `LinkedView` instead (`View.value` factory, [core.ts](../core.ts); `LinkedView` class [core.ts](../core.ts)).
+- `Value` ([core.ts](../core.ts)) holds the data and exposes mutation entrypoints (`update`, `insert`, `remove`) which dispatch to the appropriate notification method based on key-path length.
+- `Operator extends Value` ([core.ts](../core.ts)). Operators *also* receive notifications (as sinks of their parent) and *emit* notifications (as the source of their own view's sinks).
+- `View` ([core.ts](../core.ts)) tracks the parent `View` (`p`), the path key from root (`key`), child views (`views: Map<name, WeakRef<View>>`), and subscribers (`sinks: Set<WeakRef<Sink>>`).
+- `ViewProxy` ([core.ts](../core.ts)) translates JS proxy traps into `Value` mutations:
   - `proxy.x = v` → `res.update(v, [...key, 'x'])`.
   - `delete proxy.x` → `res.remove([...key, 'x'])`.
   - `proxy.x` → returns a child `ViewProxy` lazily (creates child `View` on demand).
@@ -26,7 +26,7 @@ $(value)
 
 ## Symbols
 
-Defined at [core.ts:4-6](../core.ts#L4-L6):
+Defined at [core.ts](../core.ts):
 
 - `value` — accessor for the raw underlying data. Use `proxy[value]`, not `proxy.value`.
 - `view` — accessor for the underlying `View` object. Used internally and by `LinkedView`.
@@ -42,58 +42,59 @@ Internal method names on `Value` / `View` / `Sink` follow this scheme:
 | `B` = on a branch (with key info) | `I` = insert | `1` = single name |
 |  | `R` = remove | `2` = full key path (depth ≥ 2) |
 
-The full set actually used: **`XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `BR2`**, the array-aware **`BR1A`/`BI0A`** (splice-shift), and the positional-stable **`BH1`/`BF0`** (hole). There is no `BU0`/`BR0`/`BI1` — those collapse to `XU0`/`XR0` and `BI0`.
+The full set actually used: **`XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `BR2`**, the array-aware **`BR1A`/`BI0A`** (splice-shift), the positional-stable **`BH1`/`BF0`** (hole), and **`BMV1`** (depth-1 move). There is no `BU0`/`BR0`/`BI1` — those collapse to `XU0`/`XR0` and `BI0`.
 
 | Code | Meaning | Payload shape | Dispatched by |
 |---|---|---|---|
-| `XU0(value)` | root value replaced | scalar value | `Value.update([])` ([core.ts:142](../core.ts#L142)) |
-| `XR0(value)` | root removed | prior value | `Value.remove([])` ([core.ts:85](../core.ts#L85)) |
-| `BU1(U1)` | one or more children updated | `[name, value, name, value, …]` | `Value.update([k])` ([core.ts:148](../core.ts#L148)) |
-| `BU2(U2)` | nested updates | `[keyPath, value, …]` | `Value.update(path)` where `path.length ≥ 2` ([core.ts:165](../core.ts#L165)) |
-| `BI0(I0)` | inserts at this level | `[at, value, at, value, …]` (at may be undefined → auto-key) | `Value.insert([])` ([core.ts:182](../core.ts#L182)) |
+| `XU0(value)` | root value replaced | scalar value | `Value.update([])` ([core.ts](../core.ts)) |
+| `XR0(value)` | root removed | prior value | `Value.remove([])` ([core.ts](../core.ts)) |
+| `BU1(U1)` | one or more children updated | `[name, value, name, value, …]` | `Value.update([k])` ([core.ts](../core.ts)) |
+| `BU2(U2)` | nested updates | `[keyPath, value, …]` | `Value.update(path)` where `path.length ≥ 2` ([core.ts](../core.ts)) |
+| `BI0(I0)` | inserts at this level | `[at, value, at, value, …]` (at may be undefined → auto-key) | `Value.insert([])` ([core.ts](../core.ts)) |
 | `BI0A(I0)` | **array** insert at a position — survivors shift up | `[at, value, …]` | `View.BI0A`; `RowOperator.BI0A` mirrors it |
-| `BI2(I2)` | inserts at nested path | `[keyPath, value, at, …]` | `Value.insert(path)` ([core.ts:206](../core.ts#L206)) |
-| `BR1(R1)` | child removals | `[name, value, …]` | `Value.remove([k])` ([core.ts:104](../core.ts#L104)) |
+| `BI2(I2)` | inserts at nested path | `[keyPath, value, at, …]` | `Value.insert(path)` ([core.ts](../core.ts)) |
+| `BR1(R1)` | child removals | `[name, value, …]` | `Value.remove([k])` ([core.ts](../core.ts)) |
 | `BR1A(R1)` | **array** removal at a position — survivors shift down | `[name, value, …]` | `View.BR1` → `sink.BR1A` |
-| `BR2(R2)` | nested removals | `[keyPath, value, …]` | `Value.remove(path)` ([core.ts:118](../core.ts#L118)) |
+| `BR2(R2)` | nested removals | `[keyPath, value, …]` | `Value.remove(path)` ([core.ts](../core.ts)) |
 | `BH1(R1)` | **hole** remove — a sparse producer over an array marked a slot `undefined`; length stable, **no shift** | `[name, value, …]` | `View.BH1`; falls back to `sink.BR1` |
 | `BF0(I0)` | **hole** fill — a sparse producer re-admitted a row into a held position; length stable, **no shift** | `[name, value, …]` | `View.BF0`; falls back to `sink.BI0` |
+| `BMV1(M1)` | depth-1 **move** — an in-window rank rotation in a bounded sort | `[from, to, …]` (numeric positions) | `Value.BMV1`/`View.BMV1`; falls back to per-position `sink.BU1`; `ArrSink`/`FunctionSink` emit `{type:'move', from, to}` |
 
 **`BR1A`/`BI0A` (splice) vs `BH1`/`BF0` (hole)** is the array contract's central distinction. A plain array `delete`/`insert` SHIFTS survivors (splice → `BR1A`/`BI0A`); a sparse producer (`between`/`intersect`/`union`/`except`) over an array keeps the length stable and only marks the slot `undefined` (hole → `BH1`/`BF0`) so sibling sources stay index-aligned. Positional sinks (`RowOperator`, `between`-as-consumer, `group`, **sort (`ZAValue`/`AZValue`)**) implement both; the **`DOMSink`** implements `BH1`/`BF0` (index-keyed `_remove_at`/`_create_at`) so a sparse producer can be bound straight to a row template — see [../ISSUES.md](../ISSUES.md)→DECISIONS C4; position-agnostic sinks (aggregates, `length`) implement neither and take the `BR1`/`BI0` fallback (they just drop/add the row, which is correct). This is what makes array-source sparse chains (`between(arr).filter(…)`, `filter(arr).between(…)`) correct — see [../ISSUES.md](../ISSUES.md) C1. `RowOperator.loop` also **emits** `BH1`/`BF0` (not `BR1`/`BI0`) when a predicate op (`filter`/`gt`/`lt`/…) flips a row's membership over an **array** source — the flip fills/holes a slot in place, so a downstream windowed sort mirrors the hole instead of shift-splicing every later row (the `filter→windowed-sort` desync; see ISSUES.md C3).
 
-Inside operator code you'll see local arrays named `NU1` / `NI0` / `NR1` (e.g. [row.ts:9](../row.ts#L9), [core.ts:148-163](../core.ts#L148-L163)). These are **accumulator buffers** ("New U1 list") collected during a single mutation, then passed to `view.BU1(NU1)`, `view.BI0(NI0)`, etc. They are not separate notification methods.
+Inside operator code you'll see local arrays named `NU1` / `NI0` / `NR1` (e.g. [row.ts](../row.ts), [core.ts](../core.ts)). These are **accumulator buffers** ("New U1 list") collected during a single mutation, then passed to `view.BU1(NU1)`, `view.BI0(NI0)`, etc. They are not separate notification methods.
 
 ### Propagation (View)
 
-`View` re-publishes notifications down to children and sinks ([core.ts:262-364](../core.ts#L262-L364)). Each method:
+`View` re-publishes notifications down to children and sinks ([core.ts](../core.ts)). Each method:
 
 1. Updates its local `value` cache from the parent's value (if it has a parent).
 2. Walks affected children and recursively calls their corresponding notification (e.g. `BU1` calls each child's `XU0`).
 3. Iterates sinks and calls the matching method on each.
 
-Special case: when an array's children change (insert/remove), `V1(offset)` ([core.ts:366-371](../core.ts#L366-L371)) re-fires `XU0` on every child view at index ≥ offset, since their underlying data has shifted.
+Special case: when an array's children change (insert/remove), `V1(offset)` ([core.ts](../core.ts)) re-fires `XU0` on every child view at index ≥ offset, since their underlying data has shifted.
 
 ### Sink contract
 
-Sinks live on `View.sinks` as `WeakRef<Sink>`. They must implement the notification methods that interest them. The four built-in sinks ([core.ts:462-529](../core.ts#L462-L529)):
+Sinks live on `View.sinks` as `WeakRef<Sink>`. They must implement the notification methods that interest them. The four built-in sinks ([core.ts](../core.ts)):
 
 | Sink | Purpose | Used by |
 |---|---|---|
 | `ArrSink` | Pushes change events into a JS array | Tests via `proxy.connect([])` |
-| `PropSink` | Mirrors value to `obj[prop]` | `proxy.connect(obj, 'name')`; `lifetimes` WeakMap holds the sink alive as long as `obj` is alive ([core.ts:491-503](../core.ts#L491-L503)) |
+| `PropSink` | Mirrors value to `obj[prop]` | `proxy.connect(obj, 'name')`; `lifetimes` WeakMap holds the sink alive as long as `obj` is alive ([core.ts](../core.ts)) |
 | `FunctionSink` | Calls `fn(change)` per event | `proxy.connect(obj, fn)` |
-| `LinkedView` | Forwards updates to a different `View` | Created by passing a proxy to `$` (`const b = $(a)`), NOT by `a[value] = b` (which throws). `linked[value] = otherProxy` re-points an existing link; a cyclic re-point throws — see [core.ts:983](../core.ts#L983) |
+| `LinkedView` | Forwards updates to a different `View` | Created by passing a proxy to `$` (`const b = $(a)`), NOT by `a[value] = b` (which throws). `linked[value] = otherProxy` re-points an existing link; a cyclic re-point throws — see [core.ts](../core.ts) |
 
 External sinks (e.g. `DOMSink` from [render/index.ts:11](../render/index.ts#L11)) follow the same contract — they only need the methods they care about.
 
 ## RowOperator contract
 
-[row.ts:5](../row.ts#L5). Base class for operators that process each row independently (filter, map, length-by-fn).
+[row.ts](../row.ts). Base class for operators that process each row independently (filter, map, length-by-fn).
 
 - Override `process(value, name, old_val) → newValue | undefined`. Returning `undefined` excludes the row.
-- `XU0` ([row.ts:25-33](../row.ts#L25-L33)) initializes the operator's value by mapping every row through `process`.
-- `loop(C, inc, inner)` ([row.ts:8-23](../row.ts#L8-L23)) is the main update path: walks the incoming notification array, calls `process` per row, classifies each row as update/insert/remove based on whether old and new values are defined, accumulates `NU1`/`NI0`/`NR1`, and emits them via `view.BU1` / `view.BI0` / `view.BR1`.
-- `BU1`, `BU2`, `BI0`, `BI2`, `BR2` all delegate to `loop` with different `inc` and `inner` flags. Only `BR1` ([row.ts:40-51](../row.ts#L40-L51)) is special-cased because removals don't re-run `process`.
+- `XU0` ([row.ts](../row.ts)) initializes the operator's value by mapping every row through `process`.
+- `loop(C, inc, inner)` ([row.ts](../row.ts)) is the main update path: walks the incoming notification array, calls `process` per row, classifies each row as update/insert/remove based on whether old and new values are defined, accumulates `NU1`/`NI0`/`NR1`, and emits them via `view.BU1` / `view.BI0` / `view.BR1`.
+- `BU1`, `BU2`, `BI0`, `BI2`, `BR2` all delegate to `loop` with different `inc` and `inner` flags. Only `BR1` ([row.ts](../row.ts)) is special-cased because removals don't re-run `process`.
 
 Note that `RowOperator` always emits at the `BU1`/`BI0`/`BR1` level — it flattens nested updates into a single child-level notification. This is why row operators yield an object/array of rows, not a tree.
 
@@ -112,19 +113,20 @@ When you add a new operator that maintains its own array-shape state, follow the
 
 ## Operator dedup
 
-`createOperator` ([core.ts:20-28](../core.ts#L20-L28)) walks the source view's sinks, looks for an existing instance of the same operator class whose `matches(...args)` returns truthy, and reuses it. The same dedup logic also runs inside `ViewProxy.apply` ([core.ts:563-583](../core.ts#L563-L583)) when an operator is invoked via `proxy.<op>()`.
+`createOperator` ([core.ts](../core.ts), `createOperator`) walks the source view's sinks, looks for an existing instance of the same operator class whose `matches(...args)` returns truthy, and reuses it. The same dedup logic also runs inside `ViewProxy.apply` ([core.ts](../core.ts)) when an operator is invoked via `proxy.<op>()`.
 
-Dedup is opt-in: an operator only participates if it defines `matches`. Currently:
+Dedup is opt-in: an operator only participates if it defines `matches`. The implementers are:
 
-- [operators/between/index.ts:6](../operators/between/index.ts#L6) — matches on column + range.
-- [operators/sort/index.ts:6](../operators/sort/index.ts#L6) — `matches(col, n) { return this.col_name == col && this.n == n }`.
-- All others (`filter`, `map`, `length`, `intersect`, `group`, `to`) currently have no `matches`, so they create a fresh operator on every call. If you add `matches` to one, also confirm it doesn't break tests that rely on per-call freshness.
+- `between` ([operators/between/index.ts](../operators/between/index.ts)) — column + bound-SOURCE identity (a reactive single-VP extent / reactive tuple bounds match by the bound view's identity, plain numeric bounds by value).
+- `za`/`az`/`top` ([operators/sort/index.ts](../operators/sort/index.ts)) — ALL forms: column (`za('col')`/`za('col', n)`) on `ZAValue`/`AZValue.matches`, numeric (`top(n)`/`za(n)`) on `ZANumberValue`/`AZNumberValue.matches`.
+- `gt`/`lt`/`gte`/`lte` ([operators/compare/index.ts](../operators/compare/index.ts)), `intersect` ([operators/intersect/index.ts](../operators/intersect/index.ts)), the scalar aggregates `sum`/`avg`/`max`/`min`/`some`/`every` ([operators/aggregate/index.ts](../operators/aggregate/index.ts)), `distinct` ([operators/distinct/index.ts](../operators/distinct/index.ts)), and `reduce` ([operators/reduce/index.ts](../operators/reduce/index.ts)).
+- `filter`, `map`, `length`, `group`, `to`, `tap`, `union`, `except`, `keys`, `values`, `reverse` have no `matches`, so they create a fresh operator on every call. If you add `matches` to one, confirm it doesn't break tests that rely on per-call freshness.
 
 An operator's lifetime is tied to *some* downstream `WeakRef` keeping it alive; if all downstream proxies are dropped, the operator gets GC'd and a fresh one is built next time.
 
 ## WeakRef sink cleanup
 
-Sinks are stored as `WeakRef`. Iteration happens in `View.sink` ([core.ts:382-388](../core.ts#L382-L388)), `View.some_sink` ([core.ts:373-380](../core.ts#L373-L380)), and `View.each` ([core.ts:390-396](../core.ts#L390-L396)). Each iteration:
+Sinks are stored as `WeakRef`. Iteration happens in `View.sink` ([core.ts](../core.ts)), `View.some_sink` ([core.ts](../core.ts)), and `View.each` ([core.ts](../core.ts)). Each iteration:
 
 1. `deref()` the WeakRef.
 2. If `undefined` (collected), delete the entry from the set/map and continue.
@@ -133,7 +135,7 @@ Sinks are stored as `WeakRef`. Iteration happens in `View.sink` ([core.ts:382-38
 Practical implications:
 
 - A test that does `proxy.connect([])` *must* keep the returned array bound to a local — once it goes out of scope, the `ArrSink`'s only strong reference is gone and the next GC will silently unsubscribe it.
-- `PropSink` extends its lifetime by registering itself in the `lifetimes: WeakMap<obj, Set<sink>>` map ([core.ts:491-503](../core.ts#L491-L503)) — so the sink lives as long as the *target object* does, not the user's reference to the sink.
+- `PropSink` extends its lifetime by registering itself in the `lifetimes: WeakMap<obj, Set<sink>>` map ([core.ts](../core.ts)) — so the sink lives as long as the *target object* does, not the user's reference to the sink.
 
 ## Devtools hooks (internal)
 
@@ -161,7 +163,7 @@ Recent commits in `git log`:
 
 - `perf: incremental LimitValue with large-batch fallback` ([operators/sort/index.ts:169](../operators/sort/index.ts#L169)) — `LimitValue` has both an incremental path and a batch fallback. Touch with care.
 - `perf: rAF-coalesce brush input in crossfilter example` — `examples/crossfilter/` coalesces brush events via `requestAnimationFrame`. Don't re-introduce a synchronous path.
-- `fix(core): propagate path-updates through LinkedView child views` — `LinkedView` (extends `View`, [core.ts:983](../core.ts#L983)) had a propagation bug; check the `proxy/link` tests in [core.test.ts](../core.test.ts) before changing it.
+- `fix(core): propagate path-updates through LinkedView child views` — `LinkedView` (extends `View`, [core.ts](../core.ts)) had a propagation bug; check the `proxy/link` tests in [core.test.ts](../core.test.ts) before changing it.
 - `perf: skip empty-batch notifications in intersect/between/length` — multiple operators short-circuit on empty `U1`/`I0`/`R1` arrays. Preserve those guards.
 
 ## When updating this file
