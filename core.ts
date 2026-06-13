@@ -131,6 +131,13 @@ $.random = (o) => crypto.randomUUID() as string | number
 // panel filters these out of the user-facing graph view.
 export const _devtoolsRoots = new Set<WeakRef<View>>()
 export const _devtoolsInternalRoots = new WeakSet<View>()
+// Remove a root's WeakRef wrapper from the Set the moment its target is GC'd,
+// so the registry stays bounded to LIVE roots even in a non-devtools app (which
+// never iterates it to lazily prune). Without this, every $() permanently
+// leaked a wrapper + Set entry.
+const _rootFinalizer = typeof FinalizationRegistry !== 'undefined'
+  ? new FinalizationRegistry((ref: WeakRef<View>) => _devtoolsRoots.delete(ref))
+  : undefined
 
 // Operator dedup: if a sink with the same class + matching args is already
 // attached to this source, reuse it instead of building a parallel pipeline.
@@ -660,7 +667,11 @@ export class View {
     } else {
       const res = new Value
       res.XU0(value)
-      _devtoolsRoots.add(new WeakRef(res.view))
+      const ref = new WeakRef(res.view)
+      _devtoolsRoots.add(ref)
+      // Drop the wrapper from the registry when the root is collected (the
+      // devtools layer's lazy deref-sweep only runs if devtools is imported).
+      _rootFinalizer?.register(res.view, ref)
       return res.view
     }
   }

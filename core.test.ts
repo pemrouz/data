@@ -801,3 +801,15 @@ test('Symbol.toPrimitive - numeric coercion is numeric, not a string round-trip'
   same('row:' + $('A'), 'row:A') // default hint, STRING value -> string (not NaN)
   same(`${$('A')}`, 'A')        // string hint, string value
 })
+
+// Regression (#50): every $() root registered a WeakRef in the module-global
+// _devtoolsRoots, pruned only when the devtools layer iterates it — so a
+// non-devtools app leaked a wrapper + Set entry per root forever. A
+// FinalizationRegistry now removes each wrapper when its root is GC'd, keeping
+// the registry bounded to live roots. (Run under --expose-gc.)
+test('_devtoolsRoots stays bounded as transient roots are collected', { skip: typeof global.gc !== 'function' ? 'needs --expose-gc' : false }, async () => {
+  for (let i = 0; i < 20000; i++) { const r = $({ n: i }); void r.n }
+  global.gc(); await new Promise((r) => setTimeout(r, 10)); global.gc()
+  await new Promise((r) => setTimeout(r, 30))
+  ok(_devtoolsRoots.size < 1000, `expected the registry to shrink after GC, got ${_devtoolsRoots.size}`)
+})
