@@ -13,7 +13,6 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
-| [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
 Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Open (not shipped-reachable)* = real but no shipped example hits it; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
