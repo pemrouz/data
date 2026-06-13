@@ -49,6 +49,11 @@ export class GroupValue extends Operator {
       // object source: posMap stores the group name directly; the inner
       // bucket is keyed by source name so no idx tracking is needed
       iter(value, (i, v) => {
+        // Skip explicit-undefined slots: a sparse OBJECT source (between/
+        // intersect/union/except leave excluded keys present with value
+        // undefined) would otherwise hand fn(undefined) and crash at
+        // construction. Mirrors the array branch's guard above.
+        if (v === undefined) return
         const g = this.fn(v)
         ;(new_value[g] ??= {})[i] = v
         this.posMap.set(i, g)
@@ -106,6 +111,22 @@ export class GroupValue extends Operator {
       // an untracked one — `old_group === undefined` would conflate them, leaving
       // an undefined-group row in its old bucket on a cross-group move (silent dup).
       const tracked = this.posMap.has(name)
+      // value === undefined is a LEAVE (`src.k = undefined`): drop from the old
+      // bucket (collapsing it via the leaving-map post-process), never fn(undefined).
+      if (value === undefined) {
+        if (tracked) {
+          const old_group = this.posMap.get(name)
+          this.posMap.delete(name)
+          const oldVal = this.view.value[old_group]?.[name]
+          if (oldVal !== undefined) {
+            let leavers = leaving.get(old_group)
+            if (!leavers) leaving.set(old_group, leavers = {})
+            leavers[name] = oldVal
+            delete this.view.value[old_group][name]
+          }
+        }
+        continue
+      }
       const old_group = this.posMap.get(name)
       const new_group = this.fn(value)
       if (tracked && old_group === new_group) {

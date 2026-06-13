@@ -284,3 +284,23 @@ test('group - over a sparse array source skips excluded slots (no crash)', () =>
   // bucket 2 still holds its row; no exception is the assertion that matters
   same(2 in g[value], true)
 })
+
+// Regression (G2 / #29): group(fn) over a sparse OBJECT source (between/
+// intersect leave excluded keys present with value undefined) called
+// fn(undefined) and crashed — at construction (XU0) and on a leave via
+// `src.k = undefined` (BU1). Both now treat undefined as excluded / a leave.
+test('group - sparse object source and assignment-to-undefined do not crash', () => {
+  const src = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 2 } })
+  const ext = $([0, 10])
+  const ranged = between(src, 'v', ext)
+  ext[value] = [0, 3]                       // b (v:5) leaves -> explicit-undefined slot
+  const g = group(ranged, (r) => r.v < 3 ? 'lo' : 'hi') // construct over the churned sparse view
+  const counts = (o) => Object.fromEntries(
+    Object.entries(o).map(([k, b]) => [k, Object.values(b).filter((x) => x !== undefined).length]))
+  same(counts(g[value]), { lo: 2 })         // a(1), c(2) in lo; b excluded; no crash
+
+  const s2 = $({ a: { g: 'x', v: 1 }, b: { g: 'y', v: 2 } })
+  const g2 = group(s2, (r) => r.g)
+  s2.a = undefined                          // leave -> drops a, collapses bucket x
+  same(Object.keys(g2[value]), ['y'])
+})
