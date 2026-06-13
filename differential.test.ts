@@ -306,12 +306,9 @@ function runScenario(scn, shape, seed) {
 // registry asserts each still FAILS, so if a future fix closes one the loop
 // below errors until it's deleted — the list can't silently rot. Target: empty.
 const KNOWN_FAILURES = new Set([
-  // — between over an ARRAY source under mid-insert/patch/slot-undef + brush (C15)
-  'between→az [array]',
-  'between→filter [array]',
-  'between→map [array]',
-  'between→za [array]',
-  // — intersect/union/except over an ARRAY source under the same combined churn (C15)
+  // — intersect/union/except over an ARRAY source under combined churn (C15);
+  //   intersect-between is downstream of between but also exercises intersect's
+  //   own array mid-insert path, so it needs the producers fix too.
   'except [array]',
   'intersect [array]',
   'intersect-between [array]',

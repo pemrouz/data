@@ -235,6 +235,15 @@ export class BetweenValue extends Operator {
            : va < vb ? -1
            : 0
     })
+    // Mirror the source LENGTH for arrays: assigning only in-range indices above
+    // leaves `new_value` short whenever the highest source positions are
+    // out-of-range (trailing excluded rows), so our sparse array would be
+    // shorter than the source from construction — breaking the source↔view
+    // index correspondence the bound walk (which writes view.value[ti], ti a
+    // p.value index) and every downstream positional consumer rely on. This is
+    // the C13 root (RowOperator.XU0 pads the same way at row.ts); it was never
+    // applied to between. Holes past the last in-range row stay `undefined`.
+    if (this.isArr) new_value.length = value.length
     super.XU0(new_value)
   }
 
@@ -369,12 +378,20 @@ export class BetweenValue extends Operator {
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const row = I0[i + 1]
-      const colVal = row?.[this.col]
-      // Array source: the source already spliced p.value at `at` (shifting
-      // every later position); mirror that into our sparse view.value so
-      // positions stay index-aligned. Object keys are stable — no splice.
-      if (this.isArr) this.view.value.splice(+at, 0, undefined)
-      if (this._inRange(colVal)) {
+      const inRange = this._inRange(row?.[this.col])
+      // Array source: the source already spliced p.value at `at` (shifting every
+      // later position). Mirror that into our sparse view.value AND forward the
+      // positional insert — a hole (`undefined`) for an out-of-range row — so a
+      // downstream positional consumer (filter/map/sort, a DOMSink) shifts in
+      // lockstep. This is symmetric with BR1, which ALWAYS forwards the splice;
+      // the old code spliced internally but emitted NOTHING for an out-of-range
+      // insert, so the consumer drifted one slot per excluded insert (a surviving
+      // row became a ghost on the next brush). Object keys are stable — only an
+      // in-range insert is a real (BI0) event, no splice.
+      if (this.isArr) {
+        this.view.value.splice(+at, 0, inRange ? row : undefined)
+        NI0.push(at, inRange ? row : undefined)
+      } else if (inRange) {
         this.view.value[at] = row
         NI0.push(at, row)
       }

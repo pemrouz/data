@@ -282,6 +282,13 @@ export class GroupValue extends Operator {
       for (const [k, v] of this.posMap) next.set(k >= pos ? k + 1 : k, v)
       this.posMap = next
 
+      // A carried-undefined hole insert — a sparse producer (between/except over
+      // an array, post the C13/C15 fix) splices in an excluded slot to keep its
+      // array index-aligned. Honour the position shift above, but never bucket
+      // it and never fn(undefined) (which throws). Mirrors BU1A's leave guard
+      // and RowOperator.BI0A.
+      if (value === undefined) continue
+
       const new_group = this.fn(value)
       const bucket = (this.view.value[new_group] ??= [])
       const idx = this._insertIdx(new_group, pos)
