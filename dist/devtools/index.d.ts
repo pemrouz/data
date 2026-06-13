@@ -1,4 +1,4 @@
-export { $ } from '../core-BHuJlwi_.js';
+export { $ } from '../core-B_dKpJF4.js';
 
 declare function classify(sink: any): "operator" | "dom" | "connect" | "sink";
 declare function summarize(value: any): any;

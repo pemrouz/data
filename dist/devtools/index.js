@@ -19,6 +19,40 @@ var init_utils = __esm({
 });
 
 // core.ts
+function transact(fn) {
+  if (_cascading) {
+    _pending.push(fn);
+    return;
+  }
+  _cascading = true;
+  try {
+    fn();
+    let n = 0;
+    while (_pending.length) {
+      if (++n > _DRAIN_CAP)
+        throw new Error("reactive cycle: a sink keeps writing back to its source without converging");
+      _pending.shift()();
+    }
+    if (_errors) throw _errors[0];
+  } finally {
+    _pending.length = 0;
+    _cascading = false;
+    _errors = null;
+  }
+}
+function _notify(sink, fn) {
+  try {
+    fn(sink);
+  } catch (e) {
+    if (_cascading) (_errors ??= []).push(e);
+    else throw e;
+  }
+}
+function makeDollar() {
+  const f = (v) => new ViewProxy(View.value(v));
+  f.random = (o) => crypto.randomUUID();
+  return f;
+}
 function iter2(arr, fn) {
   for (let i = 0; i < arr.length; i++) fn(arr[i++], arr[i]);
 }
@@ -85,19 +119,23 @@ function raf(p) {
   };
   return writer;
 }
-var value, view, Symbols, sclone, Operators, $, _devtoolsRoots, _devtoolsInternalRoots, Value, Operator, View, Sink, LinkedView, ArrSink, lifetimes, PropSink, FunctionSink, ViewProxy;
+var value, view, Symbols, sclone, _cascading, _pending, _errors, _DRAIN_CAP, Operators, $, _devtoolsRoots, _devtoolsInternalRoots, _rootFinalizer, Value, Operator, View, Sink, LinkedView, ArrSink, lifetimes, PropSink, FunctionSink, ViewProxy;
 var init_core = __esm({
   "core.ts"() {
     init_utils();
-    value = /* @__PURE__ */ Symbol("value");
-    view = /* @__PURE__ */ Symbol("view");
+    value = /* @__PURE__ */ Symbol.for("data.value");
+    view = /* @__PURE__ */ Symbol.for("data.view");
     Symbols = { value, view };
-    sclone = (d) => d === void 0 ? void 0 : d[view] ? d[view].value : structuredClone(d);
-    Operators = {};
-    $ = (v) => new ViewProxy(View.value(v));
-    $.random = (o) => crypto.randomUUID();
-    _devtoolsRoots = /* @__PURE__ */ new Set();
-    _devtoolsInternalRoots = /* @__PURE__ */ new WeakSet();
+    sclone = (d) => d == null ? d : d[view] ? d[view].value : structuredClone(d);
+    _cascading = false;
+    _pending = [];
+    _errors = null;
+    _DRAIN_CAP = 1e5;
+    Operators = globalThis[/* @__PURE__ */ Symbol.for("data.operators")] ??= {};
+    $ = globalThis[/* @__PURE__ */ Symbol.for("data.$")] ??= makeDollar();
+    _devtoolsRoots = globalThis[/* @__PURE__ */ Symbol.for("data.roots")] ??= /* @__PURE__ */ new Set();
+    _devtoolsInternalRoots = globalThis[/* @__PURE__ */ Symbol.for("data.internalRoots")] ??= /* @__PURE__ */ new WeakSet();
+    _rootFinalizer = typeof FinalizationRegistry !== "undefined" ? new FinalizationRegistry((ref) => _devtoolsRoots.delete(ref)) : void 0;
     Value = class {
       constructor() {
         this.view = new View(this);
@@ -109,15 +147,15 @@ var init_core = __esm({
       // (see LinkedView).
       update(value2, key) {
         if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
-        key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]);
+        transact(() => key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]));
       }
       insert(value2, key, at) {
         if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
         at = at === void 0 ? at : `${at}`;
-        key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]);
+        transact(() => key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]));
       }
       remove(key) {
-        key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]);
+        transact(() => key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]));
       }
       // Idempotent: a Value already at undefined emits nothing. Returns false so
       // callers can short-circuit when nothing happened (used by Sink chains that
@@ -203,19 +241,36 @@ var init_core = __esm({
       // BI0 events, keys with an existing value become BU1, and identical values
       // are dropped entirely. Splitting the two avoids forcing every BU1 sink to
       // re-derive whether the row is new or a refresh.
+      //
+      // One refinement for ARRAY sources: writing a value into a slot that is
+      // currently `undefined` is only a genuine INSERT if the index is at/beyond
+      // the current length (an append/sparse-extend). An IN-BOUNDS undefined slot
+      // is a positional HOLE, and filling it is length-stable — survivors don't
+      // shift — so it must route through BF0, not BI0/BI0A (which splice-shift and
+      // would grow a phantom ghost row in every downstream positional operator).
+      // This is the root-array counterpart of the BH1/BF0 protocol the sparse
+      // producers already use. For OBJECT sources a previously-undefined key is
+      // always a fresh insert (no positions to shift) — load-bearing for the
+      // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
       BU1(U1) {
         const NU1 = [];
         const NI0 = [];
-        if (typeof this.view.value !== "object") this.view.value = {};
+        const NF0 = [];
+        if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+        const arr = isArray(this.view.value);
         for (let i = 0; i < U1.length; i++) {
           const name = U1[i++];
           const value2 = U1[i];
-          if (this.view.value?.[name] === value2) continue;
-          this.view.value?.[name] === void 0 ? NI0.push(name, value2) : NU1.push(name, value2);
+          const old = this.view.value?.[name];
+          if (old === value2) continue;
+          if (old !== void 0) NU1.push(name, value2);
+          else if (arr && +name < this.view.value.length) NF0.push(name, value2);
+          else NI0.push(name, value2);
           this.view.value[name] = value2;
         }
         this.view.BU1(NU1);
         this.view.BI0(NI0);
+        this.view.BF0(NF0);
       }
       // Deep update along a key path. We auto-create intermediate objects so a
       // user can write `proxy.a.b.c = 1` without first ensuring `a.b` exists; the
@@ -224,7 +279,8 @@ var init_core = __esm({
       // is just a cheap way to walk the path forward without mutating the caller's
       // key array.
       BU2(U2) {
-        if (typeof this.view.value !== "object") this.view.value = {};
+        if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+        const NU2 = [];
         for (let i = 0; i < U2.length; i++) {
           const key = U2[i++];
           const value2 = U2[i];
@@ -236,22 +292,28 @@ var init_core = __esm({
           }
           if (vo[last] === value2) continue;
           vo[last] = value2;
+          NU2.push(key, value2);
         }
-        this.view.BU2(U2);
+        this.view.BU2(NU2);
       }
       // BI0: object insert. If `at` is omitted we mint a random key — this lets
       // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
       // for arrays so insert-at-position carries shift semantics.
       BI0(I0) {
         if (isArray(this.view.value)) return this.BI0A(I0);
-        if (typeof this.view.value !== "object") this.view.value = {};
+        if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+        const NI0 = [];
+        const NU1 = [];
         for (let i = 0; i < I0.length; i++) {
           const at = I0[i++] ??= "" + $.random(this.view.value);
           const value2 = I0[i];
-          if (this.view.value?.[at] === value2) continue;
+          const old = this.view.value?.[at];
+          if (old === value2) continue;
+          old === void 0 ? NI0.push(at, value2) : NU1.push(at, value2);
           this.view.value[at] = value2;
         }
-        this.view.BI0(I0);
+        this.view.BU1(NU1);
+        this.view.BI0(NI0);
       }
       // BI0A: array insert-at-position. Undefined `at` means "push to end" and
       // we record the resulting index back into I0 so downstream sinks know
@@ -295,7 +357,7 @@ var init_core = __esm({
         this.view.BMV1(M1);
       }
       BI2(I2) {
-        if (typeof this.view.value !== "object") this.view.value = {};
+        if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
         for (let i = 0; i < I2.length; i++) {
           const key = I2[i++];
           const value2 = I2[i++];
@@ -352,7 +414,9 @@ var init_core = __esm({
         } else {
           const res = new Value();
           res.XU0(value2);
-          _devtoolsRoots.add(new WeakRef(res.view));
+          const ref = new WeakRef(res.view);
+          _devtoolsRoots.add(ref);
+          _rootFinalizer?.register(res.view, ref);
           return res.view;
         }
       }
@@ -385,7 +449,8 @@ var init_core = __esm({
         } else if (this.views.size) {
           let offset = Infinity;
           for (let i = 0; i < R1.length; i += 2) {
-            if (R1[i] < offset) offset = R1[i];
+            const at = +R1[i];
+            if (at < offset) offset = at;
             if (!offset) break;
           }
           this.V1(offset);
@@ -423,6 +488,7 @@ var init_core = __esm({
         this.sink((sink) => sink.BU1(U1, this));
       }
       BU2(U2) {
+        if (!U2.length) return;
         if (this.p) this.value = this.p.value?.[this.name];
         for (let i = 0; i < U2.length; i++) {
           const [name, ...rest] = U2[i++];
@@ -446,7 +512,8 @@ var init_core = __esm({
         if (this.views.size) {
           let offset = Infinity;
           for (let i = 0; i < I0.length; i += 2) {
-            if (I0[i] < offset) offset = I0[i];
+            const at = +I0[i];
+            if (at < offset) offset = at;
           }
           this.V1(offset);
         }
@@ -511,23 +578,28 @@ var init_core = __esm({
             if (child && child.value !== this.value[j]) child.XU0();
           }
         }
-        for (const x of this.sinks) {
+        for (const x of [...this.sinks]) {
           const sink = x.deref();
           if (!sink) {
             this.sinks.delete(x);
             continue;
           }
-          if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
-            sink.BMV1(M1, this);
-          } else {
-            const NU1 = [];
-            for (let i = 0; i < M1.length; i += 2) {
-              const a = +M1[i], b = +M1[i + 1];
-              const lo = a < b ? a : b;
-              const hi = a < b ? b : a;
-              for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+          try {
+            if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
+              sink.BMV1(M1, this);
+            } else {
+              const NU1 = [];
+              for (let i = 0; i < M1.length; i += 2) {
+                const a = +M1[i], b = +M1[i + 1];
+                const lo = a < b ? a : b;
+                const hi = a < b ? b : a;
+                for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+              }
+              if (NU1.length) sink.BU1(NU1, this);
             }
-            if (NU1.length) sink.BU1(NU1, this);
+          } catch (e) {
+            if (_cascading) (_errors ??= []).push(e);
+            else throw e;
           }
         }
       }
@@ -556,14 +628,22 @@ var init_core = __esm({
           if (n = fn(sink)) return n;
         }
       }
+      // Snapshot the sink set before fanning out: a sink that SUBSCRIBES during this
+      // emit (a connect() inside another sink's callback) is seeded with the
+      // post-commit snapshot at subscription time and must NOT also receive the
+      // in-flight delta — a live Set iterator visits entries added mid-loop, which
+      // delivered the current change twice (duplicating it for fold consumers). The
+      // dead-WeakRef sweep still mutates the live set. `sinks.size` fast-path avoids
+      // the array alloc when there's nothing (or nothing yet) to notify.
       sink(fn) {
-        for (const x of this.sinks) {
+        if (!this.sinks.size) return;
+        for (const x of [...this.sinks]) {
           const sink = x.deref?.();
           if (!sink) {
             this.sinks.delete(x);
             continue;
           }
-          fn(sink);
+          _notify(sink, fn);
         }
       }
       // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
@@ -578,15 +658,21 @@ var init_core = __esm({
       // `verb`/`fallback` are constant string literals at each call site, so V8
       // specializes `sink[verb]` back to a fixed-offset access after inlining.
       fanout(verb, fallback, payload) {
+        if (!this.sinks.size) return;
         const proto = verb && Value.prototype[verb];
-        for (const x of this.sinks) {
+        for (const x of [...this.sinks]) {
           const sink = x.deref?.();
           if (!sink) {
             this.sinks.delete(x);
             continue;
           }
           const m = verb && sink[verb];
-          m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+          try {
+            m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+          } catch (e) {
+            if (_cascading) (_errors ??= []).push(e);
+            else throw e;
+          }
         }
       }
       each(fn) {
@@ -630,7 +716,7 @@ var init_core = __esm({
     };
     Sink = class {
     };
-    LinkedView = class extends View {
+    LinkedView = class _LinkedView extends View {
       constructor(p) {
         super();
         this.src = p[Symbols.view];
@@ -643,6 +729,8 @@ var init_core = __esm({
         if (value2 instanceof ViewProxy) value2 = value2[Symbols.view];
         if (!(value2 instanceof View))
           throw new Error("cannot set linked value to non-reactive source");
+        for (let v = value2; v instanceof _LinkedView; v = v.src)
+          if (v === this) throw new Error("cannot create a cyclic linked value");
         this.src.disconnect(this);
         this.src = value2;
         this.src.connect(this);
@@ -697,8 +785,16 @@ var init_core = __esm({
       XR0(value2) {
         this.remove([], value2);
       }
+      // Skip undefined-valued removes: a RowOperator over an array forwards
+      // `[index, undefined]` when an EXCLUDED slot is spliced out — the positional
+      // shift signal that array-aware sinks need, but no logical row left the view.
+      // A position-agnostic record sink must not surface a `{type:'remove',
+      // value:undefined}` for a row that was never present (a real remove always
+      // carries the row value).
       BR1(R1) {
-        iter2(R1, (name, value2) => this.remove([name], value2));
+        iter2(R1, (name, value2) => {
+          if (value2 !== void 0) this.remove([name], value2);
+        });
       }
       BR2(R2) {
         iter2(R2, (key, value2) => this.remove(key, value2));
@@ -806,7 +902,9 @@ var init_core = __esm({
         iter3(I2, (key, value2, at) => this.fn({ type: "insert", key, value: sclone(value2), at }));
       }
       BR1(R1) {
-        iter2(R1, (name, value2) => this.fn({ type: "remove", key: [name], value: sclone(value2) }));
+        iter2(R1, (name, value2) => {
+          if (value2 !== void 0) this.fn({ type: "remove", key: [name], value: sclone(value2) });
+        });
       }
       BR2(R2) {
         iter2(R2, (key, value2) => this.fn({ type: "remove", key, value: sclone(value2) }));
@@ -834,8 +932,15 @@ var init_core = __esm({
         return true;
       }
       // Special-cased property reads:
-      //   Symbol.toPrimitive — used by template literals and arithmetic. `hint`
-      //     is "string" | "number" | "default"; truthy hint means string context.
+      //   Symbol.toPrimitive — used by template literals and arithmetic. `hint` is
+      //     "string" | "number" | "default". The old `hint ? toString : +value`
+      //     treated every hint as truthy, so the numeric branch was dead and
+      //     `+$(aDate)` was NaN (string round-trip) instead of the timestamp. Now:
+      //     "number" → numeric (`+value`, the unary `+`/`-` case); "string" →
+      //     toString (`String()`/template); "default" (binary `+`) → the underlying
+      //     primitive AS-IS so the proxy coerces like its value (string concat for a
+      //     string row, numeric for a number, date-string for a Date) — an object
+      //     value falls back to toString since toPrimitive must return a primitive.
       //   Symbol.iterator    — lets `for (const x of proxy)` walk numeric indices.
       //   Symbols.reactive   — branding so foreign code can detect ViewProxies.
       //   Symbols.view       — internal: the underlying View object.
@@ -843,7 +948,12 @@ var init_core = __esm({
       //                        a child view named "value" instead — that's the
       //                        canonical gotcha noted in CLAUDE.md.
       get(t, name) {
-        if (name === Symbol.toPrimitive) return (hint) => hint ? this.view.value?.toString() : +this.view.value;
+        if (name === Symbol.toPrimitive) return (hint) => {
+          const v = this.view.value;
+          if (hint === "number") return +v;
+          if (hint === "string") return v?.toString();
+          return v !== null && typeof v === "object" ? v.toString() : v;
+        };
         if (name === Symbol.iterator) return this.iterator;
         if (name === Symbols.reactive) return true;
         if (name === Symbols.view) return this.view;
@@ -871,13 +981,16 @@ var init_core = __esm({
         if (type === "patch") {
           const { res, key } = p;
           const pairs = args[0];
-          if (!key.length) return res.BU1(pairs);
-          const U2 = [];
-          for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
-          return res.BU2(U2);
+          return transact(() => {
+            if (!key.length) return res.BU1(pairs);
+            const U2 = [];
+            for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
+            return res.BU2(U2);
+          });
         }
         if (type === "first") return new _ViewProxy(p.get_or_create_named(firstKey(p.value)));
         if (type === "last") return new _ViewProxy(p.get_or_create_named(lastKey(p.value)));
+        if (type === "toJSON") return p.value;
         const OperatorClass = Operators[type]?.(...args);
         if (OperatorClass) {
           let sink = p.some_sink((sink2) => sink2 instanceof OperatorClass && sink2.matches?.(...args) ? sink2 : void 0);
@@ -890,7 +1003,8 @@ var init_core = __esm({
         if (type === "remove") return this.view.res.remove(p.key);
         if (type === "update") return this.view.res.update(value2, p.key);
         if (type === "insert") return this.view.res.insert(value2, p.key, at);
-        throw new Error(`Unknown operator '${type}'. Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). You're seeing this because the dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.`);
+        const registered = Object.keys(Operators);
+        throw new Error(`Unknown operator '${type}'. ` + (registered.length === 0 ? `The dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.` : `No operator with that name is registered (${registered.length} operators are: ${registered.sort().join(", ")}).`));
       }
       getPrototypeOf(target) {
         return _ViewProxy.prototype;
@@ -1124,7 +1238,7 @@ function mountPanel({ rootProxy }) {
       tools.append(hover, pick, close);
       hover.addEventListener("click", () => altHover.toggleArm());
       pick.addEventListener("click", () => domPicker.toggleArm());
-      close.addEventListener("click", () => destroy());
+      close.addEventListener("click", () => unmount());
       tools.dataset.role = "tools";
       return tools;
     })()
@@ -2487,6 +2601,9 @@ function nodeLabel(n) {
 function shortKind(n) {
   return n.ctor || n.kind || "?";
 }
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;");
+}
 function formatValue(v) {
   if (v === void 0) return "undefined";
   if (v === null) return "null";
@@ -2645,13 +2762,13 @@ function createAltHover(panelRoot, panelHost) {
     });
     popover.innerHTML = `
       <div class="h">
-        <span>${k}</span>
+        <span>${esc(k)}</span>
         <button class="x" type="button" title="close (Esc)">\u2715</button>
       </div>
       <dl>
-        <dt>ctor</dt><dd>${ctor}</dd>
+        <dt>ctor</dt><dd>${esc(ctor)}</dd>
         <dt>sinks</dt><dd>${sinkCount}</dd>
-        <dt>value</dt><dd>${formatValue(v?.value)}</dd>
+        <dt>value</dt><dd>${esc(formatValue(v?.value))}</dd>
       </dl>
       <div class="hint">click to pin \xB7 click \u2715 or Esc to close \xB7 Alt-release clears</div>
     `;
@@ -2751,6 +2868,8 @@ function createAltHover(panelRoot, panelHost) {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("scroll", refresh, true);
+      window.removeEventListener("resize", refresh);
     }
   };
 }

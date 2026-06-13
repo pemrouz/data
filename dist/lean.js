@@ -11,16 +11,55 @@ var noop = () => {
 };
 
 // core.ts
-var value = /* @__PURE__ */ Symbol("value");
+var value = /* @__PURE__ */ Symbol.for("data.value");
 var reactive = /* @__PURE__ */ Symbol.for("reactive");
-var view = /* @__PURE__ */ Symbol("view");
+var view = /* @__PURE__ */ Symbol.for("data.view");
 var Symbols = { value, view };
-var sclone = (d) => d === void 0 ? void 0 : d[view] ? d[view].value : structuredClone(d);
-var Operators = {};
-var $ = (v) => new ViewProxy(View.value(v));
+var sclone = (d) => d == null ? d : d[view] ? d[view].value : structuredClone(d);
+var _cascading = false;
+var _pending = [];
+var _errors = null;
+var _DRAIN_CAP = 1e5;
+function transact(fn) {
+  if (_cascading) {
+    _pending.push(fn);
+    return;
+  }
+  _cascading = true;
+  try {
+    fn();
+    let n = 0;
+    while (_pending.length) {
+      if (++n > _DRAIN_CAP)
+        throw new Error("reactive cycle: a sink keeps writing back to its source without converging");
+      _pending.shift()();
+    }
+    if (_errors) throw _errors[0];
+  } finally {
+    _pending.length = 0;
+    _cascading = false;
+    _errors = null;
+  }
+}
+function _notify(sink, fn) {
+  try {
+    fn(sink);
+  } catch (e) {
+    if (_cascading) (_errors ??= []).push(e);
+    else throw e;
+  }
+}
+var Operators = globalThis[/* @__PURE__ */ Symbol.for("data.operators")] ??= {};
+function makeDollar() {
+  const f = (v) => new ViewProxy(View.value(v));
+  f.random = (o) => crypto.randomUUID();
+  return f;
+}
+var $ = globalThis[/* @__PURE__ */ Symbol.for("data.$")] ??= makeDollar();
 var core_default = $;
-$.random = (o) => crypto.randomUUID();
-var _devtoolsRoots = /* @__PURE__ */ new Set();
+var _devtoolsRoots = globalThis[/* @__PURE__ */ Symbol.for("data.roots")] ??= /* @__PURE__ */ new Set();
+globalThis[/* @__PURE__ */ Symbol.for("data.internalRoots")] ??= /* @__PURE__ */ new WeakSet();
+var _rootFinalizer = typeof FinalizationRegistry !== "undefined" ? new FinalizationRegistry((ref) => _devtoolsRoots.delete(ref)) : void 0;
 function createOperator(source, OperatorClass, ...args) {
   const p = source[view];
   let op = p.some_sink((sink) => sink instanceof OperatorClass && sink.matches?.(...args) ? sink : void 0);
@@ -41,15 +80,15 @@ var Value = class {
   // (see LinkedView).
   update(value2, key) {
     if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
-    key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]);
+    transact(() => key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]));
   }
   insert(value2, key, at) {
     if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
     at = at === void 0 ? at : `${at}`;
-    key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]);
+    transact(() => key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]));
   }
   remove(key) {
-    key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]);
+    transact(() => key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]));
   }
   // Idempotent: a Value already at undefined emits nothing. Returns false so
   // callers can short-circuit when nothing happened (used by Sink chains that
@@ -135,19 +174,36 @@ var Value = class {
   // BI0 events, keys with an existing value become BU1, and identical values
   // are dropped entirely. Splitting the two avoids forcing every BU1 sink to
   // re-derive whether the row is new or a refresh.
+  //
+  // One refinement for ARRAY sources: writing a value into a slot that is
+  // currently `undefined` is only a genuine INSERT if the index is at/beyond
+  // the current length (an append/sparse-extend). An IN-BOUNDS undefined slot
+  // is a positional HOLE, and filling it is length-stable — survivors don't
+  // shift — so it must route through BF0, not BI0/BI0A (which splice-shift and
+  // would grow a phantom ghost row in every downstream positional operator).
+  // This is the root-array counterpart of the BH1/BF0 protocol the sparse
+  // producers already use. For OBJECT sources a previously-undefined key is
+  // always a fresh insert (no positions to shift) — load-bearing for the
+  // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
   BU1(U1) {
     const NU1 = [];
     const NI0 = [];
-    if (typeof this.view.value !== "object") this.view.value = {};
+    const NF0 = [];
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const arr = isArray(this.view.value);
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++];
       const value2 = U1[i];
-      if (this.view.value?.[name] === value2) continue;
-      this.view.value?.[name] === void 0 ? NI0.push(name, value2) : NU1.push(name, value2);
+      const old = this.view.value?.[name];
+      if (old === value2) continue;
+      if (old !== void 0) NU1.push(name, value2);
+      else if (arr && +name < this.view.value.length) NF0.push(name, value2);
+      else NI0.push(name, value2);
       this.view.value[name] = value2;
     }
     this.view.BU1(NU1);
     this.view.BI0(NI0);
+    this.view.BF0(NF0);
   }
   // Deep update along a key path. We auto-create intermediate objects so a
   // user can write `proxy.a.b.c = 1` without first ensuring `a.b` exists; the
@@ -156,7 +212,8 @@ var Value = class {
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
   BU2(U2) {
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const NU2 = [];
     for (let i = 0; i < U2.length; i++) {
       const key = U2[i++];
       const value2 = U2[i];
@@ -168,22 +225,28 @@ var Value = class {
       }
       if (vo[last] === value2) continue;
       vo[last] = value2;
+      NU2.push(key, value2);
     }
-    this.view.BU2(U2);
+    this.view.BU2(NU2);
   }
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
   BI0(I0) {
     if (isArray(this.view.value)) return this.BI0A(I0);
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const NI0 = [];
+    const NU1 = [];
     for (let i = 0; i < I0.length; i++) {
       const at = I0[i++] ??= "" + $.random(this.view.value);
       const value2 = I0[i];
-      if (this.view.value?.[at] === value2) continue;
+      const old = this.view.value?.[at];
+      if (old === value2) continue;
+      old === void 0 ? NI0.push(at, value2) : NU1.push(at, value2);
       this.view.value[at] = value2;
     }
-    this.view.BI0(I0);
+    this.view.BU1(NU1);
+    this.view.BI0(NI0);
   }
   // BI0A: array insert-at-position. Undefined `at` means "push to end" and
   // we record the resulting index back into I0 so downstream sinks know
@@ -227,7 +290,7 @@ var Value = class {
     this.view.BMV1(M1);
   }
   BI2(I2) {
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++];
       const value2 = I2[i++];
@@ -282,7 +345,9 @@ var View = class _View {
     } else {
       const res = new Value();
       res.XU0(value2);
-      _devtoolsRoots.add(new WeakRef(res.view));
+      const ref = new WeakRef(res.view);
+      _devtoolsRoots.add(ref);
+      _rootFinalizer?.register(res.view, ref);
       return res.view;
     }
   }
@@ -315,7 +380,8 @@ var View = class _View {
     } else if (this.views.size) {
       let offset = Infinity;
       for (let i = 0; i < R1.length; i += 2) {
-        if (R1[i] < offset) offset = R1[i];
+        const at = +R1[i];
+        if (at < offset) offset = at;
         if (!offset) break;
       }
       this.V1(offset);
@@ -353,6 +419,7 @@ var View = class _View {
     this.sink((sink) => sink.BU1(U1, this));
   }
   BU2(U2) {
+    if (!U2.length) return;
     if (this.p) this.value = this.p.value?.[this.name];
     for (let i = 0; i < U2.length; i++) {
       const [name, ...rest] = U2[i++];
@@ -376,7 +443,8 @@ var View = class _View {
     if (this.views.size) {
       let offset = Infinity;
       for (let i = 0; i < I0.length; i += 2) {
-        if (I0[i] < offset) offset = I0[i];
+        const at = +I0[i];
+        if (at < offset) offset = at;
       }
       this.V1(offset);
     }
@@ -441,23 +509,28 @@ var View = class _View {
         if (child && child.value !== this.value[j]) child.XU0();
       }
     }
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) {
       const sink = x.deref();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
-      if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
-        sink.BMV1(M1, this);
-      } else {
-        const NU1 = [];
-        for (let i = 0; i < M1.length; i += 2) {
-          const a = +M1[i], b = +M1[i + 1];
-          const lo = a < b ? a : b;
-          const hi = a < b ? b : a;
-          for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+      try {
+        if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
+          sink.BMV1(M1, this);
+        } else {
+          const NU1 = [];
+          for (let i = 0; i < M1.length; i += 2) {
+            const a = +M1[i], b = +M1[i + 1];
+            const lo = a < b ? a : b;
+            const hi = a < b ? b : a;
+            for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+          }
+          if (NU1.length) sink.BU1(NU1, this);
         }
-        if (NU1.length) sink.BU1(NU1, this);
+      } catch (e) {
+        if (_cascading) (_errors ??= []).push(e);
+        else throw e;
       }
     }
   }
@@ -486,14 +559,22 @@ var View = class _View {
       if (n = fn(sink)) return n;
     }
   }
+  // Snapshot the sink set before fanning out: a sink that SUBSCRIBES during this
+  // emit (a connect() inside another sink's callback) is seeded with the
+  // post-commit snapshot at subscription time and must NOT also receive the
+  // in-flight delta — a live Set iterator visits entries added mid-loop, which
+  // delivered the current change twice (duplicating it for fold consumers). The
+  // dead-WeakRef sweep still mutates the live set. `sinks.size` fast-path avoids
+  // the array alloc when there's nothing (or nothing yet) to notify.
   sink(fn) {
-    for (const x of this.sinks) {
+    if (!this.sinks.size) return;
+    for (const x of [...this.sinks]) {
       const sink = x.deref?.();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
-      fn(sink);
+      _notify(sink, fn);
     }
   }
   // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
@@ -508,15 +589,21 @@ var View = class _View {
   // `verb`/`fallback` are constant string literals at each call site, so V8
   // specializes `sink[verb]` back to a fixed-offset access after inlining.
   fanout(verb, fallback, payload) {
+    if (!this.sinks.size) return;
     const proto = verb && Value.prototype[verb];
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) {
       const sink = x.deref?.();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
       const m = verb && sink[verb];
-      m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+      try {
+        m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+      } catch (e) {
+        if (_cascading) (_errors ??= []).push(e);
+        else throw e;
+      }
     }
   }
   each(fn) {
@@ -560,7 +647,7 @@ var View = class _View {
 };
 var Sink = class {
 };
-var LinkedView = class extends View {
+var LinkedView = class _LinkedView extends View {
   constructor(p) {
     super();
     this.src = p[Symbols.view];
@@ -573,6 +660,8 @@ var LinkedView = class extends View {
     if (value2 instanceof ViewProxy) value2 = value2[Symbols.view];
     if (!(value2 instanceof View))
       throw new Error("cannot set linked value to non-reactive source");
+    for (let v = value2; v instanceof _LinkedView; v = v.src)
+      if (v === this) throw new Error("cannot create a cyclic linked value");
     this.src.disconnect(this);
     this.src = value2;
     this.src.connect(this);
@@ -633,8 +722,16 @@ var ArrSink = class {
   XR0(value2) {
     this.remove([], value2);
   }
+  // Skip undefined-valued removes: a RowOperator over an array forwards
+  // `[index, undefined]` when an EXCLUDED slot is spliced out — the positional
+  // shift signal that array-aware sinks need, but no logical row left the view.
+  // A position-agnostic record sink must not surface a `{type:'remove',
+  // value:undefined}` for a row that was never present (a real remove always
+  // carries the row value).
   BR1(R1) {
-    iter22(R1, (name, value2) => this.remove([name], value2));
+    iter22(R1, (name, value2) => {
+      if (value2 !== void 0) this.remove([name], value2);
+    });
   }
   BR2(R2) {
     iter22(R2, (key, value2) => this.remove(key, value2));
@@ -742,7 +839,9 @@ var FunctionSink = class extends Sink {
     iter3(I2, (key, value2, at) => this.fn({ type: "insert", key, value: sclone(value2), at }));
   }
   BR1(R1) {
-    iter22(R1, (name, value2) => this.fn({ type: "remove", key: [name], value: sclone(value2) }));
+    iter22(R1, (name, value2) => {
+      if (value2 !== void 0) this.fn({ type: "remove", key: [name], value: sclone(value2) });
+    });
   }
   BR2(R2) {
     iter22(R2, (key, value2) => this.fn({ type: "remove", key, value: sclone(value2) }));
@@ -770,8 +869,15 @@ var ViewProxy = class _ViewProxy {
     return true;
   }
   // Special-cased property reads:
-  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint`
-  //     is "string" | "number" | "default"; truthy hint means string context.
+  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint` is
+  //     "string" | "number" | "default". The old `hint ? toString : +value`
+  //     treated every hint as truthy, so the numeric branch was dead and
+  //     `+$(aDate)` was NaN (string round-trip) instead of the timestamp. Now:
+  //     "number" → numeric (`+value`, the unary `+`/`-` case); "string" →
+  //     toString (`String()`/template); "default" (binary `+`) → the underlying
+  //     primitive AS-IS so the proxy coerces like its value (string concat for a
+  //     string row, numeric for a number, date-string for a Date) — an object
+  //     value falls back to toString since toPrimitive must return a primitive.
   //   Symbol.iterator    — lets `for (const x of proxy)` walk numeric indices.
   //   Symbols.reactive   — branding so foreign code can detect ViewProxies.
   //   Symbols.view       — internal: the underlying View object.
@@ -779,7 +885,12 @@ var ViewProxy = class _ViewProxy {
   //                        a child view named "value" instead — that's the
   //                        canonical gotcha noted in CLAUDE.md.
   get(t, name) {
-    if (name === Symbol.toPrimitive) return (hint) => hint ? this.view.value?.toString() : +this.view.value;
+    if (name === Symbol.toPrimitive) return (hint) => {
+      const v = this.view.value;
+      if (hint === "number") return +v;
+      if (hint === "string") return v?.toString();
+      return v !== null && typeof v === "object" ? v.toString() : v;
+    };
     if (name === Symbol.iterator) return this.iterator;
     if (name === Symbols.reactive) return true;
     if (name === Symbols.view) return this.view;
@@ -807,13 +918,16 @@ var ViewProxy = class _ViewProxy {
     if (type === "patch") {
       const { res, key } = p;
       const pairs = args[0];
-      if (!key.length) return res.BU1(pairs);
-      const U2 = [];
-      for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
-      return res.BU2(U2);
+      return transact(() => {
+        if (!key.length) return res.BU1(pairs);
+        const U2 = [];
+        for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
+        return res.BU2(U2);
+      });
     }
     if (type === "first") return new _ViewProxy(p.get_or_create_named(firstKey(p.value)));
     if (type === "last") return new _ViewProxy(p.get_or_create_named(lastKey(p.value)));
+    if (type === "toJSON") return p.value;
     const OperatorClass = Operators[type]?.(...args);
     if (OperatorClass) {
       let sink = p.some_sink((sink2) => sink2 instanceof OperatorClass && sink2.matches?.(...args) ? sink2 : void 0);
@@ -826,7 +940,8 @@ var ViewProxy = class _ViewProxy {
     if (type === "remove") return this.view.res.remove(p.key);
     if (type === "update") return this.view.res.update(value2, p.key);
     if (type === "insert") return this.view.res.insert(value2, p.key, at);
-    throw new Error(`Unknown operator '${type}'. Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). You're seeing this because the dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.`);
+    const registered = Object.keys(Operators);
+    throw new Error(`Unknown operator '${type}'. ` + (registered.length === 0 ? `The dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.` : `No operator with that name is registered (${registered.length} operators are: ${registered.sort().join(", ")}).`));
   }
   getPrototypeOf(target) {
     return _ViewProxy.prototype;
@@ -903,9 +1018,16 @@ function raf(p) {
 
 // render/index.ts
 var NS = "http://www.w3.org/2000/svg";
-var NODE = /* @__PURE__ */ Symbol("Node");
+var NODE = /* @__PURE__ */ Symbol.for("data.node");
 var { keys } = Object;
-var render = (p, np) => Node.render(p, np[NODE]);
+var render = (p, np) => (
+  // A top-level Fragment is a plain array of NodeProxy children (it only works
+  // nested because an enclosing h() flattens it). Passed straight to render(),
+  // `np[NODE]` is undefined and Node.render threw a bare "reading 'children'"
+  // TypeError. Treat it like a wrapper whose children render into `p` — the same
+  // semantics a single wrapper template gets.
+  isArray(np) ? Node.render(p, Node.add(new Node("", null), ...np.filter((c) => c != null && c !== false))[NODE]) : Node.render(p, np[NODE])
+);
 var DOMSink = class {
   constructor(parent, node) {
     this.parent = parent;
@@ -1015,32 +1137,37 @@ var DOMSink = class {
   _detached() {
     return this.parent?.isConnected === false;
   }
+  // Remove EVERY present node from `this.nodes`, regardless of shape: array
+  // entries (skipping holes a sparse remove left — `?.remove()`), object string
+  // keys, AND the NODE-symbol slot (a scalar binding — for-in never enumerates a
+  // Symbol key, so it would otherwise be orphaned and duplicated on the next
+  // update). Operates directly on `this.nodes` so it must run BEFORE any reset.
+  _teardownAll() {
+    const ns = this.nodes;
+    if (!ns) return;
+    if (isArray(ns)) {
+      for (let i = 0; i < ns.length; i++) ns[i]?.remove();
+    } else {
+      for (const k in ns) ns[k]?.remove();
+    }
+    ns[NODE]?.remove();
+  }
   XR0() {
     if (this._detached()) return;
-    const gone = [];
-    for (const i in this.nodes) gone.push(i);
-    for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
+    this._teardownAll();
+    this.nodes = isArray(this.nodes) ? [] : {};
   }
   XU0(value2) {
     if (this._detached()) return;
+    if (value2 === void 0 || typeof value2 !== "object") {
+      this._teardownAll();
+      this.nodes = {};
+      if (value2 !== void 0) this.create_node(NODE);
+      return;
+    }
     const prev_nodes = this.nodes ?? {};
-    if (typeof value2 === "undefined") {
-      this.nodes = {};
-      const gone2 = [];
-      for (const i in prev_nodes) gone2.push(i);
-      for (let j = 0; j < gone2.length; j++) this.remove_node(gone2[j]);
-      return;
-    }
-    if (typeof value2 !== "object") {
-      this.nodes = {};
-      const gone2 = [];
-      for (const i in prev_nodes) gone2.push(i);
-      for (let j = 0; j < gone2.length; j++) this.remove_node(gone2[j]);
-      this.create_node(NODE);
-      return;
-    }
     const arr = isArray(value2);
-    if (arr && this._sparse(value2)) return this._reconcile_sparse(value2);
+    if (arr) return this._reconcile_sparse(value2);
     this.nodes ??= arr ? [] : {};
     for (const i in value2)
       if (!prev_nodes[i] && (arr || value2[i] !== void 0))
@@ -1056,6 +1183,26 @@ var DOMSink = class {
     if (this._detached()) return;
     for (let i = 0; i < R1.length; i++)
       this.remove_node(R1[i++]);
+  }
+  // Array-positional structural splice (a STRUCTURAL source insert/remove
+  // reaching a list, not a length-stable membership flip). For a SPARSE-bound
+  // list (a between/intersect/union/except view bound straight to the DOM) the
+  // splice shifts source indices, so the index-keyed nodes must re-sync against
+  // the post-splice value — the tail-relative BR1/BI0 fallback removed/added the
+  // wrong node and blanked the list. A DENSE list (sort/group/limit) only ever
+  // receives TAIL BR1A/BI0A (its _window reconcile emits tail-only splices plus
+  // content-stable BU1s), so it keeps the cheap tail path — identical to the old
+  // BR1/BI0 fallback, no regression. Detected by whether the current source
+  // value is sparse.
+  BR1A(R1) {
+    if (this._detached()) return;
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value);
+    for (let i = 0; i < R1.length; i++) this.remove_node(R1[i++]);
+  }
+  BI0A(I0) {
+    if (this._detached()) return;
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value);
+    for (let i = 0; i < I0.length; i++) this.create_node(I0[i++]);
   }
   BU1(U1) {
     if (this._detached()) return;
@@ -1131,8 +1278,9 @@ var Node = class _Node extends Child {
   static render(dom, node) {
     for (const child of node.children) {
       if (child.data) {
-        dom.sink = new DOMSink(dom, child);
-        Object.defineProperty(dom, "__ripple_sink", { value: dom.sink, configurable: true });
+        const sink = new DOMSink(dom, child);
+        (dom.sinks ??= []).push(dom.sink = sink);
+        Object.defineProperty(dom, "__ripple_sink", { value: sink, configurable: true });
       } else {
         child.create(dom);
       }
@@ -1195,7 +1343,7 @@ var Node = class _Node extends Child {
     let node = new _Node(
       this.tag,
       this.ns,
-      this.children.concat([])
+      this.children.map((c) => c instanceof _Node ? c.new : c instanceof Prop ? new c.constructor(c.name, c.value) : c)
     );
     const content = this.fn ? this.fn(new NodeProxy(node), v, k) : v;
     if (content instanceof NodeProxy) {
@@ -1241,11 +1389,25 @@ var Attr = class extends Prop {
   }
 };
 var Class = class extends Prop {
-  add() {
-    this.parent.classList.add(this.name);
+  // Two reactive shapes reach here:
+  //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
+  //                           add/remove toggle the fixed class `this.name`.
+  //   className={vp}         — REACTIVE name (this.name is a VP yielding the class
+  //                           string): each change passes the NEW class as `value`,
+  //                           and we must remove the PREVIOUS class first or they
+  //                           accumulate forever (the documented Reactive<string>
+  //                           className never dropping the old class).
+  add(value2) {
+    const reactiveName = this.name?.[view];
+    const cls = reactiveName ? value2 : this.name;
+    if (reactiveName && this._last !== void 0 && this._last !== cls)
+      this.parent.classList.remove(this._last);
+    if (cls != null && cls !== "") this.parent.classList.add(this._last = cls);
   }
   remove() {
-    this.parent.classList.remove(this.name);
+    const cls = this.name?.[view] ? this._last : this.name;
+    if (cls != null && cls !== "") this.parent.classList.remove(cls);
+    this._last = void 0;
   }
 };
 var ID = class extends Prop {

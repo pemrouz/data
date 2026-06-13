@@ -49,15 +49,54 @@ function isEmpty(obj) {
 }
 
 // core.ts
-var value = /* @__PURE__ */ Symbol("value");
+var value = /* @__PURE__ */ Symbol.for("data.value");
 var reactive = /* @__PURE__ */ Symbol.for("reactive");
-var view = /* @__PURE__ */ Symbol("view");
+var view = /* @__PURE__ */ Symbol.for("data.view");
 var Symbols = { value, view };
-var sclone = (d) => d === void 0 ? void 0 : d[view] ? d[view].value : structuredClone(d);
-var Operators = {};
-var $ = (v) => new ViewProxy(View.value(v));
-$.random = (o) => crypto.randomUUID();
-var _devtoolsRoots = /* @__PURE__ */ new Set();
+var sclone = (d) => d == null ? d : d[view] ? d[view].value : structuredClone(d);
+var _cascading = false;
+var _pending = [];
+var _errors = null;
+var _DRAIN_CAP = 1e5;
+function transact(fn) {
+  if (_cascading) {
+    _pending.push(fn);
+    return;
+  }
+  _cascading = true;
+  try {
+    fn();
+    let n = 0;
+    while (_pending.length) {
+      if (++n > _DRAIN_CAP)
+        throw new Error("reactive cycle: a sink keeps writing back to its source without converging");
+      _pending.shift()();
+    }
+    if (_errors) throw _errors[0];
+  } finally {
+    _pending.length = 0;
+    _cascading = false;
+    _errors = null;
+  }
+}
+function _notify(sink, fn) {
+  try {
+    fn(sink);
+  } catch (e) {
+    if (_cascading) (_errors ??= []).push(e);
+    else throw e;
+  }
+}
+var Operators = globalThis[/* @__PURE__ */ Symbol.for("data.operators")] ??= {};
+function makeDollar() {
+  const f = (v) => new ViewProxy(View.value(v));
+  f.random = (o) => crypto.randomUUID();
+  return f;
+}
+var $ = globalThis[/* @__PURE__ */ Symbol.for("data.$")] ??= makeDollar();
+var _devtoolsRoots = globalThis[/* @__PURE__ */ Symbol.for("data.roots")] ??= /* @__PURE__ */ new Set();
+globalThis[/* @__PURE__ */ Symbol.for("data.internalRoots")] ??= /* @__PURE__ */ new WeakSet();
+var _rootFinalizer = typeof FinalizationRegistry !== "undefined" ? new FinalizationRegistry((ref) => _devtoolsRoots.delete(ref)) : void 0;
 function createOperator(source, OperatorClass, ...args) {
   const p = source[view];
   let op = p.some_sink((sink) => sink instanceof OperatorClass && sink.matches?.(...args) ? sink : void 0);
@@ -78,15 +117,15 @@ var Value = class {
   // (see LinkedView).
   update(value2, key) {
     if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
-    key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]);
+    transact(() => key.length === 0 ? this.XU0(value2) : key.length === 1 ? this.BU1([key[0], value2]) : this.BU2([key, value2]));
   }
   insert(value2, key, at) {
     if (value2 instanceof ViewProxy) throw new Error("cannot set value to another data, use a linked value instead");
     at = at === void 0 ? at : `${at}`;
-    key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]);
+    transact(() => key.length === 0 ? this.BI0([at, value2]) : this.BI2([key, value2, at]));
   }
   remove(key) {
-    key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]);
+    transact(() => key.length === 0 ? this.XR0() : key.length === 1 ? this.BR1([key[0]]) : this.BR2([key]));
   }
   // Idempotent: a Value already at undefined emits nothing. Returns false so
   // callers can short-circuit when nothing happened (used by Sink chains that
@@ -172,19 +211,36 @@ var Value = class {
   // BI0 events, keys with an existing value become BU1, and identical values
   // are dropped entirely. Splitting the two avoids forcing every BU1 sink to
   // re-derive whether the row is new or a refresh.
+  //
+  // One refinement for ARRAY sources: writing a value into a slot that is
+  // currently `undefined` is only a genuine INSERT if the index is at/beyond
+  // the current length (an append/sparse-extend). An IN-BOUNDS undefined slot
+  // is a positional HOLE, and filling it is length-stable — survivors don't
+  // shift — so it must route through BF0, not BI0/BI0A (which splice-shift and
+  // would grow a phantom ghost row in every downstream positional operator).
+  // This is the root-array counterpart of the BH1/BF0 protocol the sparse
+  // producers already use. For OBJECT sources a previously-undefined key is
+  // always a fresh insert (no positions to shift) — load-bearing for the
+  // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
   BU1(U1) {
     const NU1 = [];
     const NI0 = [];
-    if (typeof this.view.value !== "object") this.view.value = {};
+    const NF0 = [];
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const arr = isArray(this.view.value);
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++];
       const value2 = U1[i];
-      if (this.view.value?.[name] === value2) continue;
-      this.view.value?.[name] === void 0 ? NI0.push(name, value2) : NU1.push(name, value2);
+      const old = this.view.value?.[name];
+      if (old === value2) continue;
+      if (old !== void 0) NU1.push(name, value2);
+      else if (arr && +name < this.view.value.length) NF0.push(name, value2);
+      else NI0.push(name, value2);
       this.view.value[name] = value2;
     }
     this.view.BU1(NU1);
     this.view.BI0(NI0);
+    this.view.BF0(NF0);
   }
   // Deep update along a key path. We auto-create intermediate objects so a
   // user can write `proxy.a.b.c = 1` without first ensuring `a.b` exists; the
@@ -193,7 +249,8 @@ var Value = class {
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
   BU2(U2) {
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const NU2 = [];
     for (let i = 0; i < U2.length; i++) {
       const key = U2[i++];
       const value2 = U2[i];
@@ -205,22 +262,28 @@ var Value = class {
       }
       if (vo[last] === value2) continue;
       vo[last] = value2;
+      NU2.push(key, value2);
     }
-    this.view.BU2(U2);
+    this.view.BU2(NU2);
   }
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
   BI0(I0) {
     if (isArray(this.view.value)) return this.BI0A(I0);
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
+    const NI0 = [];
+    const NU1 = [];
     for (let i = 0; i < I0.length; i++) {
       const at = I0[i++] ??= "" + $.random(this.view.value);
       const value2 = I0[i];
-      if (this.view.value?.[at] === value2) continue;
+      const old = this.view.value?.[at];
+      if (old === value2) continue;
+      old === void 0 ? NI0.push(at, value2) : NU1.push(at, value2);
       this.view.value[at] = value2;
     }
-    this.view.BI0(I0);
+    this.view.BU1(NU1);
+    this.view.BI0(NI0);
   }
   // BI0A: array insert-at-position. Undefined `at` means "push to end" and
   // we record the resulting index back into I0 so downstream sinks know
@@ -264,7 +327,7 @@ var Value = class {
     this.view.BMV1(M1);
   }
   BI2(I2) {
-    if (typeof this.view.value !== "object") this.view.value = {};
+    if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++];
       const value2 = I2[i++];
@@ -321,7 +384,9 @@ var View = class _View {
     } else {
       const res = new Value();
       res.XU0(value2);
-      _devtoolsRoots.add(new WeakRef(res.view));
+      const ref = new WeakRef(res.view);
+      _devtoolsRoots.add(ref);
+      _rootFinalizer?.register(res.view, ref);
       return res.view;
     }
   }
@@ -354,7 +419,8 @@ var View = class _View {
     } else if (this.views.size) {
       let offset = Infinity;
       for (let i = 0; i < R1.length; i += 2) {
-        if (R1[i] < offset) offset = R1[i];
+        const at = +R1[i];
+        if (at < offset) offset = at;
         if (!offset) break;
       }
       this.V1(offset);
@@ -392,6 +458,7 @@ var View = class _View {
     this.sink((sink) => sink.BU1(U1, this));
   }
   BU2(U2) {
+    if (!U2.length) return;
     if (this.p) this.value = this.p.value?.[this.name];
     for (let i = 0; i < U2.length; i++) {
       const [name, ...rest] = U2[i++];
@@ -415,7 +482,8 @@ var View = class _View {
     if (this.views.size) {
       let offset = Infinity;
       for (let i = 0; i < I0.length; i += 2) {
-        if (I0[i] < offset) offset = I0[i];
+        const at = +I0[i];
+        if (at < offset) offset = at;
       }
       this.V1(offset);
     }
@@ -480,23 +548,28 @@ var View = class _View {
         if (child && child.value !== this.value[j]) child.XU0();
       }
     }
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) {
       const sink = x.deref();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
-      if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
-        sink.BMV1(M1, this);
-      } else {
-        const NU1 = [];
-        for (let i = 0; i < M1.length; i += 2) {
-          const a = +M1[i], b = +M1[i + 1];
-          const lo = a < b ? a : b;
-          const hi = a < b ? b : a;
-          for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+      try {
+        if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
+          sink.BMV1(M1, this);
+        } else {
+          const NU1 = [];
+          for (let i = 0; i < M1.length; i += 2) {
+            const a = +M1[i], b = +M1[i + 1];
+            const lo = a < b ? a : b;
+            const hi = a < b ? b : a;
+            for (let j = lo; j <= hi; j++) NU1.push("" + j, this.value[j]);
+          }
+          if (NU1.length) sink.BU1(NU1, this);
         }
-        if (NU1.length) sink.BU1(NU1, this);
+      } catch (e) {
+        if (_cascading) (_errors ??= []).push(e);
+        else throw e;
       }
     }
   }
@@ -525,14 +598,22 @@ var View = class _View {
       if (n = fn(sink)) return n;
     }
   }
+  // Snapshot the sink set before fanning out: a sink that SUBSCRIBES during this
+  // emit (a connect() inside another sink's callback) is seeded with the
+  // post-commit snapshot at subscription time and must NOT also receive the
+  // in-flight delta — a live Set iterator visits entries added mid-loop, which
+  // delivered the current change twice (duplicating it for fold consumers). The
+  // dead-WeakRef sweep still mutates the live set. `sinks.size` fast-path avoids
+  // the array alloc when there's nothing (or nothing yet) to notify.
   sink(fn) {
-    for (const x of this.sinks) {
+    if (!this.sinks.size) return;
+    for (const x of [...this.sinks]) {
       const sink = x.deref?.();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
-      fn(sink);
+      _notify(sink, fn);
     }
   }
   // Array-aware fan-out: dispatch `verb` to each sink that has its OWN
@@ -547,15 +628,21 @@ var View = class _View {
   // `verb`/`fallback` are constant string literals at each call site, so V8
   // specializes `sink[verb]` back to a fixed-offset access after inlining.
   fanout(verb, fallback, payload) {
+    if (!this.sinks.size) return;
     const proto = verb && Value.prototype[verb];
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) {
       const sink = x.deref?.();
       if (!sink) {
         this.sinks.delete(x);
         continue;
       }
       const m = verb && sink[verb];
-      m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+      try {
+        m && (proto === void 0 || m !== proto) ? m.call(sink, payload, this) : sink[fallback](payload, this);
+      } catch (e) {
+        if (_cascading) (_errors ??= []).push(e);
+        else throw e;
+      }
     }
   }
   each(fn) {
@@ -599,7 +686,7 @@ var View = class _View {
 };
 var Sink = class {
 };
-var LinkedView = class extends View {
+var LinkedView = class _LinkedView extends View {
   constructor(p) {
     super();
     this.src = p[Symbols.view];
@@ -612,6 +699,8 @@ var LinkedView = class extends View {
     if (value2 instanceof ViewProxy) value2 = value2[Symbols.view];
     if (!(value2 instanceof View))
       throw new Error("cannot set linked value to non-reactive source");
+    for (let v = value2; v instanceof _LinkedView; v = v.src)
+      if (v === this) throw new Error("cannot create a cyclic linked value");
     this.src.disconnect(this);
     this.src = value2;
     this.src.connect(this);
@@ -672,8 +761,16 @@ var ArrSink = class {
   XR0(value2) {
     this.remove([], value2);
   }
+  // Skip undefined-valued removes: a RowOperator over an array forwards
+  // `[index, undefined]` when an EXCLUDED slot is spliced out — the positional
+  // shift signal that array-aware sinks need, but no logical row left the view.
+  // A position-agnostic record sink must not surface a `{type:'remove',
+  // value:undefined}` for a row that was never present (a real remove always
+  // carries the row value).
   BR1(R1) {
-    iter22(R1, (name, value2) => this.remove([name], value2));
+    iter22(R1, (name, value2) => {
+      if (value2 !== void 0) this.remove([name], value2);
+    });
   }
   BR2(R2) {
     iter22(R2, (key, value2) => this.remove(key, value2));
@@ -781,7 +878,9 @@ var FunctionSink = class extends Sink {
     iter3(I2, (key, value2, at) => this.fn({ type: "insert", key, value: sclone(value2), at }));
   }
   BR1(R1) {
-    iter22(R1, (name, value2) => this.fn({ type: "remove", key: [name], value: sclone(value2) }));
+    iter22(R1, (name, value2) => {
+      if (value2 !== void 0) this.fn({ type: "remove", key: [name], value: sclone(value2) });
+    });
   }
   BR2(R2) {
     iter22(R2, (key, value2) => this.fn({ type: "remove", key, value: sclone(value2) }));
@@ -809,8 +908,15 @@ var ViewProxy = class _ViewProxy {
     return true;
   }
   // Special-cased property reads:
-  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint`
-  //     is "string" | "number" | "default"; truthy hint means string context.
+  //   Symbol.toPrimitive — used by template literals and arithmetic. `hint` is
+  //     "string" | "number" | "default". The old `hint ? toString : +value`
+  //     treated every hint as truthy, so the numeric branch was dead and
+  //     `+$(aDate)` was NaN (string round-trip) instead of the timestamp. Now:
+  //     "number" → numeric (`+value`, the unary `+`/`-` case); "string" →
+  //     toString (`String()`/template); "default" (binary `+`) → the underlying
+  //     primitive AS-IS so the proxy coerces like its value (string concat for a
+  //     string row, numeric for a number, date-string for a Date) — an object
+  //     value falls back to toString since toPrimitive must return a primitive.
   //   Symbol.iterator    — lets `for (const x of proxy)` walk numeric indices.
   //   Symbols.reactive   — branding so foreign code can detect ViewProxies.
   //   Symbols.view       — internal: the underlying View object.
@@ -818,7 +924,12 @@ var ViewProxy = class _ViewProxy {
   //                        a child view named "value" instead — that's the
   //                        canonical gotcha noted in CLAUDE.md.
   get(t, name) {
-    if (name === Symbol.toPrimitive) return (hint) => hint ? this.view.value?.toString() : +this.view.value;
+    if (name === Symbol.toPrimitive) return (hint) => {
+      const v = this.view.value;
+      if (hint === "number") return +v;
+      if (hint === "string") return v?.toString();
+      return v !== null && typeof v === "object" ? v.toString() : v;
+    };
     if (name === Symbol.iterator) return this.iterator;
     if (name === Symbols.reactive) return true;
     if (name === Symbols.view) return this.view;
@@ -846,13 +957,16 @@ var ViewProxy = class _ViewProxy {
     if (type === "patch") {
       const { res, key } = p;
       const pairs = args[0];
-      if (!key.length) return res.BU1(pairs);
-      const U2 = [];
-      for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
-      return res.BU2(U2);
+      return transact(() => {
+        if (!key.length) return res.BU1(pairs);
+        const U2 = [];
+        for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1]);
+        return res.BU2(U2);
+      });
     }
     if (type === "first") return new _ViewProxy(p.get_or_create_named(firstKey(p.value)));
     if (type === "last") return new _ViewProxy(p.get_or_create_named(lastKey(p.value)));
+    if (type === "toJSON") return p.value;
     const OperatorClass = Operators[type]?.(...args);
     if (OperatorClass) {
       let sink = p.some_sink((sink2) => sink2 instanceof OperatorClass && sink2.matches?.(...args) ? sink2 : void 0);
@@ -865,7 +979,8 @@ var ViewProxy = class _ViewProxy {
     if (type === "remove") return this.view.res.remove(p.key);
     if (type === "update") return this.view.res.update(value2, p.key);
     if (type === "insert") return this.view.res.insert(value2, p.key, at);
-    throw new Error(`Unknown operator '${type}'. Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). You're seeing this because the dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.`);
+    const registered = Object.keys(Operators);
+    throw new Error(`Unknown operator '${type}'. ` + (registered.length === 0 ? `The dispatch table is empty \u2014 likely an import from 'data/lean' (the registration-free core). Chainable operators (.filter, .between, .length, etc.) register when you import from 'data' (the default entry) or 'data/full' (adds JSX). Switch to 'data', or register the operators you need onto the exported 'Operators' table yourself.` : `No operator with that name is registered (${registered.length} operators are: ${registered.sort().join(", ")}).`));
   }
   getPrototypeOf(target) {
     return _ViewProxy.prototype;
@@ -953,10 +1068,13 @@ var RowOperator = class extends Operator {
   // batch the resulting deltas into a single set of downstream events.
   loop(C, inc, inner) {
     const NU1 = [], NI0 = [], NR1 = [];
+    if (typeof this.view.value !== "object" || this.view.value === null)
+      this.view.value = isArray(this.p.value) ? [] : {};
     for (let i = 0; i < C.length; i += inc) {
       const name = inner ? C[i][0] : C[i];
       const old_val = this.view.value?.[name];
-      const now_val = this.process(this.p.value[name], name, old_val);
+      const row = this.p.value[name];
+      const now_val = row === void 0 ? void 0 : this.process(row, name, old_val);
       const old = old_val !== void 0;
       const now = now_val !== void 0;
       if (old && now) {
@@ -984,12 +1102,15 @@ var RowOperator = class extends Operator {
   // (e.g. setting the source to a primitive). Array-vs-object shape is
   // mirrored from the source so `for...in` iteration stays consistent.
   XU0(value2) {
-    if (typeof value2 !== "object") return this.view.XU0(this.view.value = void 0);
-    const n = isArray(value2) ? [] : {};
+    if (typeof value2 !== "object" || value2 === null) return this.view.XU0(this.view.value = void 0);
+    const arr = isArray(value2);
+    const n = arr ? [] : {};
     for (const i in value2) {
+      if (value2[i] === void 0) continue;
       const v = this.process(value2[i], i, this.view.value?.[i]);
       if (v !== void 0) n[i] = v;
     }
+    if (arr) n.length = value2.length;
     this.view.XU0(this.view.value = n);
   }
   BU1(U1) {
@@ -1058,7 +1179,8 @@ var RowOperator = class extends Operator {
     const NI0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
-      const now_val = this.process(this.p.value[at], at, void 0);
+      const row = this.p.value[at];
+      const now_val = row === void 0 ? void 0 : this.process(row, at, void 0);
       this.view.value.splice(at, 0, now_val);
       if (now_val === void 0) delete this.view.value[at];
       NI0.push(at, now_val);
@@ -1090,7 +1212,8 @@ var RowOperator = class extends Operator {
     const NF0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const name = I0[i];
-      const now_val = this.process(this.p.value[name], name, void 0);
+      const row = this.p.value[name];
+      const now_val = row === void 0 ? void 0 : this.process(row, name, void 0);
       if (now_val !== void 0) {
         this.view.value[name] = now_val;
         NF0.push(name, now_val);
@@ -1102,8 +1225,10 @@ var RowOperator = class extends Operator {
 
 // operators/filter/index.ts
 function get(k, r) {
-  const p = k.concat([]);
-  while (p.length) r = r?.[p.shift()];
+  for (const seg of k) {
+    if (r == null) return void 0;
+    r = r[seg];
+  }
   return r;
 }
 function match(actual, expected) {
@@ -1132,7 +1257,7 @@ var FilterStringValue = class extends FilterValue {
   constructor(p, name, value2) {
     super(
       p,
-      value2 === void 0 ? (r) => !!r[name] : (r) => r[name] === value2
+      value2 === void 0 ? (r) => !!r?.[name] : (r) => r?.[name] === value2
     );
   }
 };
@@ -1148,10 +1273,21 @@ var FilterColumnValue = class extends FilterValue {
 
 // operators/between/index.ts
 var BetweenValue = class extends Operator {
-  // Dedup helper — when two charts brush over the same column with the same
-  // bounds, share a single Between sink.
-  matches(col, [lo, hi]) {
-    return this.col === col && this.plo === lo && this.phi === hi;
+  // Dedup helper — two charts brushing the same column with the same bound
+  // SOURCE share a single Between sink. The dedup signal is the bound source
+  // identity, not its current value: for the reactive single-ViewProxy extent
+  // form (the crossfilter `between('delay', filters.delay)` pattern) we compare
+  // the underlying View (stable across the fresh wrapper ViewProxy.get mints per
+  // access) — the old `this.plo === lo` compared a stored child-proxy wrapper
+  // against a freshly-minted one and NEVER matched, so identical calls piled up
+  // live operators. Reactive tuple bounds compare each bound's View; plain
+  // numeric bounds compare by value.
+  matches(col, arg) {
+    if (this.col !== col) return false;
+    if (arg instanceof ViewProxy) return this._extentView === arg[view];
+    if (this._extentView) return false;
+    const id = (src, vp) => vp instanceof ViewProxy ? src === vp[view] : src === vp;
+    return id(this._loId, arg[0]) && id(this._hiId, arg[1]);
   }
   constructor(p, col, arg) {
     super();
@@ -1167,10 +1303,13 @@ var BetweenValue = class extends Operator {
       return this.p.value[d][col];
     });
     if (arg instanceof ViewProxy) {
+      this._extentView = arg[view];
       arg.connect(this, "extent");
     } else {
       this._loSrc = arg[0] instanceof ViewProxy ? arg[0] : $(arg[0]);
       this._hiSrc = arg[1] instanceof ViewProxy ? arg[1] : $(arg[1]);
+      this._loId = arg[0] instanceof ViewProxy ? arg[0][view] : arg[0];
+      this._hiId = arg[1] instanceof ViewProxy ? arg[1][view] : arg[1];
       this._loSrc.connect(this, "lo");
       this._hiSrc.connect(this, "hi");
     }
@@ -1343,7 +1482,10 @@ var BetweenValue = class extends Operator {
     this.sortedDirty = false;
   }
   BU1(U1) {
-    if (this.view.value === this.p.value) return this.view.BU1(U1);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BU1(U1);
+    }
     for (let i = 0; i < U1.length; i += 2) {
       const name = U1[i];
       const row = U1[i + 1];
@@ -1351,7 +1493,10 @@ var BetweenValue = class extends Operator {
     }
   }
   BU2(U2) {
-    if (this.view.value === this.p.value) return this.view.BU2(U2);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BU2(U2);
+    }
     for (let i = 0; i < U2.length; i += 2) {
       const key = U2[i];
       const value2 = U2[i + 1];
@@ -1386,7 +1531,10 @@ var BetweenValue = class extends Operator {
   // incremental BI0/BR1 rather than a coarse resnapshot. Guarded by the
   // between→length/sum/avg differential scenarios.)
   BI0(I0) {
-    if (this.view.value === this.p.value) return this.view.BI0(I0);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BI0(I0);
+    }
     const NI0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
@@ -1404,7 +1552,10 @@ var BetweenValue = class extends Operator {
     if (NI0.length) this.view.BI0(NI0);
   }
   BR1(R1) {
-    if (this.view.value === this.p.value) return this.view.BR1(R1);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BR1(R1);
+    }
     const NR1 = [];
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i];
@@ -1429,7 +1580,10 @@ var BetweenValue = class extends Operator {
   // its occupancy changed. Mark `sorted` dirty so the next bound move rebuilds
   // it (skipping holes), and forward BH1/BF0 so our own positional sinks mirror.
   BH1(R1) {
-    if (this.view.value === this.p.value) return this.view.BH1(R1);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BH1(R1);
+    }
     const NR1 = [];
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i];
@@ -1445,7 +1599,10 @@ var BetweenValue = class extends Operator {
     if (NR1.length) this.view.BH1(NR1);
   }
   BF0(I0) {
-    if (this.view.value === this.p.value) return this.view.BF0(I0);
+    if (this.view.value === this.p.value) {
+      this.sortedDirty = true;
+      return this.view.BF0(I0);
+    }
     const NF0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const name = I0[i];
@@ -1524,8 +1681,15 @@ var LteValue = class extends CompareValue {
 
 // operators/sort/index.ts
 var ZAValue = class extends Operator {
-  matches(col, n) {
-    return this.col_name == col && this.n == n;
+  // Dedup for the COLUMN forms (za/az('col') and za/az('col', n)). matches()
+  // receives the RAW call args, so n must default to Infinity exactly like the
+  // ZAColumnValue/AZColumnValue constructor — otherwise `za('col')` (raw n
+  // undefined) never matched this.n (Infinity) and every call built a fresh
+  // operator. The numeric forms (top(n)/za(n)) take a different arg shape and
+  // override this on ZANumberValue/AZNumberValue. (=== not ==: the col_name of
+  // the numeric forms is the `value` Symbol, and Symbol == n is always false.)
+  matches(col, n = Infinity) {
+    return this.col_name === col && this.n === n;
   }
   constructor(p, col, col_name, n) {
     super();
@@ -1540,11 +1704,13 @@ var ZAValue = class extends Operator {
     this.view.XU0(this.view.value = []);
   }
   XU0(value2) {
-    if (typeof value2 !== "object") return this.XR0();
+    if (typeof value2 !== "object" || value2 === null) return this.XR0();
     this.isArr = isArray(value2);
     this.sorted = Object.keys(value2).filter((k) => value2[k] !== void 0).sort((a, b) => {
       const va = this.col(value2[a]);
       const vb = this.col(value2[b]);
+      const na = va !== va, nb = vb !== vb;
+      if (na || nb) return (na ? 1 : 0) - (nb ? 1 : 0);
       return va > vb ? -1 : va < vb ? 1 : 0;
     });
     this.view.XU0(
@@ -1645,16 +1811,23 @@ var ZAValue = class extends Operator {
   //                stream consumers; index-keyed DOM sinks refresh content
   //                positionally and treat the move itself as a no-op).
   BU1(U1) {
+    if (U1.length > 2) return this._batchUpdate(U1);
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++];
       const value2 = U1[i];
       const { n, p, sorted } = this;
       let oidx = this.get_index(name);
       if (oidx === -1) {
+        if (value2 === void 0) continue;
         this.BI0([name, value2]);
         continue;
       }
       sorted.splice(oidx, 1);
+      if (value2 === void 0) {
+        if (n === Infinity) super.BR1A([oidx]);
+        else if (oidx < n) this._window();
+        continue;
+      }
       let nidx = this.find(this.col(this.p.value[name]));
       sorted.splice(nidx, 0, "" + name);
       if (oidx === nidx) {
@@ -1667,7 +1840,7 @@ var ZAValue = class extends Operator {
       if (oidx >= n && nidx >= n) ; else if (oidx >= n !== nidx >= n) {
         this._window();
       } else if (oidx < n && nidx < n) {
-        super.BU1([oidx, value2]);
+        super.BU1(["" + oidx, value2]);
         super.BMV1([oidx, nidx]);
       }
     }
@@ -1725,6 +1898,31 @@ var ZAValue = class extends Operator {
       }
     }
     if (NU1.length) this.view.BU1(NU1);
+  }
+  // Re-rank a multi-pair BU1 batch (a patch of whole-row overwrites) soundly.
+  // Removing EVERY updated key from `sorted` up front leaves only unchanged
+  // keys, which are still monotonic, so each subsequent bisect against the
+  // remainder is correct (and stays correct as we splice each batch key back in
+  // at its rank — incremental insertion into a sorted array preserves order).
+  // Doing it pair-by-pair instead bisects against the other batch keys' stale
+  // ranks (their p.value is already updated) — the non-monotonic mis-order.
+  // Handles new keys (not yet in `sorted` -> just inserted at rank) and leaves
+  // (value === undefined -> removed, never re-inserted) uniformly. Array sources
+  // need no index shift here: a batch BU1 only ever carries existing-index value
+  // changes (core routes new/refilled array slots through BI0A/BF0, not BU1).
+  _batchUpdate(U1) {
+    for (let i = 0; i < U1.length; i += 2) {
+      const oidx = this.get_index(U1[i]);
+      if (oidx !== -1) this.sorted.splice(oidx, 1);
+    }
+    for (let i = 0; i < U1.length; i += 2) {
+      const name = "" + U1[i];
+      const val = U1[i + 1];
+      if (val === void 0) continue;
+      const nidx = this.find(this.col(this.p.value[name]));
+      this.sorted.splice(nidx, 0, name);
+    }
+    this._window();
   }
   // Reconcile the materialized window against the current `sorted` order with
   // the minimal CONTENT-STABLE deltas: a TAIL-ONLY BR1A/BI0A for a genuine
@@ -1858,17 +2056,25 @@ var ZAColumnValue = class extends ZAValue {
   }
 };
 var ZANumberValue = class extends ZAValue {
+  // Numeric form: the only arg is `n` (top(n) / za(n)); col is implicitly the
+  // whole row. Default to Infinity like the constructor so top(2) dedups with
+  // a second top(2) (and with za(2) — the same operation).
+  matches(n = Infinity) {
+    return this.n === n;
+  }
   constructor(p, n = Infinity) {
     super(p, (d) => d, value, n);
   }
 };
 var AZValue = class extends ZAValue {
   XU0(value2) {
-    if (typeof value2 !== "object") return this.XR0();
+    if (typeof value2 !== "object" || value2 === null) return this.XR0();
     this.isArr = isArray(value2);
     this.sorted = Object.keys(value2).filter((k) => value2[k] !== void 0).sort((a, b) => {
       const va = this.col(value2[a]);
       const vb = this.col(value2[b]);
+      const na = va !== va, nb = vb !== vb;
+      if (na || nb) return (na ? 1 : 0) - (nb ? 1 : 0);
       return va > vb ? 1 : va < vb ? -1 : 0;
     });
     this.view.XU0(
@@ -1883,6 +2089,10 @@ var AZColumnValue = class extends AZValue {
   }
 };
 var AZNumberValue = class extends AZValue {
+  matches(n = Infinity) {
+    return this.n === n;
+  }
+  // see ZANumberValue
   constructor(p, n = Infinity) {
     super(p, (d) => d, value, n);
   }
@@ -1973,6 +2183,19 @@ var LimitValue = class extends Operator {
         const val = U1[i];
         const pos = this.findPos(+key);
         if (pos === -1) continue;
+        if (val === void 0) {
+          this.keys.splice(pos, 1);
+          super.BR1A([pos]);
+          const next = this.nextAfter(this.last ?? -1);
+          if (next !== void 0) {
+            this.keys.push(next);
+            this.last = next;
+            super.BI0A([this.view.value.length, this.p.value[next]]);
+          } else {
+            this.last = this.keys.length ? this.keys[this.keys.length - 1] : void 0;
+          }
+          continue;
+        }
         this.view.value[pos] = val;
         NU12.push("" + pos, val);
       }
@@ -2032,16 +2255,28 @@ var LimitValue = class extends Operator {
       return;
     }
     for (let i = 0; i < R1.length; i += 2) {
-      const key = "" + R1[i];
-      const pos = this.keys.indexOf(key);
+      const pos = this.keys.indexOf("" + R1[i]);
       if (pos === -1) continue;
       this.keys.splice(pos, 1);
       super.BR1A([pos]);
-      const next = this.nextObjectKey();
-      if (next !== void 0) {
-        this.keys.push(next);
-        super.BI0A([this.view.value.length, this.p.value[next]]);
-      }
+    }
+    this._refillObject();
+  }
+  // Refill the window up to `n` in a single iteration pass over the source,
+  // skipping holes and keys already in the window (O(1) Set membership). Used
+  // after a batch of object-source removals instead of nextObjectKey()'s
+  // per-leave full re-scan. Preserves the same result (first keys in iteration
+  // order not already in the window).
+  _refillObject() {
+    if (this.keys.length >= this.n) return;
+    const inWindow = new Set(this.keys);
+    const src = this.p.value;
+    for (const k in src) {
+      if (this.keys.length >= this.n) break;
+      if (src[k] === void 0 || inWindow.has(k)) continue;
+      this.keys.push(k);
+      inWindow.add(k);
+      super.BI0A([this.view.value.length, src[k]]);
     }
   }
   BI0(I0) {
@@ -2185,6 +2420,7 @@ var GroupValue = class extends Operator {
       }
     } else {
       iter(value2, (i, v) => {
+        if (v === void 0) return;
         const g = this.fn(v);
         (new_value[g] ??= {})[i] = v;
         this.posMap.set(i, g);
@@ -2230,6 +2466,20 @@ var GroupValue = class extends Operator {
       const name = U1[i++];
       const value2 = U1[i];
       const tracked = this.posMap.has(name);
+      if (value2 === void 0) {
+        if (tracked) {
+          const old_group2 = this.posMap.get(name);
+          this.posMap.delete(name);
+          const oldVal = this.view.value[old_group2]?.[name];
+          if (oldVal !== void 0) {
+            let leavers = leaving.get(old_group2);
+            if (!leavers) leaving.set(old_group2, leavers = {});
+            leavers[name] = oldVal;
+            delete this.view.value[old_group2][name];
+          }
+        }
+        continue;
+      }
       const old_group = this.posMap.get(name);
       const new_group = this.fn(value2);
       if (tracked && old_group === new_group) {
@@ -2389,6 +2639,23 @@ var GroupValue = class extends Operator {
       const pos = +U1[i++];
       const value2 = U1[i];
       const info = this.posMap.get(pos);
+      if (value2 === void 0) {
+        if (info !== void 0) {
+          const oldBucket = this.view.value[info.group];
+          if (oldBucket !== void 0) {
+            const oldVal = oldBucket[info.idx];
+            oldBucket.splice(info.idx, 1);
+            for (const sibling of this.posMap.values()) {
+              if (sibling.group === info.group && sibling.idx > info.idx) sibling.idx--;
+            }
+            let leavers = leaving.get(info.group);
+            if (!leavers) leaving.set(info.group, leavers = []);
+            leavers.push(info.idx, oldVal);
+          }
+          this.posMap.delete(pos);
+        }
+        continue;
+      }
       const old_group = info?.group;
       const new_group = this.fn(value2);
       if (old_group === new_group && info !== void 0) {
@@ -2470,7 +2737,7 @@ var GroupValue = class extends Operator {
       for (let i = 0; i < U2.length; i += 2) {
         const name = U2[i][0];
         const row = this.p.value[name];
-        if (row !== void 0 && this.fn(row) !== this.posMap.get(name)?.group)
+        if (row !== void 0 && this.fn(row) !== this.posMap.get(+name)?.group)
           return this.XU0(this.p.value);
       }
       return;
@@ -2552,7 +2819,16 @@ var LengthValue = class extends Operator {
     for (let i = 1; i < R1.length; i += 2) if (R1[i] !== void 0) n++;
     if (n) this.view.XU0(this.view.value -= n);
   }
+  // A BU1 pair carrying `undefined` is a LEAVE (`src.k = undefined` — core's
+  // upsert split routes a previously-DEFINED key set to undefined here, not to
+  // BR1). Decrement once per such pair; a defined new value is a genuine update
+  // of a still-counted row (no count change). Was a blanket no-op, so the count
+  // went permanently stale on assignment-to-undefined.
   BU1(U1) {
+    if (!U1.length) return;
+    let n = 0;
+    for (let i = 1; i < U1.length; i += 2) if (U1[i] === void 0) n++;
+    if (n) this.view.XU0(this.view.value -= n);
   }
   BI0(I0) {
     if (!I0.length) return;
@@ -2592,42 +2868,56 @@ var LengthFnValue = class extends Operator {
     if (!R1.length) return;
     if (this.isArr) return this.XU0(this.p.value);
     const { mapping } = this;
+    let changed = false;
     for (let i = 0; i < R1.length; i++) {
       const n = R1[i++];
       const m = mapping[n];
       if (!m) continue;
       m.value--;
       mapping[n] = void 0;
+      changed = true;
     }
-    this.view.XU0(this.view.value);
+    if (changed) this.view.XU0(this.view.value);
   }
   BU1(U1) {
     if (!U1.length) return;
     const { mapping, view: view2, fn } = this;
+    let changed = false;
     for (let i = 0; i < U1.length; i++) {
       const n = U1[i++];
       const v = U1[i];
       const og = mapping[n];
+      if (v === void 0) {
+        if (og) {
+          og.value--;
+          mapping[n] = void 0;
+          changed = true;
+        }
+        continue;
+      }
       const ng = view2.value[fn(v)] ??= { value: 0 };
       if (og !== ng) {
         mapping[n] = ng;
         if (og) og.value--;
         ng.value++;
+        changed = true;
       }
     }
-    this.view.XU0(this.view.value);
+    if (changed) this.view.XU0(this.view.value);
   }
   BI0(I0) {
     if (!I0.length) return;
     if (this.isArr) return this.XU0(this.p.value);
     const { mapping, view: view2, fn } = this;
+    let changed = false;
     for (let i = 0; i < I0.length; i++) {
       const n = I0[i++];
       const v = I0[i];
       if (v === void 0) continue;
       (mapping[n] = view2.value[fn(v)] ??= { value: 0 }).value++;
+      changed = true;
     }
-    this.view.XU0(this.view.value);
+    if (changed) this.view.XU0(this.view.value);
   }
   // In-place field mutation (e.g. `data[id].status = 'x'`). The framework
   // delivers this as a BU2 carrying the changed path, not the whole row, so we
@@ -2657,6 +2947,9 @@ var LengthFnValue = class extends Operator {
     }
     if (moved) this.view.XU0(this.view.value);
   }
+  // NB: no BH1/BF0 — a sparse producer's membership flip falls back to BR1/BI0,
+  // which rebuilds over an array source. Incremental BH1/BF0 here desynced the
+  // same way the aggregate one did (see ISSUES.md P7); the rebuild is correct.
   BR2() {
   }
   BI2() {
@@ -2683,9 +2976,11 @@ var IntersectValue = class extends Operator {
     this.sources = /* @__PURE__ */ new Map([[p, { one: 1, off: -2 }]]);
     this.all = 1;
     for (const src of sources) {
+      const v = src[view];
+      if (this.sources.has(v)) continue;
       const one = 1 << this.sources.size;
       src.connect(this);
-      this.sources.set(src[view], { one, off: ~one });
+      this.sources.set(v, { one, off: ~one });
       this.all |= one;
     }
     if (typeof p.value !== "object") {
@@ -2735,7 +3030,7 @@ var IntersectValue = class extends Operator {
       const oldVal = this.view.value[at];
       this.filters.splice(at, 1);
       this.view.value.splice(at, 1);
-      if (oldVal !== void 0) NR1.push(at, oldVal);
+      NR1.push(at, oldVal);
     }
     if (NR1.length) this.view.BR1(NR1);
   }
@@ -3015,6 +3310,13 @@ var AggregateValue = class extends Operator {
     }
     if (dirty) this._publish();
   }
+  // NB: AggregateValue deliberately does NOT implement BH1/BF0. A sparse
+  // producer's length-stable membership flip therefore falls back to BR1/BI0,
+  // which over an array source REBUILDS (the position-keyed `tracked` can't be
+  // trusted incremental against between's hole-flip emission — an incremental
+  // BH1/BF0 here desynced the running total on a brush, see ISSUES.md P7). The
+  // rebuild is O(N) per flip but correct; the shipped crossfilter brush is
+  // rAF-coalesced so it pays it at most once per frame.
   // Nested-key changes: re-project the affected row from p.value, then run
   // the same delta/publish pipe. Saves the subclass from caring about depth.
   BU2(U2) {
@@ -3245,6 +3547,14 @@ var EveryValue = class extends AggregateValue {
 };
 
 // operators/tap/index.ts
+function tapHasParam(fn) {
+  if (typeof fn !== "function") return false;
+  if (fn.length > 0) return true;
+  const s = Function.prototype.toString.call(fn);
+  if (/^\s*(?:async\s+)?[A-Za-z_$][\w$]*\s*=>/.test(s)) return true;
+  const m = s.match(/\(([^)]*)\)/);
+  return !!(m && m[1].trim() !== "");
+}
 var sclone2 = (d) => structuredClone(d);
 var TapValue = class extends Operator {
   constructor(p, fn) {
@@ -3518,7 +3828,7 @@ var ReduceValue = class extends Operator {
     return this.fn === fn && this.init === init;
   }
   _rebuild() {
-    let acc = this.init;
+    let acc = this.init && typeof this.init === "object" ? structuredClone(this.init) : this.init;
     const v = this.p.value;
     if (v && typeof v === "object") {
       iter(v, (k, row) => {
@@ -3611,6 +3921,7 @@ var ReduceIncrementalValue = class extends Operator {
   }
   BI0(I0) {
     if (!I0.length) return;
+    if (isArray(this.p.value)) return this._rebuild();
     let acc = this.view.value;
     for (let i = 0; i < I0.length; i += 2) {
       const v = I0[i + 1];
@@ -3623,6 +3934,7 @@ var ReduceIncrementalValue = class extends Operator {
   }
   BR1(R1) {
     if (!R1.length) return;
+    if (isArray(this.p.value)) return this._rebuild();
     let acc = this.view.value;
     for (let i = 0; i < R1.length; i += 2) {
       const v = R1[i + 1];
@@ -3769,7 +4081,7 @@ var UnionValue = class extends Operator {
       const oldVal = this.view.value[at];
       this.filters.splice(at, 1);
       this.view.value.splice(at, 1);
-      if (oldVal !== void 0) NR1.push(at, oldVal);
+      NR1.push(at, oldVal);
     }
     if (NR1.length) this.view.BR1(NR1);
   }
@@ -3975,7 +4287,7 @@ var ExceptValue = class extends Operator {
       const at = R1[i];
       const oldVal = this.view.value[at];
       this.view.value.splice(at, 1);
-      if (oldVal !== void 0) NR1.push(at, oldVal);
+      NR1.push(at, oldVal);
     }
     if (NR1.length) this.view.BR1(NR1);
   }
@@ -3992,6 +4304,16 @@ var ExceptValue = class extends Operator {
   BI0A(I0, v) {
     if (v === this.p) {
       if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length;
+      const me2 = this.view.value;
+      const otherVal = this.otherView?.value;
+      const NI02 = [];
+      for (let i = 0; i < I0.length; i += 2) {
+        const at = I0[i];
+        const pRow = this.p.value[at];
+        const inOther = otherVal?.[at] !== void 0;
+        if (!inOther && pRow !== void 0 && me2[at] === void 0) NI02.push(at, me2[at] = pRow);
+      }
+      if (NI02.length) this.view.BI0(NI02);
       return;
     }
     if (v !== this.otherView) return;
@@ -4114,17 +4436,19 @@ var ExceptValue = class extends Operator {
 
 // operators/keys/index.ts
 var CollectionView = class extends Operator {
-  constructor(p, project, isKeys) {
+  constructor(p, isKeys) {
     super();
     this.p = p;
-    this.project = project;
     this.isKeys = isKeys;
     this.output = [];
     this._rebuild();
   }
   _rebuild() {
     const v = this.p.value;
-    const next = v && typeof v === "object" ? this.project(v) : [];
+    let next = [];
+    if (v && typeof v === "object") {
+      for (const k in v) if (v[k] !== void 0) next.push(this.isKeys ? k : v[k]);
+    }
     this.output = next;
     this.view.value = next;
     this.view.XU0(next);
@@ -4170,12 +4494,12 @@ var CollectionView = class extends Operator {
 };
 var KeysValue = class extends CollectionView {
   constructor(p) {
-    super(p, Object.keys, true);
+    super(p, true);
   }
 };
 var ValuesValue = class extends CollectionView {
   constructor(p) {
-    super(p, Object.values, false);
+    super(p, false);
   }
 };
 
@@ -4268,7 +4592,7 @@ Operators["max"] = () => MaxValue;
 Operators["min"] = () => MinValue;
 Operators["some"] = () => SomeValue;
 Operators["every"] = () => EveryValue;
-Operators["tap"] = (fn) => typeof fn === "function" && fn.length === 0 ? TapBareValue : TapValue;
+Operators["tap"] = (fn) => tapHasParam(fn) ? TapValue : TapBareValue;
 Operators["distinct"] = () => DistinctValue;
 Operators["reduce"] = (_, b) => typeof b === "function" ? ReduceIncrementalValue : ReduceValue;
 Operators["union"] = () => UnionValue;
@@ -4279,9 +4603,16 @@ Operators["reverse"] = () => ReverseValue;
 
 // render/index.ts
 var NS = "http://www.w3.org/2000/svg";
-var NODE = /* @__PURE__ */ Symbol("Node");
+var NODE = /* @__PURE__ */ Symbol.for("data.node");
 var { keys } = Object;
-var render = (p, np) => Node.render(p, np[NODE]);
+var render = (p, np) => (
+  // A top-level Fragment is a plain array of NodeProxy children (it only works
+  // nested because an enclosing h() flattens it). Passed straight to render(),
+  // `np[NODE]` is undefined and Node.render threw a bare "reading 'children'"
+  // TypeError. Treat it like a wrapper whose children render into `p` — the same
+  // semantics a single wrapper template gets.
+  isArray(np) ? Node.render(p, Node.add(new Node("", null), ...np.filter((c) => c != null && c !== false))[NODE]) : Node.render(p, np[NODE])
+);
 var DOMSink = class {
   constructor(parent, node) {
     this.parent = parent;
@@ -4391,32 +4722,37 @@ var DOMSink = class {
   _detached() {
     return this.parent?.isConnected === false;
   }
+  // Remove EVERY present node from `this.nodes`, regardless of shape: array
+  // entries (skipping holes a sparse remove left — `?.remove()`), object string
+  // keys, AND the NODE-symbol slot (a scalar binding — for-in never enumerates a
+  // Symbol key, so it would otherwise be orphaned and duplicated on the next
+  // update). Operates directly on `this.nodes` so it must run BEFORE any reset.
+  _teardownAll() {
+    const ns = this.nodes;
+    if (!ns) return;
+    if (isArray(ns)) {
+      for (let i = 0; i < ns.length; i++) ns[i]?.remove();
+    } else {
+      for (const k in ns) ns[k]?.remove();
+    }
+    ns[NODE]?.remove();
+  }
   XR0() {
     if (this._detached()) return;
-    const gone = [];
-    for (const i in this.nodes) gone.push(i);
-    for (let j = 0; j < gone.length; j++) this.remove_node(gone[j]);
+    this._teardownAll();
+    this.nodes = isArray(this.nodes) ? [] : {};
   }
   XU0(value2) {
     if (this._detached()) return;
+    if (value2 === void 0 || typeof value2 !== "object") {
+      this._teardownAll();
+      this.nodes = {};
+      if (value2 !== void 0) this.create_node(NODE);
+      return;
+    }
     const prev_nodes = this.nodes ?? {};
-    if (typeof value2 === "undefined") {
-      this.nodes = {};
-      const gone2 = [];
-      for (const i in prev_nodes) gone2.push(i);
-      for (let j = 0; j < gone2.length; j++) this.remove_node(gone2[j]);
-      return;
-    }
-    if (typeof value2 !== "object") {
-      this.nodes = {};
-      const gone2 = [];
-      for (const i in prev_nodes) gone2.push(i);
-      for (let j = 0; j < gone2.length; j++) this.remove_node(gone2[j]);
-      this.create_node(NODE);
-      return;
-    }
     const arr = isArray(value2);
-    if (arr && this._sparse(value2)) return this._reconcile_sparse(value2);
+    if (arr) return this._reconcile_sparse(value2);
     this.nodes ??= arr ? [] : {};
     for (const i in value2)
       if (!prev_nodes[i] && (arr || value2[i] !== void 0))
@@ -4432,6 +4768,26 @@ var DOMSink = class {
     if (this._detached()) return;
     for (let i = 0; i < R1.length; i++)
       this.remove_node(R1[i++]);
+  }
+  // Array-positional structural splice (a STRUCTURAL source insert/remove
+  // reaching a list, not a length-stable membership flip). For a SPARSE-bound
+  // list (a between/intersect/union/except view bound straight to the DOM) the
+  // splice shifts source indices, so the index-keyed nodes must re-sync against
+  // the post-splice value — the tail-relative BR1/BI0 fallback removed/added the
+  // wrong node and blanked the list. A DENSE list (sort/group/limit) only ever
+  // receives TAIL BR1A/BI0A (its _window reconcile emits tail-only splices plus
+  // content-stable BU1s), so it keeps the cheap tail path — identical to the old
+  // BR1/BI0 fallback, no regression. Detected by whether the current source
+  // value is sparse.
+  BR1A(R1) {
+    if (this._detached()) return;
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value);
+    for (let i = 0; i < R1.length; i++) this.remove_node(R1[i++]);
+  }
+  BI0A(I0) {
+    if (this._detached()) return;
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value);
+    for (let i = 0; i < I0.length; i++) this.create_node(I0[i++]);
   }
   BU1(U1) {
     if (this._detached()) return;
@@ -4507,8 +4863,9 @@ var Node = class _Node extends Child {
   static render(dom, node) {
     for (const child of node.children) {
       if (child.data) {
-        dom.sink = new DOMSink(dom, child);
-        Object.defineProperty(dom, "__ripple_sink", { value: dom.sink, configurable: true });
+        const sink = new DOMSink(dom, child);
+        (dom.sinks ??= []).push(dom.sink = sink);
+        Object.defineProperty(dom, "__ripple_sink", { value: sink, configurable: true });
       } else {
         child.create(dom);
       }
@@ -4571,7 +4928,7 @@ var Node = class _Node extends Child {
     let node = new _Node(
       this.tag,
       this.ns,
-      this.children.concat([])
+      this.children.map((c) => c instanceof _Node ? c.new : c instanceof Prop ? new c.constructor(c.name, c.value) : c)
     );
     const content = this.fn ? this.fn(new NodeProxy(node), v, k) : v;
     if (content instanceof NodeProxy) {
@@ -4617,11 +4974,25 @@ var Attr = class extends Prop {
   }
 };
 var Class = class extends Prop {
-  add() {
-    this.parent.classList.add(this.name);
+  // Two reactive shapes reach here:
+  //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
+  //                           add/remove toggle the fixed class `this.name`.
+  //   className={vp}         — REACTIVE name (this.name is a VP yielding the class
+  //                           string): each change passes the NEW class as `value`,
+  //                           and we must remove the PREVIOUS class first or they
+  //                           accumulate forever (the documented Reactive<string>
+  //                           className never dropping the old class).
+  add(value2) {
+    const reactiveName = this.name?.[view];
+    const cls = reactiveName ? value2 : this.name;
+    if (reactiveName && this._last !== void 0 && this._last !== cls)
+      this.parent.classList.remove(this._last);
+    if (cls != null && cls !== "") this.parent.classList.add(this._last = cls);
   }
   remove() {
-    this.parent.classList.remove(this.name);
+    const cls = this.name?.[view] ? this._last : this.name;
+    if (cls != null && cls !== "") this.parent.classList.remove(cls);
+    this._last = void 0;
   }
 };
 var ID = class extends Prop {

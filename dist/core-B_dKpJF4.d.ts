@@ -23,27 +23,7 @@ declare const view: unique symbol;
  * hand-picked subset of operators: `Operators['filter'] = () => FilterValue`.
  */
 declare const Operators: Record<string, (...args: any[]) => any>;
-/**
- * Wrap a value or collection in a reactive `ViewProxy`.
- *
- * Read the raw value with `proxy[value]` (the {@link value} symbol). Mutate by
- * assignment — `proxy.foo = 1`, `proxy[0].done = true`, `delete proxy[1]`,
- * `proxy[value] = next` — including nested paths; the right update cascade
- * fires automatically. Derive reactive views with chainable operators
- * (`filter`, `between`, `map`, `length`, `sum`, …), which are registered when
- * you import from `data` or `data/full`.
- *
- * @example
- * import { $, value } from 'data'
- * const rows = $([{ n: 1 }, { n: 5 }, { n: 9 }])
- * const big  = rows.filter(d => d.n > 3).length()
- * big[value]      // 2
- * rows[0].n = 10  // views update incrementally
- */
-declare const $: {
-    <T>(v: T): Data<T>;
-    random(o: any): string | number;
-};
+declare const $: <T>(v: T) => Data<T>;
 
 /**
  * Low-level escape hatch for building a derived view from a custom `Operator`
@@ -53,16 +33,22 @@ declare const $: {
  * operator or wiring one that isn't registered. See operators/README.md.
  */
 declare function createOperator(source: any, OperatorClass: any, ...args: any[]): ViewProxy;
-type RowOf<T> = T extends Record<any, infer R> ? R : never;
+type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never;
 type ChangeRecord = {
     type: 'update' | 'insert' | 'remove';
     key: string[];
     value: any;
     at?: any;
 };
-type Data<T = any> = {
-    [k in keyof T]: Data<T[k]>;
-} & {
+type Reactive<T> = Data<T> | T;
+type Data<T = any> = [
+    T
+] extends [readonly (infer E)[]] ? DataOps<T> & {
+    [index: number]: Data<E>;
+} : [T] extends [object] ? DataOps<T> & {
+    [K in keyof T]: Data<T[K]> | T[K];
+} : DataOps<T>;
+type DataOps<T = any> = {
     [value]?: T;
     /**
      * Subscribe to this view. Three forms:
@@ -111,16 +97,31 @@ type Data<T = any> = {
      * `between`/`intersect`.
      * @example rows.filter(d => d.active)   //  rows.filter('done', false)   //  rows.filter({ done: false })
      */
-    filter(arg: object): Data<T>;
-    filter(key: string, value: any): Data<T>;
     filter(fn: (row: RowOf<T>) => boolean): Data<T>;
+    filter(key: string, value: any): Data<T>;
+    filter(arg: object): Data<T>;
     /**
      * Rows whose `key` column falls within `[lo, hi]` (sort-indexed). Pass
      * ViewProxy bounds for a reactive range (a moving brush); plain numbers are
      * static. For a single moving threshold prefer `gt`/`lt`/`gte`/`lte`.
      * @example trades.between('pnl', [-1e6, 1e6])
      */
-    between(key: string, [lo, hi]: [number, number]): Data<T>;
+    between(key: string, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>;
+    /**
+     * Single-threshold row filters (RowOperator-based, O(1) per change — prefer
+     * over `between(col, [T, Infinity])` for a moving threshold).
+     * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)
+     */
+    gt(key: string, value: number): Data<T>;
+    lt(key: string, value: number): Data<T>;
+    gte(key: string, value: number): Data<T>;
+    lte(key: string, value: number): Data<T>;
+    /**
+     * Apply many child updates as ONE batched cascade (sinks see a single BU1).
+     * Pairs are `[name, value, name, value, …]`.
+     * @example pop.patch(['a', { x: 1 }, 'b', { x: 2 }])
+     */
+    patch(pairs: any[]): undefined;
     /**
      * Whole-value transform — maps the entire snapshot, rebuilding on change.
      * @example count.to(n => n * 2)
@@ -139,7 +140,7 @@ type Data<T = any> = {
      * @example rows.length()   //  rows.length(r => r.region) → { east: { value: 4 }, … }
      */
     length(): Data<number>;
-    length<R>(fn: (row: RowOf<T>) => R): Data<Record<R, number>>;
+    length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, number>>;
     /**
      * Scalar aggregate over a column (or row values if `col` omitted). `sum`/`avg`
      * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined`.
@@ -173,6 +174,7 @@ type Data<T = any> = {
      * @example rows.reduce((acc, r) => acc + r.n, 0)
      */
     reduce<R>(fn: (acc: R, row: RowOf<T>, key: string) => R, init: R): Data<R>;
+    reduce<R>(add: (acc: R, row: RowOf<T>, key: string) => R, remove: (acc: R, row: RowOf<T>, key: string) => R, init: R | (() => R)): Data<R>;
     /**
      * Rows present in ANY source (value taken from the first source containing it).
      * @example a.union(b, c)
@@ -212,7 +214,7 @@ type Data<T = any> = {
      * semantics) — use `length(fn)` when you want zero-count buckets to persist.
      * @example sales.group(s => s.region)
      */
-    group<R>(fn: (value: RowOf<T>) => R): Data<Record<R, RowOf<T>>>;
+    group<R extends PropertyKey>(fn: (value: RowOf<T>) => R): Data<Record<R, RowOf<T>>>;
 };
 declare class Sink {
 }

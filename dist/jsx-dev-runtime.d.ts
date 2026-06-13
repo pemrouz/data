@@ -1,1 +1,2 @@
-export { a as Fragment, b as jsxDEV } from './jsx-runtime-PXzllCJG.js';
+export { a as Fragment, b as jsxDEV } from './index-PXzllCJG.js';
+export { JSX } from './jsx-runtime.js';
