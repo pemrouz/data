@@ -290,7 +290,6 @@ const KNOWN_FAILURES = new Set([
   'filter→sum [array]',
   'filter→sum [object]',
   // — trailing-excluded RowOperator over array, the C13 shape [25] (Wave D)
-  'lt→map (trailing-excluded) [array]',
   // — sort: undefined-leave ghosts [15], patch-batch bisect [14], limit undefined [16] (Wave E)
   'az [array]',
   'az [object]',

@@ -1702,3 +1702,34 @@ test('a throwing sink does not desync aggregates registered after it', () => {
   src.a = { v: 100 }
   same(s2[value], 55)          // (100 + 10) / 2 — still tracking
 })
+
+// Regression (D1): RowOperator must never hand an undefined row to process(),
+// and must lazily init view.value when the source upgrades from a primitive.
+// [9] inserting a row the predicate excludes used to crash a chained operator
+// (process(undefined)) and abort the cascade half-applied; [12] an operator
+// built over a primitive source crashed when the root was first upgraded to an
+// object.
+test('RowOperator survives excluded inserts and primitive->object upgrade', () => {
+  // [9] chained filters, insert of a row both exclude — no crash, lengths agree
+  const src = $([{ v: 30 }, { v: 40 }])
+  const chain = src.filter((r) => r.v > 10).filter((r) => r.v > 20)
+  const lenBefore = src.length()
+  src.insert({ v: 5 })
+  same(chain[value].filter((x) => x !== undefined).map((r) => r.v), [30, 40])
+  same(lenBefore[value], 3) // a length() sees all 3 rows; the chain didn't abort it
+
+  // filter().map(), excluded insert — map's process is unguarded but never sees undefined
+  const s2 = $([{ v: 30 }])
+  const m = s2.filter((r) => r.v > 20).map((r) => r.v)
+  s2.insert({ v: 5 })
+  same(m[value].filter((x) => x !== undefined), [30])
+
+  // [12] operator over a primitive source, then upgraded to an object by a write
+  const p = $(5)
+  const f = p.filter((v) => v > 0)
+  const log = p.connect([])
+  p.foo = 1
+  same(p[value], { foo: 1 })
+  same(f[value], { foo: 1 })
+  same(log.length, 2) // snapshot + insert — cascade not aborted
+})

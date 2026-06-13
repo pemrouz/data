@@ -22,10 +22,19 @@ export class RowOperator extends Operator {
   // batch the resulting deltas into a single set of downstream events.
   loop(C, inc, inner) {
     const NU1 = [], NI0 = [], NR1 = []
+    // The source may have just been upgraded from a primitive/undefined (where
+    // XU0 left view.value === undefined) to an object by this very write — lazily
+    // mirror its shape so the per-row writes below don't deref undefined.
+    if (typeof this.view.value !== 'object' || this.view.value === null)
+      this.view.value = isArray(this.p.value) ? [] : {}
     for (let i = 0; i < C.length; i += inc) {
       const name = inner ? C[i][0] : C[i]
       const old_val = this.view.value?.[name]
-      const now_val = this.process(this.p.value[name], name, old_val)
+      const row = this.p.value[name]
+      // An undefined upstream row is a hole / a leave (`src.k = undefined`, or a
+      // sparse producer's excluded slot) — never hand it to process(): an
+      // unguarded user fn (`r => r.v`) would throw mid-cascade. Treat as excluded.
+      const now_val = row === undefined ? undefined : this.process(row, name, old_val)
       const old = old_val !== undefined
       const now = now_val !== undefined
       if ( old &&  now) { NU1.push(name, now_val); this.view.value[name] = now_val }
@@ -113,7 +122,12 @@ export class RowOperator extends Operator {
     const NI0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
-      const now_val = this.process(this.p.value[at], at, undefined)
+      const row = this.p.value[at]
+      // When the upstream excluded the inserted row it forwards BI0A with a TRUE
+      // HOLE at `at` (carried-undefined). Honour that convention — don't call
+      // process(undefined) (an unguarded fn throws, aborting the cascade
+      // half-applied): the row is simply a hole here too.
+      const now_val = row === undefined ? undefined : this.process(row, at, undefined)
       this.view.value.splice(at, 0, now_val)
       if (now_val === undefined) delete this.view.value[at]
       NI0.push(at, now_val)
@@ -144,7 +158,9 @@ export class RowOperator extends Operator {
     const NF0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const name = I0[i]
-      const now_val = this.process(this.p.value[name], name, undefined)
+      const row = this.p.value[name]
+      // honour a carried-undefined hole fill (see loop / BI0A) — no process()
+      const now_val = row === undefined ? undefined : this.process(row, name, undefined)
       if (now_val !== undefined) { this.view.value[name] = now_val; NF0.push(name, now_val) }
     }
     this.view.BF0(NF0)
