@@ -752,19 +752,35 @@ export class LimitValue extends Operator {
       }
       return
     }
-    // Object branch: linear lookup, refill from iteration order.
+    // Object branch: linear lookup; refill the whole deficit in ONE source pass.
+    // The old per-pair nextObjectKey() re-walked the entire source for EACH
+    // removed row (O(K·source)); splicing out all removals first and refilling
+    // once is O(source) for the batch (#55).
     if (R1.length > this.n * 2) { this.XU0(this.p.value); return }
     for (let i = 0; i < R1.length; i += 2) {
-      const key = '' + R1[i]
-      const pos = this.keys.indexOf(key)
+      const pos = this.keys.indexOf('' + R1[i])
       if (pos === -1) continue
       this.keys.splice(pos, 1)
       super.BR1A([pos])
-      const next = this.nextObjectKey()
-      if (next !== undefined) {
-        this.keys.push(next)
-        super.BI0A([this.view.value.length, this.p.value[next]])
-      }
+    }
+    this._refillObject()
+  }
+
+  // Refill the window up to `n` in a single iteration pass over the source,
+  // skipping holes and keys already in the window (O(1) Set membership). Used
+  // after a batch of object-source removals instead of nextObjectKey()'s
+  // per-leave full re-scan. Preserves the same result (first keys in iteration
+  // order not already in the window).
+  _refillObject(){
+    if (this.keys.length >= this.n) return
+    const inWindow = new Set(this.keys)
+    const src = this.p.value
+    for (const k in src) {
+      if (this.keys.length >= this.n) break
+      if (src[k] === undefined || inWindow.has(k)) continue
+      this.keys.push(k)
+      inWindow.add(k)
+      super.BI0A([this.view.value.length, src[k]])
     }
   }
 

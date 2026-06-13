@@ -556,3 +556,19 @@ test('limit (array) - key leaving via assignment-to-undefined refills', () => {
   src[0] = undefined          // leave the new head
   same(lim[value], [30, 40, 50])
 })
+
+// Regression (E6 / #55): the object-source refill walked the ENTIRE source once
+// PER removed row (nextObjectKey per leave — O(K·source)). It now splices all
+// removals then refills the deficit in ONE pass. Result must be identical: the
+// first in-iteration-order keys not already in the window.
+test('limit (object) - batch removal refills correctly in one pass', () => {
+  const o = $({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6 })
+  const lim = limit(o, 3)
+  same(lim[value], [1, 2, 3])
+  delete o.a
+  delete o.b
+  same(lim[value], [3, 4, 5])
+  delete o.c
+  delete o.d
+  same(lim[value], [5, 6]) // source exhausted past the window — shrinks
+})
