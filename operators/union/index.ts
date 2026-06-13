@@ -202,11 +202,15 @@ export class UnionValue extends Operator {
         NR1.push(name, this.view.value[name])
         delete this.view.value[name]
       } else {
+        // Row still a member from another source: its DISPLAY source (and thus
+        // its shown value) may have changed. Emit a BU1 unconditionally — do NOT
+        // reference-compare: derived facets SHARE the row object, so an in-place
+        // edit that moved the row between facets keeps the SAME reference, and the
+        // old `newVal !== view.value[name]` compare always matched and dropped a
+        // real display change (a downstream sort/sum/group then went stale).
         const newVal = this._pick(name)
-        if (newVal !== this.view.value[name]) {
-          this.view.value[name] = newVal
-          NU1.push(name, newVal)
-        }
+        this.view.value[name] = newVal
+        NU1.push(name, newVal)
       }
     }
     if (NU1.length) this.view.BU1(NU1)
@@ -218,14 +222,58 @@ export class UnionValue extends Operator {
     const NU1 = []
     for (let i = 0; i < U1.length; i += 2) {
       const name = U1[i]
-      // Only emit if the new value would change what we're showing — pick
-      // recomputes from the first source containing the row.
+      // Emit a BU1 for any row that is a current union MEMBER (some bit set), and
+      // do NOT reference-compare. A facet only forwards a BU1 on a genuine change;
+      // the old `newVal === view.value[name]` reference-skip wrongly swallowed an
+      // IN-PLACE edit (S[k].v = x) — the facet forwards it as a same-reference
+      // whole-row BU1, so the compare always matched and union emitted nothing,
+      // leaving a downstream sort un-re-ranked / group un-rebucketed / sum/avg
+      // un-re-tallied (value correct via _pick, change-stream empty). Emitting on
+      // every member event over-notifies a lower-priority source's update with
+      // the (unchanged) display value — harmless: downstream recomputes to the
+      // same value. Correct for SHARED-reference overlapping facets too, which a
+      // display-source gate would miss.
+      if (!this.filters[name]) continue
       const newVal = this._pick(name)
-      if (newVal === this.view.value?.[name]) continue
       this.view.value[name] = newVal
       NU1.push(name, newVal)
     }
     if (NU1.length) this.view.BU1(NU1)
+  }
+
+  // Nested-key events (deep update / remove / insert on a member's row). Union
+  // had NO BU2/BR2/BI2 handlers, so the default Operator forwarder swallowed a
+  // member's nested edit: the union's OWN value stayed correct (`_pick` reads the
+  // source live) but the change-stream was EMPTY, so a downstream sort never
+  // re-ranked, group never rebucketed, and sum/avg never re-tallied on an
+  // in-place edit. Mirror intersect/except's multi-source-aware handlers, but
+  // gate on the DISPLAY source: union shows each row from the FIRST source
+  // holding it (`_pick`), so only that source's nested edit changes the displayed
+  // value — a lower-priority source's edit is invisible and must be dropped.
+  _displaySrc(name) {
+    for (const src of this.allSources) if (src.value?.[name] !== undefined) return src
+    return undefined
+  }
+  BU2(U2, v) {
+    if (!U2.length) return
+    const N = []
+    for (let i = 0; i < U2.length; i += 2)
+      if (this._displaySrc(U2[i][0]) === v) N.push(U2[i], U2[i + 1])
+    if (N.length) this.view.BU2(N)
+  }
+  BR2(R2, v) {
+    if (!R2.length) return
+    const N = []
+    for (let i = 0; i < R2.length; i += 2)
+      if (this._displaySrc(R2[i][0]) === v) N.push(R2[i], R2[i + 1])
+    if (N.length) this.view.BR2(N)
+  }
+  BI2(I2, v) {
+    if (!I2.length) return
+    const N = []
+    for (let i = 0; i < I2.length; i += 3)
+      if (this._displaySrc(I2[i][0]) === v) N.push(I2[i], I2[i + 1], I2[i + 2])
+    if (N.length) this.view.BI2(N)
   }
 
   BI0(I0, v){ this._enter(I0, v, false) }
@@ -251,9 +299,13 @@ export class UnionValue extends Operator {
         // First time this row appears in any source → insert.
         me[name] = newVal
         NI0.push(name, newVal)
-      } else if (newVal !== me[name]) {
-        // Already showed; value may have shifted because a higher-priority
-        // source now has this row (we always take from the first source).
+      } else {
+        // Already a member from another source. The display source (and thus the
+        // shown value) may have changed — emit a BU1 unconditionally, NOT
+        // reference-compared: facets share the row object, so an in-place edit
+        // that moved the row into this (higher-priority) source keeps the SAME
+        // reference and the old `newVal !== me[name]` compare dropped the real
+        // change (a downstream sort/sum/group then went stale). See _leave/BU1.
         me[name] = newVal
         NU1.push(name, newVal)
       }
