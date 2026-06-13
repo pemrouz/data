@@ -227,3 +227,18 @@ test('render - reactive prop on the row template applies to every row', () => {
   flag[value] = true
   eq(seen.every((s) => s.has('hot')), true) // all rows, not just the last
 })
+
+// Regression (H3 / #41): the documented list pattern must render. The template
+// root is a wrapper whose data-bound children render into the parent; a row is
+// `HTML.ul(HTML.li(items, rowFn))`. (The old docs put data on the wrapper —
+// `HTML.ul(items, fn)` — which renders nothing; corrected in the JSDoc/README.)
+test('render - documented list pattern renders rows and updates on insert', () => {
+  const root = document.createElement('div')
+  const items = $([{ name: 'a' }, { name: 'b' }])
+  render(root, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
+  eq(root.children.length, 2)
+  eq(root.text, 'ab')
+  items.insert({ name: 'c' })
+  eq(root.children.length, 3)
+  eq(root.text, 'abc')
+})

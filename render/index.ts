@@ -15,13 +15,22 @@ const { keys } = Object
  * element, wiring any reactive `ViewProxy` data so the DOM updates surgically
  * — only the nodes whose bound value changed are touched, no virtual-DOM diff.
  *
- * @param p  parent DOM element to render into
- * @param np a NodeProxy template, e.g. `HTML.ul(items, item => HTML.li(item.name))`
+ * The template's ROOT node is a wrapper: its CHILDREN are created into `p`
+ * (the root tag itself is not created — `p` is the container). A data-bound
+ * child — `HTML.li(items, (li, item) => …)` — becomes one row per item, so a
+ * list is `render(container, HTML.ul(HTML.li(items, rowFn)))`: the `ul` wrapper
+ * is decorative and the `li` rows are created inside `container`. Putting the
+ * data on the wrapper itself (`HTML.ul(items, fn)`) renders nothing — a
+ * wrapper's own data/fn are ignored; only its children are scanned.
+ *
+ * @param p  parent DOM element to render into (the row container)
+ * @param np a NodeProxy template whose data-bound children become rows
  * @returns the parent element `p`
  * @example
  * import { $, render, HTML } from 'data'
  * const items = $([{ name: 'a' }, { name: 'b' }])
- * render(document.body, HTML.ul(items, i => HTML.li(i.name)))
+ * // each item becomes an <li> inside document.body:
+ * render(document.body, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
  */
 export const render = (p, np) =>
   Node.render(p, np[NODE])

@@ -128,8 +128,10 @@ const { ul, li } = HTML
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
 
+// The template root (`ul`) is a wrapper whose children render into the parent;
+// the data-bound child (`li(todos, …)`) becomes one <li> per item.
 render(document.body,
-  ul(todos, (node, item, key) => node.text(item.task))
+  ul(li(todos, (node, item, key) => node.text(item.task)))
 )
 
 todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
@@ -183,13 +185,13 @@ Concretely, picture the blotter:
 
 ```js
 const visible = trades.filter('tenor', '5Y').between('pnl', [-1e6, 1e6]).za('pnl', 50)
-render(document.body, ul(visible, (node, t) =>
+render(document.body, ul(li(visible, (node, t) =>
   node.nodes(
     span.id.text(t.id),
     span.bid.text(t.bid),
     span.pnl.text(t.pnl),
   )
-))
+)))
 
 trades[1234].bid = 99.85
 ```
