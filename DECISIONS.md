@@ -186,13 +186,23 @@ Regression: `union - array, derived facets: tail insert + shifting remove stay a
 
 `except` over an ARRAY source (p = the raw source `s`, `other` = a filter facet of it) desynced the same way: an array remove shifted later indices, but `except` dropped/holed by name (object `_removeFrom`, no splice), so removing an EXCLUDED row deleted a DRIFTED visible survivor. Fixed with the array-only handlers, the intersect mirror for the set-difference rule ("in p AND NOT in other"; no bitmask):
 - **`BR1A` (remove):** splice `view.value` only on the PRIMARY echo (`v === this.p`, the raw `s`, which echoes LAST as for intersect); a removal echoed by `other` is the same underlying delete (the row is gone from `s`) → no-op. (A row LEAVING `other` while staying in `s` is a membership re-admit — it arrives as BH1, already wired in `_removeFrom`, NOT BR1A.)
-- **`BI0A` (tail insert):** visibility decided on `other`'s echo — it carries its membership DIRECTLY (so a misaligned filter `other`, [C13](ISSUES.md), can't make a positional re-read miss the row) and p (`s`, raw) is already settled, so that echo knows both halves of "in p AND not in other". `other` always echoes a tail insert (RowOperator emits the positional insert even for an excluded slot), so it's complete; the primary's echo just keeps `view.value` length-aligned with `s`.
+- **`BI0A` (tail insert):** visibility decided on `other`'s echo — it carries its membership DIRECTLY (so a then-misaligned filter `other`, C13 — since fixed, see above — couldn't make a positional re-read miss the row) and p (`s`, raw) is already settled, so that echo knows both halves of "in p AND not in other". (As of the 2026-06-11 re-examination `except.BI0A` ALSO admits on the primary echo — finding #23 — so a `between`/`intersect` `other` that doesn't echo an out-of-range insert no longer drops an admissible row.)
 
 Regression: `except - array, derived 'other': tail insert + shifting remove stay aligned` in [operators/except/except.test.ts](operators/except/except.test.ts); `except [array]` deleted from `KNOWN_FAILURES`.
 
-**C12 is now fully closed.** All three set-algebra producers are correct over array sources; the differential harness ([differential.test.ts](differential.test.ts)) runs every scenario, array and object, with an **empty `KNOWN_FAILURES`**. Tests 417/417; intersect/union/except perf unchanged; crossfilter/library/swarm Playwright specs green. The one residual is the separate, not-shipped-reachable `RowOperator` trailing-hole misalignment now tracked as [ISSUES.md → C13](ISSUES.md) (C12's consumers sidestep it via carried values).
+**C12 is now fully closed.** All three set-algebra producers are correct over array sources; the differential harness ([differential.test.ts](differential.test.ts)) runs every scenario, array and object. Tests green; intersect/union/except perf unchanged; crossfilter/library/swarm Playwright specs green.
 
 - Where: [operators/except/index.ts](operators/except/index.ts) (`ExceptValue.BR1A`/`BI0A`).
+
+---
+
+### C13 — `RowOperator` over an array with trailing-excluded rows was length-misaligned ✅
+
+A `filter`/`map`/`compare` over an ARRAY built its snapshot by assigning only passing indices, so a TRAILING-excluded row left `view.value.length < source.length` (a JS array's length is last-assigned-index + 1). That broke the source↔operator index correspondence: a later tail insert spliced at the source index — past the operator's short array — and a downstream positional op re-read a hole (crash on `filter→map`) or mis-sorted (`filter→az` gave `[80,60,70]` for `[60,70,80]`). Originally rated "not shipped-reachable," but the 2026-06-11 re-examination showed any two-operator chain plus one insert hits it.
+
+Fixed in [row.ts](row.ts) `RowOperator.XU0`: `if (arr) n.length = value.length` pads the output to source length (trailing slots stay holes), restoring index correspondence. XU0 also skips explicit-undefined holes so a filter/map *constructed* over an already-brushed sparse producer doesn't hand `undefined` to the user fn. `compare`'s array-shift test was updated (it had asserted the old short-array length as if correct). Closed the `lt→map`/`lt→az` and 12 other differential scenarios.
+
+- Where: [row.ts](row.ts) `RowOperator.XU0`. Commit `c0425a6`.
 
 ---
 

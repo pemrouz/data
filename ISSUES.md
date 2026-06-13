@@ -8,28 +8,28 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
-| [C13](#c13) | `RowOperator` (filter/map/compare) over an **array** whose TRAILING rows are excluded has `.length` < source, so a tail insert past that length splices at the wrong index and the view's positions desync from the source | Correctness | Low | Open (not shipped-reachable; sidestepped by C12's consumers) |
+| [C14](#c14) | `intersect` over INDEPENDENT **array** sources doesn't admit a tail insert (the echoing source's bit never reaches `all` because siblings don't echo that index) | Correctness | Low | Open (not shipped-reachable; use object-keyed/derived sources) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [T1](#t1) | `dist/` is committed as a GitHub Pages fallback because Actions billing is locked | Tooling | Medium | Open (external blocker) |
 
 Legend — **Status**: *Open (by design)* = a deliberate trade-off that could still bite a user; *Open (not shipped-reachable)* = real but no shipped example hits it; *Deferred* = a known optimization awaiting a workload that needs it; *Open (external blocker)* = blocked on something outside the repo.
 
-> Everything previously tracked here as C1–C12/D1/D2 (fixed/verified) and P1/P2/P4/P6 (re-landed / won't-fix), plus T2 (closed-out), has moved to [DECISIONS.md](DECISIONS.md). The array-positional correctness family — including C12 (set-algebra producers over an array source) — is now closed: the differential harness ([differential.test.ts](differential.test.ts)) runs every scenario (filter/map/sort/between/group/length/aggregate **and** intersect/union/except), array **and** object, against a from-scratch rebuild with an **empty `KNOWN_FAILURES`**.
+> Everything previously tracked here as C1–C13/D1/D2 (fixed/verified) and P1/P2/P4/P6 (re-landed / won't-fix), plus T2 (closed-out), has moved to [DECISIONS.md](DECISIONS.md). **C13** (RowOperator over an array with trailing-excluded rows being length-misaligned) was closed by the 2026-06-11 re-examination: `RowOperator.XU0` now pads the array output to source length. The differential harness ([differential.test.ts](differential.test.ts)) runs every scenario (filter/map/sort/between/group/length/aggregate **and** intersect/union/except), array **and** object, under a widened mutation vocabulary (slot-clear, refill, whole-row overwrite, patch-batch, mid-insert) against a from-scratch rebuild; `KNOWN_FAILURES` is burning down to empty as the re-examination fixes land.
 
 ---
 
 ## Correctness
 
-### C13
-**`RowOperator` (filter/map/compare) over an ARRAY with trailing-excluded rows is internally length-misaligned** · Low · Open (not shipped-reachable; sidestepped by C12's consumers)
+### C14
+**`intersect` over INDEPENDENT ARRAY sources doesn't admit a tail insert** · Low · Open (not shipped-reachable; use object-keyed or derived sources)
 
-`RowOperator.XU0` builds the filtered array as `n[i] = process(...)` for passing rows; when the **trailing** source rows are EXCLUDED, the highest set index is below the source's, so `n.length < source.length`. A later **tail insert** then reaches `BI0A`, which does `this.view.value.splice(at, 0, …)` at `at = source-index`; since `at` is past our short length, the splice lands at the END (a lower index than `at`), and from then on the filtered view's positions are off-by-one from the source. Any consumer that correlates positions across the filter and the source (a downstream `intersect`/`union`/sort, or a positional re-read of the filter's array) can then read the wrong slot or miss a row.
+`intersect(viewA, viewB)` over two **independent arrays** is a POSITIONAL intersect (index `i` visible iff present in every source at `i`). The array `BI0A` handler folds membership only from the ECHOING source's carried bit and deliberately never reads sibling sources — sound for DERIVED facets (every facet echoes the same underlying change, so each bit arrives via its own echo, order-independently) but wrong for independent sources: a tail insert into one array is echoed only by that array, the siblings never echo that index, so its bit never reaches `all` and the row stays excluded forever.
 
-**Not shipped-reachable**: no shipped example chains a positional op after a filter-over-array whose trailing rows are excluded *and then* tail-inserts. Surfaced while fixing [DECISIONS.md → C12](DECISIONS.md): `union`'s array fix **sidesteps** this by reading each insert's CARRIED value rather than re-reading the (possibly-misaligned) source array via `_pick`; `except` reads `other`'s carried membership for the same reason. So C12's set-algebra producers are correct even over a misaligned filter source.
+**Not shipped-reachable**: positional intersect of two unrelated arrays is a semantically-narrow operation; the crossfilter example and every shipped use intersect DERIVED facets (all from one source) or **object-keyed** sources. The object form admits a shared new key correctly (verified). Reading siblings on a tail insert would double-handle the derived case and is order-sensitive (an early echo could read a sibling that hasn't processed the insert yet), so it's deliberately not attempted — it would risk the load-bearing C12 derived-facet array path for a narrow case.
 
-- Where: [row.ts](row.ts) (`RowOperator.XU0` doesn't pad `n.length` to `value.length`; `BI0A`'s `splice(at,0,…)` then misplaces a tail insert).
-- Fix direction: pad the array output to source length (`if (isArray(value)) n.length = value.length` in `XU0`, and keep the invariant through `BI0A`/`BR1`/`BH1`/`BF0`). **Risk**: it changes the EMITTED array shape (adds a trailing hole), which is observable on the change stream — the `compare - array source with delete propagates shift` test asserts the un-padded form and would need updating, and any `connect([])` consumer would see the trailing hole. Belongs in its own commit with a full filter/map/compare/sort re-gate, not folded into an unrelated change.
+- Where: [operators/intersect/index.ts](operators/intersect/index.ts) `BI0A` ("never reads other sources").
+- Workaround: use **object-keyed** sources for independent intersect, or derive the facets from one source. This is the same object-keyed-source guidance the rest of the set-algebra docs give.
 
 ---
 
