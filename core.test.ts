@@ -714,3 +714,33 @@ test('deep no-op write emits no phantom update (BU2 filtering)', () => {
   s2.o.patch(['a', 1, 'b', 2])
   same(ev2.slice(1), [])
 })
+
+// Regression (re-entrancy queue): a sink callback that writes back to the graph
+// used to re-enter the synchronous fan-out — unbounded recursion overflowed the
+// stack and poisoned the graph; a terminating rule delivered events out of
+// order. Re-entrant writes are now deferred FIFO until the current cascade
+// settles; a non-converging cycle is reported instead of hanging/overflowing.
+test('re-entrant write from a sink is deferred until the cascade settles', () => {
+  // structural re-entrancy: inserting during a remove-cascade must not splice
+  // mid-flight (which desynced downstream positional consumers). The insert
+  // lands after the remove completes.
+  const arr = $([10, 20, 30])
+  const order = []
+  let armed = true
+  arr.connect({}, (c) => {
+    order.push(c.type)
+    if (armed && c.type === 'remove') { armed = false; arr.insert(99) }
+  })
+  delete arr[0]
+  same(arr[value], [20, 30, 99])
+  // remove fully delivered before the deferred insert
+  same(order, ['update', 'remove', 'insert'])
+})
+
+test('non-converging re-entrant cycle throws instead of overflowing', () => {
+  const c = $({ x: 0 })
+  c.connect({}, (ch) => { if (ch.key[0] === 'x') c.x = (ch.value || 0) + 1 })
+  let err
+  try { c.x = 1 } catch (e) { err = e }
+  ok(err && /reactive cycle/.test(err.message), err?.message)
+})

@@ -38,6 +38,41 @@ const sclone = d =>
 : d[view] ? d[view].value
 : structuredClone(d)
 
+// --- cascade re-entrancy discipline ---
+// Mutations fan out to sinks synchronously. A sink callback that writes back to
+// the graph (a derive-on-change rule, a clamp, an echo) would otherwise RE-ENTER
+// the fan-out mid-flight: unbounded recursion -> stack overflow and a
+// half-applied, permanently-poisoned graph; or — for a terminating rule —
+// events delivered out of order, so payload-driven sinks (running-total
+// aggregates, change streams) read a stale delta and desync forever. Instead we
+// run the outermost mutation to completion, THEN drain re-entrant writes FIFO,
+// so every write lands atomically and in submission order. A genuinely
+// non-converging feedback loop (a rule that rewrites its own trigger every time)
+// can't be made to terminate, but is reported via _DRAIN_CAP rather than hanging
+// or overflowing the stack. transact() is wrapped around the public mutation
+// entry points only (Value.update/insert/remove and the patch path); the
+// internal verb methods (XU0/BU1/BU2/BI0/BR1/...) run inline as the fan-out
+// itself, never deferred.
+let _cascading = false
+const _pending = []
+const _DRAIN_CAP = 100_000 // re-entrant writes drained per top-level mutation; far above any legitimate fan-out
+function transact(fn) {
+  if (_cascading) { _pending.push(fn); return }
+  _cascading = true
+  try {
+    fn()
+    let n = 0
+    while (_pending.length) {
+      if (++n > _DRAIN_CAP)
+        throw new Error('reactive cycle: a sink keeps writing back to its source without converging')
+      _pending.shift()()
+    }
+  } finally {
+    _pending.length = 0
+    _cascading = false
+  }
+}
+
 // Operator dispatch table populated by index.ts at module load. Stored on a
 // shared object so that adding an operator is a one-line registration rather
 // than a switch in ViewProxy.apply.
@@ -282,9 +317,10 @@ export class Value {
   // (see LinkedView).
   update(value, key) {
     if (value instanceof ViewProxy) throw new Error('cannot set value to another data, use a linked value instead')
-    key.length === 0 ? this.XU0(value)
-  : key.length === 1 ? this.BU1([key[0], value])
-                     : this.BU2([key, value])
+    transact(() =>
+      key.length === 0 ? this.XU0(value)
+    : key.length === 1 ? this.BU1([key[0], value])
+                       : this.BU2([key, value]))
   }
 
   insert(value, key, at){
@@ -292,14 +328,16 @@ export class Value {
     // `at` is normalized to a string so downstream code can use `name in obj`
     // checks uniformly (numeric keys on plain objects coerce to strings anyway).
     at = at === undefined ? at : `${at}`
-    key.length === 0 ? this.BI0([at, value])
-                     : this.BI2([key, value, at])
+    transact(() =>
+      key.length === 0 ? this.BI0([at, value])
+                       : this.BI2([key, value, at]))
   }
 
   remove(key){
-    key.length === 0 ? this.XR0()
-  : key.length === 1 ? this.BR1([key[0]])
-                     : this.BR2([key])
+    transact(() =>
+      key.length === 0 ? this.XR0()
+    : key.length === 1 ? this.BR1([key[0]])
+                       : this.BR2([key]))
   }
 
   // Idempotent: a Value already at undefined emits nothing. Returns false so
@@ -1143,10 +1181,15 @@ export class ViewProxy {
     if (type === 'patch') {
       const { res, key } = p // the receiver's view, not the 'patch' method child
       const pairs = args[0]
-      if (!key.length) return res.BU1(pairs)
-      const U2 = []
-      for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1])
-      return res.BU2(U2)
+      // Wrapped in transact like the single-key setters — patch is a public
+      // mutation entry, so a re-entrant patch (from a sink callback) must queue
+      // behind the in-flight cascade rather than re-enter it.
+      return transact(() => {
+        if (!key.length) return res.BU1(pairs)
+        const U2 = []
+        for (let i = 0; i < pairs.length; i += 2) U2.push([...key, pairs[i]], pairs[i + 1])
+        return res.BU2(U2)
+      })
     }
     if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
     if (type === 'last')    return new ViewProxy(p.get_or_create_named(lastKey(p.value)))

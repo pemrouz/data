@@ -1661,3 +1661,23 @@ test('insert dedup - repeated/overwriting insert at a key does not drift aggrega
     { type: 'update', key: ['k'], value: 8 },
   ])
 })
+
+// Regression (re-entrancy ordering): a terminating re-entrant write (a
+// derive-on-change rule: "when b hits 5, set b to 100") used to make the inner
+// cascade — carrying the newer value — reach payload-driven sinks BEFORE the
+// outer cascade resumed delivering the older payload, so running-total
+// aggregates ended on the stale value and never recovered. Deferral fixes the
+// order: the outer cascade completes, then the queued write runs.
+test('re-entrant write keeps running-total aggregates correct', () => {
+  const src = $({ a: { v: 1 }, b: { v: 2 } })
+  let done = false
+  src.connect({}, (c) => {
+    if (!done && c.key[0] === 'b' && c.value?.v === 5) { done = true; src.b = { v: 100 } }
+  })
+  const s = src.sum('v')
+  src.b = { v: 5 }
+  same(src[value].b, { v: 100 })
+  same(s[value], 101) // 1 + 100, not the stale 6
+  src.a = { v: 10 }   // a later clean write to a different key stays correct
+  same(s[value], 110) // 10 + 100
+})
