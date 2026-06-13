@@ -299,6 +299,16 @@ export class ZAValue extends Operator {
           if (k >= atNum) this.sorted[j] = '' + (k + 1)
         }
       }
+      // A carried-undefined hole insert — a sparse producer (between/intersect
+      // over an array) splices in an excluded slot to keep its array
+      // index-aligned, and forwards it as BI0([at, undefined]). The position
+      // shift above keeps `sorted` aligned with the parent's now-longer array,
+      // but the hole is NOT a ranked row: bisecting `col(undefined)` and splicing
+      // the hole's index into `sorted` corrupts it, so a later BF0/BH1 bisect
+      // reads `p.value[holeIndex] === undefined` and mis-ranks (the between→sort
+      // desync). Shift only; never rank the hole. Mirrors group.BI0A /
+      // RowOperator.BI0A's carried-undefined guard.
+      if (value === undefined) continue
       const new_idx = this.find(this.col(this.p.value[at]))
       this.sorted.splice(new_idx, 0, '' + at)   // keep sorted string-keyed
       if (this.n === Infinity) { super.BI0A([new_idx, value]); continue }  // unbounded: genuine insert
