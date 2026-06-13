@@ -13,7 +13,7 @@ $(value)
               └─ Operator (extends Value)  — derived data (filter, sort, …)
 ```
 
-- `$` ([core.ts:16](../core.ts#L16)) constructs a `ViewProxy` over a fresh `View`. If you pass another `ViewProxy`, it produces a `LinkedView` instead ([core.ts:252-260](../core.ts#L252-L260)).
+- `$` constructs a `ViewProxy` over a fresh `View`. If you pass another `ViewProxy`, it produces a `LinkedView` instead (`View.value` factory, [core.ts:657](../core.ts#L657); `LinkedView` class [core.ts:983](../core.ts#L983)).
 - `Value` ([core.ts:60](../core.ts#L60)) holds the data and exposes mutation entrypoints (`update`, `insert`, `remove`) which dispatch to the appropriate notification method based on key-path length.
 - `Operator extends Value` ([core.ts:233](../core.ts#L233)). Operators *also* receive notifications (as sinks of their parent) and *emit* notifications (as the source of their own view's sinks).
 - `View` ([core.ts:235](../core.ts#L235)) tracks the parent `View` (`p`), the path key from root (`key`), child views (`views: Map<name, WeakRef<View>>`), and subscribers (`sinks: Set<WeakRef<Sink>>`).
@@ -82,7 +82,7 @@ Sinks live on `View.sinks` as `WeakRef<Sink>`. They must implement the notificat
 | `ArrSink` | Pushes change events into a JS array | Tests via `proxy.connect([])` |
 | `PropSink` | Mirrors value to `obj[prop]` | `proxy.connect(obj, 'name')`; `lifetimes` WeakMap holds the sink alive as long as `obj` is alive ([core.ts:491-503](../core.ts#L491-L503)) |
 | `FunctionSink` | Calls `fn(change)` per event | `proxy.connect(obj, fn)` |
-| `LinkedView` | Forwards updates to a different `View` | Created when you assign one proxy to another (`a[value] = b`) — see [core.ts:427-453](../core.ts#L427-L453) |
+| `LinkedView` | Forwards updates to a different `View` | Created by passing a proxy to `$` (`const b = $(a)`), NOT by `a[value] = b` (which throws). `linked[value] = otherProxy` re-points an existing link; a cyclic re-point throws — see [core.ts:983](../core.ts#L983) |
 
 External sinks (e.g. `DOMSink` from [render/index.ts:11](../render/index.ts#L11)) follow the same contract — they only need the methods they care about.
 
@@ -161,7 +161,7 @@ Recent commits in `git log`:
 
 - `perf: incremental LimitValue with large-batch fallback` ([operators/sort/index.ts:169](../operators/sort/index.ts#L169)) — `LimitValue` has both an incremental path and a batch fallback. Touch with care.
 - `perf: rAF-coalesce brush input in crossfilter example` — `examples/crossfilter/` coalesces brush events via `requestAnimationFrame`. Don't re-introduce a synchronous path.
-- `fix(core): propagate path-updates through LinkedView child views` — `LinkedView` (extends `View`, [core.ts:427](../core.ts#L427)) had a propagation bug; check `proxy/link` ([core.test.ts:83-132](../core.test.ts#L83-L132)) before changing it.
+- `fix(core): propagate path-updates through LinkedView child views` — `LinkedView` (extends `View`, [core.ts:983](../core.ts#L983)) had a propagation bug; check the `proxy/link` tests in [core.test.ts](../core.test.ts) before changing it.
 - `perf: skip empty-batch notifications in intersect/between/length` — multiple operators short-circuit on empty `U1`/`I0`/`R1` arrays. Preserve those guards.
 
 ## When updating this file
