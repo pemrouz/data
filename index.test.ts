@@ -1365,12 +1365,13 @@ test('update (dir, dir)', () => {
     same(changes1, [
         { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 2 } } },
         { type: 'update', key: [], value: { '1': { value: 4 }, '2': { value: 2 } } },
-        { type: 'update', key: [], value: { '1': { value: 4 }, '2': { value: 2 } } },
+        // res[5] = {num:1.8} stays in group 1 — the no-op republish that used to
+        // fire here is now suppressed (#53).
         { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 3 } } },
         { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 4 } } },
         { type: 'update', key: [], value: { '1': { value: 2 }, '2': { value: 4 } } },
         { type: 'update', key: [], value: {} }
-      ])  
+      ])
     // same(changes1, [
     //   { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 2 } } },
     //   { type: 'update', key: [ '1' ], value: 4 },

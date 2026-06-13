@@ -99,19 +99,27 @@ export class LengthFnValue extends Operator {
     // does the same for the symmetric insert shift.
     if (this.isArr) return this.XU0(this.p.value)
     const { mapping } = this
+    let changed = false
     for (let i = 0; i < R1.length; i++) {
       const n = R1[i++]
       const m = mapping[n]
       if (!m) continue
       m.value--
       mapping[n] = undefined
+      changed = true
     }
-    this.view.XU0(this.view.value)
+    if (changed) this.view.XU0(this.view.value)
   }
 
   BU1(U1){
     if (!U1.length) return
     const { mapping, view, fn } = this
+    // Publish only when a bucket count actually moved. A BU1 whose row stays in
+    // the same bucket (a non-key field changed) changes no count, but the old
+    // code XU0'd the whole buckets object regardless — waking every bucket child
+    // view and sink on every event, defeating the per-counter subscription
+    // design. (BU2 already guarded with `moved`.)
+    let changed = false
     for (let i = 0; i < U1.length; i++) {
       const n = U1[i++]
       const v = U1[i]
@@ -120,7 +128,7 @@ export class LengthFnValue extends Operator {
       // position mapping — NEVER call fn(undefined) (it expects a row and would
       // crash mid-cascade).
       if (v === undefined) {
-        if (og) { og.value--; mapping[n] = undefined }
+        if (og) { og.value--; mapping[n] = undefined; changed = true }
         continue
       }
       const ng = view.value[fn(v)] ??= { value: 0 }
@@ -128,22 +136,25 @@ export class LengthFnValue extends Operator {
         mapping[n] = ng
         if (og) og.value--
         ng.value++
+        changed = true
       }
     }
-    this.view.XU0(this.view.value)
+    if (changed) this.view.XU0(this.view.value)
   }
 
   BI0(I0){
     if (!I0.length) return
     if (this.isArr) return this.XU0(this.p.value)   // see BR1: re-key position map
     const { mapping, view, fn } = this
+    let changed = false
     for (let i = 0; i < I0.length; i++) {
       const n = I0[i++]
       const v = I0[i]
       if (v === undefined) continue
       ;(mapping[n] = view.value[fn(v)] ??= { value: 0 }).value++
+      changed = true
     }
-    this.view.XU0(this.view.value)
+    if (changed) this.view.XU0(this.view.value)
   }
 
   // In-place field mutation (e.g. `data[id].status = 'x'`). The framework
@@ -174,6 +185,9 @@ export class LengthFnValue extends Operator {
     }
     if (moved) this.view.XU0(this.view.value)
   }
+  // NB: no BH1/BF0 — a sparse producer's membership flip falls back to BR1/BI0,
+  // which rebuilds over an array source. Incremental BH1/BF0 here desynced the
+  // same way the aggregate one did (see ISSUES.md P7); the rebuild is correct.
   BR2(){}
   BI2(){}
 }

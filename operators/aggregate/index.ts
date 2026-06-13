@@ -129,6 +129,14 @@ class AggregateValue extends Operator {
     if (dirty) this._publish()
   }
 
+  // NB: AggregateValue deliberately does NOT implement BH1/BF0. A sparse
+  // producer's length-stable membership flip therefore falls back to BR1/BI0,
+  // which over an array source REBUILDS (the position-keyed `tracked` can't be
+  // trusted incremental against between's hole-flip emission — an incremental
+  // BH1/BF0 here desynced the running total on a brush, see ISSUES.md P7). The
+  // rebuild is O(N) per flip but correct; the shipped crossfilter brush is
+  // rAF-coalesced so it pays it at most once per frame.
+
   // Nested-key changes: re-project the affected row from p.value, then run
   // the same delta/publish pipe. Saves the subclass from caring about depth.
   BU2(U2) { this._reprojectFromKeys(U2, 2) }

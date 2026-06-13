@@ -83,7 +83,8 @@ test('length fn - group counting', () => {
   same(changes, [
     { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 2 } } },
     { type: 'update', key: [], value: { '1': { value: 4 }, '2': { value: 2 } } },
-    { type: 'update', key: [], value: { '1': { value: 4 }, '2': { value: 2 } } },
+    // res[5] = {num:1.8} stays in bucket 1 (no count change) — the no-op
+    // republish that used to fire here is now correctly suppressed (#53).
     { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 3 } } },
     { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 4 } } },
     { type: 'update', key: [], value: { '1': { value: 2 }, '2': { value: 4 } } },
@@ -140,4 +141,19 @@ test('length - assignment-to-undefined decrements (length) / rebuckets (length f
   same(lf[value].x.value, 2)
   src2.a = undefined               // leave — must not crash, decrements x
   same(lf[value].x.value, 1)
+})
+
+// Regression (#53): length(fn) republished the whole buckets view on EVERY
+// BU1/BI0/BR1 even when no count changed — a whole-row BU1 that stays in its
+// bucket woke every bucket sink for nothing. The publish is now guarded on an
+// actual count change (BU2 already was).
+test('length fn - same-bucket whole-row update emits no spurious republish', () => {
+  const src = $({ a: { g: 'x' }, b: { g: 'y' } })
+  const lf = length(src, (r) => r.g)
+  const changes = lf.connect([])
+  const base = changes.length
+  src.a = { g: 'x' }              // whole-row BU1, stays in bucket x — no count change
+  same(changes.length - base, 0) // suppressed
+  src.a = { g: 'y' }              // moves x -> y — counts change
+  same(changes.length - base, 1)
 })
