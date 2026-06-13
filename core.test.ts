@@ -642,3 +642,34 @@ test('unknown operator - empty-table diagnosis points at data/lean', () => {
   ok(/Unknown operator 'bogus'/.test(e?.message), e?.message)
   ok(/dispatch table is empty/.test(e?.message), e?.message)
 })
+
+// Regression (C1 root-array refill): writing a value into a slot that is
+// currently undefined was classified as a fresh insert and routed through
+// BI0 -> BI0A (splice-shift), even when the index was IN-BOUNDS of an array.
+// `s[k] = undefined` (length-stable hole) then `s[k] = v` (hole fill) thus
+// grew a phantom row in every downstream positional operator. An in-bounds
+// array hole-fill must route through BF0 (length-stable); out-of-bounds stays
+// an insert; objects keep a previously-undefined key as a real insert. The
+// downstream-operator consequences are asserted in index.test.ts (operators
+// aren't registered against the bare core); here we pin the raw value and the
+// position-agnostic change-record stream.
+test('array refill of an in-bounds hole keeps the array length-stable', () => {
+  const s = $([1, 2, 3, 4])
+  s[2] = undefined            // length-stable hole
+  s[2] = 9                    // refill — must NOT shift
+  same(s[value], [1, 2, 9, 4])
+  same(s[value].length, 4)
+
+  // out-of-bounds write IS a genuine append (extends the array)
+  const a = $([1, 2])
+  a[2] = 3
+  same(a[value], [1, 2, 3])
+
+  // OBJECT source: a previously-undefined key stays a real insert (BI0)
+  const o = $({ a: 1 })
+  const oc = o.connect([])
+  o.b = undefined
+  o.b = 2
+  same(o[value], { a: 1, b: 2 })
+  same(oc.at(-1), { type: 'insert', key: [], value: 2, at: 'b' })
+})

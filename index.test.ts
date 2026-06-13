@@ -1606,3 +1606,31 @@ test('unknown operator - populated-table diagnosis lists registered names', () =
   if (/dispatch table is empty/.test(e.message)) throw new Error('wrong diagnosis: ' + e.message)
   if (!/filter/.test(e.message)) throw new Error('expected registered-name list: ' + e.message)
 })
+
+// Regression (C1 root-array refill, downstream operators): filling an in-bounds
+// array hole must not splice-shift downstream filter/map/sort. Before the fix
+// the refill was emitted as an insert (BI0A), growing a phantom row: filter/map
+// one longer than the source, sort with a ghost + corrupted order.
+test('array refill of an in-bounds hole — downstream operators stay aligned', () => {
+  const s = $([1, 2, 3, 4])
+  const f = s.filter((n) => n !== undefined && n > 0)
+  const m = s.map((n) => n)
+  s[2] = undefined
+  s[2] = 9
+  same(f[value].filter((x) => x !== undefined), [1, 2, 9, 4])
+  same(m[value].filter((x) => x !== undefined), [1, 2, 9, 4])
+  same(f[value].length, 4) // no phantom 5th slot
+  same(m[value].length, 4)
+
+  const z = $([{ v: 5 }, { v: 1 }, { v: 7 }, { v: 100 }])
+  const za = z.za('v')
+  z[2] = undefined
+  z[2] = { v: 9 }
+  same(za[value].filter((x) => x !== undefined).map((r) => r.v), [100, 9, 5, 1])
+
+  // out-of-bounds append still flows to downstream filter as a tail insert
+  const a = $([1, 2])
+  const af = a.filter((n) => n > 0)
+  a[2] = 3
+  same(af[value].filter((x) => x !== undefined), [1, 2, 3])
+})

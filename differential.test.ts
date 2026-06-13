@@ -283,7 +283,6 @@ const KNOWN_FAILURES = new Set([
   // — core refill-as-splice [1] + RowOperator hole/XU0/undefined guards [9,10] (Waves C/D)
   'filter [array]',
   'filter [object]',
-  'gt [array]',
   'map [array]',
   'map [object]',
   'filter→between [array]',
@@ -291,7 +290,6 @@ const KNOWN_FAILURES = new Set([
   'filter→sum [array]',
   'filter→sum [object]',
   // — trailing-excluded RowOperator over array, the C13 shape [25] (Wave D)
-  'lt→az (trailing-excluded) [array]',
   'lt→map (trailing-excluded) [array]',
   // — sort: undefined-leave ghosts [15], patch-batch bisect [14], limit undefined [16] (Wave E)
   'az [array]',
@@ -320,18 +318,13 @@ const KNOWN_FAILURES = new Set([
   'za-window→map [object]',
   'za-window→za-window [array]',
   'za-window→za-window [object]',
-  'za→az (unbounded chain) [array]',
   'za→az (unbounded chain) [object]',
   'za→limit [array]',
   'za→limit [object]',
   // — between over an array source under slot-undef/refill/patch churn [21] (Wave F)
-  'between [array]',
   'between→avg [array]',
   'between→az [array]',
-  'between→distinct [array]',
   'between→filter [array]',
-  'between→group [array]',
-  'between→length [array]',
   'between→map [array]',
   'between→sum [array]',
   'between→za [array]',

@@ -391,21 +391,36 @@ export class Value {
   // BI0 events, keys with an existing value become BU1, and identical values
   // are dropped entirely. Splitting the two avoids forcing every BU1 sink to
   // re-derive whether the row is new or a refresh.
+  //
+  // One refinement for ARRAY sources: writing a value into a slot that is
+  // currently `undefined` is only a genuine INSERT if the index is at/beyond
+  // the current length (an append/sparse-extend). An IN-BOUNDS undefined slot
+  // is a positional HOLE, and filling it is length-stable — survivors don't
+  // shift — so it must route through BF0, not BI0/BI0A (which splice-shift and
+  // would grow a phantom ghost row in every downstream positional operator).
+  // This is the root-array counterpart of the BH1/BF0 protocol the sparse
+  // producers already use. For OBJECT sources a previously-undefined key is
+  // always a fresh insert (no positions to shift) — load-bearing for the
+  // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
   BU1(U1) {
     const NU1 = []
     const NI0 = []
+    const NF0 = []
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
+    const arr = isArray(this.view.value)
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
       const value = U1[i]
-      if (this.view.value?.[name] === value) continue
-      this.view.value?.[name] === undefined
-        ? NI0.push(name, value)
-        : NU1.push(name, value)
+      const old = this.view.value?.[name]
+      if (old === value) continue
+      if (old !== undefined)                              NU1.push(name, value)
+      else if (arr && +name < this.view.value.length)     NF0.push(name, value)
+      else                                                NI0.push(name, value)
       this.view.value[name] = value
     }
     this.view.BU1(NU1)
     this.view.BI0(NI0)
+    this.view.BF0(NF0)
   }
 
   // Deep update along a key path. We auto-create intermediate objects so a
