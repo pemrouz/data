@@ -15,10 +15,9 @@ import { Operator, createOperator } from '../../core.ts'
 // lists EVER-seen categories, including currently-empty ones; filter on count if
 // you need only the live ones. See CLAUDE.md gotchas.
 class CollectionView extends Operator {
-  constructor(p, project, isKeys) {
+  constructor(p, isKeys) {
     super()
     this.p = p
-    this.project = project
     this.isKeys = isKeys
     this.output = []
     this._rebuild()
@@ -26,7 +25,16 @@ class CollectionView extends Operator {
 
   _rebuild() {
     const v = this.p.value
-    const next = v && typeof v === 'object' ? this.project(v) : []
+    // Skip explicit-undefined slots. A sparse object/array source (between/
+    // intersect/union/except) leaves excluded keys PRESENT with value undefined;
+    // raw Object.keys/values would include them, and composed with the BI0
+    // append fast path (which DOES skip undefined) this produced corruption — a
+    // row that left then re-entered showed up TWICE (the rebuild kept the
+    // undefined slot's key, then BI0 re-appended on re-entry).
+    let next = []
+    if (v && typeof v === 'object') {
+      for (const k in v) if (v[k] !== undefined) next.push(this.isKeys ? k : v[k])
+    }
     this.output = next
     this.view.value = next
     this.view.XU0(next)
@@ -66,11 +74,11 @@ class CollectionView extends Operator {
 }
 
 export class KeysValue extends CollectionView {
-  constructor(p) { super(p, Object.keys, true) }
+  constructor(p) { super(p, true) }
 }
 
 export class ValuesValue extends CollectionView {
-  constructor(p) { super(p, Object.values, false) }
+  constructor(p) { super(p, false) }
 }
 
 export const keys   = (source) => createOperator(source, KeysValue)
