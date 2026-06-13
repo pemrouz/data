@@ -9,7 +9,7 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
 | [C14](#c14) | `intersect` over INDEPENDENT **array** sources doesn't admit a tail insert (the echoing source's bit never reaches `all` because siblings don't echo that index) | Correctness | Low | Open (not shipped-reachable; use object-keyed/derived sources) |
-| [C16](#c16) | two **array** set-algebra→sort residuals: `union→sort` under a facet-MOVING `patch-batch`, and `intersect` with a SPARSE producer (`between`) as its PRIMARY | Correctness | Low | Open (not shipped-reachable; use object-keyed sources) |
+| [C16](#c16) | `intersect` with a SPARSE producer (`between`) as its PRIMARY drops a survivor on an array remove (a C14-family trade-off) | Correctness | Low | Open (not shipped-reachable; raw-primary intersect / object keys) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
@@ -24,17 +24,15 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 ## Correctness
 
 ### C16
-**Two array set-algebra→sort residuals (the tail of C15)** · Low · Open (not shipped-reachable; use object-keyed sources)
+**`intersect` with a SPARSE producer (`between`) as its PRIMARY drops a survivor on an array remove** · Low · Open (not shipped-reachable; raw-primary intersect / object keys)
 
-C15 (the 9 differential `KNOWN_FAILURES` — `between→{az,filter,map,za}`, `intersect`/`intersect2`/`intersect-between`/`union`/`except` over arrays under combined churn) is **CLOSED** — see [DECISIONS.md → C15](DECISIONS.md). The 2026-06-13 adversarial probe then drove the producers further (intersect's object double-insert, union's reference-dedup swallowing in-place edits, the producers' un-forwarded mid-insert hole — all fixed) and pinned two remaining narrow residuals, both array set-algebra feeding a SORT:
+C15 (the 9 differential `KNOWN_FAILURES`) is **CLOSED** — see [DECISIONS.md → C15](DECISIONS.md). The 2026-06-13 adversarial probe then drove the producers further and pinned two remaining residuals; one of them — `union→sort` under a facet-MOVING `patch-batch` — is **now also fixed** (`UnionValue._enter` emits its re-rank `BU1`s before its insert `BF0`/`BI0`, keeping a downstream sort's order monotonic for the insert's bisect; verified by 36,000 `union→za` stress runs and the `union→za` harness scenario). The one residual that remains:
 
-1. **`union→sort` under a facet-MOVING `patch-batch`.** A `patch()` that moves a row between union facets makes `UnionValue._enter` emit a *structural* `BI0` for a member that's actually filling an existing array hole (it should be a rank-only `BF0`), so a downstream positional sort mis-orders. `union→sum`/`union→group` (order-agnostic) are correct; only a downstream **sort** sees it. The fix is the `BF0`-vs-`BI0` hole-fill distinction for union members entering at an existing array index — it reaches into how `filter` forwards a membership-flipping `BU1` over an array, so it's left for a focused follow-up.
+**`intersect` with a SPARSE producer (`between`/`intersect`/`except`) as its PRIMARY** (e.g. `s.between(...).intersect(facet)`). `IntersectValue.BR1A` routes a non-primary echo to `_leave` (by-name) — this DELIBERATELY supports the C14 independent-array case (and has a test). When the primary is itself a sparse-array producer, the primary echoes FIRST and splices, so the secondary's `_leave`, post-splice, addresses the survivor that shifted into the freed slot and drops it. No-opping the secondary echo (like `union`/`except` do) would fix this — but break the C14 independent-array remove the original design chose to support, for a case that is itself **not shipped-reachable**: the shipped crossfilter intersects a RAW source with between/filter facets as SECONDARIES (`s.intersect(s.between(...))`), which is correct and harness-covered. between-as-PRIMARY-of-intersect over an array is the only affected shape. So this is left as a deliberate C14-family trade rather than flipped.
 
-2. **`intersect` with a SPARSE producer (`between`) as its PRIMARY** (e.g. `s.between(...).intersect(facet)`). `IntersectValue.BR1A` routes a non-primary echo to `_leave` (by-name) — this DELIBERATELY supports the C14 independent-array case (and has a test). When the primary is itself a sparse-array producer, that `_leave`, post-primary-splice, addresses the survivor that shifted into the freed slot and drops it. No-opping the secondary echo (like `union`/`except`) would fix this but break the C14 independent-array remove the original design chose to support. The shipped crossfilter intersects a RAW source with facets (`s.intersect(s.between(...))`, between SECONDARY) — which is correct and harness-covered; only between-as-PRIMARY is affected.
+**Not shipped-reachable / workaround**: keep the raw source (or a non-sparse view) as intersect's primary with betweens/filters as secondaries — the shipped pattern — or use object-keyed sources (stable keys, no positional shift). Verified narrow by the adversarial probe + 18,600-run stress (every other set-algebra→sort/aggregate composition over arrays is clean).
 
-**Not shipped-reachable / workaround**: object-keyed sources are correct for both (stable keys, no positional shift), as the docs recommend for high-churn set-algebra. Both are verified narrow by the adversarial probe + 18,600-run stress (every OTHER set-algebra→sort/aggregate composition over arrays is clean).
-
-- Where: [operators/union/index.ts](operators/union/index.ts) (`_enter` `BF0`-vs-`BI0`), [operators/intersect/index.ts](operators/intersect/index.ts) `BR1A` (`_leave` on the non-primary echo).
+- Where: [operators/intersect/index.ts](operators/intersect/index.ts) `BR1A` (`_leave` on the non-primary echo — kept for C14).
 
 ---
 

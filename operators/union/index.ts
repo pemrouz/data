@@ -310,8 +310,17 @@ export class UnionValue extends Operator {
         NU1.push(name, newVal)
       }
     }
-    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0)
+    // UPDATES before INSERTS. A patch() that both MOVES a row between facets (an
+    // NU1 re-rank) and admits another (an NI0 insert) in the same echo leaves
+    // BOTH new values in `me`/the sources before we emit. A downstream SORT
+    // bisects an insert against `p.value` at every position still in its index,
+    // so if it sees the inserted row before the moved row's BU1 has re-ranked it,
+    // it reads the moved row's NEW value at its OLD (stale) rank — a non-monotonic
+    // array — and mis-places the insert. Emitting the re-ranks first keeps the
+    // sort's order monotonic for the insert's bisect (the same discipline as
+    // between's "removes before fills").
     if (NU1.length) this.view.BU1(NU1)
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0)
   }
 }
 

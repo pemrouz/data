@@ -209,13 +209,7 @@ const SCENARIOS = [
   { tag: 'intersect→za', project: (s) => s.intersect(s.filter((r) => r.v > 25)).za('v') },
   { tag: 'intersect→length', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).length() },
   { tag: 'intersect→sum', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).sum('v') },
-  // NB: `union→za` is deliberately NOT a scenario — it has a documented residual
-  // (ISSUES.md C16): a `patch-batch` that MOVES a row between union facets makes
-  // union._enter emit a structural BI0 for a member filling an existing array
-  // hole (should be a rank-only BF0), so a downstream SORT mis-orders. It passes
-  // the 4 default seeds (a false green) but fails under heavy stress (seed 223).
-  // union→sum / union→group (order-agnostic) ARE guarded here and stress-clean —
-  // they exercise the same union BU1/_enter/_leave emission the fix corrected.
+  { tag: 'union→za', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).za('v') },
   { tag: 'union→sum', scalar: true, project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).sum('v') },
   { tag: 'union→group', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).group((r) => r.g) },
   { tag: 'except→sum', scalar: true, project: (s) => s.except(s.filter((r) => r.v > 60)).sum('v') },
