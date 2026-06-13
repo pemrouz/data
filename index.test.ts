@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { deepStrictEqual as same } from 'node:assert'
+import { deepStrictEqual as same, ok } from 'node:assert'
 import { $, value } from './full.ts'
 import { test } from 'node:test'
 const max = (a, b) => a > b ? a : b
@@ -1680,4 +1680,25 @@ test('re-entrant write keeps running-total aggregates correct', () => {
   same(s[value], 101) // 1 + 100, not the stale 6
   src.a = { v: 10 }   // a later clean write to a different key stays correct
   same(s[value], 110) // 10 + 100
+})
+
+// Regression (exception isolation): View.sink/fanout called each sink bare, so
+// a throwing sink robbed every sink AFTER it of the delta — and a payload-driven
+// running-total aggregate registered behind the thrower stayed stale forever.
+// Per-sink errors are now isolated (every sink still sees the event) and the
+// first is rethrown to the mutator once the cascade settles.
+test('a throwing sink does not desync aggregates registered after it', () => {
+  const src = $({ a: { v: 1 }, b: { v: 2 } })
+  const s1 = src.sum('v')      // before the thrower
+  let arm = true
+  src.connect({}, (c) => { if (arm && c.key[0] === 'b') throw new Error('boom') })
+  const s2 = src.avg('v')      // after the thrower
+  let threw
+  try { src.b = { v: 10 } } catch (e) { threw = e }
+  ok(threw && /boom/.test(threw.message), threw?.message) // error reached the mutator
+  same(s1[value], 11)          // 1 + 10
+  same(s2[value], 5.5)         // (1 + 10) / 2 — was stuck at 1.5
+  arm = false
+  src.a = { v: 100 }
+  same(s2[value], 55)          // (100 + 10) / 2 — still tracking
 })

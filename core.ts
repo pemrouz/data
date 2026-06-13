@@ -55,6 +55,7 @@ const sclone = d =>
 // itself, never deferred.
 let _cascading = false
 const _pending = []
+let _errors = null
 const _DRAIN_CAP = 100_000 // re-entrant writes drained per top-level mutation; far above any legitimate fan-out
 function transact(fn) {
   if (_cascading) { _pending.push(fn); return }
@@ -67,10 +68,25 @@ function transact(fn) {
         throw new Error('reactive cycle: a sink keeps writing back to its source without converging')
       _pending.shift()()
     }
+    // Exception isolation: a sink that threw mid-fan-out did NOT rob the sinks
+    // after it of the event (they were still notified — see _notify). Surface
+    // the first such error now that every sink has seen the delta, so the
+    // mutator still learns something went wrong without one bad sink silently
+    // desyncing a running-total aggregate registered behind it.
+    if (_errors) throw _errors[0]
   } finally {
     _pending.length = 0
     _cascading = false
+    _errors = null
   }
+}
+// Invoke a single sink, isolating its exception so the rest of the fan-out
+// still runs. Errors are stashed and rethrown by the enclosing transact once
+// the cascade settles. Outside a cascade (construction-time fan-out before any
+// sink is attached) there's nothing to collect against, so rethrow inline.
+function _notify(sink, fn){
+  try { fn(sink) }
+  catch (e) { if (_cascading) (_errors ??= []).push(e); else throw e }
 }
 
 // Operator dispatch table populated by index.ts at module load. Stored on a
@@ -831,19 +847,21 @@ export class View {
     for (const x of this.sinks) {
       const sink = x.deref()
       if (!sink) { this.sinks.delete(x); continue }
-      if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
-        sink.BMV1(M1, this)
-      } else {
-        // fallback: emit BU1 for the affected range
-        const NU1 = []
-        for (let i = 0; i < M1.length; i += 2) {
-          const a = +M1[i], b = +M1[i + 1]
-          const lo = a < b ? a : b
-          const hi = a < b ? b : a
-          for (let j = lo; j <= hi; j++) NU1.push('' + j, this.value[j])
+      try {
+        if (sink.BMV1 && sink.BMV1 !== Value.prototype.BMV1) {
+          sink.BMV1(M1, this)
+        } else {
+          // fallback: emit BU1 for the affected range
+          const NU1 = []
+          for (let i = 0; i < M1.length; i += 2) {
+            const a = +M1[i], b = +M1[i + 1]
+            const lo = a < b ? a : b
+            const hi = a < b ? b : a
+            for (let j = lo; j <= hi; j++) NU1.push('' + j, this.value[j])
+          }
+          if (NU1.length) sink.BU1(NU1, this)
         }
-        if (NU1.length) sink.BU1(NU1, this)
-      }
+      } catch (e) { if (_cascading) (_errors ??= []).push(e); else throw e }
     }
   }
 
@@ -875,7 +893,7 @@ export class View {
     for (const x of this.sinks) {
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
-      fn(sink)
+      _notify(sink, fn)
     }
   }
 
@@ -896,9 +914,13 @@ export class View {
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
       const m = verb && sink[verb]
-      m && (proto === undefined || m !== proto)
-        ? m.call(sink, payload, this)
-        : sink[fallback](payload, this)
+      // exception-isolated like sink() — inlined try/catch to avoid a closure
+      // per sink on this hot path.
+      try {
+        m && (proto === undefined || m !== proto)
+          ? m.call(sink, payload, this)
+          : sink[fallback](payload, this)
+      } catch (e) { if (_cascading) (_errors ??= []).push(e); else throw e }
     }
   }
 
