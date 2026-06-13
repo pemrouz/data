@@ -206,3 +206,24 @@ test('render - clearing a sparse-bound list after a tail hole does not crash', (
   delete d[value]                        // clear -> must not pop the hole
   eq(root.children.length, 0)
 })
+
+// Regression (H2 / #40): Node.generate shallow-copied row children
+// (this.children.concat([])), so every row shared the SAME Prop instances. A
+// reactive prop on the row TEMPLATE (outside the row fn) connected a PropSink
+// per row that all mutated the one Prop, whose `parent` ended up the LAST row —
+// so a reactive class update landed on one row, not all. generate now clones
+// each Prop/Node child.
+test('render - reactive prop on the row template applies to every row', () => {
+  const root = document.createElement('div')
+  const items = $({ a: { t: 'A' }, b: { t: 'B' }, c: { t: 'C' } })
+  const flag = $(false)
+  render(root, HTML.ul(HTML.li.class('hot', flag)(items, (n, r) => n.text(r.t))))
+  const seen = root.children.map((li) => {
+    const set = new Set()
+    li.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c) }
+    li._cls = set
+    return set
+  })
+  flag[value] = true
+  eq(seen.every((s) => s.has('hot')), true) // all rows, not just the last
+})

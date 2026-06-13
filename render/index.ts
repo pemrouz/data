@@ -394,10 +394,20 @@ class Node extends Child {
   }
 
   generate(k, v) {
+    // CLONE each template child, don't share it. `this.children.concat([])` was
+    // a shallow copy — every generated row shared the SAME Prop instances, so a
+    // reactive prop attached to the row TEMPLATE (outside the row fn, e.g.
+    // `HTML.li.class('hot', flag)(items, fn)`) connected a PropSink per row that
+    // all mutated the one Prop, whose `parent` ended up pointing only at the LAST
+    // row — so a reactive class/style/attr update landed on one row instead of
+    // all. A fresh Prop/Node per row gives each its own `parent`.
     let node = new Node(
       this.tag,
       this.ns,
-      this.children.concat([])
+      this.children.map(c =>
+        c instanceof Node ? c.new
+      : c instanceof Prop ? new c.constructor(c.name, c.value)
+      : c)
     )
     
     const content = this.fn 
