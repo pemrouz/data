@@ -1418,6 +1418,7 @@ var BetweenValue = class extends Operator {
       const vb = value2[b]?.[col];
       return va > vb ? 1 : va < vb ? -1 : 0;
     });
+    if (this.isArr) new_value.length = value2.length;
     super.XU0(new_value);
   }
   // ─── Source-mutation handlers ─────────────────────────────────────────────
@@ -1539,9 +1540,11 @@ var BetweenValue = class extends Operator {
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
       const row = I0[i + 1];
-      const colVal = row?.[this.col];
-      if (this.isArr) this.view.value.splice(+at, 0, void 0);
-      if (this._inRange(colVal)) {
+      const inRange = this._inRange(row?.[this.col]);
+      if (this.isArr) {
+        this.view.value.splice(+at, 0, inRange ? row : void 0);
+        NI0.push(at, inRange ? row : void 0);
+      } else if (inRange) {
         this.view.value[at] = row;
         NI0.push(at, row);
       }
@@ -1864,6 +1867,7 @@ var ZAValue = class extends Operator {
           if (k >= atNum) this.sorted[j] = "" + (k + 1);
         }
       }
+      if (value2 === void 0) continue;
       const new_idx = this.find(this.col(this.p.value[at]));
       this.sorted.splice(new_idx, 0, "" + at);
       if (this.n === Infinity) {
@@ -2619,6 +2623,7 @@ var GroupValue = class extends Operator {
       const next = /* @__PURE__ */ new Map();
       for (const [k, v] of this.posMap) next.set(k >= pos ? k + 1 : k, v);
       this.posMap = next;
+      if (value2 === void 0) continue;
       const new_group = this.fn(value2);
       const bucket = this.view.value[new_group] ??= [];
       const idx = this._insertIdx(new_group, pos);
@@ -3047,9 +3052,21 @@ var IntersectValue = class extends Operator {
   BI0A(I0, v) {
     const { one, off } = this.sources.get(v);
     const NI0 = [];
+    const pendingShift = this.p.value.length > this.filters.length;
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
+      const ix = +at;
       const val = I0[i + 1];
+      if (pendingShift && ix < this.filters.length) {
+        if (v !== this.p) continue;
+        let bits2 = 0;
+        for (const [src_view, { one: src_one }] of this.sources)
+          if (src_view.value?.[ix] !== void 0) bits2 |= src_one;
+        this.filters.splice(ix, 0, bits2);
+        this.view.value.splice(ix, 0, bits2 === this.all ? this.p.value[ix] : void 0);
+        NI0.push(at, this.view.value[ix]);
+        continue;
+      }
       const bits = this.filters[at] || 0;
       this.filters[at] = val !== void 0 ? bits | one : bits & off;
       if (this.filters[at] === this.all && this.view.value[at] === void 0) {
@@ -3173,7 +3190,7 @@ var IntersectValue = class extends Operator {
       }
       bits |= one;
       filters[name] = bits;
-      if (bits === all) {
+      if (bits === all && me[name] === void 0) {
         NI0.push(name, me[name] = this.p.value[name]);
       }
     }
@@ -4106,9 +4123,15 @@ var UnionValue = class extends Operator {
     const higher = one - 1;
     const me = this.view.value;
     const NI0 = [], NU1 = [];
+    const pendingShift = this.p.value.length > this.filters.length;
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
+      const ix = +at;
       const val = I0[i + 1];
+      if (pendingShift && ix < this.filters.length && v === this.p) {
+        this.filters.splice(ix, 0, 0);
+        me.splice(ix, 0, void 0);
+      }
       const prev = this.filters[at] || 0;
       const bits = this.filters[at] = val !== void 0 ? prev | one : prev & off;
       if (bits === 0 || val === void 0 || bits & higher) continue;
@@ -4156,10 +4179,8 @@ var UnionValue = class extends Operator {
         delete this.view.value[name];
       } else {
         const newVal = this._pick(name);
-        if (newVal !== this.view.value[name]) {
-          this.view.value[name] = newVal;
-          NU1.push(name, newVal);
-        }
+        this.view.value[name] = newVal;
+        NU1.push(name, newVal);
       }
     }
     if (NU1.length) this.view.BU1(NU1);
@@ -4170,12 +4191,46 @@ var UnionValue = class extends Operator {
     const NU1 = [];
     for (let i = 0; i < U1.length; i += 2) {
       const name = U1[i];
+      if (!this.filters[name]) continue;
       const newVal = this._pick(name);
-      if (newVal === this.view.value?.[name]) continue;
       this.view.value[name] = newVal;
       NU1.push(name, newVal);
     }
     if (NU1.length) this.view.BU1(NU1);
+  }
+  // Nested-key events (deep update / remove / insert on a member's row). Union
+  // had NO BU2/BR2/BI2 handlers, so the default Operator forwarder swallowed a
+  // member's nested edit: the union's OWN value stayed correct (`_pick` reads the
+  // source live) but the change-stream was EMPTY, so a downstream sort never
+  // re-ranked, group never rebucketed, and sum/avg never re-tallied on an
+  // in-place edit. Mirror intersect/except's multi-source-aware handlers, but
+  // gate on the DISPLAY source: union shows each row from the FIRST source
+  // holding it (`_pick`), so only that source's nested edit changes the displayed
+  // value — a lower-priority source's edit is invisible and must be dropped.
+  _displaySrc(name) {
+    for (const src of this.allSources) if (src.value?.[name] !== void 0) return src;
+    return void 0;
+  }
+  BU2(U2, v) {
+    if (!U2.length) return;
+    const N = [];
+    for (let i = 0; i < U2.length; i += 2)
+      if (this._displaySrc(U2[i][0]) === v) N.push(U2[i], U2[i + 1]);
+    if (N.length) this.view.BU2(N);
+  }
+  BR2(R2, v) {
+    if (!R2.length) return;
+    const N = [];
+    for (let i = 0; i < R2.length; i += 2)
+      if (this._displaySrc(R2[i][0]) === v) N.push(R2[i], R2[i + 1]);
+    if (N.length) this.view.BR2(N);
+  }
+  BI2(I2, v) {
+    if (!I2.length) return;
+    const N = [];
+    for (let i = 0; i < I2.length; i += 3)
+      if (this._displaySrc(I2[i][0]) === v) N.push(I2[i], I2[i + 1], I2[i + 2]);
+    if (N.length) this.view.BI2(N);
   }
   BI0(I0, v) {
     this._enter(I0, v, false);
@@ -4201,7 +4256,7 @@ var UnionValue = class extends Operator {
       if (prev === 0) {
         me[name] = newVal;
         NI0.push(name, newVal);
-      } else if (newVal !== me[name]) {
+      } else {
         me[name] = newVal;
         NU1.push(name, newVal);
       }
@@ -4227,6 +4282,7 @@ var ExceptValue = class extends Operator {
       if (v === void 0) return;
       if (this.otherView.value?.[i] === void 0) new_value[i] = v;
     });
+    if (isArray(p.value)) new_value.length = p.value.length;
     this.view.XU0(this.view.value = new_value);
   }
   // Source XU0 (the primary swapped wholesale): rebuild from scratch,
@@ -4241,6 +4297,7 @@ var ExceptValue = class extends Operator {
       if (val === void 0) return;
       if (this.otherView.value?.[i] === void 0) new_value[i] = val;
     });
+    if (isArray(value2)) new_value.length = value2.length;
     this.view.XU0(this.view.value = new_value);
   }
   XR0(_, v) {
@@ -4255,6 +4312,7 @@ var ExceptValue = class extends Operator {
       if (v === void 0) return;
       if (this.otherView.value?.[i] === void 0) new_value[i] = v;
     });
+    if (isArray(this.p.value)) new_value.length = this.p.value.length;
     this.view.XU0(this.view.value = new_value);
   }
   // BR1 from primary: row left p → drop from output if it was there.
@@ -4302,30 +4360,17 @@ var ExceptValue = class extends Operator {
   // excluded (holed) insert still extends the array. (Mid-array inserts
   // unsupported, as in intersect/union.)
   BI0A(I0, v) {
-    if (v === this.p) {
-      if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length;
-      const me2 = this.view.value;
-      const otherVal = this.otherView?.value;
-      const NI02 = [];
-      for (let i = 0; i < I0.length; i += 2) {
-        const at = I0[i];
-        const pRow = this.p.value[at];
-        const inOther = otherVal?.[at] !== void 0;
-        if (!inOther && pRow !== void 0 && me2[at] === void 0) NI02.push(at, me2[at] = pRow);
-      }
-      if (NI02.length) this.view.BI0(NI02);
-      return;
-    }
-    if (v !== this.otherView) return;
+    if (v !== this.p) return;
     const me = this.view.value;
+    const otherVal = this.otherView?.value;
     const NI0 = [];
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
-      const inOther = I0[i + 1] !== void 0;
-      const pRow = this.p.value[at];
-      if (!inOther && pRow !== void 0 && me[at] === void 0) {
-        NI0.push(at, me[at] = pRow);
-      }
+      const ix = +at;
+      const pRow = this.p.value[ix];
+      const admit = pRow !== void 0 && otherVal?.[ix] === void 0;
+      me.splice(ix, 0, admit ? pRow : void 0);
+      NI0.push(at, admit ? pRow : void 0);
     }
     if (NI0.length) this.view.BI0(NI0);
   }
