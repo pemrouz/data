@@ -143,7 +143,15 @@ export class ExceptValue extends Operator {
       const pRow = this.p.value[ix]
       const admit = pRow !== undefined && otherVal?.[ix] === undefined
       me.splice(ix, 0, admit ? pRow : undefined)
-      if (admit) NI0.push(at, pRow)
+      // Forward the positional insert for EVERY slot — the admitted row OR a hole
+      // (undefined) for an excluded one — not just admitted rows. A downstream
+      // positional consumer (a SORT) must shift its position map in lockstep with
+      // our splice; emitting only admitted rows let an excluded mid-array insert
+      // shift `me` silently, so the sort's `sorted` keys drifted and a row except
+      // had dropped lingered as a ghost. Symmetric with between.BI0; the sort's
+      // BI0 carried-undefined guard shifts-without-ranking the hole, and a
+      // position-agnostic sink (aggregate) skips the undefined.
+      NI0.push(at, admit ? pRow : undefined)
     }
     if (NI0.length) this.view.BI0(NI0)
   }

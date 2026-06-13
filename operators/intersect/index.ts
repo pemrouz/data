@@ -191,7 +191,14 @@ export class IntersectValue extends Operator {
           if (src_view.value?.[ix] !== undefined) bits |= src_one
         this.filters.splice(ix, 0, bits)
         this.view.value.splice(ix, 0, bits === this.all ? this.p.value[ix] : undefined)
-        if (bits === this.all) NI0.push(at, this.view.value[ix])
+        // Forward the positional insert for EVERY slot — the admitted row OR a
+        // hole (undefined) — not just admitted rows, so a downstream positional
+        // consumer (a SORT) shifts its position map in lockstep with our splice.
+        // Emitting only admitted rows let an excluded mid-array insert shift
+        // `view.value` silently and the downstream sort's `sorted` drifted into a
+        // ghost (between→intersect→za). The sort's BI0 carried-undefined guard
+        // shifts-without-ranking the hole; aggregates skip the undefined.
+        NI0.push(at, this.view.value[ix])
         continue
       }
       const bits = this.filters[at] || 0
@@ -334,7 +341,15 @@ export class IntersectValue extends Operator {
       }
       bits |= one
       filters[name] = bits
-      if (bits === all) {
+      // `me[name] === undefined`: only emit an insert if the row wasn't ALREADY
+      // visible. A brand-new key is echoed by BOTH the primary and the secondary
+      // facet; each echo's bit-fold independently reaches `bits === all` (the
+      // other source's bit was initialised from its present value), so without
+      // this guard each echo pushes a duplicate insert. The producer's own value
+      // collapses them (by-key membership), but a notification-counting sink
+      // (sort, length/sum) processes both. The ARRAY BI0A path already guards
+      // `view.value[at] === undefined`; the object _enter path was the outlier.
+      if (bits === all && me[name] === undefined) {
         NI0.push(name, me[name] = this.p.value[name])
       }
     }
