@@ -273,3 +273,88 @@ test('jsx/render - top-level Fragment renders its children', () => {
   const texts = log.filter((e) => e[0] === 'text').map((e) => e[2])
   same(texts, ['x', 'y'])
 })
+
+// Regression (#45): className={vp} (reactive class string) accumulated classes —
+// add/remove both used the current value, so the old class was never removed.
+test('jsx/h - reactive className swaps the class instead of accumulating', () => {
+  const ops = []
+  const make = (tag) => ({
+    tag, children: [], isConnected: true,
+    classList: { add: (c) => ops.push('+' + c), remove: (c) => ops.push('-' + c) },
+    style: { setProperty() {}, removeProperty() {} },
+    append(...k) { this.children.push(...k) }, appendChild(k) { this.children.push(k); return k },
+    insertBefore(k) { this.children.push(k); return k },
+    remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    set textContent(v) {}, get textContent() { return '' },
+  })
+  globalThis.document = { createElement: make, createElementNS: (_n, t) => make(t), createTextNode: () => make('#text') }
+  const cls = $('red')
+  render(make('div'), h('section', null, h('div', { className: cls })))
+  cls[value] = 'blue'
+  cls[value] = 'green'
+  same(ops, ['+red', '-red', '+blue', '-blue', '+green'])
+})
+
+// Regression (#46): function components now receive props.children.
+test('jsx/h - function component receives props.children', () => {
+  const make = (tag) => ({
+    tag, children: [], isConnected: true,
+    classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
+    append(...k) { this.children.push(...k) }, appendChild(k) { this.children.push(k); return k },
+    insertBefore(k) { this.children.push(k); return k },
+    remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
+    set textContent(v) { this._t = v }, get textContent() { return this._t ?? '' },
+    get text() { return (this.tag === '#text' ? this._t : '') + this.children.map((c) => c.text).join('') },
+  })
+  globalThis.document = { createElement: make, createElementNS: (_n, t) => make(t), createTextNode: () => make('#text') }
+  const Card = (props) => h('div', null, props.children)
+  const root = make('div')
+  render(root, h('section', null, h(Card, null, 'hi')))
+  same(root.text, 'hi')
+  // automatic-runtime form too
+  const root2 = make('div')
+  render(root2, h('section', null, jsx(Card, { children: 'yo' })))
+  same(root2.text, 'yo')
+})
+
+// Regression (#47): `once={fn}` must NOT register an event listener (it's not
+// an on-Event prop); a ViewProxy onClick must not either.
+test('jsx/h - on* heuristic excludes once={fn} and ViewProxy handlers', () => {
+  const listeners = []
+  const make = (tag) => ({
+    tag, children: [], isConnected: true,
+    classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
+    append(...k) { this.children.push(...k) }, appendChild(k) { this.children.push(k); return k },
+    insertBefore(k) { this.children.push(k); return k },
+    remove() {}, setAttribute() {}, removeAttribute() {},
+    addEventListener: (n) => listeners.push(n),
+    set textContent(v) {}, get textContent() { return '' },
+  })
+  globalThis.document = { createElement: make, createElementNS: (_n, t) => make(t), createTextNode: () => make('#text') }
+  render(make('div'), h('section', null,
+    h('button', { once: () => {}, onClick: () => {} }, 'x')))
+  same(listeners, ['click']) // 'once' did NOT become a 'ce' listener
+})
+
+// Regression (#48): an HTML <title> is created in the HTML namespace, not SVG.
+test('jsx/h - HTML <title> uses createElement, not the SVG namespace', () => {
+  const kinds = []
+  globalThis.document = {
+    createElement: (t) => (kinds.push(['html', t]), mkEl(t)),
+    createElementNS: (_n, t) => (kinds.push(['svg', t]), mkEl(t)),
+    createTextNode: () => mkEl('#text'),
+  }
+  function mkEl(tag) {
+    return {
+      tag, children: [], isConnected: true,
+      classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
+      append(...k) { this.children.push(...k) }, appendChild(k) { this.children.push(k); return k },
+      insertBefore(k) { this.children.push(k); return k },
+      remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
+      set textContent(v) {}, get textContent() { return '' },
+    }
+  }
+  render(mkEl('div'), h('head', null, h('title', null, 'My Page')))
+  ok(kinds.some(([k, t]) => k === 'html' && t === 'title'), JSON.stringify(kinds))
+  ok(!kinds.some(([k, t]) => k === 'svg' && t === 'title'), JSON.stringify(kinds))
+})
