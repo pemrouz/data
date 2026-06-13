@@ -61,12 +61,12 @@ The incremental `reduce(add, remove, init)` form used to rebuild O(N) on `BU1` *
 
 - Where: [operators/reduce/index.ts](operators/reduce/index.ts) (`_cache`, `BU1`); tests [operators/reduce/reduce.test.ts](operators/reduce/reduce.test.ts) (BU1 incremental, BU2-still-rebuilds, array key-normalization, BI0→BU1→BR1 cascade), perf [operators/reduce/reduce.perf.ts](operators/reduce/reduce.perf.ts) (overwrite 100/10k ≈ 0.2ms).
 
-### C6 — mixing proxies across two `dist/` entries (docs) ✅
-README + devtools/README
+### C6 — mixing proxies across two `dist/` entries — now FIXED at the source level ✅
+`0dd5ae9` (2026-06-11 re-examination)
 
-Each tsup entry (`data`, `data/lean`, `data/full`, `data/devtools`, …) is built self-contained (`splitting: false`), so each bundle defines its **own** `$` and `value` symbol; importing from two entries at once yields different `$` instances and proxies created under one are unrecognised by the other. Resolved at the **docs** level (a prominent note in `README.md` and `devtools/README.md` plus the CLAUDE.md gotcha). The deep fix — parking the symbol on a `Symbol.for('data.value')` global registry, or a fail-fast guard — is a packaging redesign, **deferred** (no consumer has hit it; examples import from a single entry by construction).
+Each tsup entry is built self-contained (`splitting: false`), so each bundle USED to define its **own** `$` and `value`/`view` symbols; importing from two entries at once yielded different `$` instances and proxies one entry didn't recognise. Originally resolved at the **docs** level (deferred the deep fix). The re-examination showed it was actually shipped-reachable — every example's `?devtools` flow imports the app from `data/full` then `data/devtools` (a separate bundle), so `$.inspect` never appeared and the panel never mounted; and `jsxImportSource: "data"` always crossed `data/jsx-runtime` ↔ `render`. So the deep fix was applied: the cross-bundle identity is now parked on the **global registry** — `value`/`view`/`NODE` are `Symbol.for('data.*')`, and `$`/`Operators`/`_devtoolsRoots`/`_devtoolsInternalRoots` are `globalThis[Symbol.for('data.*')]` singletons. All entries of one installed version share them, so mixing entries works (verified cross-bundle: `full.$ === devtools.$`, `$.inspect(appProxy)` works, `$.graph()` sees the app's roots, jsx-runtime nodes render via `render`). Trade-off: two DIFFERENT installed versions would now share the symbols too — acceptable. The README/devtools-README/CLAUDE notes are updated to say mixing works.
 
-- Where: [tsup.config.ts](tsup.config.ts) (`splitting: false`), [core.ts](core.ts) (per-bundle `value` symbol).
+- Where: [core.ts](core.ts) (`value`/`view`/`Operators`/`$`/`_devtoolsRoots` registry), [render/index.ts](render/index.ts) (`NODE`).
 
 ### C7 — `distinct` desync when an in-place edit moves a shared bucket's representative ✅
 `8fd1574`

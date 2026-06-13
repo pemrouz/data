@@ -10,7 +10,7 @@ count.connect(document.body, 'textContent')   // body now mirrors count
 count[value] = 42                              // body reads "42"
 ```
 
-**Live demo:** [pemrouz.github.io/data/examples/crossfilter/](https://pemrouz.github.io/data/examples/crossfilter/) — brushable histograms over 50 000 flight records, built on the same primitives as everything else in this README.
+**Live demo:** [pemrouz.github.io/data/examples/crossfilter/](https://pemrouz.github.io/data/examples/crossfilter/) — brushable histograms over 231,083 flight records, built on the same primitives as everything else in this README.
 
 ## Install
 
@@ -18,7 +18,10 @@ count[value] = 42                              // body reads "42"
 npm install data
 ```
 
-Five sub-path entries:
+Eight sub-path entries (the five most common shown below; the rest are
+`data/devtools/panel` — the overlay UI, lazy-loaded by `data/devtools` — and
+`data/jsx-runtime` / `data/jsx-dev-runtime`, the automatic-JSX-runtime entries
+picked up when a consumer sets `"jsxImportSource": "data"`):
 
 ```js
 // `data` — the default entry. Core + render + every operator (.filter, .between,
@@ -59,16 +62,16 @@ the box — reach for it by default. `data/full` is a strict superset that adds
 the JSX authoring layer. `data/lean` is the same core with the registration
 omitted, for when bundle size matters more than out-of-the-box ergonomics.
 
-> **Import from a single entry.** Each sub-path (`data`, `data/full`,
-> `data/devtools`, …) ships as a self-contained bundle with its **own** `$` and
-> internal symbols, so a proxy made under one entry is not recognised by
-> another. In particular, do **not** pair `import { $ } from 'data/full'` with
-> `import 'data/devtools'` — the devtools side-effect attaches its helpers to a
-> *different* `$`, so `$.inspect`/`$.graph` won't appear on yours. Pick one
-> entry per app (`data` for most, `data/full` for JSX) and import devtools from
-> that same world (in source form: `import './devtools/index.ts'` alongside the
-> same `core.ts`). This is a packaging constraint, tracked as C6 in
-> [ISSUES.md](ISSUES.md).
+> **Mixing entries works.** Each sub-path ships as a self-contained bundle
+> (tsup `splitting: false`), but the cross-bundle identity (the `value`/`view`
+> symbols, `$`, the operator table, and the devtools root registry) is parked on
+> the global registry (`Symbol.for`), so all entries of one installed version
+> share it. Pairing `import { $ } from 'data/full'` with `import 'data/devtools'`
+> works — the devtools side-effect attaches `$.inspect`/`$.graph` onto the same
+> `$` your app uses, and `jsxImportSource: "data"` (which gets `jsx` from
+> `data/jsx-runtime`) interoperates with `render` from `data`/`data/full`. (This
+> was a real constraint — tracked as C6 — closed by the 2026-06-11 cross-bundle
+> fix; see [DECISIONS.md](DECISIONS.md).)
 
 ## Quickstart
 
@@ -294,12 +297,18 @@ Re-run any time to refresh; managed blocks are replaced, not duplicated, and exi
 
 ## Examples
 
-Two example apps live in [examples/](examples/):
+Eleven example apps live in [examples/](examples/):
 
 - [examples/todo/](examples/todo/) — TodoMVC: filter on `done`, route via hash, edit-in-place, length counters.
-- [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over ~500 (and 50 000) flight records, with brushable histograms. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter/).**
+- [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over the full 231,083-row flights dataset, with brushable histograms. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter/).**
 - [examples/swarm/](examples/swarm/) — a live agent-simulation control room: a SIRS epidemic over ~12k moving agents at 60fps in plain JS, with a fully incremental analytics deck on `data` riding alongside (SIR counts, region leaderboard, energy histogram, an outbreak alarm via `some()`, and a brushable cohort). Plain JS owns the physics + canvas; `data` owns the deck, fed one batched `patch` per frame so its cost tracks the events, not the population.
-- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — same two apps written in JSX rather than the builder DSL. Functionally identical; demonstrates that the JSX adapter preserves DOMSink's per-key incremental updates.
+- [examples/flow/](examples/flow/) — a long-form interactive essay ("Write the view, flow the change") driven by one live change stream and a single playhead.
+- [examples/kanban/](examples/kanban/) — an issue board where every column is a derived view (`filter('status').az('order')` + `length`/`sum`/`reduce`), with drag-and-drop and reactive search.
+- [examples/pivot/](examples/pivot/) — a live pivot table where every cell is a standing reactive aggregate (`group` → `sum`/`avg`/`max`/`count`).
+- [examples/library/](examples/library/) — a faceted media browser where browsing is set algebra (`union`/`intersect`/`except`/`between` + a bounded `za`).
+- [examples/chat/](examples/chat/) — a messaging workspace in JSX: per-channel `filter('channel').az('ts')`, channel-count histogram, and `<For>` reactions.
+- [examples/multidim/](examples/multidim/) — the crossfilter brushing workload rebuilt across nine reactive libraries for a per-row reactive-cost comparison.
+- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — the todo and crossfilter apps written in JSX rather than the builder DSL; demonstrates the JSX adapter preserves DOMSink's per-key incremental updates.
 
 Run them locally:
 
