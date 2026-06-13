@@ -59,12 +59,26 @@ export class RowOperator extends Operator {
   // (e.g. setting the source to a primitive). Array-vs-object shape is
   // mirrored from the source so `for...in` iteration stays consistent.
   XU0(value){
-    if (typeof value !== 'object') return this.view.XU0(this.view.value = undefined)
-    const n = isArray(value) ? [] : {}
+    if (typeof value !== 'object' || value === null) return this.view.XU0(this.view.value = undefined)
+    const arr = isArray(value)
+    const n = arr ? [] : {}
     for (const i in value) {
+      // Skip explicit-undefined holes: a FRESH between/intersect has true holes
+      // (for-in skips them), but after a brush/membership-leave the excluded
+      // slots hold enumerable `undefined`. Handing those to process() crashed an
+      // operator CONSTRUCTED over an already-churned sparse producer (the
+      // `$(view)` re-point idiom). between/sort already guard exactly here.
+      if (value[i] === undefined) continue
       const v = this.process(value[i], i, this.view.value?.[i])
       if (v !== undefined) n[i] = v
     }
+    // Mirror the source LENGTH for arrays, so trailing-excluded rows leave holes
+    // rather than SHORTENING our array (`n.length` would otherwise stop at the
+    // last passing index). A short array breaks the source<->operator index
+    // correspondence the whole array protocol relies on: a later tail insert at
+    // the source index lands past our end / at the wrong slot, and a downstream
+    // positional op re-reads a hole and crashes or mis-sorts (the C13 root).
+    if (arr) n.length = value.length
     this.view.XU0(this.view.value = n)
   }
   BU1(U1) { this.loop(U1, 2, false) }

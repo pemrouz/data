@@ -1733,3 +1733,33 @@ test('RowOperator survives excluded inserts and primitive->object upgrade', () =
   same(f[value], { foo: 1 })
   same(log.length, 2) // snapshot + insert — cascade not aborted
 })
+
+// Regression (D2 / C13): a RowOperator over an array kept view.value SHORTER
+// than the source when trailing rows were excluded (XU0 stopped at the last
+// passing index), breaking the source<->operator index correspondence. A later
+// tail insert then landed at the wrong slot and a downstream positional op
+// re-read a hole and crashed (filter->map) or mis-sorted (filter->az). XU0 now
+// mirrors the source length (trailing holes) and skips explicit-undefined holes
+// of a brushed sparse producer (late construction).
+test('RowOperator array mirrors source length — C13 tail-insert chains', () => {
+  // filter->map with trailing-excluded rows + tail insert (was a crash)
+  const s = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
+  const m = s.filter((r) => r.v >= 50).map((r) => r.v)
+  s.insert({ v: 80 })
+  same(m[value].filter((x) => x !== undefined), [60, 70, 80])
+
+  // filter->az with the same shape (was [80,60,70])
+  const s2 = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
+  const az = s2.filter((r) => r.v >= 50).az('v')
+  s2.insert({ v: 80 })
+  same(az[value].filter((x) => x !== undefined).map((r) => r.v), [60, 70, 80])
+
+  // late filter constructed over an ALREADY-brushed between (explicit-undefined
+  // holes) — was a construction-time crash
+  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }, { v: 40 }, { v: 50 }])
+  const lo = $(0), hi = $(100)
+  const ranged = src.between('v', [lo, hi])
+  lo[value] = 25; hi[value] = 45
+  const late = ranged.filter((r) => r.v > 25)
+  same(late[value].filter((x) => x !== undefined).map((r) => r.v), [30, 40])
+})

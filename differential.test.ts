@@ -281,14 +281,6 @@ function runScenario(scn, shape, seed) {
 // Target state: empty.
 const KNOWN_FAILURES = new Set([
   // — core refill-as-splice [1] + RowOperator hole/XU0/undefined guards [9,10] (Waves C/D)
-  'filter [array]',
-  'filter [object]',
-  'map [array]',
-  'map [object]',
-  'filter→between [array]',
-  'filter→between [object]',
-  'filter→sum [array]',
-  'filter→sum [object]',
   // — trailing-excluded RowOperator over array, the C13 shape [25] (Wave D)
   // — sort: undefined-leave ghosts [15], patch-batch bisect [14], limit undefined [16] (Wave E)
   'az [array]',
@@ -327,14 +319,10 @@ const KNOWN_FAILURES = new Set([
   'between→za [array]',
   // — intersect/union/except under the widened churn [22,23,24,27] (Wave F)
   'except [array]',
-  'except [object]',
   'intersect [array]',
-  'intersect [object]',
   'intersect-between [array]',
   'intersect2 [array]',
-  'intersect2 [object]',
   'union [array]',
-  'union [object]',
   // — group/length/keys/values/reverse/reduce3 [28,29,30,31,33] (Wave G)
   'group [array]',
   'group [object]',

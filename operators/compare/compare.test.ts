@@ -118,7 +118,11 @@ test('compare - non-object value collapses', () => {
 
 test('compare - array source with delete propagates shift', () => {
   // Mirror filter's array-shift regression test — RowOperator.BR1 splices
-  // for array sources so subsequent BU2s don't read holes.
+  // for array sources so subsequent BU2s don't read holes. The operator's
+  // array mirrors the SOURCE LENGTH (excluded slots are holes, including a
+  // trailing one) so the source<->operator index correspondence holds — that
+  // length-mirroring is the C13 fix; the old code let the array stop at the
+  // last passing index, which broke a later tail insert / positional chain.
   const data = $([
     { v: 5 },
     { v: 1 },
@@ -126,15 +130,16 @@ test('compare - array source with delete propagates shift', () => {
     { v: 2 },
   ])
   const big = gt(data, 'v', 3)
-  // Initial: keep indices 0 (v:5) and 2 (v:8). Trailing hole at index 3
-  // isn't preserved by JS array semantics, so length is 3.
-  same(big[value], [{ v: 5 }, , { v: 8 }])
-  // Drop the v:1 row. Source becomes [v:5, v:8, v:2]; filter must shift
-  // its own snapshot in lockstep so subsequent BU2s read the right slot.
+  // keep indices 0 (v:5) and 2 (v:8); indices 1 and 3 are holes — length 4.
+  same(big[value].length, 4)
+  same(big[value].filter((x) => x !== undefined), [{ v: 5 }, { v: 8 }])
+  // Drop the v:1 row. Source becomes [v:5, v:8, v:2] (length 3); the operator
+  // shifts in lockstep, keeping a trailing hole at the excluded v:2 — length 3.
   delete data[1]
-  same(big[value], [{ v: 5 }, { v: 8 }])
+  same(big[value].length, 3)
+  same(big[value].filter((x) => x !== undefined), [{ v: 5 }, { v: 8 }])
   // Post-shift mutation — the row originally at idx 3 is now at idx 2;
-  // updating it via the new index must hit the right slot.
+  // updating it via the new index must hit the right slot (and now passes).
   data[2].v = 99
   same(big[value], [{ v: 5 }, { v: 8 }, { v: 99 }])
 })
