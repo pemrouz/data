@@ -73,9 +73,18 @@ export class IntersectValue extends Operator {
     this.sources = new Map([[p, { one: 1, off: ~ 1 }]])
     this.all = 1
     for (const src of sources) {
+      const v = src[view]
+      // Skip a duplicate or self source. `a.intersect(b, b)` and `a.intersect(a)`
+      // are idempotent (intersecting with the same set twice, or with self),
+      // but the old code keyed `sources` by view yet OR'd `all` per argument:
+      // the duplicate's entry overwrote the first (or the primary's) while `all`
+      // still demanded the discarded bit, so `bits === all` was unsatisfiable and
+      // the view was permanently, silently empty. Deduping by view makes these
+      // collapse to the intended set.
+      if (this.sources.has(v)) continue
       const one = 1 << this.sources.size
       src.connect(this)
-      this.sources.set(src[view], { one, off: ~one })
+      this.sources.set(v, { one, off: ~one })
       this.all |= one
     }
 

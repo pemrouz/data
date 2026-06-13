@@ -251,3 +251,16 @@ test('intersect - primary remove of a holed slot keeps downstream positions alig
   same(dense(i[value]).map((r) => r.v), [71, 30, 56, 90])
   same(dense(m[value]), [71, 30, 56, 90])
 })
+
+// Regression (F / #27): a duplicate or self source silently bricked the view.
+// The constructor keyed `sources` by view but OR'd `all` per argument, so a
+// duplicate's entry overwrote the first while `all` still demanded the
+// discarded bit — `bits === all` unsatisfiable, output permanently empty.
+// Sources are now deduped by view (idempotent: intersecting a set with itself
+// or a source twice = the set).
+test('intersect - duplicate / self source is idempotent, not empty', () => {
+  const a = $([{ x: 1 }, { x: 2 }])
+  const b = $([{ y: 1 }, { y: 2 }])
+  same(intersect(a, b, b)[value].filter((x) => x !== undefined).length, 2) // dup b
+  same(intersect(a, a)[value].filter((x) => x !== undefined).length, 2)    // self
+})
