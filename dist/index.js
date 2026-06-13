@@ -4261,8 +4261,8 @@ var UnionValue = class extends Operator {
         NU1.push(name, newVal);
       }
     }
-    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0);
     if (NU1.length) this.view.BU1(NU1);
+    if (NI0.length) hole && isArray(this.view.value) ? this.view.BF0(NI0) : this.view.BI0(NI0);
   }
 };
 
