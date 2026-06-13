@@ -117,6 +117,25 @@ export class ExceptValue extends Operator {
   BI0A(I0, v) {
     if (v === this.p) {
       if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length
+      // Admit on the PRIMARY echo too, not only on `other`'s. The old code
+      // decided admission solely on other's echo, justified by "`other` always
+      // echoes a tail insert" — true only for a RowOperator other (filter/map).
+      // A between/intersect `other` emits NOTHING for a tail insert outside its
+      // range/membership, so an admissible row (in p, not in other) was silently
+      // dropped. We read other.value[at] positionally — reliable now that
+      // RowOperator arrays mirror source length (D2) and between/intersect arrays
+      // are length-aligned. The `me[at] === undefined` guard makes this idempotent
+      // with the other-echo branch below when BOTH echo (RowOperator other).
+      const me = this.view.value
+      const otherVal = this.otherView?.value
+      const NI0 = []
+      for (let i = 0; i < I0.length; i += 2) {
+        const at = I0[i]
+        const pRow = this.p.value[at]
+        const inOther = otherVal?.[at] !== undefined
+        if (!inOther && pRow !== undefined && me[at] === undefined) NI0.push(at, me[at] = pRow)
+      }
+      if (NI0.length) this.view.BI0(NI0)
       return
     }
     if (v !== this.otherView) return

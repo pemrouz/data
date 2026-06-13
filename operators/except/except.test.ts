@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { except } from './index.ts'
 import { filter } from '../filter/index.ts'
+import { between } from '../between/index.ts'
 
 // Regression (C12): an in-place edit that pushes a row INTO the exclusion left
 // it stuck in the output. The facet (a filter) correctly emits an insert when
@@ -104,4 +105,20 @@ test('except - array, derived `other`: tail insert + shifting remove stay aligne
   // s = [{10},{70},{50},{40},{80}]; bump {10} above 60.
   s[0].v = 75
   same(denseV(res).sort((a, b) => a - b), [40, 50])
+})
+
+// Regression (F / #23): except decided a tail insert's admission SOLELY on
+// `other`'s echo, justified by "other always echoes a tail insert" — true only
+// for a RowOperator other. A between/intersect `other` emits nothing for an
+// out-of-range insert, so an admissible row (in p, not in other) was dropped.
+// except now also admits on the PRIMARY echo, reading other.value[at].
+test('except - tail insert outside a between `other` is admitted', () => {
+  const s = $([{ v: 10 }, { v: 70 }, { v: 30 }])
+  const e = except(s, between(s, 'v', [60, 100]))
+  const dense = (a) => a.filter((x) => x !== undefined).map((r) => r.v)
+  same(dense(e[value]), [10, 30])     // 70 is in [60,100] -> excluded from except
+  s.insert({ v: 20 })                 // not in [60,100] -> must appear
+  same(dense(e[value]), [10, 30, 20])
+  s.insert({ v: 80 })                 // in [60,100] -> must NOT appear
+  same(dense(e[value]), [10, 30, 20])
 })
