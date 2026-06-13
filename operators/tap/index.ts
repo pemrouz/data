@@ -1,6 +1,24 @@
 // @ts-nocheck
 import { Operator, createOperator } from '../../core.ts'
 
+// Does `fn` declare ANY parameter (even a defaulted or destructured one)?
+// `fn.length` excludes parameters with defaults and rest/destructuring, so
+// `(change = {}) => …` reports length 0 and was wrongly routed to the bare
+// (no-args) tap path — the callback then saw its default on every event and
+// the real change record was never delivered. Source inspection catches the
+// defaulted/destructured cases the arity count misses (and is robust against
+// minification: a USED param — defaulted or not — is never dropped).
+export function tapHasParam(fn) {
+  if (typeof fn !== 'function') return false
+  if (fn.length > 0) return true
+  const s = Function.prototype.toString.call(fn)
+  // bare single-identifier arrow: `x => …` / `async x => …`
+  if (/^\s*(?:async\s+)?[A-Za-z_$][\w$]*\s*=>/.test(s)) return true
+  // first parenthesised parameter list has any content (`(c = {})`, `({k})`, …)
+  const m = s.match(/\(([^)]*)\)/)
+  return !!(m && m[1].trim() !== '')
+}
+
 // `proxy.tap(fn)` is a passthrough operator that calls `fn(change)` on every
 // event flowing through it AND propagates the same event downstream. Used
 // for declarative side effects in a chain (logging, persistence, debug):
@@ -142,4 +160,4 @@ export class TapBareValue extends Operator {
 // So `tap(src, () => redraw())` is cheap whether you reach for it via the
 // chainable proxy method or the standalone helper.
 export const tap = (source, fn) =>
-  createOperator(source, fn?.length === 0 ? TapBareValue : TapValue, fn)
+  createOperator(source, tapHasParam(fn) ? TapValue : TapBareValue, fn)

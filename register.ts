@@ -25,7 +25,7 @@ import { GroupValue } from './operators/group/index.ts'
 import { LengthValue, LengthFnValue } from './operators/length/index.ts'
 import { IntersectValue } from './operators/intersect/index.ts'
 import { SumValue, AvgValue, MaxValue, MinValue, SomeValue, EveryValue } from './operators/aggregate/index.ts'
-import { TapValue, TapBareValue } from './operators/tap/index.ts'
+import { TapValue, TapBareValue, tapHasParam } from './operators/tap/index.ts'
 import { DistinctValue } from './operators/distinct/index.ts'
 import { ReduceValue, ReduceIncrementalValue } from './operators/reduce/index.ts'
 import { UnionValue } from './operators/union/index.ts'
@@ -82,7 +82,7 @@ Operators['every']     = () => EveryValue
 // Strict 0-arity check — `(c) => doThing()` (length 1) keeps the full
 // record path so a minifier that drops unused params doesn't silently
 // downgrade real consumers.
-Operators['tap']       = (fn) => typeof fn === 'function' && fn.length === 0 ? TapBareValue : TapValue
+Operators['tap']       = (fn) => tapHasParam(fn) ? TapValue : TapBareValue
 // distinct: dedup rows by a projection, materialized as a first-seen array.
 // reduce: general fold over rows; rebuilds on change (use the dedicated
 // aggregates for commutative ops — they're O(1) per delta).

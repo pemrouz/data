@@ -126,3 +126,28 @@ test('tap - change stream is byte-identical to the bare source (object and array
   seqA(ba); seqA(ta)
   same(taC, baC)
 })
+
+// Regression (#57): tap picked its path by fn.length === 0, but a defaulted or
+// destructured parameter reports length 0 — so `(c = {}) => …` was routed to
+// the bare (no-args) path and never received the change record. Path selection
+// is now by parameter PRESENCE (tapHasParam), so those take the full record path.
+test('tap - defaulted / destructured param still receives the change record', () => {
+  const src = $({ a: 1 })
+  let got
+  tap(src, (c = { type: 'DEFAULT' }) => { got = c })
+  src.a = 2
+  same(got, { type: 'update', key: ['a'], value: 2 }) // not the default
+
+  const s2 = $({ a: 1 })
+  let dt
+  tap(s2, ({ type } = {}) => { dt = type })
+  s2.a = 5
+  same(dt, 'update')
+
+  // a genuinely parameterless fn still takes the bare path (fires per emit)
+  const s3 = $({ a: 1 })
+  let calls = 0
+  tap(s3, () => { calls++ })
+  s3.a = 9
+  same(calls > 0, true)
+})
