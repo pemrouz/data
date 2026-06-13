@@ -258,3 +258,20 @@ test('render - sparse-bound list re-snapshotting dense keeps every row', () => {
   eq(root.text, '345')                     // was "35" (v:4 dropped)
   eq(root.children.length, 3)
 })
+
+// Regression (H5 / #35): with two+ data-bound siblings under one parent,
+// Node.render overwrote `dom.sink` per child, so only the LAST sink kept a
+// strong ref — earlier sinks (held only by WeakRef in their view) could be
+// GC'd and silently stop rendering structural changes. `dom.sinks` now retains
+// all of them.
+test('render - multiple data-bound siblings all keep rendering', () => {
+  const root = document.createElement('div')
+  const a = $({ x: { t: 'a1' } })
+  const b = $({ y: { t: 'b1' } })
+  render(root, HTML.div(HTML.li(a, (n, r) => n.text(r.t)), HTML.em(b, (n, r) => n.text(r.t))))
+  eq(root.sinks.length, 2)               // both retained
+  a.z = { t: 'a2' }                       // first list's insert still renders
+  eq(root.children.filter((c) => c.tag === 'li').length, 2)
+  b.w = { t: 'b2' }
+  eq(root.children.filter((c) => c.tag === 'em').length, 2)
+})

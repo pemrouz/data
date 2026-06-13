@@ -327,12 +327,18 @@ class Node extends Child {
   static render(dom, node) {
     for (const child of node.children) {
       if (child.data) {
-        dom.sink = new DOMSink(dom, child)
+        const sink = new DOMSink(dom, child)
+        // Retain EVERY data-bound child's sink on the parent — the view holds
+        // it only by WeakRef, so without a strong ref here a sink whose
+        // `dom.sink` slot was overwritten by a LATER data-bound sibling would be
+        // GC'd and silently stop rendering its list. `dom.sinks` accumulates all
+        // of them; `dom.sink` stays the most-recent for back-compat.
+        ;(dom.sinks ??= []).push(dom.sink = sink)
         // Non-enumerable so it never shows up in JSON.stringify or
         // for-in inspection of the element; configurable so a later
         // bind can replace it. Used by $.fromDOM to walk a clicked
         // element back to its owning view.
-        Object.defineProperty(dom, '__ripple_sink', { value: dom.sink, configurable: true })
+        Object.defineProperty(dom, '__ripple_sink', { value: sink, configurable: true })
       } else {
         child.create(dom)
       }
