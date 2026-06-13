@@ -206,6 +206,22 @@ Fixed in [row.ts](row.ts) `RowOperator.XU0`: `if (arr) n.length = value.length` 
 
 ---
 
+### C15 — `between` / set-algebra over an ARRAY desynced under combined churn (the 9 `KNOWN_FAILURES`) ✅
+`7c0b660`, `3432880`, `f4c0814`, `0f67fc3` (2026-06-13)
+
+The deepest array-positional corner: `between→{az,filter,map,za}` and `intersect`/`intersect2`/`intersect-between`/`union`/`except` over ARRAY sources desynced (ghost / dropped / mis-ordered row) under the COMBINED churn of mid-array inserts, `patch()` batches, in-place slot-clears, and a brush — the 9 differential `KNOWN_FAILURES`. One unifying root cause: `between` and the set-algebra producers were never made conformant to the array-positional INSERT half of the contract (C13 had landed only on `RowOperator`). The fixes:
+
+- **`between.XU0`** pads its sparse array to source length (the C13 root, never applied to `between`); **`between.BI0`** always forwards the positional insert — a hole for an out-of-range row — symmetric with `BR1`. Exposed and fixed a latent **`group.BI0A`** gap (`fn(undefined)` on a carried-undefined hole). [`7c0b660`]
+- **`intersect`/`union`/`except.BI0A`** splice a fresh cell on a MID-array insert (gated on `pendingShift = p.value.length > filters.length`, so tail inserts and the C12 paths are byte-identical); `except` arrays padded to source length. [`3432880`]
+- **`ZAValue.BI0`** (the array sort) guards a carried-undefined hole — shift positions, don't rank the hole — so a sparse producer feeding a sort no longer mis-orders on the next brush. [`f4c0814`]
+- **`intersect`/`except.BI0A`** forward the mid-insert hole (not just admitted rows) so a downstream sort shifts in lockstep; **`intersect._enter`** dedups the object double-insert. [`0f67fc3`]
+
+`KNOWN_FAILURES` is now empty; verified by the differential harness (every scenario × {array,object} × widened mutations × 4 seeds) PLUS heavy fresh-seed stress (18,600 runs, 0 failures) on the C15 family + the new set-algebra→sort/aggregate compositions. The adversarial probe that drove the last two commits left two narrow residuals tracked as [ISSUES.md C16](ISSUES.md) (`union→sort` under a facet-moving `patch-batch`; `intersect` with a sparse PRIMARY) — both not shipped-reachable, object-keyed workaround.
+
+- Where: [operators/between/index.ts](operators/between/index.ts), [operators/group/index.ts](operators/group/index.ts), [operators/intersect/index.ts](operators/intersect/index.ts), [operators/union/index.ts](operators/union/index.ts), [operators/except/index.ts](operators/except/index.ts), [operators/sort/index.ts](operators/sort/index.ts).
+
+---
+
 ## Won't fix / skipped
 
 ### P2 — `max`/`min` aggregates recompute O(n) per publish

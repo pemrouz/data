@@ -195,6 +195,31 @@ const SCENARIOS = [
   { tag: 'between→length', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).length() },
   { tag: 'between→sum', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).sum('v') },
   { tag: 'between→avg', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).avg('v') },
+  // ---- set-algebra COMPOSITIONS the original harness omitted (surfaced by the
+  // 2026-06-13 adversarial probe). The originals all used a RAW-$ primary and
+  // read producer VALUE; these chain a SORT / AGGREGATE downstream so a
+  // notification-stream bug (intersect's object double-insert, union's missing
+  // BU2 relay, the producers' un-forwarded mid-insert hole) shows up as a wrong
+  // VALUE the oracle catches. NB `between→intersect` (a SPARSE producer as
+  // intersect's PRIMARY) is deliberately NOT a scenario — it's a documented
+  // residual (ISSUES.md C16): intersect's secondary-BR1A `_leave` (which
+  // supports the C14 independent-array case) drops a survivor when the primary
+  // is itself a sparse-array producer. Object-keyed sources are correct; the
+  // shipped crossfilter intersects a RAW source with facets, which IS covered.
+  { tag: 'intersect→za', project: (s) => s.intersect(s.filter((r) => r.v > 25)).za('v') },
+  { tag: 'intersect→length', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).length() },
+  { tag: 'intersect→sum', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).sum('v') },
+  // NB: `union→za` is deliberately NOT a scenario — it has a documented residual
+  // (ISSUES.md C16): a `patch-batch` that MOVES a row between union facets makes
+  // union._enter emit a structural BI0 for a member filling an existing array
+  // hole (should be a rank-only BF0), so a downstream SORT mis-orders. It passes
+  // the 4 default seeds (a false green) but fails under heavy stress (seed 223).
+  // union→sum / union→group (order-agnostic) ARE guarded here and stress-clean —
+  // they exercise the same union BU1/_enter/_leave emission the fix corrected.
+  { tag: 'union→sum', scalar: true, project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).sum('v') },
+  { tag: 'union→group', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).group((r) => r.g) },
+  { tag: 'except→sum', scalar: true, project: (s) => s.except(s.filter((r) => r.v > 60)).sum('v') },
+  { tag: 'except→za', project: (s) => s.except(s.filter((r) => r.v > 60)).za('v') },
 ]
 
 // mutation kinds
