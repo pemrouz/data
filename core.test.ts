@@ -744,3 +744,22 @@ test('non-converging re-entrant cycle throws instead of overflowing', () => {
   try { c.x = 1 } catch (e) { err = e }
   ok(err && /reactive cycle/.test(err.message), err?.message)
 })
+
+// Regression (C7): a sink that subscribed during another sink's callback (a
+// connect() mid-cascade) was seeded with the post-commit snapshot AND then
+// visited by the live Set iterator for the in-flight delta — delivering the
+// same change twice (a duplicate that no fold could reconcile). Fan-out now
+// snapshots the sink set, so a mid-emit subscriber gets only its seed snapshot
+// and sees subsequent events normally.
+test('subscribing during fan-out does not double-deliver the in-flight event', () => {
+  const src = $({ a: 1 })
+  let added = false
+  let late
+  src.connect({}, (c) => {
+    if (!added && c.key[0] === 'a') { added = true; late = src.connect([]) }
+  })
+  src.a = 2
+  same(late, [{ type: 'update', key: [], value: { a: 2 } }]) // seed only, no echoed delta
+  src.a = 3 // a later event is delivered normally
+  same(late.at(-1), { type: 'update', key: ['a'], value: 3 })
+})

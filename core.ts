@@ -844,7 +844,7 @@ export class View {
         if (child && child.value !== this.value[j]) child.XU0()
       }
     }
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) { // snapshot — see sink()
       const sink = x.deref()
       if (!sink) { this.sinks.delete(x); continue }
       try {
@@ -889,8 +889,16 @@ export class View {
     }
   }
 
+  // Snapshot the sink set before fanning out: a sink that SUBSCRIBES during this
+  // emit (a connect() inside another sink's callback) is seeded with the
+  // post-commit snapshot at subscription time and must NOT also receive the
+  // in-flight delta — a live Set iterator visits entries added mid-loop, which
+  // delivered the current change twice (duplicating it for fold consumers). The
+  // dead-WeakRef sweep still mutates the live set. `sinks.size` fast-path avoids
+  // the array alloc when there's nothing (or nothing yet) to notify.
   sink(fn){
-    for (const x of this.sinks) {
+    if (!this.sinks.size) return
+    for (const x of [...this.sinks]) {
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
       _notify(sink, fn)
@@ -909,8 +917,9 @@ export class View {
   // `verb`/`fallback` are constant string literals at each call site, so V8
   // specializes `sink[verb]` back to a fixed-offset access after inlining.
   fanout(verb, fallback, payload){
+    if (!this.sinks.size) return
     const proto = verb && Value.prototype[verb]
-    for (const x of this.sinks) {
+    for (const x of [...this.sinks]) { // snapshot — see sink()
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
       const m = verb && sink[verb]
