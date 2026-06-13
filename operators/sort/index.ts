@@ -12,7 +12,14 @@ import { Operator, value, createOperator } from '../../core.ts'
 // `sorted`, then translate the rank shift into BU1/BR1A/BI0A (or BMV1 when
 // both ranks fall inside the window).
 export class ZAValue extends Operator {
-  matches(col, n) { return this.col_name == col && this.n == n }
+  // Dedup for the COLUMN forms (za/az('col') and za/az('col', n)). matches()
+  // receives the RAW call args, so n must default to Infinity exactly like the
+  // ZAColumnValue/AZColumnValue constructor — otherwise `za('col')` (raw n
+  // undefined) never matched this.n (Infinity) and every call built a fresh
+  // operator. The numeric forms (top(n)/za(n)) take a different arg shape and
+  // override this on ZANumberValue/AZNumberValue. (=== not ==: the col_name of
+  // the numeric forms is the `value` Symbol, and Symbol == n is always false.)
+  matches(col, n = Infinity) { return this.col_name === col && this.n === n }
 
   constructor(p, col, col_name, n) {
     super()
@@ -491,6 +498,10 @@ export class ZAColumnValue extends ZAValue {
 }
 
 export class ZANumberValue extends ZAValue {
+  // Numeric form: the only arg is `n` (top(n) / za(n)); col is implicitly the
+  // whole row. Default to Infinity like the constructor so top(2) dedups with
+  // a second top(2) (and with za(2) — the same operation).
+  matches(n = Infinity) { return this.n === n }
   constructor(p, n = Infinity){
     super(p, d => d, value, n)
   }
@@ -544,6 +555,7 @@ export class AZColumnValue extends AZValue {
 }
 
 export class AZNumberValue extends AZValue {
+  matches(n = Infinity) { return this.n === n }   // see ZANumberValue
   constructor(p, n = Infinity){
     super(p, d => d, value, n)
   }

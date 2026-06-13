@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
-import { $, value } from './full.ts'
+import { $, value, view } from './full.ts'
 import { test } from 'node:test'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object
@@ -1762,4 +1762,24 @@ test('RowOperator array mirrors source length — C13 tail-insert chains', () =>
   lo[value] = 25; hi[value] = 45
   const late = ranged.filter((r) => r.v > 25)
   same(late[value].filter((x) => x !== undefined).map((r) => r.v), [30, 40])
+})
+
+// Regression (E4 / #17): matches() compared raw call args against
+// constructor-normalized state, so dedup only worked for the explicit-bounded
+// column form za('col', n). za('col') (raw n undefined vs this.n Infinity) and
+// the numeric forms top(n)/za(n) (col_name is the `value` Symbol, == a number
+// is always false) never deduped — every call piled up a fresh operator. View
+// identity (the `view` symbol) is the dedup signal.
+test('sort dedup - all za/az/top forms reuse the cached view', () => {
+  const src = $([{ v: 1 }, { v: 2 }])
+  const v = (p) => p[view]
+  ok(v(src.za('v')) === v(src.za('v')), "za('col')")
+  ok(v(src.za('v', 2)) === v(src.za('v', 2)), "za('col', n)")
+  ok(v(src.top(2)) === v(src.top(2)), 'top(n)')
+  ok(v(src.za(2)) === v(src.za(2)), 'za(n)')
+  ok(v(src.az('v')) === v(src.az('v')), "az('v')")
+  // distinct operations must NOT collapse onto one another
+  ok(v(src.za('v')) !== v(src.za('v', 2)), "za('v') vs za('v', 2)")
+  ok(v(src.za('v')) !== v(src.az('v')), "za vs az")
+  ok(v(src.top(2)) !== v(src.top(3)), 'top(2) vs top(3)')
 })
