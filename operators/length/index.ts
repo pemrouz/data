@@ -37,7 +37,17 @@ export class LengthValue extends Operator {
     for (let i = 1; i < R1.length; i += 2) if (R1[i] !== undefined) n++
     if (n) this.view.XU0(this.view.value -= n)
   }
-  BU1(U1){}
+  // A BU1 pair carrying `undefined` is a LEAVE (`src.k = undefined` — core's
+  // upsert split routes a previously-DEFINED key set to undefined here, not to
+  // BR1). Decrement once per such pair; a defined new value is a genuine update
+  // of a still-counted row (no count change). Was a blanket no-op, so the count
+  // went permanently stale on assignment-to-undefined.
+  BU1(U1){
+    if (!U1.length) return
+    let n = 0
+    for (let i = 1; i < U1.length; i += 2) if (U1[i] === undefined) n++
+    if (n) this.view.XU0(this.view.value -= n)
+  }
   BI0(I0){
     if (!I0.length) return
     let n = 0
@@ -106,6 +116,13 @@ export class LengthFnValue extends Operator {
       const n = U1[i++]
       const v = U1[i]
       const og = mapping[n]
+      // value === undefined is a LEAVE: drop from the old bucket and clear the
+      // position mapping — NEVER call fn(undefined) (it expects a row and would
+      // crash mid-cascade).
+      if (v === undefined) {
+        if (og) { og.value--; mapping[n] = undefined }
+        continue
+      }
       const ng = view.value[fn(v)] ??= { value: 0 }
       if (og !== ng) {
         mapping[n] = ng

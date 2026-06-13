@@ -121,3 +121,23 @@ test('length fn - rebuckets on in-place field change (BU2)', () => {
   same(byState.I.value[value], 1) // each bucket's count stays individually subscribable
   same(byState.R.value[value], 2)
 })
+
+// Regression (G1 / #31): setting an existing key to undefined is a BU1 leave
+// (core's upsert split routes a previously-defined key to BU1, not BR1).
+// length() was a blanket BU1 no-op so its count went permanently stale, and
+// length(fn) called fn(undefined) and crashed. Both now treat undefined as a leave.
+test('length - assignment-to-undefined decrements (length) / rebuckets (length fn)', () => {
+  const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const len = length(src)
+  same(len[value], 3)
+  src.a = undefined
+  same(len[value], 2)              // was stuck at 3
+  src.b = { n: 9 }                 // a real update — count unchanged
+  same(len[value], 2)
+
+  const src2 = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' } })
+  const lf = length(src2, (r) => r.g)
+  same(lf[value].x.value, 2)
+  src2.a = undefined               // leave — must not crash, decrements x
+  same(lf[value].x.value, 1)
+})
