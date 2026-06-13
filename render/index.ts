@@ -150,36 +150,41 @@ class DOMSink {
     return this.parent?.isConnected === false
   }
 
+  // Remove EVERY present node from `this.nodes`, regardless of shape: array
+  // entries (skipping holes a sparse remove left — `?.remove()`), object string
+  // keys, AND the NODE-symbol slot (a scalar binding — for-in never enumerates a
+  // Symbol key, so it would otherwise be orphaned and duplicated on the next
+  // update). Operates directly on `this.nodes` so it must run BEFORE any reset.
+  _teardownAll() {
+    const ns = this.nodes
+    if (!ns) return
+    if (isArray(ns)) {
+      for (let i = 0; i < ns.length; i++) ns[i]?.remove()
+    } else {
+      for (const k in ns) ns[k]?.remove()
+    }
+    ns[NODE]?.remove()
+  }
+
   XR0() {
     if (this._detached()) return
-    // Snapshot the keys before mutating: remove_node pops the array's
-    // tail, which terminates a live `for (i in this.nodes)` loop early
-    // under V8 (the iterator stops as soon as i ≥ the shrinking length,
-    // leaving trailing entries un-removed).
-    const gone = []
-    for (const i in this.nodes) gone.push(i)
-    for (let j = 0; j < gone.length; j++) this.remove_node(gone[j])
+    this._teardownAll()
+    this.nodes = isArray(this.nodes) ? [] : {}
   }
 
   XU0(value) {
     if (this._detached()) return
+    // undefined or any primitive: tear down all current nodes (incl. a holey
+    // array tail and the NODE-symbol scalar slot — both of which the old
+    // for-in + tail-pop teardown mishandled, crashing on a hole or duplicating
+    // a scalar), reset, then for a primitive mint the single scalar node.
+    if (value === undefined || typeof value !== 'object') {
+      this._teardownAll()
+      this.nodes = {}
+      if (value !== undefined) this.create_node(NODE)
+      return
+    }
     const prev_nodes = this.nodes ?? {}
-    if (typeof value === 'undefined') {
-      this.nodes = {}
-      const gone = []
-      for (const i in prev_nodes) gone.push(i)
-      for (let j = 0; j < gone.length; j++) this.remove_node(gone[j])
-      return
-    }
-
-    if (typeof value !== 'object') {
-      this.nodes = {}
-      const gone = []
-      for (const i in prev_nodes) gone.push(i)
-      for (let j = 0; j < gone.length; j++) this.remove_node(gone[j])
-      this.create_node(NODE)
-      return
-    }
 
     const arr = isArray(value)
     // Sparse ARRAY (a between/intersect/union/except view bound straight to a

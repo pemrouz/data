@@ -168,3 +168,41 @@ test('render - intersect/union/except over an ARRAY bound to the DOM track an in
     eq(t.dom(), t.dat(), `except update: [${t.dom()}] vs [${t.dat()}]`); eq(t.dom(), '50,90,55')
   }
 })
+
+// Regression (H1 / #36,#37,#39): DOMSink teardown mishandled three node shapes.
+// (#36) a list source going undefined/primitive reset this.nodes to {} BEFORE
+// remove_node read it -> undefined.remove() crash. (#37) a scalar VP is stored
+// under the NODE symbol, which for-in never enumerates, so the old node wasn't
+// removed and every update appended a duplicate. (#39) clearing a sparse-bound
+// list after a tail-hole popped the hole (undefined.remove()). One _teardownAll
+// that walks holey arrays / object keys / the NODE slot fixes all three.
+test('render - list source -> undefined tears down cleanly and restores', () => {
+  const root = document.createElement('div')
+  const data = $({ a: { t: 'A' }, b: { t: 'B' } })
+  render(root, HTML.ul(HTML.li(data, (n, r) => n.text(r?.t))))
+  eq(root.children.length, 2)
+  data[value] = undefined
+  eq(root.children.length, 0)            // was a TypeError mid-cascade
+  data[value] = { c: { t: 'C' } }
+  eq(root.children.length, 1)            // restores, no leftover/duplicate
+})
+
+test('render - scalar VP binding does not duplicate its element on update', () => {
+  const root = document.createElement('div')
+  const n = $(1)
+  render(root, HTML.div(HTML.span(n)))
+  n[value] = 2
+  n[value] = 3
+  eq(root.children.length, 1)            // one span, not three (NODE-slot teardown)
+  eq(root.text, '3')
+})
+
+test('render - clearing a sparse-bound list after a tail hole does not crash', () => {
+  const root = document.createElement('div')
+  const d = $([{ v: 50 }, { v: 90 }])
+  const ext = $([40, 100])
+  render(root, HTML.ul(HTML.li(d.between('v', ext), (n, r) => n.text(r?.v))))
+  ext[value] = [40, 60]                  // 90 leaves -> trailing hole in nodes
+  delete d[value]                        // clear -> must not pop the hole
+  eq(root.children.length, 0)
+})
