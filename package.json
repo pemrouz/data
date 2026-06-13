@@ -4,6 +4,7 @@
   "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
   "type": "module",
   "sideEffects": [
+    "./register.ts",
     "./dist/index.js",
     "./dist/full.js",
     "./dist/devtools/index.js"

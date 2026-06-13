@@ -21,9 +21,17 @@ import { iter, isArray, noop } from './utils.ts'
  * n[value]        // 41
  * n[value] = 42   // now 42
  */
-export const value = Symbol('value')
+// Symbol.for (the GLOBAL registry), not Symbol(): each tsup entry is a
+// self-contained bundle (splitting: false) with its own copy of this module, so
+// a per-bundle `Symbol('value')` made a proxy built by one entry unrecognisable
+// to another (the `jsxImportSource: "data"` runtime builds nodes in
+// dist/jsx-runtime.js but render comes from dist/index.js — different bundles).
+// Keying these on the global registry makes the identity shared across every
+// bundle of THIS package version. (Trade-off: two DIFFERENT installed versions
+// would now share the symbol too — acceptable, and the documented C6 fix.)
+export const value = Symbol.for('data.value')
 export const reactive = Symbol.for('reactive')
-export const view = Symbol('view')
+export const view = Symbol.for('data.view')
 const Symbols = { value, view }
 const isObject = v => v.constructor === Object
 // Sinks emit value snapshots through their callback; cloning here means the
@@ -99,7 +107,14 @@ function _notify(sink, fn){
  * Register onto it directly only if you import `data/lean` and want a
  * hand-picked subset of operators: `Operators['filter'] = () => FilterValue`.
  */
-export const Operators: Record<string, (...args: any[]) => any> = {}
+// Shared across every bundle of this package version (globalThis registry, like
+// the symbols above) so that when an app imports the operator-registering entry
+// (`data`/`data/full`) and ALSO a second self-contained bundle (`data/devtools`,
+// or a `jsxImportSource` runtime), they dispatch against ONE table — the
+// registrations from whichever entry ran them are visible to proxies created by
+// any entry. Without this each bundle had its own empty/partial table.
+export const Operators: Record<string, (...args: any[]) => any> =
+  ((globalThis as any)[Symbol.for('data.operators')] ??= {})
 
 /**
  * Wrap a value or collection in a reactive `ViewProxy`.
@@ -118,10 +133,21 @@ export const Operators: Record<string, (...args: any[]) => any> = {}
  * big[value]      // 2
  * rows[0].n = 10  // views update incrementally
  */
-export const $ = <T>(v: T) => new ViewProxy(View.value(v)) as Data<T>
+// `$` is shared across bundles (globalThis registry), so the optional
+// `data/devtools` entry — a SEPARATE self-contained bundle — augments the SAME
+// `$` the app created (attaching $.inspect/$.graph/… ) instead of decorating
+// its own private copy that the app never sees. The factory is hoisted and only
+// CALLED here (its returned arrow references ViewProxy lazily, at call time —
+// no temporal-dead-zone hit on the class defined further down). First entry to
+// evaluate wins; `random` is seeded inside the factory so a later bundle's
+// re-import can't clobber a test/app override on the shared instance.
+function makeDollar() {
+  const f = (v) => new ViewProxy(View.value(v))
+  f.random = (o) => crypto.randomUUID()  // overridable for deterministic IDs in tests
+  return f
+}
+export const $ = (globalThis[Symbol.for('data.$')] ??= makeDollar()) as <T>(v: T) => Data<T>
 export default $
-// Overridable for deterministic IDs in tests — see core.test.ts:7.
-$.random = (o) => crypto.randomUUID() as string | number
 
 // Internal hooks for the optional devtools entrypoint (see devtools/walk.ts).
 // _devtoolsRoots: every root view is registered here on construction; held
@@ -129,8 +155,14 @@ $.random = (o) => crypto.randomUUID() as string | number
 // in the same lazy pattern as View.sinks. _devtoolsInternalRoots: roots the
 // devtools layer creates for its own state (e.g. panel proxy state); the
 // panel filters these out of the user-facing graph view.
-export const _devtoolsRoots = new Set<WeakRef<View>>()
-export const _devtoolsInternalRoots = new WeakSet<View>()
+// Shared across bundles (globalThis), like `$`/`Operators`: a $() root created
+// by the app's entry must be visible to the `data/devtools` bundle's no-arg
+// $.graph() / panel auto-mount, which enumerate this set. Per-bundle, devtools
+// read its own empty copy and saw no roots.
+export const _devtoolsRoots: Set<WeakRef<View>> =
+  ((globalThis as any)[Symbol.for('data.roots')] ??= new Set())
+export const _devtoolsInternalRoots: WeakSet<View> =
+  ((globalThis as any)[Symbol.for('data.internalRoots')] ??= new WeakSet())
 // Remove a root's WeakRef wrapper from the Set the moment its target is GC'd,
 // so the registry stays bounded to LIVE roots even in a non-devtools app (which
 // never iterates it to lazily prune). Without this, every $() permanently

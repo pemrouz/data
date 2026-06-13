@@ -5,7 +5,11 @@ const NS = 'http://www.w3.org/2000/svg'
 // NODE is a sentinel used as the key for the root-level slot when a sink
 // represents a single primitive child rather than a keyed list — DOMSink can
 // then treat "scalar" and "one-element list" uniformly through nodes[NODE].
-export const NODE = Symbol('Node')
+// Symbol.for (global registry), not Symbol(): a NodeProxy built by one bundle
+// (e.g. dist/jsx-runtime.js under `jsxImportSource: "data"`) must be readable by
+// render()'s `np[NODE]` in another bundle (dist/index.js / full.js). See the
+// matching note on `value`/`view` in core.ts.
+export const NODE = Symbol.for('data.node')
 const { keys } = Object
 
 // Top-level entry point: turn a NodeProxy template into actual DOM children
