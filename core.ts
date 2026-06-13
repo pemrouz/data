@@ -631,9 +631,13 @@ export class View {
       for (let i = 0; i < R1.length; i+=2)
         this.get_named(R1[i])?.XR0(R1[i+1])
     } else if (this.views.size) {
+      // Names are strings by contract; coerce to numbers before taking the min,
+      // or `'10' < '9'` (lexicographic) picks the wrong start index and V1
+      // skips refreshing a held child at the true smallest shifted index.
       let offset = Infinity
       for (let i = 0; i < R1.length; i+=2) {
-        if (R1[i] < offset) offset = R1[i]
+        const at = +R1[i]
+        if (at < offset) offset = at
         if (!offset) break
       }
       this.V1(offset)
@@ -704,9 +708,11 @@ export class View {
   // BI0A from Value being treated as array-aware.
   BI0A(I0){
     if (this.views.size) {
+      // Coerce to numbers before the min — see the matching note in BR1.
       let offset = Infinity
       for (let i = 0; i < I0.length; i+=2) {
-        if (I0[i] < offset) offset = I0[i]
+        const at = +I0[i]
+        if (at < offset) offset = at
       }
       this.V1(offset)
     }

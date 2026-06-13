@@ -673,3 +673,23 @@ test('array refill of an in-bounds hole keeps the array length-stable', () => {
   same(o[value], { a: 1, b: 2 })
   same(oc.at(-1), { type: 'insert', key: [], value: 2, at: 'b' })
 })
+
+// Regression (C3): View.BR1/BI0A found the smallest shifted index to start the
+// V1 child-view refresh by comparing protocol names with `<` — but names are
+// strings, so '10' < '9' lexicographically. A multi-index array batch crossing
+// a digit-width boundary (e.g. patch over indices 9 and 10) computed offset as
+// '10', V1 started past 9, and a held child view at index 9 kept a stale
+// snapshot while the backing array had the new value. Coerced with unary + now.
+test('array child-view refresh handles a digit-width boundary (BI0A/BR1 min)', () => {
+  const s = $([0, 1, 2, 3, 4, 5, 6, 7, 8])
+  const child9 = s[9] // held child past the boundary
+  s.patch(['10', 'x', '9', 'y']) // two new indices, 10 before 9 in payload order
+  same(s[value][9], 'y')
+  same(child9[value], 'y') // was undefined (V1 started at lexicographic '10')
+
+  // remove crossing the boundary: indices >= 9 shift down by one
+  const r = $(Array.from({ length: 12 }, (_, i) => i))
+  const c10 = r[10]
+  delete r[9]
+  same(c10[value], r[value][10]) // 11 — was stale at 10
+})
