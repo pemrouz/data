@@ -295,7 +295,6 @@ const KNOWN_FAILURES = new Set([
   'intersect2 [array]',
   'union [array]',
   // — group/length/keys/values/reverse/reduce3 [28,29,30,31,33] (Wave G)
-  'group [array]',
   'keys [object]',
   'reverse [object]',
   'values [object]',

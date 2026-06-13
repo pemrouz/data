@@ -306,6 +306,25 @@ export class GroupValue extends Operator {
       const pos = +U1[i++]
       const value = U1[i]
       const info = this.posMap.get(pos)
+      // value === undefined is a LEAVE (`src[i] = undefined`): drop the row from
+      // its bucket and clear the position map — never fn(undefined) (crashes).
+      if (value === undefined) {
+        if (info !== undefined) {
+          const oldBucket = this.view.value[info.group]
+          if (oldBucket !== undefined) {
+            const oldVal = oldBucket[info.idx]
+            oldBucket.splice(info.idx, 1)
+            for (const sibling of this.posMap.values()) {
+              if (sibling.group === info.group && sibling.idx > info.idx) sibling.idx--
+            }
+            let leavers = leaving.get(info.group)
+            if (!leavers) leaving.set(info.group, leavers = [])
+            leavers.push(info.idx, oldVal)
+          }
+          this.posMap.delete(pos)
+        }
+        continue
+      }
       const old_group = info?.group
       const new_group = this.fn(value)
 

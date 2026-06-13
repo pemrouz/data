@@ -324,3 +324,16 @@ test('group - array non-key edit does not trigger a full rebuild', () => {
   src[0].g = 'y'
   same(g[value].x.filter((x) => x !== undefined).length, 1) // only {v:3} left in x
 })
+
+// Regression (burndown): group over an ARRAY source crashed on a slot set to
+// undefined (`src[i] = undefined` -> BU1A called fn(undefined)). It's a leave:
+// the row drops from its bucket, no fn call.
+test('group - array slot set to undefined leaves cleanly (no crash)', () => {
+  const s = $([{ g: 'a', v: 1 }, { g: 'b', v: 2 }, { g: 'a', v: 3 }])
+  const g = group(s, (r) => r.g)
+  s[1] = undefined                       // leave — was a crash
+  same(Object.keys(g[value]).sort(), ['a'])
+  same(g[value].a.filter((x) => x !== undefined).map((r) => r.v), [1, 3])
+  s[1] = { g: 'c', v: 9 }                 // refill into a fresh group
+  same(Object.keys(g[value]).sort(), ['a', 'c'])
+})
