@@ -502,3 +502,28 @@ test('za/az - setting a row to undefined leaves cleanly (no ghost)', () => {
   same(za[value].filter((x) => x !== undefined).map((r) => r.v), [3, 1])
   same(za[value].length, 2)
 })
+
+// Regression (E2 / #18): ZAValue/AZValue.XU0 guarded `typeof value !== 'object'`,
+// which null passes — then Object.keys(null) threw, crashing a sort over a null
+// root or mid-cascade when an upstream value became null.
+test('za/az - null source does not crash', () => {
+  same(sort($(null), 'v')[value], [])
+  const src = $({ a: { v: 1 } })
+  const s = sort(src, 'v')
+  src[value] = null
+  same(s[value], [])
+  same(createOperator($(null), AZColumnValue, 'v')[value], [])
+})
+
+// Regression (E2 / #20): a NaN sort key made the comparator inconsistent
+// (0 for every NaN comparison), so Array.sort scrambled the WHOLE array — a
+// non-NaN row could rank below a smaller one. NaN keys now sort last and the
+// rest order correctly.
+test('za/az - a NaN key sorts last without corrupting other rows', () => {
+  const za = sort($([{ v: 5 }, { v: NaN }, { v: 3 }, { v: 1 }, { v: 8 }]), 'v')
+  const nonNaN = za[value].filter((r) => r.v === r.v).map((r) => r.v)
+  same(nonNaN, [8, 5, 3, 1])             // descending, correct
+  same(za[value][za[value].length - 1].v !== za[value][za[value].length - 1].v, true) // NaN last
+  const az = createOperator($([{ v: 5 }, { v: NaN }, { v: 3 }, { v: 8 }]), AZColumnValue, 'v')
+  same(az[value].filter((r) => r.v === r.v).map((r) => r.v), [3, 5, 8]) // ascending, correct
+})

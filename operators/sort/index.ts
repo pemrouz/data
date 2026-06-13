@@ -29,7 +29,10 @@ export class ZAValue extends Operator {
   }
 
   XU0(value){
-    if (typeof value !== 'object') return this.XR0()
+    // `value === null`: typeof null === 'object', so without this guard
+    // Object.keys(null) throws — crashing a sort over a null root, or mid-cascade
+    // when an upstream value becomes null. (LimitValue.XU0 already guards null.)
+    if (typeof value !== 'object' || value === null) return this.XR0()
     // Source shape is captured here (not at call time of BR1/BI0) because
     // those notifications fire *after* the source has already mutated, and
     // for arrays a removal will have shifted indices we still need to
@@ -45,6 +48,12 @@ export class ZAValue extends Operator {
       .sort((a, b) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
+        // NaN keys sort LAST (and consistently): an inconsistent comparator
+        // (returning 0 for every NaN comparison) makes Array.sort's result
+        // arbitrary for the WHOLE array, scrambling unrelated rows. `na - nb`
+        // orders a NaN after a non-NaN; `v !== v` is the NaN test.
+        const na = va !== va, nb = vb !== vb
+        if (na || nb) return (na ? 1 : 0) - (nb ? 1 : 0)
         return va > vb ? -1
              : va < vb ?  1
                        :  0
@@ -495,7 +504,7 @@ export class ZANumberValue extends ZAValue {
 // in the matches() lookup even though they share `col_name` and `n`.
 export class AZValue extends ZAValue {
   XU0(value) {
-    if (typeof value !== 'object') return this.XR0()
+    if (typeof value !== 'object' || value === null) return this.XR0()  // see ZAValue.XU0
     // Capture source shape — ZAValue.XU0 sets this.isArr and the BU1/BI0/BR1A
     // index-shift bookkeeping depends on it. AZValue overrides XU0 entirely, so
     // it MUST set isArr too; without it, an ascending sort over an array source
@@ -510,6 +519,8 @@ export class AZValue extends ZAValue {
       .sort((a, b) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
+        const na = va !== va, nb = vb !== vb   // NaN keys last (see ZAValue.XU0)
+        if (na || nb) return (na ? 1 : 0) - (nb ? 1 : 0)
         return va > vb ?  1
              : va < vb ? -1
                        :  0
