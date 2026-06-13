@@ -148,3 +148,18 @@ test('filter - string forms classify an undefined row as a leave, not a crash', 
   same(truthy[value], { a: { on: 1 } })
   same(eq[value], { a: { on: 1 } })
 })
+
+// Regression (D3): deleting a source array row the predicate EXCLUDED used to
+// surface a phantom `{type:'remove', value:undefined}` to connect([]) /
+// connect(obj,fn) consumers — RowOperator forwards `[index, undefined]` to keep
+// array-aware sinks' positions aligned, but a record sink must not report a
+// remove for a row that was never in the view. A genuine remove still fires.
+test('filter - deleting an excluded array row emits no phantom remove record', () => {
+  const src = $([{ v: 30 }, { v: 5 }, { v: 40 }])
+  const f = filter(src, (r) => r.v > 10)
+  const log = f.connect([])
+  delete src[1]                       // {v:5} was excluded — no record
+  same(log.slice(1), [])
+  delete src[0]                       // {v:30} WAS in the view — real remove
+  same(log.slice(1), [{ type: 'remove', key: ['0'], value: { v: 30 } }])
+})

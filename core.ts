@@ -1058,7 +1058,13 @@ class ArrSink {
   BI0(I0){ iter2(I0, (at, value) => this.insert([], value, at)) }
   BI2(I0){ iter3(I0, (key, value, at) => this.insert(key, value, at)) }
   XR0(value){ this.remove([], value) }
-  BR1(R1){ iter2(R1, (name, value) => this.remove([name], value)) }
+  // Skip undefined-valued removes: a RowOperator over an array forwards
+  // `[index, undefined]` when an EXCLUDED slot is spliced out — the positional
+  // shift signal that array-aware sinks need, but no logical row left the view.
+  // A position-agnostic record sink must not surface a `{type:'remove',
+  // value:undefined}` for a row that was never present (a real remove always
+  // carries the row value).
+  BR1(R1){ iter2(R1, (name, value) => { if (value !== undefined) this.remove([name], value) }) }
   BR2(R2){ iter2(R2, (key, value) => this.remove(key, value)) }
   move = (from, to) => this.arr.push({ type: 'move', from, to })
   BMV1(M1){ iter2(M1, (from, to) => this.move(+from, +to)) }
@@ -1131,7 +1137,7 @@ class FunctionSink extends Sink {
   BU2(U2){ iter2(U2, (key, value) => this.fn({ type: 'update', key, value: sclone(value) })) }
   BI0(I0){ iter2(I0, (at, value) => this.fn({ type: 'insert', key: [], value: sclone(value), at })) }
   BI2(I2){ iter3(I2, (key, value, at) => this.fn({ type: 'insert', key, value: sclone(value), at })) }
-  BR1(R1){ iter2(R1, (name, value) => this.fn({ type: 'remove', key: [name], value: sclone(value) })) }
+  BR1(R1){ iter2(R1, (name, value) => { if (value !== undefined) this.fn({ type: 'remove', key: [name], value: sclone(value) }) }) }
   BR2(R2){ iter2(R2, (key, value) => this.fn({ type: 'remove', key, value: sclone(value) })) }
   BMV1(M1){ iter2(M1, (from, to) => this.fn({ type: 'move', from: +from, to: +to })) }
 }
