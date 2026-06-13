@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { iter } from '../../utils.ts'
+import { iter, isArray } from '../../utils.ts'
 import { $, Operator, createOperator } from '../../core.ts'
 
 // Order-insensitive, float-tolerant structural compare used ONLY by the
@@ -174,6 +174,13 @@ export class ReduceIncrementalValue extends Operator {
 
   BI0(I0) {
     if (!I0.length) return
+    // Array structural insert: the source splice shifted every later position,
+    // so the position-keyed `_cache` is now off-by-one and a later BU1 would
+    // recover the wrong old row (silent accumulator drift). Rebuild to re-key it
+    // — exactly what AggregateValue / LengthFnValue do for the same reason. The
+    // incremental thread stays for object sources (stable keys) and for the
+    // BF0/BH1 membership churn the incremental path targets.
+    if (isArray(this.p.value)) return this._rebuild()
     let acc = this.view.value
     for (let i = 0; i < I0.length; i += 2) {
       const v = I0[i + 1]
@@ -187,6 +194,7 @@ export class ReduceIncrementalValue extends Operator {
 
   BR1(R1) {
     if (!R1.length) return
+    if (isArray(this.p.value)) return this._rebuild()   // array splice shifts positions — see BI0
     let acc = this.view.value
     for (let i = 0; i < R1.length; i += 2) {
       const v = R1[i + 1]

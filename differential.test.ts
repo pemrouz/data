@@ -297,7 +297,6 @@ const KNOWN_FAILURES = new Set([
   // — group/length/keys/values/reverse/reduce3 [28,29,30,31,33] (Wave G)
   'group [array]',
   'keys [object]',
-  'reduce3 [array]',
   'reverse [object]',
   'values [object]',
 ])

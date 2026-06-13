@@ -81,7 +81,11 @@ test('reduce - dedup: same fn + init reuse the operator view', () => {
 // the equivalent 2-arg reduce) and the *call count* (only the delta rows
 // hit the user functions).
 test('reduce.incremental - insert calls add only for the inserted row', () => {
-  const src = $([10, 20, 30])
+  // OBJECT source: keys are stable, so an insert threads incrementally (add the
+  // one new row). An ARRAY source deliberately rebuilds on insert/remove — a
+  // splice shifts every position and the position-keyed cache can't survive it
+  // (see the array-splice test below), matching AggregateValue/LengthFnValue.
+  const src = $({ a: 10, b: 20, c: 30 })
   let addCalls = 0, removeCalls = 0
   const r = reduce(src,
     (acc, v) => { addCalls++; return acc + v },
@@ -90,10 +94,23 @@ test('reduce.incremental - insert calls add only for the inserted row', () => {
   )
   eq(r[value], 60)
   eq(addCalls, 3)                                // initial rebuild
-  src.insert(40)
+  src.d = 40                                     // object insert — incremental
   eq(r[value], 100)
   eq(addCalls, 4)                                // +1 for the inserted row
   eq(removeCalls, 0)
+})
+
+test('reduce.incremental - array structural change rebuilds (cache cannot survive a splice)', () => {
+  // Regression (#28): the position-keyed _cache went stale after an array
+  // splice — a later BU1 recovered the wrong old row and the accumulator
+  // drifted silently. Array inserts/removes now rebuild (re-keying the cache).
+  const src = $([10, 20, 30])
+  const r = reduce(src, (a, v) => a + v, (a, v) => a - v, 0)
+  eq(r[value], 60)
+  delete src[0]                                  // splice — positions shift
+  eq(r[value], 50)
+  src[0] = 99                                    // overwrite the (now-shifted) head
+  eq(r[value], 129)                              // was 149 (subtracted the wrong cached row)
 })
 
 test('reduce.incremental - remove calls remove only for the removed row', () => {
@@ -129,7 +146,9 @@ test('reduce.incremental - thunk init produces a fresh acc on rebuild', () => {
   // Mutation-in-place is the common case for histogram-shaped accs. A
   // thunk init guarantees XU0/XR0 starts from a clean object instead of
   // re-using a polluted one.
-  const src = $([])
+  // OBJECT source: inserts thread incrementally (initCalls stays 1). An array
+  // source would rebuild on each insert (#28), firing the thunk each time.
+  const src = $({})
   let initCalls = 0
   const histogram = reduce(src,
     (acc, row) => { acc[row.b] = (acc[row.b] || 0) + 1; return acc },
@@ -137,13 +156,13 @@ test('reduce.incremental - thunk init produces a fresh acc on rebuild', () => {
     () => { initCalls++; return {} },
   )
   eq(initCalls, 1)
-  src.insert({ b: 'x' })
-  src.insert({ b: 'x' })
-  src.insert({ b: 'y' })
+  src.r1 = { b: 'x' }
+  src.r2 = { b: 'x' }
+  src.r3 = { b: 'y' }
   same(histogram[value], { x: 2, y: 1 })
   // Replace the whole source — XU0. Thunk fires again so the new acc
   // doesn't inherit the previous counts.
-  src[value] = [{ b: 'z' }]
+  src[value] = { z1: { b: 'z' } }
   eq(initCalls, 2)
   same(histogram[value], { z: 1 })
 })
