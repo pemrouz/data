@@ -132,7 +132,11 @@ function mountPanel({ rootProxy }) {
       tools.append(hover, pick, close)
       hover.addEventListener('click', () => altHover.toggleArm())
       pick.addEventListener('click', () => domPicker.toggleArm())
-      close.addEventListener('click', () => destroy())
+      // Route through the module-level unmount(), not the inner destroy()
+      // directly: unmount() runs destroy() AND clears the module `current`, so a
+      // subsequent panel.open()/mount() builds a fresh panel instead of
+      // returning the dead shell (mount() early-returns `if (current)`).
+      close.addEventListener('click', () => unmount())
       tools.dataset.role = 'tools'
       return tools
     })(),
@@ -1713,6 +1717,15 @@ function nodeLabel(n) {
   return n.ctor ?? n.kind
 }
 function shortKind(n) { return n.ctor || n.kind || '?' }
+// Escape HTML metacharacters before interpolating app/user-controlled strings
+// into an innerHTML template — key paths, constructor names, and formatted
+// values are all derived from the inspected app's data (object property names,
+// row ids, string values), so a value like `<img onerror=…>` would otherwise
+// execute in the panel's (closed-shadow, but still same-origin) context.
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;')
+}
 function formatValue(v) {
   if (v === undefined) return 'undefined'
   if (v === null) return 'null'
@@ -1867,15 +1880,18 @@ function createAltHover(panelRoot, panelHost) {
     const k = (v?.key && v.key.length) ? v.key.join('.') : '<root>'
     let sinkCount = 0
     v?.sink?.(() => { sinkCount++ })
+    // esc() every app-derived interpolation — k (key path), ctor, and the
+    // formatted value all come from inspected data (see esc's note). sinkCount
+    // is a number, safe.
     popover.innerHTML = `
       <div class="h">
-        <span>${k}</span>
+        <span>${esc(k)}</span>
         <button class="x" type="button" title="close (Esc)">✕</button>
       </div>
       <dl>
-        <dt>ctor</dt><dd>${ctor}</dd>
+        <dt>ctor</dt><dd>${esc(ctor)}</dd>
         <dt>sinks</dt><dd>${sinkCount}</dd>
-        <dt>value</dt><dd>${formatValue(v?.value)}</dd>
+        <dt>value</dt><dd>${esc(formatValue(v?.value))}</dd>
       </dl>
       <div class="hint">click to pin · click ✕ or Esc to close · Alt-release clears</div>
     `
@@ -1960,6 +1976,8 @@ function createAltHover(panelRoot, panelHost) {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('click',   onClick, true)
       window.removeEventListener('blur', onBlur)
+      window.removeEventListener('scroll', refresh, true) // were leaked on teardown
+      window.removeEventListener('resize', refresh)
     },
   }
 }

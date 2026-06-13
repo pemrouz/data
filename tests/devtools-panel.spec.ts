@@ -511,3 +511,66 @@ test.describe('devtools panel — close button', () => {
     expect(err).toBe(null)
   })
 })
+
+test.describe('devtools panel — re-open after close (#51)', () => {
+  test('close then open() mounts a FRESH panel, not the dead shell', async ({ page }) => {
+    await setup(page)
+    // click close
+    await page.evaluate(async () => {
+      const dt: any = await import('data/devtools')
+      const btns = dt.$.devtools.panel.shell.root.querySelectorAll('.dock-header .tools button')
+      ;(btns[btns.length - 1] as any).click()
+    })
+    await page.waitForTimeout(50)
+    expect(await page.evaluate(() => document.querySelectorAll('.__ripple_panel_host').length)).toBe(0)
+    // re-open — must build a new panel (the module `current` was cleared)
+    const reopened = await page.evaluate(async () => {
+      const dt: any = await import('data/devtools')
+      const shell = dt.$.devtools.panel.open?.((window as any).items)
+      return {
+        hosts: document.querySelectorAll('.__ripple_panel_host').length,
+        hasDock: !!(shell && shell.root && shell.root.querySelector('.dock')),
+      }
+    })
+    expect(reopened.hosts).toBe(1)      // a fresh panel mounted (was 0 — dead shell returned)
+    expect(reopened.hasDock).toBe(true)
+  })
+})
+
+test.describe('devtools panel — Alt-hover popover escaping (#73)', () => {
+  test('a malicious key/value does not inject markup into the popover', async ({ page }) => {
+    // Seed a row whose id and title carry HTML — the popover interpolates the
+    // key path and the formatted value, both app/user-controlled.
+    await page.addInitScript(() => {
+      localStorage.setItem('todos-ripple-jsx', JSON.stringify({
+        '<img src=x onerror=window.__xss=1>': { title: '<b>boom</b>', completed: false },
+      }))
+    })
+    await page.goto('/examples/todo-jsx/?devtools')
+    await page.waitForSelector('.todo-list li', { timeout: 10_000 })
+    await page.waitForFunction(async () => {
+      const dt: any = await import('data/devtools')
+      return dt.$?.devtools?.panel?.shell?.root?.querySelector('.dock')
+    }, { timeout: 10_000 })
+    // Build a popover for the row's bound element directly via the panel API path:
+    const result = await page.evaluate(async () => {
+      const dt: any = await import('data/devtools')
+      // arm alt-hover and synthesize a popover over a bound li
+      const li = document.querySelector('.todo-list li') as any
+      // dispatch an Alt-hover by simulating the alt key + mousemove the panel listens for
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }))
+      li?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5, altKey: true }))
+      await new Promise((r) => setTimeout(r, 60))
+      const pop = document.querySelector('.__rp_alt_pop') as any
+      return {
+        xss: !!(window as any).__xss,
+        // no live <img>/<b> element injected — escaped to text
+        imgs: pop ? pop.querySelectorAll('img').length : 0,
+        bolds: pop ? pop.querySelectorAll('b').length : 0,
+      }
+    })
+    expect(result.xss).toBeFalsy()       // onerror never executed
+    expect(result.imgs).toBe(0)
+    expect(result.bolds).toBe(0)
+  })
+})
