@@ -541,3 +541,18 @@ test('sort (za) - in-window rotation emits string keys', () => {
   same(numericKeys, [])
   same(win[value].map((r) => r.v), [5, 4, 3])
 })
+
+// Regression (E5 / #16): LimitValue's OBJECT BU1 branch handled `val ===
+// undefined` as a leave (splice + refill), but the ARRAY branch wrote undefined
+// straight into the window with no refill — a dead slot, violating the class's
+// own "first n non-undefined entries" contract. The array branch now refills
+// like the object branch (and like its own BR1 removal path).
+test('limit (array) - key leaving via assignment-to-undefined refills', () => {
+  const src = $([10, 20, 30, 40, 50])
+  const lim = limit(src, 3)
+  same(lim[value], [10, 20, 30])
+  src[1] = undefined          // in-window leave
+  same(lim[value], [10, 30, 40])
+  src[0] = undefined          // leave the new head
+  same(lim[value], [30, 40, 50])
+})

@@ -667,6 +667,25 @@ export class LimitValue extends Operator {
         const val = U1[i]
         const pos = this.findPos(+key)
         if (pos === -1) continue
+        if (val === undefined) {
+          // `src[i] = undefined` is a LEAVE (the documented idiom the object
+          // branch below already handles): the window must drop the dead slot
+          // and refill from the next defined source row, not retain undefined —
+          // the class keeps "the first n NON-undefined entries". Mirror the
+          // array BR1 removal: splice the key, let super.BR1A own the view.value
+          // splice + remove emit, then refill via nextAfter.
+          this.keys.splice(pos, 1)
+          super.BR1A([pos])
+          const next = this.nextAfter(this.last ?? -1)
+          if (next !== undefined) {
+            this.keys.push(next)
+            this.last = next
+            super.BI0A([this.view.value.length, this.p.value[next]])
+          } else {
+            this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
+          }
+          continue
+        }
         this.view.value[pos] = val
         NU1.push(''+pos, val)
       }
