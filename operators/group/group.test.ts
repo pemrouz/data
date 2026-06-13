@@ -304,3 +304,23 @@ test('group - sparse object source and assignment-to-undefined do not crash', ()
   s2.a = undefined                          // leave -> drops a, collapses bucket x
   same(Object.keys(g2[value]), ['y'])
 })
+
+// Regression (G2 / #33): the array BU2 branch looked up posMap.get(name) with a
+// STRING path segment, but posMap is keyed numerically for arrays — so the
+// lookup always missed, the "did the group key move?" check was always true,
+// and every non-key in-place edit triggered a full XU0 rebuild (a whole-view
+// update event downstream). Coerced to posMap.get(+name).
+test('group - array non-key edit does not trigger a full rebuild', () => {
+  const src = $([{ g: 'x', v: 1 }, { g: 'y', v: 2 }, { g: 'x', v: 3 }])
+  let fnCalls = 0
+  const g = group(src, (r) => { fnCalls++; return r.g })
+  const base = fnCalls
+  const ev = g.connect([])
+  const evBase = ev.length
+  src[0].v = 99                  // non-key edit
+  same(fnCalls - base, 1)        // one re-evaluation, NOT a full 3-row rebuild
+  same(ev.length - evBase, 0)    // non-key edit emits nothing
+  // a key edit still rebuckets correctly
+  src[0].g = 'y'
+  same(g[value].x.filter((x) => x !== undefined).length, 1) // only {v:3} left in x
+})

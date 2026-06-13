@@ -400,7 +400,12 @@ export class GroupValue extends Operator {
       for (let i = 0; i < U2.length; i += 2) {
         const name = U2[i][0]
         const row = this.p.value[name]
-        if (row !== undefined && this.fn(row) !== this.posMap.get(name)?.group)
+        // posMap is keyed NUMERICALLY for array sources (XU0 / BR1A / BI0A / BU1A
+        // all use `+index`), but `name` is a STRING path segment — coerce, or the
+        // lookup always misses, `fn(row) !== undefined?.group` is always true, and
+        // every non-key in-place edit triggers a full XU0 rebuild (the documented
+        // O(0) non-key-edit path was dead).
+        if (row !== undefined && this.fn(row) !== this.posMap.get(+name)?.group)
           return this.XU0(this.p.value)
       }
       return
