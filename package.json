@@ -6,7 +6,7 @@
   "sideEffects": [
     "./dist/index.js",
     "./dist/full.js",
-    "./register.ts"
+    "./dist/devtools/index.js"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
