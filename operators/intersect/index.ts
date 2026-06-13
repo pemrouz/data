@@ -130,7 +130,15 @@ export class IntersectValue extends Operator {
       const oldVal = this.view.value[at]
       this.filters.splice(at, 1)
       this.view.value.splice(at, 1)
-      if (oldVal !== undefined) NR1.push(at, oldVal)
+      // ALWAYS emit the positional splice, even for a pre-holed slot
+      // (oldVal === undefined): the primary remove shifts every survivor below
+      // it, so a downstream POSITIONAL consumer (map/filter/sort, or a DOMSink
+      // bound to this view) must splice the same index or its layout drifts one
+      // slot per holed-row removal. Position-agnostic record sinks skip the
+      // undefined-valued pair (no phantom remove). Matches between.BR1 /
+      // RowOperator.BR1 array handling. (C12 closure: the splice was applied
+      // internally but never communicated.)
+      NR1.push(at, oldVal)
     }
     if (NR1.length) this.view.BR1(NR1)
   }

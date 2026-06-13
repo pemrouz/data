@@ -5,6 +5,7 @@ import { $, value, view } from '../../core.ts'
 import { intersect } from './index.ts'
 import { between } from '../between/index.ts'
 import { filter } from '../filter/index.ts'
+import { map } from '../map/index.ts'
 
 // Regression: intersect's CONSTRUCTOR seeded its bitmask with `i in res.value`,
 // but between/union/except leave EXPLICIT `undefined` at excluded slots (the
@@ -230,4 +231,23 @@ test('intersect - secondary source nested update does not emit', () => {
   same(changes, [
     { type: 'update', key: [], value: { 1: { x: 'a1' } } },
   ])
+})
+
+// Regression (F / #22): the primary BR1A spliced `filters`/`view.value` for a
+// pre-holed slot but emitted downstream only `if (oldVal !== undefined)`, so a
+// downstream POSITIONAL consumer (here a map) never saw the shift — its length
+// drifted and a later keyed edit landed on the wrong slot. The splice is now
+// always communicated (record sinks skip the undefined-valued pair).
+test('intersect - primary remove of a holed slot keeps downstream positions aligned', () => {
+  const s = $([{ v: 10 }, { v: 71 }, { v: 30 }, { v: 55 }, { v: 90 }])
+  const i = intersect(s, filter(s, (r) => r.v >= 30))
+  const m = map(i, (r) => r.v)
+  const dense = (a) => a.filter((x) => x !== undefined)
+  same(dense(i[value]).map((r) => r.v), [71, 30, 55, 90])
+  delete s[0]                       // {v:10} was excluded — a holed-slot primary splice
+  same(dense(i[value]).map((r) => r.v), [71, 30, 55, 90])
+  same(dense(m[value]), [71, 30, 55, 90]) // map stays length-aligned (was longer)
+  s[2].v = 56                       // edit a survivor by its post-shift index
+  same(dense(i[value]).map((r) => r.v), [71, 30, 56, 90])
+  same(dense(m[value]), [71, 30, 56, 90])
 })
