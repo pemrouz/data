@@ -641,14 +641,28 @@ class NodeProxy {
  * with {@link render} to mount. `HTML.div.foo.bar(...)` adds classes.
  * @example HTML.ul(items, item => HTML.li(item.name))
  */
-export const HTML = new Proxy({}, {
+// Public types for the builders. Without an explicit annotation tsup emitted
+// `declare const HTML: {}` (the Proxy's `{}` target type), so every `HTML.div(…)`
+// was a type error in consumers. A NodeProxy is callable (children / a
+// `(data, rowFn)` data binding / prop bags) AND chainable by property
+// (`HTML.div.foo.bar`, `.text(…)`, `.class(…)`, `'#id'`, `'k=v'`). The
+// `(data, rowFn)` overload lists explicit `any` params so a row fn
+// `(node, item) => …` isn't flagged implicit-any under `noImplicitAny`.
+export interface NodeBuilder {
+  (data: any, rowFn: (node: any, item: any, key: any) => any): NodeBuilder
+  (...children: any[]): NodeBuilder
+  [prop: string]: NodeBuilder
+}
+export type Builder = { [tag: string]: NodeBuilder }
+
+export const HTML: Builder = new Proxy({}, {
   get(t, name) { return new NodeProxy(new Node(name)) },
-})
+}) as any
 
 /**
  * Builder for SVG element templates — the {@link HTML} counterpart that creates
  * nodes in the SVG namespace: `SVG.svg(...)`, `SVG.path(...)`, `SVG.rect(...)`.
  */
-export const SVG = new Proxy({}, {
+export const SVG: Builder = new Proxy({}, {
   get(t, name){ return new NodeProxy(new Node(name, true)) },
-})
+}) as any
