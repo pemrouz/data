@@ -996,6 +996,16 @@ class LinkedView extends View {
     if (!(value instanceof View))
       throw new Error('cannot set linked value to non-reactive source')
 
+    // Reject a cycle BEFORE mutating anything. Following .src from the proposed
+    // source must not lead back to this LinkedView (`b=$(a); c=$(b); b[value]=c`
+    // -> b.src=c, c.src=b -> the read-through getter recurses to a RangeError).
+    // The old code re-pointed src first and only blew up on the next read, which
+    // left BOTH proxies permanently unusable (every read/write threw); checking
+    // up front keeps the link a clean no-op-on-failure. The walk terminates
+    // because non-cyclic chains end at a real Value's view.
+    for (let v = value; v instanceof LinkedView; v = v.src)
+      if (v === this) throw new Error('cannot create a cyclic linked value')
+
     this.src.disconnect(this)
     this.src = value
     this.src.connect(this)

@@ -763,3 +763,27 @@ test('subscribing during fan-out does not double-deliver the in-flight event', (
   src.a = 3 // a later event is delivered normally
   same(late.at(-1), { type: 'update', key: ['a'], value: 3 })
 })
+
+// Regression (C8): LinkedView.update re-pointed the source with no cycle check
+// and BEFORE the XU0, so `b=$(a); c=$(b); b[value]=c` (b.src=c, c.src=b) made
+// the read-through getter recurse to a RangeError — and since the re-point had
+// already committed, EVERY later read/write on b or c threw forever. A cycle is
+// now rejected up front, leaving both proxies fully usable.
+test('linked value rejects a cycle without poisoning the proxies', () => {
+  const a = $({ x: 1 })
+  const b = $(a)
+  const c = $(b)
+  let err
+  try { b[value] = c } catch (e) { err = e }
+  ok(err && /cyclic/.test(err.message), err?.message)
+  // both still usable — the rejected link was a clean no-op
+  same(b[value], { x: 1 })
+  b.x = 2
+  same(b[value], { x: 2 })
+  same(a[value], { x: 2 }) // b still forwards to a
+  same(c[value], { x: 2 }) // c still mirrors b
+  // a legitimate re-point still works
+  const other = $({ y: 9 })
+  b[value] = other
+  same(b[value], { y: 9 })
+})
