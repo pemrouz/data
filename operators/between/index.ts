@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { isArray, iter, left, right } from '../../utils.ts'
-import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
+import { $, Operator, ViewProxy, createOperator, view } from '../../core.ts'
 
 // BetweenValue is the range filter. The user calls `data.between('col', [lo,
 // hi])` typically with reactive bounds (a brush rectangle on a chart) — the
@@ -9,10 +9,21 @@ import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
 // boundary, emitting per-row BI0/BR1 rather than a full XU0. That keeps the
 // crossfilter example responsive at >1M rows even when the user is dragging.
 export class BetweenValue extends Operator {
-  // Dedup helper — when two charts brush over the same column with the same
-  // bounds, share a single Between sink.
-  matches(col, [lo, hi]) {
-    return this.col === col && this.plo === lo && this.phi === hi
+  // Dedup helper — two charts brushing the same column with the same bound
+  // SOURCE share a single Between sink. The dedup signal is the bound source
+  // identity, not its current value: for the reactive single-ViewProxy extent
+  // form (the crossfilter `between('delay', filters.delay)` pattern) we compare
+  // the underlying View (stable across the fresh wrapper ViewProxy.get mints per
+  // access) — the old `this.plo === lo` compared a stored child-proxy wrapper
+  // against a freshly-minted one and NEVER matched, so identical calls piled up
+  // live operators. Reactive tuple bounds compare each bound's View; plain
+  // numeric bounds compare by value.
+  matches(col, arg) {
+    if (this.col !== col) return false
+    if (arg instanceof ViewProxy) return this._extentView === arg[view]
+    if (this._extentView) return false              // we're single-VP; arg is a tuple
+    const id = (src, vp) => vp instanceof ViewProxy ? src === vp[view] : src === vp
+    return id(this._loId, arg[0]) && id(this._hiId, arg[1])
   }
 
   constructor(p, col, arg) {
@@ -34,10 +45,14 @@ export class BetweenValue extends Operator {
     // plain numbers. Plain values are wrapped in $() so the connect machinery
     // is uniform — the wrapped proxy is captured-once and never updated.
     if (arg instanceof ViewProxy) {
+      this._extentView = arg[view]   // stable dedup identity for the single-VP form
       arg.connect(this, 'extent')
     } else {
       this._loSrc = arg[0] instanceof ViewProxy ? arg[0] : $(arg[0])
       this._hiSrc = arg[1] instanceof ViewProxy ? arg[1] : $(arg[1])
+      // dedup identity: a reactive bound's underlying View, else its plain value
+      this._loId = arg[0] instanceof ViewProxy ? arg[0][view] : arg[0]
+      this._hiId = arg[1] instanceof ViewProxy ? arg[1][view] : arg[1]
       this._loSrc.connect(this, 'lo')
       this._hiSrc.connect(this, 'hi')
     }

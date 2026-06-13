@@ -1783,3 +1783,20 @@ test('sort dedup - all za/az/top forms reuse the cached view', () => {
   ok(v(src.za('v')) !== v(src.az('v')), "za vs az")
   ok(v(src.top(2)) !== v(src.top(3)), 'top(2) vs top(3)')
 })
+
+// Regression (F / #26): between's matches() compared `this.plo === lo` by
+// identity, but for the reactive single-ViewProxy extent form (crossfilter's
+// between('delay', filters.delay)) the constructor stored a child-proxy wrapper
+// and ViewProxy.get mints a FRESH wrapper per access — so dedup never matched
+// and identical calls piled up live operators. matches() now compares the
+// underlying View identity.
+test('between dedup - reactive single-VP extent reuses the cached view', () => {
+  const s = $([{ v: 10 }, { v: 20 }])
+  const ext = $([0, 100])
+  ok(s.between('v', ext)[view] === s.between('v', ext)[view], 'single-VP extent')
+  ok(s.between('v', [0, 50])[view] === s.between('v', [0, 50])[view], 'plain tuple')
+  // distinct bound sources / values must not collapse
+  const ext2 = $([0, 100])
+  ok(s.between('v', ext)[view] !== s.between('v', ext2)[view], 'different extent proxies')
+  ok(s.between('v', [0, 50])[view] !== s.between('v', [0, 60])[view], 'different plain bounds')
+})
