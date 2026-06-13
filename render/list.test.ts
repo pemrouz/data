@@ -242,3 +242,19 @@ test('render - documented list pattern renders rows and updates on insert', () =
   eq(root.children.length, 3)
   eq(root.text, 'abc')
 })
+
+// Regression (H4 / #38): a dense XU0 re-snapshot over a previously-SPARSE
+// (holey) nodes array took the tail-relative dense build, binding node-j to
+// data[j] against the holey array — dropping rows (a between widened so every
+// row is in range gave "35" for [3,4,5]). All array XU0 now reconciles
+// index-keyed via _reconcile_sparse.
+test('render - sparse-bound list re-snapshotting dense keeps every row', () => {
+  const root = document.createElement('div')
+  const data = $([{ v: 3 }, { v: 1 }, { v: 4 }])
+  const ext = $([3, 5])
+  render(root, HTML.ul(HTML.li(data.between('v', ext), (n, r) => n.text(r?.v))))
+  eq(root.text, '34')                      // sparse: v:1 out of range
+  data[value] = [{ v: 3 }, { v: 4 }, { v: 5 }] // all in range -> dense re-snapshot
+  eq(root.text, '345')                     // was "35" (v:4 dropped)
+  eq(root.children.length, 3)
+})

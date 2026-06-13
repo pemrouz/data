@@ -196,17 +196,18 @@ class DOMSink {
     const prev_nodes = this.nodes ?? {}
 
     const arr = isArray(value)
-    // Sparse ARRAY (a between/intersect/union/except view bound straight to a
-    // row template): present rows are scattered among holes (empty at
-    // construction, explicit-`undefined` after a bound move) while the array
-    // length stays stable. The dense tail-relative build below would bind
-    // node-j to `data[j]` (wrong — j is the dense count, not the data index)
-    // and the for-in would also mint a phantom for an explicit-`undefined`
-    // slot. Reconcile index-keyed instead (node[i] ↔ data[i] for present i,
-    // positioned by index); BH1/BF0 then maintain it the same way. Dense arrays
-    // (sort/group/limit) never hole, so they never take this branch — their
-    // tail-relative path is untouched.
-    if (arr && this._sparse(value)) return this._reconcile_sparse(value)
+    // ALL array XU0 re-snapshots reconcile index-keyed (node[i] ↔ data[i]),
+    // sparse or dense. A sparse value (a between/intersect/union/except view
+    // bound straight to a row template) has present rows scattered among holes.
+    // A DENSE value is the simple case — but a dense RE-SNAPSHOT over a
+    // previously-HOLEY nodes array (a brushed `between` whose bounds widened so
+    // every row is now in range) can't take the tail-relative build below: it
+    // would bind node-j to `data[j]` against a holey nodes array, dropping rows
+    // (the v:4 between [3,4,5] → "35" bug). _reconcile_sparse handles both —
+    // it's index-keyed and a no-hole value just creates every slot by index. The
+    // incremental BU1/BI0/BR1 ops stay tail-relative (index == tail for a dense
+    // array), so this only changes the full-resnapshot path.
+    if (arr) return this._reconcile_sparse(value)
     this.nodes ??= arr ? [] : {}
     for (const i in value)
       // Object (keyed) sinks: skip explicit-`undefined` slots that sparse
