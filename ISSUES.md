@@ -9,6 +9,7 @@ Last swept 2026-06-08. Line numbers are approximate and drift with edits — tre
 | # | Issue | Theme | Severity | Status |
 |---|---|---|---|---|
 | [C14](#c14) | `intersect` over INDEPENDENT **array** sources doesn't admit a tail insert (the echoing source's bit never reaches `all` because siblings don't echo that index) | Correctness | Low | Open (not shipped-reachable; use object-keyed/derived sources) |
+| [C15](#c15) | `between` / set-algebra over an **array** source desyncs (ghost/dropped row) under COMBINED mid-insert + patch-batch + slot-clear + brush churn | Correctness | Low | Open (not shipped-reachable; use object-keyed sources) |
 | [P3](#p3) | 3-arg `reduce` falls back to O(N) rebuild on `BU2` (nested in-place edit; no old value in protocol) | Perf | Low | Open (BU1 half fixed) |
 | [P5](#p5) | `distinct` rebuilds on `BR1`/`BU1`/`XU0` (incremental only on `BI0`/`BU2`) | Perf | Low | Open (by design) |
 | [P7](#p7) | scalar aggregates / `length(fn)` over an **array** source rebuild O(N) on a structural change or a sparse-producer membership flip (no incremental BH1/BF0) | Perf | Low | Open (correctness over speed) |
@@ -22,6 +23,17 @@ Legend — **Status**: *Open (by design)* = a deliberate trade-off that could st
 ---
 
 ## Correctness
+
+### C15
+**`between` / set-algebra over an ARRAY source desyncs under combined structural churn + a brush** · Low · Open (not shipped-reachable; use object-keyed sources)
+
+`between` and the set-algebra producers (`intersect`/`union`/`except`) over an **array** source keep per-index positional state — `between` a sort-index over array positions, the producers a per-index bitmask + sparse `view.value`. Under the COMBINED churn of mid-array inserts (`BI0A` splice), `patch()` batches, in-place slot-clears, and a bound move in the same session, that state can drift from the shifting source: a brushed/edited view ends up with a ghost row or a dropped one. Simple sequences (a brush, or a tail insert, or a delete, each alone) are correct; only specific multi-mutation interleavings — surfaced by the 2026-06-11 widened differential harness (mid-insert / patch-batch / slot-undef / refill mutation kinds) — drift.
+
+**Not shipped-reachable / workaround**: the **object-keyed** forms are correct (stable keys, no positional shift), and the crossfilter/library examples already use object-keyed or derived-facet topologies; the docs recommend object keys for high-churn set-algebra throughout. This is the same array-positional family as C12/C13 (closed) but under mutation COMBINATIONS those didn't cover. Closing it means hardening `between`'s sort-index and the producers' bitmask against every interleaving of array splices — the library's most regression-prone machinery — so it's deferred rather than risked. The differential harness pins the exact failing scenarios in `KNOWN_FAILURES` (`between→{az,filter,map,za} [array]`, `{intersect,intersect2,intersect-between,union,except} [array]`).
+
+- Where: [operators/between/index.ts](operators/between/index.ts) (array `sorted` maintenance), [operators/intersect/index.ts](operators/intersect/index.ts) / [union](operators/union/index.ts) / [except](operators/except/index.ts) (array `BI0A`/`BR1A` + bitmask).
+
+---
 
 ### C14
 **`intersect` over INDEPENDENT ARRAY sources doesn't admit a tail insert** · Low · Open (not shipped-reachable; use object-keyed or derived sources)

@@ -293,28 +293,30 @@ function runScenario(scn, shape, seed) {
 // patch-batch (multi-row BU1 via patch()), and mid-insert (positional array
 // insert) — plus the trailing-excluded `lt→…` scenarios (the C13 shape).
 //
-// Every entry below is a real, reproduced bug from the re-examination, parked
-// here while its wave of fixes lands (finding ids in brackets — see the
-// re-examination report). The registry asserts each listed case still FAILS:
-// the moment a fix makes one pass, the loop below errors until the entry is
-// deleted, so this list burns down monotonically and can't silently rot.
-// Target state: empty.
+// The 2026-06-11 re-examination's 83 findings are all fixed or documented; the
+// widened mutation vocabulary then surfaced a residual: `between` and the
+// set-algebra producers (intersect/union/except) over an ARRAY source, under
+// the COMBINED churn of mid-array inserts / patch-batches / slot-clears + a
+// brush, still desync positionally (ghost / dropped rows). Simple sequences are
+// correct; only specific multi-mutation interleavings drift. This is the
+// deepest array-positional corner — between's sort-index and the bitmask
+// producers' per-index state under structural shifts they weren't designed for.
+// The OBJECT-keyed forms are correct (and the docs already recommend object
+// keys for high-churn set-algebra). Tracked as ISSUES.md C15, parked here. The
+// registry asserts each still FAILS, so if a future fix closes one the loop
+// below errors until it's deleted — the list can't silently rot. Target: empty.
 const KNOWN_FAILURES = new Set([
-  // — core refill-as-splice [1] + RowOperator hole/XU0/undefined guards [9,10] (Waves C/D)
-  // — trailing-excluded RowOperator over array, the C13 shape [25] (Wave D)
-  // — sort: undefined-leave ghosts [15], patch-batch bisect [14], limit undefined [16] (Wave E)
-  // — between over an array source under slot-undef/refill/patch churn [21] (Wave F)
+  // — between over an ARRAY source under mid-insert/patch/slot-undef + brush (C15)
   'between→az [array]',
   'between→filter [array]',
   'between→map [array]',
   'between→za [array]',
-  // — intersect/union/except under the widened churn [22,23,24,27] (Wave F)
+  // — intersect/union/except over an ARRAY source under the same combined churn (C15)
   'except [array]',
   'intersect [array]',
   'intersect-between [array]',
   'intersect2 [array]',
   'union [array]',
-  // — group/length/keys/values/reverse/reduce3 [28,29,30,31,33] (Wave G)
 ])
 
 for (const scn of SCENARIOS) {
