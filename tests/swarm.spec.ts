@@ -30,12 +30,27 @@ test('swarm boots, deck is live, no console errors', async ({ page }) => {
   await page.waitForTimeout(4500)
   const t2 = await readSIR()
 
-  // The deck is incremental, not frozen at its construction seed: susceptibles
-  // fall, and the recovered bucket — which did NOT exist at construction (every
-  // agent starts S or I) — has been created and populated. Its mere presence is
-  // the length(fn)-rebuckets-on-BU2 fix in action.
-  expect(t2.S).toBeLessThan(t1.S)
+  // The deck is incremental, not frozen at its construction seed. Assert that
+  // directly and robustly:
+  //  (1) Sum invariant — the deck accounts for every agent at all times:
+  //      S+I+R === n. This is the real correctness guard (a length(fn)/patch
+  //      desync would drop or double-count agents here); it's far stronger than
+  //      the old single-direction check.
+  //  (2) The recovered bucket — which did NOT exist at construction (every
+  //      agent starts S or I) — has been created and populated: the
+  //      length(fn)-rebuckets-on-BU2 fix in action.
+  //  (3) The counts MOVED between samples — the deck tracks the live sim, not a
+  //      frozen seed.
+  // We deliberately do NOT assert S strictly fell. This is a SIRS model — the
+  // trailing S is re-Susceptible: recovered agents lose immunity and return to
+  // S — so at n=8000 the epidemic is weak (peaks ~1% infected) and oscillatory,
+  // and S is non-monotonic. An earlier `t2.S < t1.S` flaked because S routinely
+  // bounces back up between two early samples (verified: S falls 7916→7832 then
+  // recovers to 7905 within the first 6s).
+  expect(t1.S + t1.I + t1.R).toBe(8000)
+  expect(t2.S + t2.I + t2.R).toBe(8000)
   expect(t2.R).toBeGreaterThan(0)
+  expect(t2.S !== t1.S || t2.I !== t1.I || t2.R !== t1.R).toBe(true)
 
   // The cohort table is the render() showcase: ≤120 surgically-updated rows.
   const rows = await page.locator('#cohort-rows .cohort-row').count()
