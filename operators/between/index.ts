@@ -290,7 +290,14 @@ export class BetweenValue extends Operator {
   }
 
   BU1(U1) {
-    if (this.view.value === this.p.value) return this.view.BU1(U1)
+    // Full-domain alias (view.value === p.value, set by `set extent` when the
+    // bounds widen to (-∞, ∞) — the crossfilter reset state). We relay the event
+    // straight through, but MUST also mark `sorted` dirty: a row inserted /
+    // removed / re-valued while unfiltered isn't reflected in the stale `sorted`,
+    // so the next narrow (`set extent`, which only resorts `if (sortedDirty)`)
+    // would walk a stale index — leaking an out-of-range ghost row or crashing
+    // on a since-removed key. Same reasoning in every handler below.
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BU1(U1) }
     for (let i = 0; i < U1.length; i += 2) {
       const name = U1[i]
       const row = U1[i + 1]
@@ -299,7 +306,7 @@ export class BetweenValue extends Operator {
   }
 
   BU2(U2) {
-    if (this.view.value === this.p.value) return this.view.BU2(U2)
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BU2(U2) }
     for (let i = 0; i < U2.length; i += 2) {
       const key = U2[i]
       const value = U2[i + 1]
@@ -341,7 +348,7 @@ export class BetweenValue extends Operator {
   // incremental BI0/BR1 rather than a coarse resnapshot. Guarded by the
   // between→length/sum/avg differential scenarios.)
   BI0(I0) {
-    if (this.view.value === this.p.value) return this.view.BI0(I0)
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BI0(I0) }
 
     const NI0 = []
     for (let i = 0; i < I0.length; i += 2) {
@@ -364,7 +371,7 @@ export class BetweenValue extends Operator {
   }
 
   BR1(R1) {
-    if (this.view.value === this.p.value) return this.view.BR1(R1)
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BR1(R1) }
 
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
@@ -396,7 +403,7 @@ export class BetweenValue extends Operator {
   // its occupancy changed. Mark `sorted` dirty so the next bound move rebuilds
   // it (skipping holes), and forward BH1/BF0 so our own positional sinks mirror.
   BH1(R1) {
-    if (this.view.value === this.p.value) return this.view.BH1(R1)
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BH1(R1) }
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
       const name = R1[i]
@@ -410,7 +417,7 @@ export class BetweenValue extends Operator {
   }
 
   BF0(I0) {
-    if (this.view.value === this.p.value) return this.view.BF0(I0)
+    if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BF0(I0) }
     const NF0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const name = I0[i]

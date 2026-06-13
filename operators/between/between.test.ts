@@ -307,3 +307,27 @@ test('between → az keeps order through a sideways brush (removes + fills in on
   bound[value] = [50, 70]            // sideways: drop 22/33/44 (holes), admit 66 (fill)
   same(vals(), [55, 66])             // pre-fix: [66, 55] — 66 bisected over the holes to rank 0
 })
+
+// Regression (F / #21): when reactive bounds widen to full domain, `set extent`
+// aliases view.value = p.value and every source-mutation handler relays the
+// event WITHOUT marking `sorted` dirty. A row inserted/removed while unfiltered
+// was then absent from the stale `sorted`, so the next narrow either leaked it
+// as an out-of-range ghost or skipped a since-removed key. The relays now set
+// sortedDirty. (Crossfilter's reset state is exactly full-domain bounds.)
+test('between - source mutation while unfiltered is reflected on the next narrow', () => {
+  const ext = $([0, 100])
+  const s = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const b = between(s, 'v', ext)
+  ext[value] = [-Infinity, Infinity]      // unfilter (alias)
+  s.insert({ v: 999 })                    // out-of-range insert while unfiltered
+  ext[value] = [0, 100]                   // narrow back
+  same(b[value].filter((x) => x !== undefined).map((r) => r.v), [10, 20, 30]) // 999 excluded, no ghost
+
+  const ext2 = $([0, 100])
+  const s2 = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const b2 = between(s2, 'v', ext2)
+  ext2[value] = [-Infinity, Infinity]
+  delete s2[1]                            // remove while unfiltered
+  ext2[value] = [0, 100]
+  same(b2[value].filter((x) => x !== undefined).map((r) => r.v), [10, 30])
+})
