@@ -5,7 +5,7 @@
 // and if `h` returns the same NodeProxy AST that `HTML.div.x(c)` returns,
 // `render()` walks an identical tree and DOMSink handles updates exactly as
 // it does today. No virtual DOM, no scheduler, no new sink type.
-import { HTML, SVG } from '../render/index.ts'
+import { HTML, SVG, NODE } from '../render/index.ts'
 import { view } from '../core.ts'
 
 // SVG-namespaced tags. `h` uses this set to dispatch to SVG instead of HTML;
@@ -17,7 +17,14 @@ const SVG_TAGS = new Set([
   'pattern', 'image', 'use', 'symbol', 'marker', 'linearGradient',
   'radialGradient', 'stop', 'foreignObject', 'filter', 'feGaussianBlur',
   'feOffset', 'feMerge', 'feMergeNode', 'feColorMatrix', 'feFlood',
-  'feComposite', 'title', 'desc',
+  'feComposite', 'desc',
+  // NB: `title` is intentionally NOT here. It exists in both namespaces (HTML
+  // document <title> and SVG tooltip <title>), and h() picks the namespace from
+  // this set with no parent context — so a `title` here forced every <title>
+  // into the SVG namespace, breaking HTML <title> (which jsx.d.ts types as
+  // HTML). Defaulting it to HTML matches the d.ts; for an SVG tooltip use the
+  // explicit `SVG.title` builder. (Other dual-namespace tags — a/script/style —
+  // were never in the set, so they already default to HTML.)
 ])
 
 // Translate a JSX props bag onto an existing NodeProxy by chaining the
@@ -50,7 +57,12 @@ export function applyProps(node: any, props: any): any {
       node = node.style(v)
     } else if (k === 'id' && typeof v === 'string') {
       node = node.id(v, true)
-    } else if (k.length > 2 && k[0] === 'o' && k[1] === 'n' && typeof v === 'function') {
+    } else if (/^on[A-Z]/.test(k) && typeof v === 'function' && !(v as any)[view]) {
+      // Require an UPPERCASE char after `on` (onClick, onInput) so a legitimate
+      // non-event prop that merely starts with "on" and holds a function —
+      // `once={fn}` — isn't swallowed as addEventListener('ce', fn). Also exclude
+      // a ViewProxy value (it's `typeof 'function'`): `onClick={vp}` would
+      // otherwise install a listener that throws on the first click.
       node = node.on(k.slice(2).toLowerCase(), v)
     } else if (k === 'ref' && typeof v === 'function') {
       // One-shot callback fired with the real DOM element after create().
@@ -84,15 +96,31 @@ export function applyProps(node: any, props: any): any {
 // recreate the label on every update (lost focus/markers), and the
 // `[data, fn]` data-binding shorthand would silently lose its data link.
 export function h(tag: any, props: any, ...children: any[]): any {
-  if (typeof tag === 'function') return tag(props || {}, ...children)
+  if (typeof tag === 'function') {
+    // Deliver children to a function component BOTH via props.children (the
+    // standard JSX contract jsx.d.ts's ElementChildrenAttribute advertises —
+    // `({ children }) => …`) AND positionally (so the builder-style components
+    // like `For`, which read the row fn as the 2nd positional arg, keep
+    // working). Don't clobber an explicit props.children (the automatic runtime
+    // already put it there).
+    const norm = children.length === 0 ? undefined
+      : children.length === 1 ? children[0]
+      : children
+    const merged = props ? { ...props, children: props.children ?? norm } : { children: norm }
+    return tag(merged, ...children)
+  }
   let node = ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag]
   node = applyProps(node, props)
   const flat = children.flat(Infinity)
-  // Has a non-VP function child? That marks the data-iteration shape; in
-  // that case VPs should stay on the data path, not the text path.
+  // Has a real ROW FN child? That marks the data-iteration shape, in which case
+  // VPs stay on the data path, not the text path. A row fn is a PLAIN function
+  // — NOT a ViewProxy (`[view]`) and NOT a NodeProxy element (`[NODE]`, also a
+  // callable Proxy with no `[view]`). Excluding NodeProxy elements is the fix:
+  // a VP child with an element sibling (e.g. `<label><em/>{count}</label>`) was
+  // wrongly flipped to the data-iteration path, duplicating the host element.
   let hasRowFn = false
   for (const c of flat) {
-    if (typeof c === 'function' && !(c as any)[view]) { hasRowFn = true; break }
+    if (typeof c === 'function' && !(c as any)[view] && !(c as any)[NODE]) { hasRowFn = true; break }
   }
   for (const c of flat) {
     if (c == null || c === false) continue

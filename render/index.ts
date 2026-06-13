@@ -5,7 +5,7 @@ const NS = 'http://www.w3.org/2000/svg'
 // NODE is a sentinel used as the key for the root-level slot when a sink
 // represents a single primitive child rather than a keyed list — DOMSink can
 // then treat "scalar" and "one-element list" uniformly through nodes[NODE].
-const NODE = Symbol('Node')
+export const NODE = Symbol('Node')
 const { keys } = Object
 
 // Top-level entry point: turn a NodeProxy template into actual DOM children
@@ -33,7 +33,14 @@ const { keys } = Object
  * render(document.body, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
  */
 export const render = (p, np) =>
-  Node.render(p, np[NODE])
+  // A top-level Fragment is a plain array of NodeProxy children (it only works
+  // nested because an enclosing h() flattens it). Passed straight to render(),
+  // `np[NODE]` is undefined and Node.render threw a bare "reading 'children'"
+  // TypeError. Treat it like a wrapper whose children render into `p` — the same
+  // semantics a single wrapper template gets.
+  isArray(np)
+    ? Node.render(p, Node.add(new Node('', null), ...np.filter(c => c != null && c !== false))[NODE])
+    : Node.render(p, np[NODE])
 
 // DOMSink is the bridge between the reactive protocol and live DOM. One
 // sink per data-bound region in the template; it holds the parent element,
@@ -509,8 +516,26 @@ class Attr extends Prop {
 }
 
 class Class extends Prop {
-  add() { this.parent.classList.add(this.name) }
-  remove() { this.parent.classList.remove(this.name) }
+  // Two reactive shapes reach here:
+  //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
+  //                           add/remove toggle the fixed class `this.name`.
+  //   className={vp}         — REACTIVE name (this.name is a VP yielding the class
+  //                           string): each change passes the NEW class as `value`,
+  //                           and we must remove the PREVIOUS class first or they
+  //                           accumulate forever (the documented Reactive<string>
+  //                           className never dropping the old class).
+  add(value) {
+    const reactiveName = this.name?.[view]
+    const cls = reactiveName ? value : this.name
+    if (reactiveName && this._last !== undefined && this._last !== cls)
+      this.parent.classList.remove(this._last)
+    if (cls != null && cls !== '') this.parent.classList.add(this._last = cls)
+  }
+  remove() {
+    const cls = this.name?.[view] ? this._last : this.name
+    if (cls != null && cls !== '') this.parent.classList.remove(cls)
+    this._last = undefined
+  }
 }
 
 class ID extends Prop {

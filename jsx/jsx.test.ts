@@ -241,3 +241,35 @@ test('jsx/jsxs (auto-runtime) - children array spreads as siblings', () => {
   ))
   same(a, b)
 })
+
+// Regression (#42): a VP child with an ELEMENT (NodeProxy) sibling was flipped
+// onto the data-iteration path (hasRowFn counted the NodeProxy as a row fn),
+// duplicating the host element. A NodeProxy is excluded from the row-fn check now.
+test('jsx/h - VP child with an element sibling does not duplicate the host', () => {
+  let labels = 0
+  const make = (tag) => {
+    if (tag === 'label') labels++
+    return {
+      tag, children: [], isConnected: true,
+      classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
+      append(...k) { this.children.push(...k) }, appendChild(k) { this.children.push(k); return k },
+      insertBefore(k) { this.children.push(k); return k },
+      remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
+      set textContent(v) { this._t = v }, get textContent() { return this._t ?? '' },
+    }
+  }
+  globalThis.document = { createElement: make, createElementNS: (_n, t) => make(t), createTextNode: () => make('#text') }
+  render(make('div'), h('section', null, h('label', null, h('em', null, 'cnt:'), $(5))))
+  same(labels, 1) // one <label>, not one-per-key of the object VP (was duplicated)
+})
+
+// Regression (#49): a top-level Fragment (`render(root, <>…</>)`) is a plain
+// array; np[NODE] was undefined and Node.render threw. render() now treats it
+// as a wrapper whose children render into the parent (with their static text).
+test('jsx/render - top-level Fragment renders its children', () => {
+  const log = recordingDom()
+  const root = document.createElement('div')
+  render(root, h(Fragment, null, h('div', null, 'x'), h('div', null, 'y')))
+  const texts = log.filter((e) => e[0] === 'text').map((e) => e[2])
+  same(texts, ['x', 'y'])
+})
