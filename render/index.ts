@@ -235,6 +235,28 @@ class DOMSink {
       this.remove_node(R1[i++])
   }
 
+  // Array-positional structural splice (a STRUCTURAL source insert/remove
+  // reaching a list, not a length-stable membership flip). For a SPARSE-bound
+  // list (a between/intersect/union/except view bound straight to the DOM) the
+  // splice shifts source indices, so the index-keyed nodes must re-sync against
+  // the post-splice value — the tail-relative BR1/BI0 fallback removed/added the
+  // wrong node and blanked the list. A DENSE list (sort/group/limit) only ever
+  // receives TAIL BR1A/BI0A (its _window reconcile emits tail-only splices plus
+  // content-stable BU1s), so it keeps the cheap tail path — identical to the old
+  // BR1/BI0 fallback, no regression. Detected by whether the current source
+  // value is sparse.
+  BR1A(R1){
+    if (this._detached()) return
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
+    for (let i = 0; i < R1.length; i++) this.remove_node(R1[i++])
+  }
+
+  BI0A(I0){
+    if (this._detached()) return
+    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
+    for (let i = 0; i < I0.length; i++) this.create_node(I0[i++])
+  }
+
   BU1(U1){
     if (this._detached()) return
     for (let i = 0; i < U1.length; i++) {

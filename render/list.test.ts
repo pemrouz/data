@@ -275,3 +275,31 @@ test('render - multiple data-bound siblings all keep rendering', () => {
   b.w = { t: 'b2' }
   eq(root.children.filter((c) => c.tag === 'em').length, 2)
 })
+
+// Regression (H6 / #34): a STRUCTURAL source insert/remove on a sparse-bound
+// list (a between/intersect/… view bound straight to the DOM) reached the sink
+// as BR1A/BI0A, which DOMSink didn't implement — so it fell back to the
+// tail-relative BR1/BI0 against an index-keyed nodes array and blanked / mis-
+// rendered the list. BR1A/BI0A now re-sync the sparse list by index. (Dense
+// lists only get tail BR1A/BI0A and keep the cheap path.)
+test('render - structural source change on a sparse-bound list stays correct', () => {
+  const mk = (rows) => {
+    const root = document.createElement('div')
+    const data = $(rows)
+    render(root, HTML.ul(HTML.li(data.between('v', $([40, 60])), (n, r) => n.text(r?.v))))
+    return { root, data }
+  }
+  // remove an OUT-of-range row — visible rows unchanged
+  let { root, data } = mk([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
+  eq(root.text, '5055')
+  delete data[0]
+  eq(root.text, '5055'); eq(root.children.length, 2)
+  // remove an IN-range row
+  ;({ root, data } = mk([{ v: 50 }, { v: 55 }, { v: 90 }]))
+  delete data[0]
+  eq(root.text, '55'); eq(root.children.length, 1)
+  // insert an IN-range row
+  ;({ root, data } = mk([{ v: 50 }, { v: 90 }]))
+  data.insert({ v: 55 })
+  eq(root.text, '5055')
+})
