@@ -258,7 +258,11 @@ export class ZAValue extends Operator {
         // emit the move event for change-stream consumers that want move
         // semantics; sinks without BMV1 (and index-keyed DOM sinks) fall
         // back to a positional content refresh over the affected range.
-        super.BU1([oidx, value])
+        // Stringify oidx: the change-record contract is `key: string[]`, and a
+        // numeric key here surfaced as `{ key: [2] }` (number) to connect([])
+        // consumers and missed the string-keyed child-view refresh (the
+        // no-rank-change path two branches up stringifies for the same reason).
+        super.BU1(['' + oidx, value])
         super.BMV1([oidx, nidx])
       }
     }

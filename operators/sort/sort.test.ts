@@ -527,3 +527,17 @@ test('za/az - a NaN key sorts last without corrupting other rows', () => {
   const az = createOperator($([{ v: 5 }, { v: NaN }, { v: 3 }, { v: 8 }]), AZColumnValue, 'v')
   same(az[value].filter((r) => r.v === r.v).map((r) => r.v), [3, 5, 8]) // ascending, correct
 })
+
+// Regression (E3 / #19): the in-window rotation path emitted super.BU1([oidx,
+// value]) with a NUMERIC oidx, so connect([]) consumers got `{ key: [2] }`
+// (number) — violating the `key: string[]` record contract and missing the
+// string-keyed child-view refresh. All emitted keys must be strings.
+test('sort (za) - in-window rotation emits string keys', () => {
+  const src = $([{ id: 'x', v: 5 }, { id: 'y', v: 3 }, { id: 'z', v: 1 }])
+  const win = sort(src, 'v', 3)
+  const log = win.connect([])
+  src[2] = { id: 'z', v: 4 } // whole-row replace, rank 2 -> 1 (in-window rotation)
+  const numericKeys = log.filter((r) => Array.isArray(r.key) && r.key.some((k) => typeof k === 'number'))
+  same(numericKeys, [])
+  same(win[value].map((r) => r.v), [5, 4, 3])
+})
