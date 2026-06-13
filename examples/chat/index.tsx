@@ -200,7 +200,7 @@ render(document.body, (
 
     <main className="main">
       <header className="chan-header">
-        <span className="chan-title"># {cur}</span>
+        <span className="chan-title">{cur.to((c: string) => `# ${c}`)}</span>
         <span className="chan-meta">{view.to((v: any) => `${Object.keys(v).length} messages`)}</span>
         <span className="spacer" />
         <input className="search" placeholder="Search messages…" onInput={onSearch} />
