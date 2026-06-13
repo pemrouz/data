@@ -144,9 +144,24 @@ export class UnionValue extends Operator {
     const higher = one - 1
     const me = this.view.value
     const NI0 = [], NU1 = []
+    // A MID-array insert shifts every later position, so `filters`/`view.value`
+    // must splice a fresh cell in lockstep. `pendingShift` (the canonical source
+    // grew, our parallel arrays haven't) flags it; `ix === filters.length` (a
+    // TAIL insert) skips the splice and keeps the original C12 bit-fold path.
+    // Union's PRIMARY (`this.p`) is itself a derived facet that echoes FIRST, so
+    // the primary echo splices an EMPTY cell to realign structure, then this same
+    // echo's bit-fold below sets its bit; later secondary echoes see the cell
+    // already aligned (pendingShift now false) and fold their bits at the
+    // correct shifted index.
+    const pendingShift = this.p.value.length > this.filters.length
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
+      const ix = +at
       const val = I0[i + 1]
+      if (pendingShift && ix < this.filters.length && v === this.p) {
+        this.filters.splice(ix, 0, 0)
+        me.splice(ix, 0, undefined)
+      }
       const prev = this.filters[at] || 0
       const bits = this.filters[at] = val !== undefined ? (prev | one) : (prev & off)
       if (bits === 0 || val === undefined || (bits & higher)) continue

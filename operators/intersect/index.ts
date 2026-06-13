@@ -165,9 +165,35 @@ export class IntersectValue extends Operator {
   BI0A(I0, v) {
     const { one, off } = this.sources.get(v)
     const NI0 = []
+    // A MID-array insert shifts every later source position, so the per-index
+    // `filters` bitmask and `view.value` must splice a fresh cell in lockstep or
+    // they drift one slot per interior insert (a member is dropped, ghosted by a
+    // later remove/brush). `pendingShift` — the canonical source has already
+    // grown but our parallel arrays haven't (core splices the source BEFORE
+    // fanout) — distinguishes a genuine interior shift from a TAIL insert
+    // (`ix === filters.length`, the original C12 bit-fold path) and from an
+    // INDEPENDENT array's own insert (C14: never grows THIS primary, so never
+    // splices — left deliberately unhandled). Only the PRIMARY echo
+    // (`v === this.p`, the canonical index identity; it echoes LAST so every
+    // facet has already shifted its own array) reconciles the splice, re-deriving
+    // the new cell's full bitmask from each source's settled value. A secondary
+    // echo of the same shift is a structural no-op — folding its bit into the
+    // not-yet-shifted (wrong) cell is the echo-ordering hazard the no-op avoids.
+    const pendingShift = this.p.value.length > this.filters.length
     for (let i = 0; i < I0.length; i += 2) {
-      const at = I0[i]
+      const at = I0[i]              // string key — emitted as-is
+      const ix = +at                // numeric — splice / length math
       const val = I0[i + 1]
+      if (pendingShift && ix < this.filters.length) {
+        if (v !== this.p) continue
+        let bits = 0
+        for (const [src_view, { one: src_one }] of this.sources)
+          if (src_view.value?.[ix] !== undefined) bits |= src_one
+        this.filters.splice(ix, 0, bits)
+        this.view.value.splice(ix, 0, bits === this.all ? this.p.value[ix] : undefined)
+        if (bits === this.all) NI0.push(at, this.view.value[ix])
+        continue
+      }
       const bits = this.filters[at] || 0
       this.filters[at] = val !== undefined ? (bits | one) : (bits & off)
       if (this.filters[at] === this.all && this.view.value[at] === undefined) {

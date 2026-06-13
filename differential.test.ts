@@ -305,16 +305,16 @@ function runScenario(scn, shape, seed) {
 // keys for high-churn set-algebra). Tracked as ISSUES.md C15, parked here. The
 // registry asserts each still FAILS, so if a future fix closes one the loop
 // below errors until it's deleted — the list can't silently rot. Target: empty.
-const KNOWN_FAILURES = new Set([
-  // — intersect/union/except over an ARRAY source under combined churn (C15);
-  //   intersect-between is downstream of between but also exercises intersect's
-  //   own array mid-insert path, so it needs the producers fix too.
-  'except [array]',
-  'intersect [array]',
-  'intersect-between [array]',
-  'intersect2 [array]',
-  'union [array]',
-])
+// EMPTY — C15 is closed. Every (scenario × shape × widened-mutation × seed)
+// now matches a from-scratch rebuild. The last residuals (between and the
+// set-algebra producers over an ARRAY source under combined mid-insert /
+// patch-batch / slot-clear / brush churn) were the array-positional INSERT
+// half of the contract that the C13 fix left unfinished on these operators:
+// between/except built short sparse arrays and never forwarded an out-of-range
+// insert; intersect/union/except never spliced a fresh cell on a mid-array
+// insert. Fixed by padding to source length and splicing in lockstep. Keep
+// this set EMPTY — a regression re-adds itself here as a hard failure.
+const KNOWN_FAILURES = new Set([])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {

@@ -21,6 +21,11 @@ export class ExceptValue extends Operator {
       if (v === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = v
     })
+    // Mirror source length for arrays: assigning only kept indices leaves the
+    // array short whenever trailing rows are excluded, so a later positional
+    // BI0A/BR1A splice (and the source↔view index correspondence) would be
+    // misaligned. Same C13 pad as RowOperator.XU0 / between.XU0.
+    if (isArray(p.value)) new_value.length = p.value.length
     this.view.XU0(this.view.value = new_value)
   }
 
@@ -38,6 +43,7 @@ export class ExceptValue extends Operator {
       if (val === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = val
     })
+    if (isArray(value)) new_value.length = value.length   // C13 pad (see constructor)
     this.view.XU0(this.view.value = new_value)
   }
 
@@ -56,6 +62,7 @@ export class ExceptValue extends Operator {
       if (v === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = v
     })
+    if (isArray(this.p.value)) new_value.length = this.p.value.length   // C13 pad (see constructor)
     this.view.XU0(this.view.value = new_value)
   }
 
@@ -115,39 +122,28 @@ export class ExceptValue extends Operator {
   // excluded (holed) insert still extends the array. (Mid-array inserts
   // unsupported, as in intersect/union.)
   BI0A(I0, v) {
-    if (v === this.p) {
-      if (this.view.value.length < this.p.value.length) this.view.value.length = this.p.value.length
-      // Admit on the PRIMARY echo too, not only on `other`'s. The old code
-      // decided admission solely on other's echo, justified by "`other` always
-      // echoes a tail insert" — true only for a RowOperator other (filter/map).
-      // A between/intersect `other` emits NOTHING for a tail insert outside its
-      // range/membership, so an admissible row (in p, not in other) was silently
-      // dropped. We read other.value[at] positionally — reliable now that
-      // RowOperator arrays mirror source length (D2) and between/intersect arrays
-      // are length-aligned. The `me[at] === undefined` guard makes this idempotent
-      // with the other-echo branch below when BOTH echo (RowOperator other).
-      const me = this.view.value
-      const otherVal = this.otherView?.value
-      const NI0 = []
-      for (let i = 0; i < I0.length; i += 2) {
-        const at = I0[i]
-        const pRow = this.p.value[at]
-        const inOther = otherVal?.[at] !== undefined
-        if (!inOther && pRow !== undefined && me[at] === undefined) NI0.push(at, me[at] = pRow)
-      }
-      if (NI0.length) this.view.BI0(NI0)
-      return
-    }
-    if (v !== this.otherView) return
+    // Only the PRIMARY echo (`this.p`, the canonical index identity — it echoes
+    // LAST, so `other` has already settled) reconciles an array insert; the
+    // `other` echo is a structural no-op (the same underlying source grew, and
+    // `other`'s membership is read positionally below). `view.value` is padded to
+    // source length (constructor / XU0 / _rebuild), so `at` (a source index)
+    // splices the cell at the right slot for BOTH a mid-array insert (interior
+    // splice, shifting survivors) and a tail insert (append). The old code never
+    // spliced — it only extended the tail and admitted at the absolute index — so
+    // a mid-array insert drifted every later survivor (C15). Admission is read
+    // positionally from the settled `other` (between/intersect `other`s may emit
+    // nothing for an out-of-range insert, so we can't rely on an `other` echo).
+    if (v !== this.p) return
     const me = this.view.value
+    const otherVal = this.otherView?.value
     const NI0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
-      const inOther = I0[i + 1] !== undefined
-      const pRow = this.p.value[at]
-      if (!inOther && pRow !== undefined && me[at] === undefined) {
-        NI0.push(at, me[at] = pRow)
-      }
+      const ix = +at
+      const pRow = this.p.value[ix]
+      const admit = pRow !== undefined && otherVal?.[ix] === undefined
+      me.splice(ix, 0, admit ? pRow : undefined)
+      if (admit) NI0.push(at, pRow)
     }
     if (NI0.length) this.view.BI0(NI0)
   }
