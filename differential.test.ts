@@ -322,11 +322,9 @@ const KNOWN_FAILURES = new Set([
   'za→limit [array]',
   'za→limit [object]',
   // — between over an array source under slot-undef/refill/patch churn [21] (Wave F)
-  'between→avg [array]',
   'between→az [array]',
   'between→filter [array]',
   'between→map [array]',
-  'between→sum [array]',
   'between→za [array]',
   // — intersect/union/except under the widened churn [22,23,24,27] (Wave F)
   'except [array]',

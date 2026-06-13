@@ -431,6 +431,13 @@ export class Value {
   // key array.
   BU2(U2){
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
+    // Build a filtered NU2 of pairs that actually changed something, exactly
+    // like BU1 above. The old code skipped the no-op WRITE (continue) but still
+    // dispatched the original U2, so a no-op deep write (`s.a.b = 1` when
+    // already 1) emitted a phantom update — change-stream consumers saw an
+    // update for nothing, and every BU2-rebuild operator (e.g. 3-arg reduce)
+    // re-folded O(N) for a write that changed nothing.
+    const NU2 = []
     for (let i = 0; i < U2.length; i++) {
       const key = U2[i++]
       const value = U2[i]
@@ -442,8 +449,9 @@ export class Value {
       }
       if (vo[last] === value) continue
       vo[last] = value
+      NU2.push(key, value)
     }
-    this.view.BU2(U2)
+    this.view.BU2(NU2)
   }
 
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
@@ -683,6 +691,7 @@ export class View {
   }
 
   BU2(U2){
+    if (!U2.length) return
     if (this.p) this.value = this.p.value?.[this.name]
     for (let i = 0; i < U2.length; i++) {
       const [name, ...rest] = U2[i++]

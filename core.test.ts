@@ -693,3 +693,24 @@ test('array child-view refresh handles a digit-width boundary (BI0A/BR1 min)', (
   delete r[9]
   same(c10[value], r[value][10]) // 11 — was stale at 10
 })
+
+// Regression (C4): Value.BU2's no-op guard skipped the assignment but left the
+// pair in U2 and dispatched it unfiltered, so a no-op deep write (`s.a.b = 1`
+// when already 1, or a sub-proxy patch with unchanged values) emitted a phantom
+// update — change-stream consumers saw updates for nothing and every BU2-rebuild
+// operator re-ran. BU2 now builds a filtered NU2 like BU1 (whose sibling no-op
+// already emits nothing).
+test('deep no-op write emits no phantom update (BU2 filtering)', () => {
+  const s = $({ a: { b: 1 }, c: 2 })
+  const ev = s.connect([])
+  s.c = 2     // BU1 no-op (already filtered)
+  s.a.b = 1   // BU2 no-op — must emit nothing
+  s.a.b = 9   // real change
+  same(ev.slice(1), [{ type: 'update', key: ['a', 'b'], value: 9 }])
+
+  // sub-proxy patch with all-unchanged values emits nothing
+  const s2 = $({ o: { a: 1, b: 2 } })
+  const ev2 = s2.o.connect([])
+  s2.o.patch(['a', 1, 'b', 2])
+  same(ev2.slice(1), [])
+})
