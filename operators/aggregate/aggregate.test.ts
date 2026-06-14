@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { sum, avg, max, min, some, every } from './index.ts'
 import { sort, limit } from '../sort/index.ts'
@@ -8,7 +8,7 @@ import { filter } from '../filter/index.ts'
 
 // SUM ------------------------------------------------------------------
 
-test('sum - array of numbers', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', asserts:'the running sum tracks edits, inserts and removes' }, () => {
   const res = $([1, 2, 3, 4])
   const s = sum(res)
   eq(s[value], 10)
@@ -28,7 +28,7 @@ test('sum - array of numbers', () => {
 // so the lookup missed and the running total never moved — `sum` stuck, count
 // (length) correct because it's key-agnostic. Surfaced building the Kanban
 // example (per-column `filter(status).sort(order).sum(points)`).
-test('sum/avg/max/min - downstream of sort survives remove + insert (numeric-key path)', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'remove/insert', shape:'array', via:['numeric-key'], chain:'sort→sum', asserts:'sum/avg/max/min stay correct downstream of a numeric-keyed sort' }, () => {
   const res = $({ x: { p: 3, o: 0 }, y: { p: 5, o: 1 }, z: { p: 9, o: 2 } })
   const s = sort(res, 'o')              // descending by o → array-shaped output
   const sm = sum(s, 'p'), av = avg(s, 'p'), mx = max(s, 'p'), mn = min(s, 'p')
@@ -49,7 +49,7 @@ test('sum/avg/max/min - downstream of sort survives remove + insert (numeric-key
 // A filter that flips a row's membership reaches a downstream sort as a
 // BR1/BI0 with the sort's positional (numeric) key — the exact Kanban "move
 // card between columns" path. The column's point total must follow.
-test('sum - filter → sort → sum tracks membership flips (Kanban column shape)', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'object', chain:'filter→sort→sum', asserts:'a membership flip upstream moves the column total' }, () => {
   const board = $({
     a: { s: 'todo', p: 3, o: 0 },
     b: { s: 'todo', p: 5, o: 1 },
@@ -65,7 +65,7 @@ test('sum - filter → sort → sum tracks membership flips (Kanban column shape
 })
 
 // limit shares the same array-index notification shape as sort.
-test('sum - downstream of limit decrements on remove', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'remove', shape:'array', chain:'limit→sum', asserts:'a source remove decrements the sum through limit' }, () => {
   const res = $([{ p: 10 }, { p: 20 }, { p: 30 }])
   const lim = limit(res, 3)
   const sm = sum(lim, 'p')
@@ -74,18 +74,18 @@ test('sum - downstream of limit decrements on remove', () => {
   eq(sm[value], 50)                     // 20 + 30
 })
 
-test('sum - object of numbers', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'construct', shape:'object', asserts:'sums the values of an object source' }, () => {
   const res = $({ a: 1, b: 2, c: 3 })
   eq(sum(res)[value], 6)
 })
 
-test('sum - col accessor pulls from row objects', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column accessor sums row[col]' }, () => {
   const res = $([{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }])
   eq(sum(res, 'x')[value], 6)
   eq(sum(res, 'y')[value], 60)
 })
 
-test('sum - col accessor reacts to nested updates', () => {
+spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2'], asserts:'an in-place column edit updates the sum' }, () => {
   const res = $([{ x: 1 }, { x: 2 }])
   const s = sum(res, 'x')
   eq(s[value], 3)
@@ -95,22 +95,22 @@ test('sum - col accessor reacts to nested updates', () => {
 
 // AVG ------------------------------------------------------------------
 
-test('avg - mean of numbers', () => {
+spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'averages the values of the source' }, () => {
   const res = $([2, 4, 6])
   eq(avg(res)[value], 4)
 })
 
-test('avg - empty set returns undefined (not NaN)', () => {
+spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set averages to undefined, not NaN' }, () => {
   const res = $([])
   eq(avg(res)[value], undefined)
 })
 
-test('avg - col accessor', () => {
+spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column accessor averages row[col]' }, () => {
   const res = $([{ d: 10 }, { d: 20 }, { d: 30 }])
   eq(avg(res, 'd')[value], 20)
 })
 
-test('avg - removing a row updates the mean incrementally', () => {
+spec({ op:'avg', guarantee:'Reduction', trigger:'remove', shape:'array', asserts:'removing a row updates the mean incrementally' }, () => {
   const res = $([10, 20, 30])
   const a = avg(res)
   eq(a[value], 20)
@@ -122,7 +122,7 @@ test('avg - removing a row updates the mean incrementally', () => {
 
 // MAX / MIN ------------------------------------------------------------
 
-test('max - tracks maximum across inserts/updates/removes', () => {
+spec({ op:'max', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the maximum tracks inserts, edits and removes' }, () => {
   const res = $([3, 1, 4, 1, 5, 9, 2, 6])
   const m = max(res)
   eq(m[value], 9)
@@ -134,7 +134,7 @@ test('max - tracks maximum across inserts/updates/removes', () => {
   eq(m[value], 6)         // new max
 })
 
-test('min - tracks minimum across inserts/updates/removes', () => {
+spec({ op:'min', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the minimum tracks inserts, edits and removes' }, () => {
   const res = $([3, 1, 4, 1, 5, 9, 2, 6])
   const m = min(res)
   eq(m[value], 1)
@@ -148,7 +148,7 @@ test('min - tracks minimum across inserts/updates/removes', () => {
   eq(m[value], 2)
 })
 
-test('max - col accessor + Date values (non-numeric comparison)', () => {
+spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column of Date values compares correctly' }, () => {
   const res = $([
     { date: new Date(2001, 0, 1) },
     { date: new Date(2001, 5, 1) },
@@ -158,7 +158,7 @@ test('max - col accessor + Date values (non-numeric comparison)', () => {
   eq(+m[value], +new Date(2001, 5, 1))
 })
 
-test('max - empty set returns undefined', () => {
+spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set maxes to undefined' }, () => {
   const res = $([])
   eq(max(res)[value], undefined)
 })
@@ -170,7 +170,7 @@ test('max - empty set returns undefined', () => {
 // engaged for the rest of the batch, and produces the same answer the
 // old slow path would.
 
-test('max - fast→fallback flip when a non-numeric arrives mid-snapshot', () => {
+spec({ op:'max', guarantee:'Robustness', trigger:'insert', shape:'array', via:['fallback'], asserts:'a non-numeric value flips off the numeric fast path and still answers' }, () => {
   const res = $([1, 2, 3])
   const m = max(res)
   eq(m[value], 3)        // initial all-numeric: fast path
@@ -184,7 +184,7 @@ test('max - fast→fallback flip when a non-numeric arrives mid-snapshot', () =>
   eq(+m[value], +new Date(2002, 0, 1))
 })
 
-test('max - data swap re-enters fast mode (mode is reset on XU0)', () => {
+spec({ op:'max', guarantee:'Robustness', trigger:'overwrite', shape:'array', via:['XU0','fallback'], asserts:'a whole-data swap re-enters the numeric fast path' }, () => {
   const res = $([1, 2, 3])
   const m = max(res)
   res[0] = 'oops'           // poisons the fast path → fallback
@@ -197,7 +197,7 @@ test('max - data swap re-enters fast mode (mode is reset on XU0)', () => {
   eq(m[value], 30)
 })
 
-test('min - fast→fallback flip when a non-numeric arrives mid-snapshot', () => {
+spec({ op:'min', guarantee:'Robustness', trigger:'insert', shape:'array', via:['fallback'], asserts:'a non-numeric value flips off the numeric fast path and still answers' }, () => {
   const res = $([10, 20, 30])
   const m = min(res)
   eq(m[value], 10)
@@ -213,7 +213,7 @@ test('min - fast→fallback flip when a non-numeric arrives mid-snapshot', () =>
 
 // Dedup -----------------------------------------------------------------
 
-test('aggregate - dedup: same args reuse the operator view', () => {
+spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'calling with identical args returns the same operator view' }, () => {
   const res = $([1, 2, 3])
   const s1 = sum(res)
   const s2 = sum(res)
@@ -225,7 +225,7 @@ test('aggregate - dedup: same args reuse the operator view', () => {
   eq(s2[value], 10)
 })
 
-test('aggregate - dedup: different col → different view', () => {
+spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'a different column accessor creates a distinct view' }, () => {
   const res = $([{ x: 1, y: 10 }, { x: 2, y: 20 }])
   const sx = sum(res, 'x')
   const sy = sum(res, 'y')
@@ -239,7 +239,7 @@ test('aggregate - dedup: different col → different view', () => {
 
 // SOME / EVERY ---------------------------------------------------------
 
-test('some - true when any row matches', () => {
+spec({ op:'some', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'true when any row matches the predicate' }, () => {
   const res = $([1, 2, 3])
   const s = some(res, d => d > 5)
   eq(s[value], false)
@@ -249,12 +249,12 @@ test('some - true when any row matches', () => {
   eq(s[value], false)
 })
 
-test('some - empty set is false (matches Array#some)', () => {
+spec({ op:'some', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set is false (matches Array#some)' }, () => {
   const res = $([])
   eq(some(res, d => d > 0)[value], false)
 })
 
-test('every - true when all rows match', () => {
+spec({ op:'every', guarantee:'Reduction', trigger:'insert/edit', shape:'array', asserts:'true only when every row matches the predicate' }, () => {
   const res = $([2, 4, 6])
   const e = every(res, d => d % 2 === 0)
   eq(e[value], true)
@@ -264,12 +264,12 @@ test('every - true when all rows match', () => {
   eq(e[value], true)
 })
 
-test('every - empty set is true (matches Array#every — vacuous truth)', () => {
+spec({ op:'every', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set is true (vacuous truth, matches Array#every)' }, () => {
   const res = $([])
   eq(every(res, d => d > 0)[value], true)
 })
 
-test('some/every - update flipping a row\'s predicate', () => {
+spec({ op:'some', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2'], asserts:'an in-place edit flipping a predicate moves some and every' }, () => {
   const res = $([{ done: false }, { done: false }, { done: true }])
   const allDone = every(res, r => r.done)
   const anyDone = some(res, r => r.done)
@@ -284,7 +284,7 @@ test('some/every - update flipping a row\'s predicate', () => {
   eq(anyDone[value], true)
 })
 
-test('some - dedup: same fn → same view', () => {
+spec({ op:'some', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'the same predicate returns the same view' }, () => {
   const res = $([1, 2, 3])
   const fn = d => d > 0
   const a = some(res, fn)

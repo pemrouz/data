@@ -920,5 +920,281 @@
     "via": [],
     "title": "between→except · Selection · insert · array · #23 — a tail insert outside a between exclusion is admitted",
     "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "array",
+    "asserts": "the running sum tracks edits, inserts and removes",
+    "via": [],
+    "title": "sum · Reduction · edit · array — the running sum tracks edits, inserts and removes",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "remove/insert",
+    "shape": "array",
+    "via": [
+      "numeric-key"
+    ],
+    "chain": "sort→sum",
+    "asserts": "sum/avg/max/min stay correct downstream of a numeric-keyed sort",
+    "title": "sort→sum · Reduction · remove/insert · array · via numeric-key — sum/avg/max/min stay correct downstream of a numeric-keyed sort",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "filter→sort→sum",
+    "asserts": "a membership flip upstream moves the column total",
+    "via": [],
+    "title": "filter→sort→sum · Reduction · edit · object — a membership flip upstream moves the column total",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "remove",
+    "shape": "array",
+    "chain": "limit→sum",
+    "asserts": "a source remove decrements the sum through limit",
+    "via": [],
+    "title": "limit→sum · Reduction · remove · array — a source remove decrements the sum through limit",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "sums the values of an object source",
+    "via": [],
+    "title": "sum · Reduction · construct · object — sums the values of an object source",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "a column accessor sums row[col]",
+    "via": [],
+    "title": "sum · Reduction · construct · array — a column accessor sums row[col]",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "an in-place column edit updates the sum",
+    "title": "sum · Reduction · edit · array · via BU2 — an in-place column edit updates the sum",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "avg",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "averages the values of the source",
+    "via": [],
+    "title": "avg · Reduction · construct · array — averages the values of the source",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "avg",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an empty set averages to undefined, not NaN",
+    "via": [],
+    "title": "avg · Reduction · construct · array — an empty set averages to undefined, not NaN",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "avg",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "a column accessor averages row[col]",
+    "via": [],
+    "title": "avg · Reduction · construct · array — a column accessor averages row[col]",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "avg",
+    "guarantee": "Reduction",
+    "trigger": "remove",
+    "shape": "array",
+    "asserts": "removing a row updates the mean incrementally",
+    "via": [],
+    "title": "avg · Reduction · remove · array — removing a row updates the mean incrementally",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "max",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "the maximum tracks inserts, edits and removes",
+    "via": [],
+    "title": "max · Reduction · insert/remove · array — the maximum tracks inserts, edits and removes",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "min",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "the minimum tracks inserts, edits and removes",
+    "via": [],
+    "title": "min · Reduction · insert/remove · array — the minimum tracks inserts, edits and removes",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "max",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "a column of Date values compares correctly",
+    "via": [],
+    "title": "max · Reduction · construct · array — a column of Date values compares correctly",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "max",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an empty set maxes to undefined",
+    "via": [],
+    "title": "max · Reduction · construct · array — an empty set maxes to undefined",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "max",
+    "guarantee": "Robustness",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "fallback"
+    ],
+    "asserts": "a non-numeric value flips off the numeric fast path and still answers",
+    "title": "max · Robustness · insert · array · via fallback — a non-numeric value flips off the numeric fast path and still answers",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "max",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "array",
+    "via": [
+      "XU0",
+      "fallback"
+    ],
+    "asserts": "a whole-data swap re-enters the numeric fast path",
+    "title": "max · Robustness · overwrite · array · via XU0+fallback — a whole-data swap re-enters the numeric fast path",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "min",
+    "guarantee": "Robustness",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "fallback"
+    ],
+    "asserts": "a non-numeric value flips off the numeric fast path and still answers",
+    "title": "min · Robustness · insert · array · via fallback — a non-numeric value flips off the numeric fast path and still answers",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "calling with identical args returns the same operator view",
+    "via": [],
+    "title": "sum · Identity · dedup-call · array — calling with identical args returns the same operator view",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "a different column accessor creates a distinct view",
+    "via": [],
+    "title": "sum · Identity · dedup-call · array — a different column accessor creates a distinct view",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "some",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "true when any row matches the predicate",
+    "via": [],
+    "title": "some · Reduction · insert/remove · array — true when any row matches the predicate",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "some",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an empty set is false (matches Array#some)",
+    "via": [],
+    "title": "some · Reduction · construct · array — an empty set is false (matches Array#some)",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "every",
+    "guarantee": "Reduction",
+    "trigger": "insert/edit",
+    "shape": "array",
+    "asserts": "true only when every row matches the predicate",
+    "via": [],
+    "title": "every · Reduction · insert/edit · array — true only when every row matches the predicate",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "every",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an empty set is true (vacuous truth, matches Array#every)",
+    "via": [],
+    "title": "every · Reduction · construct · array — an empty set is true (vacuous truth, matches Array#every)",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "some",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "an in-place edit flipping a predicate moves some and every",
+    "title": "some · Reduction · edit · array · via BU2 — an in-place edit flipping a predicate moves some and every",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "some",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "the same predicate returns the same view",
+    "via": [],
+    "title": "some · Identity · dedup-call · array — the same predicate returns the same view",
+    "file": "operators/aggregate/aggregate.test.ts"
   }
 ]
