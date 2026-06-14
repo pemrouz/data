@@ -34,6 +34,24 @@ The data comes from two places:
 - **Heuristic** — un-migrated files have their facets inferred from the test title
   (directionally right, not exact). Migrating a file to `spec()` makes its row exact.
 
+## Auto-update on commit
+
+A tracked git hook ([../../.githooks/pre-commit](../../.githooks/pre-commit)) keeps the report
+in sync: when a commit stages any `.ts` file, it refreshes the registry, runs the unit suite,
+rebuilds `explorer.html`, and includes both in that commit (docs-only commits skip it). It
+**records** results — it does not block the commit on test failures.
+
+The hook is enabled via `core.hooksPath` — set automatically on `npm install` (the `prepare`
+script) or manually with:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+- Bypass for one commit: `git commit --no-verify`
+- Want fast commits instead? Change `npm run report` to `npm run report:build` in the hook
+  (structure-only, ~0.5s; pass/fail then carries over from the last full `npm run report`).
+
 ## Notes / limits
 
 - Live status covers the **unit** suite only; perf/e2e/experiments render as *unrun*

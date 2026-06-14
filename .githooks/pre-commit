@@ -1,0 +1,31 @@
+#!/bin/sh
+# Keep tests/report in sync on every commit.
+#
+# When code or tests are staged, this refreshes the authoritative registry,
+# runs the unit suite (same scope as `npm test`) to capture fresh pass/fail +
+# timing, rebuilds tests/report/explorer.html, and includes both in THIS commit.
+#
+# It RECORDS results — it does NOT gate the commit on test failures (the report
+# just shows them red). Bypass entirely with:  git commit --no-verify
+# Switch to the fast structure-only refresh by changing `npm run report` below
+# to `npm run report:build` (skips the test run, keeps pass/fail from last run).
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Only refresh when code or tests changed; skip docs/config-only commits.
+echo "$staged" | grep -qE '\.ts$' || exit 0
+
+command -v node >/dev/null 2>&1 || { echo "[report] node not found; skipping report refresh"; exit 0; }
+
+echo "[report] refreshing tests/report (full run)…"
+SPEC_COLLECT=1 node --experimental-strip-types tests/collect-registry.ts >/dev/null 2>&1 \
+  || echo "[report] registry refresh skipped (collect-registry failed)"
+
+if npm run report >/dev/null 2>&1; then
+  git add tests/registry.json tests/report/explorer.html
+  echo "[report] updated tests/report/explorer.html (+ registry.json)"
+else
+  echo "[report] report build failed — committing without refresh (run 'npm run report' manually)"
+fi
+
+exit 0
