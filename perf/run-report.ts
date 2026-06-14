@@ -22,7 +22,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { $, value } from '../full.ts'
-import { measure, median } from '../comparisons/bench/measure.ts'
+import { benchMeasure as measure, median } from './measure.ts'
 import { record, resultsDir } from './record.ts'
 
 const pct = (sorted, p) =>
