@@ -1,33 +1,16 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { ok } from 'node:assert'
 import { test } from 'node:test'
-import { $, value } from '../../core.ts'
-import { map } from './index.ts'
 import { gateMeasure as measure } from '../../perf/measure.ts'
+import { map } from '../../perf/workloads.ts'
 
-
-function makeData(n) {
-  const obj = {}
-  for (let i = 0; i < n; i++) obj[i] = { x: i, y: i * 2 }
-  return obj
+// Thin gate driver (Mode A): the workload — source builder, cases, thresholds —
+// lives in perf/workloads.ts, the ONE definition perf/run-report.ts re-measures
+// too, so a report row can never be a number no gate asserted. ok() stays here.
+for (const [name, w] of Object.entries(map.workloads())) {
+  test(`map ${name} - ${map.N} rows`, () => {
+    const elapsed = measure(w.run)
+    console.log(`  map ${name} ${map.N}: ${elapsed.toFixed(2)}ms`)
+    ok(elapsed < w.gate, `map ${name}: ${elapsed.toFixed(2)}ms over ${w.gate}ms`)
+  })
 }
-
-test('map setup - 10000 rows', () => {
-  const elapsed = measure(() => {
-    const src = $(makeData(10000))
-    map(src, d => d.x + d.y)
-  })
-  console.log(`  map setup 10k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 500)
-})
-
-test('map insert - 10000 rows', () => {
-  const src = $(makeData(10000))
-  map(src, d => d.x + d.y)
-  let i = 10000
-  const elapsed = measure(() => {
-    src.insert({ x: i, y: i * 2 }); i++
-  })
-  console.log(`  map insert 10k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 50)
-})
