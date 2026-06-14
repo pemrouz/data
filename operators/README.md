@@ -77,7 +77,7 @@ This is the canonical list of everything that needs to land when a new operator 
 
 2. **`<name>.test.ts`** — unit tests covering: initial filter/transform, mutation paths (BU1/BU2/BI0/BR1 as relevant), edge cases (missing column, non-object source value, etc.), array-source shift if the operator is key-indexed, dedup behaviour if `matches()` is implemented. Use [filter/filter.test.ts](filter/filter.test.ts), [between/between.test.ts](between/between.test.ts), or [compare/compare.test.ts](compare/compare.test.ts) as templates.
 
-3. **`<name>.perf.ts`** — perf tests following the median-of-5 + `ok(elapsed < N)` shape from [filter/filter.perf.ts](filter/filter.perf.ts). Cover setup, single-row update, and batch update. Thresholds are guard rails — don't widen them to make a test pass.
+3. **Perf (Mode A — two parts):** (a) add an entry for the operator to [perf/workloads.ts](../perf/workloads.ts) — `{ N, label, source(n), workloads(n) }` returning one `{ gate, run, batch?, reps?, keep? }` case per measurement (setup, single-row update, batch update); (b) add a thin gate driver `<name>.perf.ts` that loops `Object.entries(<name>.workloads())` and asserts `ok(gateMeasure(w.run, w.reps) < w.gate)`, following [filter/filter.perf.ts](filter/filter.perf.ts). The single workload definition is what both the gate and the report sweep ([perf/run-report.ts](../perf/run-report.ts)) measure, so no report number is unasserted. Hold every graph piece on `keep` (sources + bounds + view) so nothing is GC'd mid-measurement, and vary the keys a batch case touches each rep (else it dedups to a ~0ms no-op). Thresholds are guard rails — don't widen them to make a test pass.
 
 ### Dispatch — repo root
 
