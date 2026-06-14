@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value, createOperator } from '../../core.ts'
 import { between } from '../between/index.ts'
 import { keys, values } from './index.ts'
@@ -8,12 +8,12 @@ import { AZColumnValue } from '../sort/index.ts'
 import { reverse } from '../reverse/index.ts'
 import { distinct } from '../distinct/index.ts'
 
-test('keys - object: list of property names', () => {
+spec({ op:'keys', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'lists the source\'s property names' }, () => {
   const data = $({ a: 1, b: 2, c: 3 })
   same(keys(data)[value], ['a', 'b', 'c'])
 })
 
-test('keys - reactive: insert appends, remove drops', () => {
+spec({ op:'keys', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'an insert appends a key and a remove drops it' }, () => {
   const data = $({ a: 1 })
   const k = keys(data)
   same(k[value], ['a'])
@@ -23,12 +23,12 @@ test('keys - reactive: insert appends, remove drops', () => {
   same(k[value], ['b'])
 })
 
-test('values - object: list of property values', () => {
+spec({ op:'values', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'lists the source\'s property values' }, () => {
   const data = $({ a: 1, b: 2, c: 3 })
   same(values(data)[value], [1, 2, 3])
 })
 
-test('values - reactive: updates flow through', () => {
+spec({ op:'values', guarantee:'Propagation', trigger:'edit', shape:'object', asserts:'a source value edit flows into the list' }, () => {
   const data = $({ a: 1, b: 2 })
   const v = values(data)
   same(v[value], [1, 2])
@@ -36,7 +36,7 @@ test('values - reactive: updates flow through', () => {
   same(v[value], [99, 2])
 })
 
-test('keys - works on arrays (returns string indices)', () => {
+spec({ op:'keys', guarantee:'Fidelity', trigger:'construct', shape:'array', asserts:'over an array, returns string indices' }, () => {
   const data = $(['x', 'y', 'z'])
   same(keys(data)[value], ['0', '1', '2'])
 })
@@ -48,7 +48,7 @@ test('keys - works on arrays (returns string indices)', () => {
 // and values()/reverse()/distinct() got wrong order/contents. They now rebuild
 // on a BI0 from an array upstream (positional inserts), keeping the O(1) append
 // only for object (append-at-end) upstreams.
-test('keys/values/reverse/distinct stay correct over a sort window', () => {
+spec({ op:'keys', guarantee:'Alignment', trigger:'brush', shape:'array', via:['BI0'], chain:'az→keys', asserts:'keys/values/reverse/distinct stay correct over a sort window' }, () => {
   const src = $({ a: { v: 40, g: 0 }, b: { v: 10, g: 1 }, c: { v: 90, g: 2 }, d: { v: 50, g: 0 }, e: { v: 20, g: 3 } })
   const win = createOperator(src, AZColumnValue, 'v', 3)   // az('v', 3): 3 lowest by v
   const k = keys(win), vv = values(win), rv = reverse(win), dd = distinct(win, r => r.g)
@@ -74,7 +74,7 @@ test('keys/values/reverse/distinct stay correct over a sort window', () => {
 // while the BI0 append fast path skips undefined. Composed, a row leaving then
 // re-entering an object-source sparse view showed up TWICE (keys ["a","b","c","c"],
 // values [..,undefined,..]). _rebuild now skips undefined slots like the append path.
-test('keys/values - leave-then-re-enter over a sparse object source: no duplicate', () => {
+spec({ op:'keys', guarantee:'Fidelity', trigger:'bound-move', shape:'object', issue:'G3', chain:'between→keys', asserts:'a leave-then-re-enter over a sparse source produces no duplicate' }, () => {
   const src = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 9 } })
   const ext = $([0, 10])
   const ranged = between(src, 'v', ext)

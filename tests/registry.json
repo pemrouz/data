@@ -1675,5 +1675,80 @@
     "asserts": "an array slot set to undefined leaves cleanly without crashing",
     "title": "group · Robustness · edit · array · via BU1 — an array slot set to undefined leaves cleanly without crashing",
     "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "keys",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "lists the source's property names",
+    "via": [],
+    "title": "keys · Fidelity · construct · object — lists the source's property names",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "keys",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "an insert appends a key and a remove drops it",
+    "via": [],
+    "title": "keys · Selection · insert/remove · object — an insert appends a key and a remove drops it",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "values",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "lists the source's property values",
+    "via": [],
+    "title": "values · Fidelity · construct · object — lists the source's property values",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "values",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a source value edit flows into the list",
+    "via": [],
+    "title": "values · Propagation · edit · object — a source value edit flows into the list",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "keys",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "over an array, returns string indices",
+    "via": [],
+    "title": "keys · Fidelity · construct · array — over an array, returns string indices",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "keys",
+    "guarantee": "Alignment",
+    "trigger": "brush",
+    "shape": "array",
+    "via": [
+      "BI0"
+    ],
+    "chain": "az→keys",
+    "asserts": "keys/values/reverse/distinct stay correct over a sort window",
+    "title": "az→keys · Alignment · brush · array · via BI0 — keys/values/reverse/distinct stay correct over a sort window",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "keys",
+    "guarantee": "Fidelity",
+    "trigger": "bound-move",
+    "shape": "object",
+    "issue": "G3",
+    "chain": "between→keys",
+    "asserts": "a leave-then-re-enter over a sparse source produces no duplicate",
+    "via": [],
+    "title": "between→keys · Fidelity · bound-move · object · G3 — a leave-then-re-enter over a sparse source produces no duplicate",
+    "file": "operators/keys/keys.test.ts"
   }
 ]

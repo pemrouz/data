@@ -21,6 +21,7 @@ const FILES = [
   'operators/distinct/distinct.test.ts',
   'operators/filter/filter.test.ts',
   'operators/group/group.test.ts',
+  'operators/keys/keys.test.ts',
 ]
 
 for (const f of FILES) {
