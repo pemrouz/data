@@ -54,7 +54,7 @@ From [package.json](package.json):
 | Command | What it does |
 |---|---|
 | `npm test` | Runs `*.test.ts` via `node --experimental-strip-types --test` |
-| `npm run perf` | Runs `*.perf.ts` (median-of-5 timing assertions) |
+| `npm run perf` | Runs `*.perf.ts` (median-of-5 timing assertions) via [perf/run-gate.mjs](perf/run-gate.mjs), which globs every `*.perf.ts` under `index`/`operators`/`render`/`devtools`/`comparisons`/`perf` — **`experiments/` is deliberately excluded** (experimental, ungated). New perf files in gated roots are picked up automatically. The shared timer is [perf/measure.ts](perf/measure.ts) (`gateMeasure` lean / `benchMeasure` warm). |
 | `npm run test:render` | Playwright e2e against `examples/` |
 | `npm run serve` | `tsup` build + static server on `:3000` for examples |
 | `npm run build` | `tsup` → `dist/` (ESM + per-entry `.d.ts`) |
