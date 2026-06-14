@@ -1,11 +1,11 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { length } from './index.ts'
 import { filter } from '../filter/index.ts'
 
-test('length(fn) - array source: in-place key edit after a remove rebuckets correctly (C1)', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2'], issue:'C1', asserts:'an in-place key edit after an array remove rebuckets the right row' }, () => {
   // `mapping` is keyed by position; an array remove splices and shifts
   // positions, so a later in-place group-key edit would rebucket the wrong row
   // unless the remove re-keys mapping. (counts read as bucket.value.)
@@ -19,7 +19,7 @@ test('length(fn) - array source: in-place key edit after a remove rebuckets corr
   same(c(counts), { a: 2, b: 1 })
 })
 
-test('length - object', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'object', asserts:'the count tracks inserts and removes down to zero' }, () => {
   const obj = $({ 10: 'a' })
   const count = length(obj)
   const changes = count.connect([])
@@ -30,7 +30,7 @@ test('length - object', () => {
   same(count[value], 0)
 })
 
-test('length - array', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the count tracks inserts and removes down to zero' }, () => {
   const arr = $(['a'])
   const count = length(arr)
   const changes = count.connect([])
@@ -45,7 +45,7 @@ test('length - array', () => {
 // excluded rows). Previously LengthValue.XU0 returned `value.length` for
 // arrays, which counted holes — so `arr.filter(...).length()` reported the
 // source size instead of the kept count, contradicting the README quickstart.
-test('length - filter(array) skips holes', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'remove', shape:'array', chain:'filter→length', asserts:'over a sparse filtered array, counts kept rows not holes' }, () => {
   const todos = $([
     { task: 'foo', done: false },
     { task: 'bar', done: true  },
@@ -66,7 +66,7 @@ test('length - filter(array) skips holes', () => {
   ])
 })
 
-test('length fn - group counting', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'object', asserts:'length(fn) bucket counts track inserts, edits and removes' }, () => {
   const res = $({
     1: { num: 1.1 }, 2: { num: 2.2 }, 3: { num: 1.9 },
     4: { num: 2.6 }, 5: { num: 1.7 }
@@ -101,7 +101,7 @@ test('length fn - group counting', () => {
 // by `pop[id].state = …`): before the BU2 handler existed the counts silently
 // froze at their construction values. A field change that does NOT move the
 // bucket must stay silent (no spurious republish).
-test('length fn - rebuckets on in-place field change (BU2)', () => {
+spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'object', via:['BU2'], asserts:'an in-place field change moves the row between bucket counts' }, () => {
   const rows = $({
     a: { state: 'S' },
     b: { state: 'S' },
@@ -127,7 +127,7 @@ test('length fn - rebuckets on in-place field change (BU2)', () => {
 // (core's upsert split routes a previously-defined key to BU1, not BR1).
 // length() was a blanket BU1 no-op so its count went permanently stale, and
 // length(fn) called fn(undefined) and crashed. Both now treat undefined as a leave.
-test('length - assignment-to-undefined decrements (length) / rebuckets (length fn)', () => {
+spec({ op:'length', guarantee:'Robustness', trigger:'edit', shape:'object', via:['BU1'], issue:'G1', asserts:'assigning a key to undefined decrements the count and rebuckets without crashing' }, () => {
   const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
   const len = length(src)
   same(len[value], 3)
@@ -147,7 +147,7 @@ test('length - assignment-to-undefined decrements (length) / rebuckets (length f
 // BU1/BI0/BR1 even when no count changed — a whole-row BU1 that stays in its
 // bucket woke every bucket sink for nothing. The publish is now guarded on an
 // actual count change (BU2 already was).
-test('length fn - same-bucket whole-row update emits no spurious republish', () => {
+spec({ op:'length', guarantee:'Efficiency', trigger:'overwrite', shape:'object', via:['BU1'], issue:'#53', asserts:'a same-bucket whole-row update emits no spurious republish' }, () => {
   const src = $({ a: { g: 'x' }, b: { g: 'y' } })
   const lf = length(src, (r) => r.g)
   const changes = lf.connect([])

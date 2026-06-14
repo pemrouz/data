@@ -1750,5 +1750,97 @@
     "via": [],
     "title": "between→keys · Fidelity · bound-move · object · G3 — a leave-then-re-enter over a sparse source produces no duplicate",
     "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2"
+    ],
+    "issue": "C1",
+    "asserts": "an in-place key edit after an array remove rebuckets the right row",
+    "title": "length · Reduction · edit · array · via BU2 · C1 — an in-place key edit after an array remove rebuckets the right row",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "the count tracks inserts and removes down to zero",
+    "via": [],
+    "title": "length · Reduction · insert/remove · object — the count tracks inserts and removes down to zero",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "the count tracks inserts and removes down to zero",
+    "via": [],
+    "title": "length · Reduction · insert/remove · array — the count tracks inserts and removes down to zero",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "remove",
+    "shape": "array",
+    "chain": "filter→length",
+    "asserts": "over a sparse filtered array, counts kept rows not holes",
+    "via": [],
+    "title": "filter→length · Reduction · remove · array — over a sparse filtered array, counts kept rows not holes",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "length(fn) bucket counts track inserts, edits and removes",
+    "via": [],
+    "title": "length · Reduction · insert/remove · object — length(fn) bucket counts track inserts, edits and removes",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "an in-place field change moves the row between bucket counts",
+    "title": "length · Reduction · edit · object · via BU2 — an in-place field change moves the row between bucket counts",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "issue": "G1",
+    "asserts": "assigning a key to undefined decrements the count and rebuckets without crashing",
+    "title": "length · Robustness · edit · object · via BU1 · G1 — assigning a key to undefined decrements the count and rebuckets without crashing",
+    "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "length",
+    "guarantee": "Efficiency",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "issue": "#53",
+    "asserts": "a same-bucket whole-row update emits no spurious republish",
+    "title": "length · Efficiency · overwrite · object · via BU1 · #53 — a same-bucket whole-row update emits no spurious republish",
+    "file": "operators/length/length.test.ts"
   }
 ]
