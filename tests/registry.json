@@ -1196,5 +1196,135 @@
     "via": [],
     "title": "some · Identity · dedup-call · array — the same predicate returns the same view",
     "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "gt keeps rows whose column exceeds the threshold",
+    "via": [],
+    "title": "compare · Selection · construct · object — gt keeps rows whose column exceeds the threshold",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "lt keeps rows whose column is below the threshold",
+    "via": [],
+    "title": "compare · Selection · construct · object — lt keeps rows whose column is below the threshold",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "gte/lte include the boundary, gt/lt exclude it",
+    "via": [],
+    "title": "compare · Selection · construct · object — gte/lte include the boundary, gt/lt exclude it",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2",
+      "BI0",
+      "BR1"
+    ],
+    "asserts": "a row crossing the threshold enters or leaves",
+    "title": "compare · Selection · edit · object · via BU2+BI0+BR1 — a row crossing the threshold enters or leaves",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "inserts and removes update membership by threshold",
+    "via": [],
+    "title": "compare · Selection · insert/remove · object — inserts and removes update membership by threshold",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "a row missing the column never passes the comparison",
+    "via": [],
+    "title": "compare · Selection · construct · object — a row missing the column never passes the comparison",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "a string column compares lexicographically",
+    "via": [],
+    "title": "compare · Selection · construct · object — a string column compares lexicographically",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "compare→length/max",
+    "asserts": "membership changes flow to a downstream length and max",
+    "via": [],
+    "title": "compare→length/max · Propagation · edit · object — membership changes flow to a downstream length and max",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "asserts": "identical args share state; a different threshold is independent",
+    "via": [],
+    "title": "compare · Identity · dedup-call · object — identical args share state; a different threshold is independent",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "XU0"
+    ],
+    "asserts": "a primitive whole-value collapses the view; an object restores it",
+    "title": "compare · Robustness · overwrite · object · via XU0 — a primitive whole-value collapses the view; an object restores it",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Alignment",
+    "trigger": "remove",
+    "shape": "array",
+    "via": [
+      "BR1"
+    ],
+    "issue": "C13",
+    "asserts": "an array remove shifts holes in lockstep with the source",
+    "title": "compare · Alignment · remove · array · via BR1 · C13 — an array remove shifts holes in lockstep with the source",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Efficiency",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "no sorted index is maintained, unlike between",
+    "via": [],
+    "title": "compare · Efficiency · construct · object — no sorted index is maintained, unlike between",
+    "file": "operators/compare/compare.test.ts"
   }
 ]

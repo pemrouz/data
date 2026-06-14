@@ -17,6 +17,7 @@ const FILES = [
   'operators/union/union.test.ts',
   'operators/except/except.test.ts',
   'operators/aggregate/aggregate.test.ts',
+  'operators/compare/compare.test.ts',
 ]
 
 for (const f of FILES) {
