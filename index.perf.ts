@@ -203,3 +203,52 @@ test('crossfilter multi-filter update - 500 flights', () => {
   console.log(`  multi-filter update 500: ${elapsed.toFixed(2)}ms`)
   ok(elapsed < 100, `multi-filter update took ${elapsed.toFixed(2)}ms, threshold 100ms`)
 })
+
+// patch() — the batched-cascade built-in. Its whole reason to exist is collapsing
+// N per-row dispatches into ONE walk per sink (CLAUDE.md / the swarm example). A
+// regression that re-fans-out patch into N dispatches is otherwise invisible.
+// The honest, machine-independent guard counts DISPATCHES — not change records
+// (patch still emits one record per changed row; it saves dispatch, not records).
+// A bare tap(() => …) fires its fn exactly once per batched emit, so it counts
+// the walks: patch([...M]) -> 1, M individual sets -> M.
+test('patch - one dispatch per sink for a batched update', () => {
+  const N = 5000, M = 500
+  const seed = {}
+  for (let i = 0; i < N; i++) seed[i] = { v: i }
+  const src = $(seed)
+  let dispatches = 0
+  const tapView = src.tap(() => { dispatches++ }) // bare tap: one fn call per batched emit
+  tapView.connect([]) // keep the chain alive (sinks are WeakRef-held)
+
+  const pairs = []
+  for (let i = 0; i < M; i++) { pairs.push(String(i)); pairs.push({ v: i + 1 }) }
+  dispatches = 0
+  src.patch(pairs)
+  const patchDispatches = dispatches
+
+  dispatches = 0
+  for (let i = 0; i < M; i++) src[i].v = i + 2
+  const loopDispatches = dispatches
+
+  console.log(`  patch dispatches: ${patchDispatches} (vs ${loopDispatches} for ${M} individual sets)`)
+  ok(patchDispatches === 1, `patch fanned out to ${patchDispatches} dispatches, expected 1`)
+  ok(loopDispatches === M, `${M} sets produced ${loopDispatches} dispatches, expected ${M}`)
+})
+
+test('patch - batched throughput, M=500 in N=5000', () => {
+  const N = 5000, M = 500
+  const seed = {}
+  for (let i = 0; i < N; i++) seed[i] = { v: i }
+  const src = $(seed)
+  const keep = src.tap(() => {}) // a real downstream so dispatch cost is exercised
+  keep.connect([])
+  let k = 1000
+  const patchMs = measure(() => {
+    const pairs = []
+    for (let i = 0; i < M; i++) { pairs.push(String(i)); pairs.push({ v: k++ }) }
+    src.patch(pairs)
+  })
+  const loopMs = measure(() => { for (let i = 0; i < M; i++) src[i].v = k++ })
+  console.log(`  patch ${M}/${N}: ${patchMs.toFixed(2)}ms (vs ${loopMs.toFixed(2)}ms individual)`)
+  ok(patchMs < 50, `patch ${M} took ${patchMs.toFixed(2)}ms, threshold 50ms`)
+})
