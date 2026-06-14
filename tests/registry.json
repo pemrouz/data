@@ -1842,5 +1842,28 @@
     "asserts": "a same-bucket whole-row update emits no spurious republish",
     "title": "length · Efficiency · overwrite · object · via BU1 · #53 — a same-bucket whole-row update emits no spurious republish",
     "file": "operators/length/length.test.ts"
+  },
+  {
+    "op": "map",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "the projection tracks inserts, edits and removes through the change stream",
+    "via": [],
+    "title": "map · Fidelity · insert/remove · object — the projection tracks inserts, edits and removes through the change stream",
+    "file": "operators/map/map.test.ts"
+  },
+  {
+    "op": "map",
+    "guarantee": "Alignment",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "BI0A"
+    ],
+    "issue": "C2",
+    "asserts": "a mid-array positional insert keeps the displaced row",
+    "title": "map · Alignment · insert · array · via BI0A · C2 — a mid-array positional insert keeps the displaced row",
+    "file": "operators/map/map.test.ts"
   }
 ]

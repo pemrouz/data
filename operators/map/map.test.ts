@@ -1,10 +1,10 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { map } from './index.ts'
 
-test('map - update/insert/remove', async () => {
+spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', asserts:'the projection tracks inserts, edits and removes through the change stream' }, async () => {
   const res = $({ 0: { num: 1 }, 1: { num: 2 }, 2: { num: 3 } })
   const mapped = map(res, d => d.num * 10)
   const changes = mapped.connect([])
@@ -41,7 +41,7 @@ test('map - update/insert/remove', async () => {
 // the displaced occupant as the inserted row's "old" value, misclassifies the
 // insert as an update of that slot, overwrites the occupant, and never shifts
 // it down — so the displaced row vanishes (map would give [10,99,30]).
-test('map - mid-array positional insert keeps the displaced row (BI0A / C2)', () => {
+spec({ op:'map', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], issue:'C2', asserts:'a mid-array positional insert keeps the displaced row' }, () => {
   const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
   const m = map(src, (r) => r.v)
   same(m[value], [10, 20, 30])
