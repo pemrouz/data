@@ -33,6 +33,7 @@ const FILES = [
   'render/list.test.ts',
   'jsx/jsx.test.ts',
   'devtools/devtools.test.ts',
+  'core.test.ts',
 ]
 
 for (const f of FILES) {

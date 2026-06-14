@@ -1,12 +1,12 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from './tests/spec.ts'
 import { $, value, view, _devtoolsRoots } from './core.ts'
 
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
-test('update (val, val)', () => {
+spec({ op:'core', guarantee:'Fidelity', trigger:'overwrite', shape:'scalar', asserts:'a root value update emits an update record' }, () => {
   const res = $(5)
   const changes = res.connect([])
   res[value] = 10
@@ -19,7 +19,7 @@ test('update (val, val)', () => {
   same(res[value], 20)
 })
 
-test('connect(fn) single-arg throws immediately with a helpful message', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'connect(fn) throws a helpful error; connect(anchor, fn) is the supported form' }, () => {
   // A bare function is not a valid sink; the single-arg form must fail fast
   // at connect() time (not defer a cryptic "fn.BI0 is not a function" to the
   // first event). The two-arg connect(anchor, fn) is the supported form.
@@ -35,7 +35,7 @@ test('connect(fn) single-arg throws immediately with a helpful message', () => {
   ok(seen.includes('insert'), 'connect(anchor, fn) still delivers events')
 })
 
-test('insert (val, val)', () => {
+spec({ op:'core', guarantee:'Fidelity', trigger:'insert', shape:'scalar', asserts:'inserting into a root grows it to an indexed collection and child views track each slot' }, () => {
   const res = $(5)
   const changes1 = res.connect([])
   const changes2 = res[0].connect([])
@@ -60,7 +60,7 @@ test('insert (val, val)', () => {
   same(res[1][value], 20)
 })
 
-test('remove (val, val)', () => {
+spec({ op:'core', guarantee:'Fidelity', trigger:'remove', shape:'scalar', asserts:'removing the root value emits a remove and clears it' }, () => {
   const res = $(5)
   const changes1 = res.connect([])
   const changes2 = res.a.connect([])
@@ -76,7 +76,7 @@ test('remove (val, val)', () => {
   same(res[value], undefined)
 })
 
-test('update (val, dir)', () => {
+spec({ op:'core', guarantee:'Propagation', trigger:'edit', shape:'object', asserts:'a root replacement then a keyed edit propagate to a child view' }, () => {
   const res = $(5)
   const changes1 = res.connect([])
   const changes2 = res.a.connect([])
@@ -96,7 +96,7 @@ test('update (val, dir)', () => {
   same(res.a[value], 2)
 })
 
-test('proxy/link', () => {
+spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', asserts:'a linked view re-points to a new source and mirrors its changes' }, () => {
   const c = $({ a: 1 })
   const d = $({ b: 2 })
   const e = $(c)
@@ -147,7 +147,7 @@ test('proxy/link', () => {
   ])
 })
 
-test('array indexing', () => {
+spec({ op:'core', guarantee:'Alignment', trigger:'insert/remove', shape:'array', asserts:'array inserts and removes shift child views in lockstep' }, () => {
   const res = $({ a: [1] })
   const changes1 = res.connect([])
   const changes2 = res.a.connect([])
@@ -188,7 +188,7 @@ test('array indexing', () => {
   same(res[value], { a: [ 3, 1 ] })
 })
 
-test('proxy/link - child propagation', () => {
+spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', asserts:'source changes reach descendants of a linked view' }, () => {
   // regression: LinkedView.BU1/BU2/BI0/BR1 etc. used to override View's
   // implementations and only forward to their own sinks, skipping the
   // child-traversal step. Path-keyed updates on the source therefore never
@@ -255,7 +255,7 @@ test('proxy/link - child propagation', () => {
   ])
 })
 
-test('iterator', async () => {
+spec({ op:'core', guarantee:'Propagation', trigger:'insert/remove', shape:'array', asserts:'destructured child views track index inserts and removes' }, async () => {
   const res = $([1, 2])
   const [one, two, three] = res
   const changes1 = one.connect([])
@@ -301,7 +301,7 @@ test('iterator', async () => {
 // child view, hit the operator dispatch, and throw "Unknown operator 'then'".
 // We distinguish promise assimilation (calls `then` with a function arg) from
 // genuine `.then` data access (reads, never calls) at call time.
-test('thenable - await resolves to the current snapshot', async () => {
+spec({ op:'core', guarantee:'Fidelity', asserts:'awaiting a proxy resolves to the current snapshot' }, async () => {
   same(await $([1, 2, 3]), [1, 2, 3])
   same(await $({ a: 1 }), { a: 1 })
   // assimilation reads the live snapshot at await time
@@ -313,7 +313,7 @@ test('thenable - await resolves to the current snapshot', async () => {
   same(await (async () => $({ ok: true }))(), { ok: true })
 })
 
-test('thenable - `.then` is still a real child-view key (read, not call)', async () => {
+spec({ op:'core', guarantee:'Fidelity', asserts:'a key named then stays data access, not a promise probe' }, async () => {
   // Reading `.then` must keep working as data access — it only becomes a
   // promise probe when *called* with a function. A key literally named "then"
   // round-trips through await untouched.
@@ -327,13 +327,13 @@ test('thenable - `.then` is still a real child-view key (read, not call)', async
 // `first()` / `last()` are sugar over `proxy[0]` / `proxy[lastKey]` — the
 // same child-view machinery, just discoverable as methods. Snapshot
 // semantics: `last()` reads the source's current last key at call time.
-test('first/last - array indexing', () => {
+spec({ op:'core', guarantee:'Fidelity', shape:'array', asserts:'first() and last() resolve the boundary child views' }, () => {
   const res = $(['a', 'b', 'c'])
   same(res.first()[value], 'a')
   same(res.last()[value], 'c')
 })
 
-test('first/last - tracking the same child view as numeric indexing', () => {
+spec({ op:'core', guarantee:'Identity', shape:'array', asserts:'first() and proxy[0] resolve to the same child view' }, () => {
   const res = $(['a', 'b', 'c'])
   // first() and proxy[0] resolve to the same child view, so subscribing
   // through one and mutating through the other is observed.
@@ -345,13 +345,13 @@ test('first/last - tracking the same child view as numeric indexing', () => {
   ])
 })
 
-test('first/last - empty array returns proxy at "0" with undefined value', () => {
+spec({ op:'core', guarantee:'Robustness', shape:'array', asserts:'first() and last() on an empty array return undefined at key 0' }, () => {
   const res = $([])
   same(res.first()[value], undefined)
   same(res.last()[value], undefined)
 })
 
-test('first/last - object iteration order', () => {
+spec({ op:'core', guarantee:'Fidelity', shape:'object', asserts:'first() and last() use object iteration order' }, () => {
   const res = $({ a: 1, b: 2, c: 3 })
   same(res.first()[value], 1)
   same(res.last()[value], 3)
@@ -363,7 +363,7 @@ test('first/last - object iteration order', () => {
 // tests just await > 16ms before asserting.
 const tick = () => new Promise(r => setTimeout(r, 30))
 
-test('raf - coalesces a burst into one commit per frame', async () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf coalesces a burst into one commit per frame, keeping the latest value' }, async () => {
   const res = $([0, 0])
   const changes = res.connect([])
   const write = res.raf()
@@ -381,7 +381,7 @@ test('raf - coalesces a burst into one commit per frame', async () => {
   ])
 })
 
-test('raf - flush commits immediately and cancels the pending frame', async () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf flush commits immediately and cancels the pending frame' }, async () => {
   const res = $(0)
   const changes = res.connect([])
   const write = res.raf()
@@ -399,14 +399,14 @@ test('raf - flush commits immediately and cancels the pending frame', async () =
   ])
 })
 
-test('raf - flush is a no-op when nothing is pending', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'raf flush is a no-op when nothing is pending' }, () => {
   const res = $(0)
   const write = res.raf()
   write.flush()    // nothing pending — must not throw or commit
   same(res[value], 0)
 })
 
-test('raf - separate bursts commit independently', async () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf separate bursts commit independently' }, async () => {
   const res = $(0)
   const changes = res.connect([])
   const write = res.raf()
@@ -421,7 +421,7 @@ test('raf - separate bursts commit independently', async () => {
   ])
 })
 
-test('raf - works on a child view', async () => {
+spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts:'raf works on a child view, committing to the parent' }, async () => {
   const res = $({ a: 1, b: 2 })
   const write = res.a.raf()
   write(10)
@@ -436,19 +436,19 @@ function rootsHas(target) {
   return false
 }
 
-test('devtools - root view is registered in _devtoolsRoots', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'a root view is registered for devtools discovery' }, () => {
   const res = $({ a: 1 })
   ok(rootsHas(res[view]))
 })
 
-test('devtools - linked roots are not registered (only the source is)', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'a linked view is not registered, only its source' }, () => {
   const src = $({ a: 1 })
   const linked = $(src)
   ok(rootsHas(src[view]))
   ok(!rootsHas(linked[view]))
 })
 
-test('devtools - _devtoolsRoots holds WeakRef so unreached roots can be GC\'d', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'the roots registry holds WeakRefs so unreached roots can be GC\'d' }, () => {
   // Sanity check on the new shape: every entry is a WeakRef whose deref
   // returns either a View or undefined (not a raw value).
   $({ a: 1 })
@@ -459,7 +459,7 @@ test('devtools - _devtoolsRoots holds WeakRef so unreached roots can be GC\'d', 
   }
 })
 
-test('connect(obj, fn) — FunctionSink pinned to obj (returned), survives GC', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a FunctionSink pinned to its host object survives GC' }, () => {
   // Like PropSink, a FunctionSink lives only as a WeakRef on the view; pinning it
   // to `obj` via lifetimes means holding connect()'s return value keeps it firing.
   const res = $({ a: 1 })
@@ -480,7 +480,7 @@ test('connect(obj, fn) — FunctionSink pinned to obj (returned), survives GC', 
   ok(host) // keep `host` reachable to end-of-test
 })
 
-test('connect([]) — ArrSink pinned to the array (returned), survives GC', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'an ArrSink pinned to its array survives GC' }, () => {
   // The array references the sink only one way (sink.arr), so holding it must be
   // made to keep the sink alive — same pin as FunctionSink/PropSink.
   const res = $({ a: 1 })
@@ -497,7 +497,7 @@ test('connect([]) — ArrSink pinned to the array (returned), survives GC', () =
   ok(changes) // keep `changes` reachable to end-of-test
 })
 
-test('patch - batches updates and inserts into one cascade', () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'batch', shape:'object', asserts:'patch batches updates and inserts into one cascade, routing per-path' }, () => {
   // patch([name, value, ...]) is the bulk form of `proxy[name] = value`: it
   // updates the backing value for every pair and emits a single batched BU1
   // (new keys split out as BI0), instead of one dispatch per assignment. This
@@ -523,7 +523,7 @@ test('patch - batches updates and inserts into one cascade', () => {
   same(bChanges, [{ type: 'update', key: [], value: { n: 2 } }])
 })
 
-test('patch - new keys become inserts, existing keys propagate per-path', () => {
+spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts:'patch routes new keys as inserts and existing keys per-path' }, () => {
   // a second cascade on the same proxy: new key 'e' inserts; the
   // previously-inserted 'c' updates; a derived child sees only its own path.
   const data = $({ a: { n: 1 } })
@@ -548,7 +548,7 @@ test('patch - new keys become inserts, existing keys propagate per-path', () => 
 // whenever a record-producing sink (connect([]) / connect(obj, fn)) was
 // attached. The backing value was already committed by then, so every sink
 // missed the event and the exception escaped to the innocent mutator.
-test('connect - null delta values flow through record sinks', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'insert/edit', shape:'object', asserts:'null delta values flow through record sinks without crashing' }, () => {
   const res = $({ a: 1 })
   const changes = res.connect([])
   const seen = []
@@ -594,7 +594,7 @@ test('connect - null delta values flow through record sinks', () => {
 // while $(undefined) and every other primitive root vivified to an object per
 // the transparent-mutation contract. Same gap after a root BECOMES null at
 // runtime (s[value] = null; s.b = 2).
-test('mutation - null roots vivify like every other primitive', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'edit', shape:'object', asserts:'a null root vivifies like every other primitive' }, () => {
   const a = $(null)
   a.x = 1
   same(a[value], { x: 1 })
@@ -623,7 +623,7 @@ test('mutation - null roots vivify like every other primitive', () => {
 // stringify probes .toJSON (a callable child view), calls it, and landed in
 // the operator-dispatch fall-through. Serializing state is routine logging;
 // it now resolves with the raw snapshot, like the thenable guard.
-test('JSON.stringify(proxy) serializes the snapshot', () => {
+spec({ op:'core', guarantee:'Fidelity', asserts:'JSON.stringify(proxy) serializes the snapshot' }, () => {
   same(JSON.stringify($({ a: 1, b: [1, null] })), '{"a":1,"b":[1,null]}')
   same(JSON.stringify($(5)), '5')
   same(JSON.stringify({ nested: $({ x: 1 }) }), '{"nested":{"x":1}}')
@@ -636,7 +636,7 @@ test('JSON.stringify(proxy) serializes the snapshot', () => {
 // registered (where it misdirected every typo'd name at a nonexistent lean
 // import). core.test.ts runs against the bare core, so the table IS empty here;
 // the populated-table variant is asserted in index.test.ts.
-test('unknown operator - empty-table diagnosis points at data/lean', () => {
+spec({ op:'core', guarantee:'Robustness', asserts:'an unknown operator on an empty dispatch table points at data/lean' }, () => {
   let e
   try { $({}).bogus() } catch (err) { e = err }
   ok(/Unknown operator 'bogus'/.test(e?.message), e?.message)
@@ -653,7 +653,7 @@ test('unknown operator - empty-table diagnosis points at data/lean', () => {
 // downstream-operator consequences are asserted in index.test.ts (operators
 // aren't registered against the bare core); here we pin the raw value and the
 // position-agnostic change-record stream.
-test('array refill of an in-bounds hole keeps the array length-stable', () => {
+spec({ op:'core', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'C1', asserts:'an in-bounds array hole-fill stays length-stable, not a shifting insert' }, () => {
   const s = $([1, 2, 3, 4])
   s[2] = undefined            // length-stable hole
   s[2] = 9                    // refill — must NOT shift
@@ -680,7 +680,7 @@ test('array refill of an in-bounds hole keeps the array length-stable', () => {
 // a digit-width boundary (e.g. patch over indices 9 and 10) computed offset as
 // '10', V1 started past 9, and a held child view at index 9 kept a stale
 // snapshot while the backing array had the new value. Coerced with unary + now.
-test('array child-view refresh handles a digit-width boundary (BI0A/BR1 min)', () => {
+spec({ op:'core', guarantee:'Alignment', trigger:'batch', shape:'array', issue:'C3', asserts:'array child-view refresh handles a digit-width index boundary' }, () => {
   const s = $([0, 1, 2, 3, 4, 5, 6, 7, 8])
   const child9 = s[9] // held child past the boundary
   s.patch(['10', 'x', '9', 'y']) // two new indices, 10 before 9 in payload order
@@ -700,7 +700,7 @@ test('array child-view refresh handles a digit-width boundary (BI0A/BR1 min)', (
 // update — change-stream consumers saw updates for nothing and every BU2-rebuild
 // operator re-ran. BU2 now builds a filtered NU2 like BU1 (whose sibling no-op
 // already emits nothing).
-test('deep no-op write emits no phantom update (BU2 filtering)', () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'edit', shape:'object', issue:'C4', via:['BU2'], asserts:'a deep no-op write emits no phantom update' }, () => {
   const s = $({ a: { b: 1 }, c: 2 })
   const ev = s.connect([])
   s.c = 2     // BU1 no-op (already filtered)
@@ -720,7 +720,7 @@ test('deep no-op write emits no phantom update (BU2 filtering)', () => {
 // stack and poisoned the graph; a terminating rule delivered events out of
 // order. Re-entrant writes are now deferred FIFO until the current cascade
 // settles; a non-converging cycle is reported instead of hanging/overflowing.
-test('re-entrant write from a sink is deferred until the cascade settles', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'remove', shape:'array', asserts:'a re-entrant write from a sink is deferred until the cascade settles' }, () => {
   // structural re-entrancy: inserting during a remove-cascade must not splice
   // mid-flight (which desynced downstream positional consumers). The insert
   // lands after the remove completes.
@@ -737,7 +737,7 @@ test('re-entrant write from a sink is deferred until the cascade settles', () =>
   same(order, ['update', 'remove', 'insert'])
 })
 
-test('non-converging re-entrant cycle throws instead of overflowing', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a non-converging re-entrant cycle throws instead of overflowing' }, () => {
   const c = $({ x: 0 })
   c.connect({}, (ch) => { if (ch.key[0] === 'x') c.x = (ch.value || 0) + 1 })
   let err
@@ -751,7 +751,7 @@ test('non-converging re-entrant cycle throws instead of overflowing', () => {
 // same change twice (a duplicate that no fold could reconcile). Fan-out now
 // snapshots the sink set, so a mid-emit subscriber gets only its seed snapshot
 // and sees subsequent events normally.
-test('subscribing during fan-out does not double-deliver the in-flight event', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'edit', issue:'C7', asserts:'subscribing during fan-out gets only its seed, not the in-flight event twice' }, () => {
   const src = $({ a: 1 })
   let added = false
   let late
@@ -769,7 +769,7 @@ test('subscribing during fan-out does not double-deliver the in-flight event', (
 // the read-through getter recurse to a RangeError — and since the re-point had
 // already committed, EVERY later read/write on b or c threw forever. A cycle is
 // now rejected up front, leaving both proxies fully usable.
-test('linked value rejects a cycle without poisoning the proxies', () => {
+spec({ op:'core', guarantee:'Robustness', trigger:'re-point', issue:'C8', asserts:'a linked cycle is rejected without poisoning the proxies' }, () => {
   const a = $({ x: 1 })
   const b = $(a)
   const c = $(b)
@@ -792,7 +792,7 @@ test('linked value rejects a cycle without poisoning the proxies', () => {
 // but hint is always one of 'string'|'number'|'default' (all truthy), so the
 // numeric branch was dead — every coercion round-tripped through toString and
 // `+$(aDate)` was NaN. Only 'string' should take the string form.
-test('Symbol.toPrimitive - numeric coercion is numeric, not a string round-trip', () => {
+spec({ op:'core', guarantee:'Fidelity', issue:'#56', asserts:'numeric coercion is numeric, not a string round-trip' }, () => {
   const d = new Date('2024-01-01')
   same(+$(d), d.getTime())       // number hint — was NaN
   same(+$(5), 5)
@@ -807,7 +807,7 @@ test('Symbol.toPrimitive - numeric coercion is numeric, not a string round-trip'
 // non-devtools app leaked a wrapper + Set entry per root forever. A
 // FinalizationRegistry now removes each wrapper when its root is GC'd, keeping
 // the registry bounded to live roots. (Run under --expose-gc.)
-test('_devtoolsRoots stays bounded as transient roots are collected', { skip: typeof global.gc !== 'function' ? 'needs --expose-gc' : false }, async () => {
+spec({ op:'core', guarantee:'Efficiency', trigger:'scale', issue:'#50', skip: typeof global.gc !== 'function' ? 'needs --expose-gc' : false, asserts:'the roots registry stays bounded as transient roots are collected' }, async () => {
   for (let i = 0; i < 20000; i++) { const r = $({ n: i }); void r.n }
   global.gc(); await new Promise((r) => setTimeout(r, 10)); global.gc()
   await new Promise((r) => setTimeout(r, 30))

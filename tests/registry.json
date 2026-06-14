@@ -3016,5 +3016,381 @@
     "via": [],
     "title": "devtools · Fidelity — $.highlight adds the highlight class and schedules its removal",
     "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "trigger": "overwrite",
+    "shape": "scalar",
+    "asserts": "a root value update emits an update record",
+    "via": [],
+    "title": "core · Fidelity · overwrite · scalar — a root value update emits an update record",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "connect(fn) throws a helpful error; connect(anchor, fn) is the supported form",
+    "via": [],
+    "title": "core · Robustness — connect(fn) throws a helpful error; connect(anchor, fn) is the supported form",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "scalar",
+    "asserts": "inserting into a root grows it to an indexed collection and child views track each slot",
+    "via": [],
+    "title": "core · Fidelity · insert · scalar — inserting into a root grows it to an indexed collection and child views track each slot",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "scalar",
+    "asserts": "removing the root value emits a remove and clears it",
+    "via": [],
+    "title": "core · Fidelity · remove · scalar — removing the root value emits a remove and clears it",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a root replacement then a keyed edit propagate to a child view",
+    "via": [],
+    "title": "core · Propagation · edit · object — a root replacement then a keyed edit propagate to a child view",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Propagation",
+    "trigger": "re-point",
+    "shape": "object",
+    "asserts": "a linked view re-points to a new source and mirrors its changes",
+    "via": [],
+    "title": "core · Propagation · re-point · object — a linked view re-points to a new source and mirrors its changes",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "array inserts and removes shift child views in lockstep",
+    "via": [],
+    "title": "core · Alignment · insert/remove · array — array inserts and removes shift child views in lockstep",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Propagation",
+    "trigger": "re-point",
+    "shape": "object",
+    "asserts": "source changes reach descendants of a linked view",
+    "via": [],
+    "title": "core · Propagation · re-point · object — source changes reach descendants of a linked view",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Propagation",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "destructured child views track index inserts and removes",
+    "via": [],
+    "title": "core · Propagation · insert/remove · array — destructured child views track index inserts and removes",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "asserts": "awaiting a proxy resolves to the current snapshot",
+    "via": [],
+    "title": "core · Fidelity — awaiting a proxy resolves to the current snapshot",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "asserts": "a key named then stays data access, not a promise probe",
+    "via": [],
+    "title": "core · Fidelity — a key named then stays data access, not a promise probe",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "shape": "array",
+    "asserts": "first() and last() resolve the boundary child views",
+    "via": [],
+    "title": "core · Fidelity · array — first() and last() resolve the boundary child views",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Identity",
+    "shape": "array",
+    "asserts": "first() and proxy[0] resolve to the same child view",
+    "via": [],
+    "title": "core · Identity · array — first() and proxy[0] resolve to the same child view",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "first() and last() on an empty array return undefined at key 0",
+    "via": [],
+    "title": "core · Robustness · array — first() and last() on an empty array return undefined at key 0",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "shape": "object",
+    "asserts": "first() and last() use object iteration order",
+    "via": [],
+    "title": "core · Fidelity · object — first() and last() use object iteration order",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "batch",
+    "asserts": "raf coalesces a burst into one commit per frame, keeping the latest value",
+    "via": [],
+    "title": "core · Efficiency · batch — raf coalesces a burst into one commit per frame, keeping the latest value",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "batch",
+    "asserts": "raf flush commits immediately and cancels the pending frame",
+    "via": [],
+    "title": "core · Efficiency · batch — raf flush commits immediately and cancels the pending frame",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "raf flush is a no-op when nothing is pending",
+    "via": [],
+    "title": "core · Robustness — raf flush is a no-op when nothing is pending",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "batch",
+    "asserts": "raf separate bursts commit independently",
+    "via": [],
+    "title": "core · Efficiency · batch — raf separate bursts commit independently",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "shape": "object",
+    "asserts": "raf works on a child view, committing to the parent",
+    "via": [],
+    "title": "core · Fidelity · batch · object — raf works on a child view, committing to the parent",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "a root view is registered for devtools discovery",
+    "via": [],
+    "title": "core · Robustness — a root view is registered for devtools discovery",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "a linked view is not registered, only its source",
+    "via": [],
+    "title": "core · Robustness — a linked view is not registered, only its source",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "the roots registry holds WeakRefs so unreached roots can be GC'd",
+    "via": [],
+    "title": "core · Robustness — the roots registry holds WeakRefs so unreached roots can be GC'd",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "asserts": "a FunctionSink pinned to its host object survives GC",
+    "via": [],
+    "title": "core · Robustness · edit — a FunctionSink pinned to its host object survives GC",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "asserts": "an ArrSink pinned to its array survives GC",
+    "via": [],
+    "title": "core · Robustness · edit — an ArrSink pinned to its array survives GC",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "batch",
+    "shape": "object",
+    "asserts": "patch batches updates and inserts into one cascade, routing per-path",
+    "via": [],
+    "title": "core · Efficiency · batch · object — patch batches updates and inserts into one cascade, routing per-path",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "shape": "object",
+    "asserts": "patch routes new keys as inserts and existing keys per-path",
+    "via": [],
+    "title": "core · Fidelity · batch · object — patch routes new keys as inserts and existing keys per-path",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "insert/edit",
+    "shape": "object",
+    "asserts": "null delta values flow through record sinks without crashing",
+    "via": [],
+    "title": "core · Robustness · insert/edit · object — null delta values flow through record sinks without crashing",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a null root vivifies like every other primitive",
+    "via": [],
+    "title": "core · Robustness · edit · object — a null root vivifies like every other primitive",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "asserts": "JSON.stringify(proxy) serializes the snapshot",
+    "via": [],
+    "title": "core · Fidelity — JSON.stringify(proxy) serializes the snapshot",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "asserts": "an unknown operator on an empty dispatch table points at data/lean",
+    "via": [],
+    "title": "core · Robustness — an unknown operator on an empty dispatch table points at data/lean",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Alignment",
+    "trigger": "overwrite",
+    "shape": "array",
+    "issue": "C1",
+    "asserts": "an in-bounds array hole-fill stays length-stable, not a shifting insert",
+    "via": [],
+    "title": "core · Alignment · overwrite · array · C1 — an in-bounds array hole-fill stays length-stable, not a shifting insert",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Alignment",
+    "trigger": "batch",
+    "shape": "array",
+    "issue": "C3",
+    "asserts": "array child-view refresh handles a digit-width index boundary",
+    "via": [],
+    "title": "core · Alignment · batch · array · C3 — array child-view refresh handles a digit-width index boundary",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "object",
+    "issue": "C4",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a deep no-op write emits no phantom update",
+    "title": "core · Efficiency · edit · object · via BU2 · C4 — a deep no-op write emits no phantom update",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "array",
+    "asserts": "a re-entrant write from a sink is deferred until the cascade settles",
+    "via": [],
+    "title": "core · Robustness · remove · array — a re-entrant write from a sink is deferred until the cascade settles",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "asserts": "a non-converging re-entrant cycle throws instead of overflowing",
+    "via": [],
+    "title": "core · Robustness · edit — a non-converging re-entrant cycle throws instead of overflowing",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "issue": "C7",
+    "asserts": "subscribing during fan-out gets only its seed, not the in-flight event twice",
+    "via": [],
+    "title": "core · Robustness · edit · C7 — subscribing during fan-out gets only its seed, not the in-flight event twice",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Robustness",
+    "trigger": "re-point",
+    "issue": "C8",
+    "asserts": "a linked cycle is rejected without poisoning the proxies",
+    "via": [],
+    "title": "core · Robustness · re-point · C8 — a linked cycle is rejected without poisoning the proxies",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Fidelity",
+    "issue": "#56",
+    "asserts": "numeric coercion is numeric, not a string round-trip",
+    "via": [],
+    "title": "core · Fidelity · #56 — numeric coercion is numeric, not a string round-trip",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
+    "guarantee": "Efficiency",
+    "trigger": "scale",
+    "issue": "#50",
+    "asserts": "the roots registry stays bounded as transient roots are collected",
+    "via": [],
+    "title": "core · Efficiency · scale · #50 — the roots registry stays bounded as transient roots are collected",
+    "file": "core.test.ts"
   }
 ]

@@ -31,6 +31,8 @@
 //   issue      (opt) regression chip — C1…C16, P7, #21 → DECISIONS.md / ISSUES.md
 //   chain      (opt) composition pipeline, e.g. 'between→filter'
 //   emits      (opt) expected change verbs asserted on the connect([]) stream — feeds the protocol checker
+//   skip       (opt) forwarded to node:test as { skip } — string reason or boolean (env-gated tests).
+//                NOT a facet: stripped before the registry so it never appears in the coordinate.
 import { test } from 'node:test'
 
 export const GUARANTEES = ['Selection','Order','Reduction','Identity','Alignment','Propagation','Fidelity','Efficiency','Robustness']
@@ -56,8 +58,13 @@ export function spec(meta, fn) {
   if (!GUARANTEES.includes(meta.guarantee))
     throw new Error('spec() unknown guarantee "' + meta.guarantee + '" — pick one of ' + GUARANTEES.join(', '))
   const title = specTitle(meta)
-  REGISTRY.push({ ...meta, via: arr(meta.via), title })
-  if (!COLLECT) test(title, fn)
+  // `skip` is a node:test option, not a coordinate facet — keep it out of the registry.
+  const { skip, ...facets } = meta
+  REGISTRY.push({ ...facets, via: arr(facets.via), title })
+  if (!COLLECT) {
+    if (skip !== undefined) test(title, { skip }, fn)
+    else test(title, fn)
+  }
   return title
 }
 
