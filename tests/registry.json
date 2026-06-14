@@ -2065,5 +2065,55 @@
     "via": [],
     "title": "reduce · Reduction · edit · object · #32 — a mutable object init is cloned per rebuild, not accumulated",
     "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Order",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an array's order is flipped",
+    "via": [],
+    "title": "reverse · Order · construct · array — an array's order is flipped",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Order",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "an object's values flip in iteration order",
+    "via": [],
+    "title": "reverse · Order · construct · object — an object's values flip in iteration order",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Order",
+    "trigger": "insert",
+    "shape": "array",
+    "asserts": "an insert appears at the front of the reversed view",
+    "via": [],
+    "title": "reverse · Order · insert · array — an insert appears at the front of the reversed view",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Order",
+    "trigger": "remove",
+    "shape": "array",
+    "asserts": "a remove drops the right row from the reversed view",
+    "via": [],
+    "title": "reverse · Order · remove · array — a remove drops the right row from the reversed view",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Robustness",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "sparse undefined slots are filtered out",
+    "via": [],
+    "title": "reverse · Robustness · construct · array — sparse undefined slots are filtered out",
+    "file": "operators/reverse/reverse.test.ts"
   }
 ]
