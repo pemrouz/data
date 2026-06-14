@@ -75,7 +75,13 @@ function band(r) {
   if (base == null) return 'na'
   const ratio = goodSign(r) < 0 ? r.value / base : base / r.value // >1 always worse, any dir
   r._mult = ratio
-  if (r.kind === 'count') return ratio === 1 ? 'pass' : ratio > 1 ? 'fail' : 'gain'
+  // count is deterministic — any drift is real. base===0 is a legitimately-zero
+  // count (e.g. H6 self-regression with no regressions): 0→0 is pass, 0→n is a
+  // real appearance (fail for a down metric), not the 0/0=NaN→gain mislabel.
+  if (r.kind === 'count') {
+    if (base === 0) { r._mult = r.value === 0 ? 1 : Infinity; return r.value === 0 ? 'pass' : goodSign(r) < 0 ? 'fail' : 'gain' }
+    return ratio === 1 ? 'pass' : ratio > 1 ? 'fail' : 'gain'
+  }
   // significance is direction-free (|deviation| beyond noise); ratio already carries
   // the worse/better direction, so no oriented compare is needed.
   const med = median(h.baseSamples), mad = MAD(h.baseSamples) || 1e-9

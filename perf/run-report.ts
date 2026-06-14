@@ -19,8 +19,8 @@
 //             synchronous cascade settles), NOT a captured interactive paint
 //             tail. It yields the per-frame array + p50/p95/p99/max + the
 //             worst-frame attribution that the report's H4 tile renders.
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { $, value } from '../full.ts'
 import { benchMeasure as measure, median } from './measure.ts'
 import * as WL from './workloads.ts'
@@ -192,10 +192,69 @@ function h1Complexity() {
   console.log('[h1] 5 complexity-count rows')
 }
 
+// ---------------------------------------------------------------------------
+// H6 — self-regression (ADVISORY, non-gating): the absolute gate (npm run perf,
+// ok(elapsed < N)) catches a row that breaches its ceiling, but NOT a row that
+// is still under the ceiling yet 1.5× slower than last week — creep the gate is
+// blind to. After the sweep has written this run's rows, compare each ops timing
+// median against its own historical median (read from perf/history.jsonl, which
+// does not yet include this run) and flag any meaningful-magnitude row that
+// regressed. console.warn surfaces it at sweep time; one H6 count row records
+// the trend. Restricted to harness 'ops' (the stable micro-benchmarks) and to
+// rows whose prior median ≥ FLOOR_MS, so sub-ms jitter and the inherently noisy
+// H4 brush tail don't manufacture phantom regressions.
+// ---------------------------------------------------------------------------
+function h6SelfRegression() {
+  const histPath = join(dirname(dirname(resultsDir)), 'history.jsonl')
+  if (!existsSync(histPath)) { console.log('[h6] no history yet — skipping'); return }
+  const lines = readFileSync(histPath, 'utf8').split('\n').filter(Boolean).slice(-12)
+  const priors = {}
+  for (const l of lines) {
+    const { points } = JSON.parse(l)
+    for (const id in points) (priors[id] ??= []).push(points[id])
+  }
+  // this run's ops timing rows, just written to the run dir
+  const current = {}
+  const opsFile = join(resultsDir, 'ops.jsonl')
+  if (existsSync(opsFile))
+    for (const l of readFileSync(opsFile, 'utf8').split('\n').filter(Boolean)) {
+      const r = JSON.parse(l)
+      if (r.kind === 'timing' && typeof r.value === 'number') current[r.id] = r.value
+    }
+  // Flag on the CONJUNCTION the dashboard's band uses: a magnitude jump (≥1.5×)
+  // AND a delta beyond the row's OWN historical noise (>3σ via MAD). A spike
+  // inside an inherently-noisy row's spread (the sort/brush tail, which ranges
+  // 28-113ms under interactive load) stays within its 3σ and is NOT a regression;
+  // a real jump on a tight row (setup at 42±2ms) clears its tiny 3σ and is. FLOOR
+  // skips sub-ms rows where any ms of jitter looks like a multiple.
+  const THRESH = 1.5, FLOOR_MS = 5, MIN_DELTA = 3
+  const mad = arr => { const m = median(arr); return median(arr.map(x => Math.abs(x - m))) }
+  const regressions = []
+  for (const id in current) {
+    const prior = priors[id]
+    if (!prior || prior.length < 3) continue        // need a baseline
+    const pm = median(prior), cur = current[id]
+    const sigma3 = 3 * 1.4826 * mad(prior)          // ~3σ of this row's own history
+    if (pm >= FLOOR_MS && cur >= pm * THRESH && (cur - pm) >= Math.max(MIN_DELTA, sigma3))
+      regressions.push({ id, prior: +pm.toFixed(3), current: +cur.toFixed(3), mult: +(cur / pm).toFixed(2) })
+  }
+  regressions.sort((a, b) => b.mult - a.mult)
+  for (const r of regressions) console.warn(`[h6] ADVISORY regression: ${r.id} ${r.prior}ms → ${r.current}ms (${r.mult}×)`)
+  record({
+    id: 'selfreg/regressions', harness: 'H6', group: 'selfreg', op: 'selfreg', case: 'regressions',
+    kind: 'count', dir: 'down', unit: 'rows', value: regressions.length,
+    dims: { threshold: THRESH, floorMs: FLOOR_MS, priorRuns: lines.length, watched: Object.keys(current).length },
+    stats: { count: regressions.length }, regressions,
+    note: `${regressions.length} ops timing row(s) regressed ≥${THRESH}× vs prior median (advisory, non-gating)`,
+  })
+  console.log(`[h6] ${regressions.length} advisory regression(s) over ${Object.keys(current).length} ops timing rows`)
+}
+
 console.log(`[run-report] sweeping (gc=${!!globalThis.gc})…`)
 backfillOperators()
 h1Complexity()
 h4BrushTail()
+h6SelfRegression()
 // Sampling provenance the collator can't otherwise know (was GC forced?).
 writeFileSync(
   join(resultsDir, '_meta.json'),
