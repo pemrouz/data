@@ -3392,5 +3392,542 @@
     "via": [],
     "title": "core · Efficiency · scale · #50 — the roots registry stays bounded as transient roots are collected",
     "file": "core.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "overwrite",
+    "shape": "scalar",
+    "asserts": "a scalar root update emits update records through the public API",
+    "via": [],
+    "title": "integration · Fidelity · overwrite · scalar — a scalar root update emits update records through the public API",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "scalar",
+    "asserts": "inserting into a scalar root grows it to indexed entries",
+    "via": [],
+    "title": "integration · Fidelity · insert · scalar — inserting into a scalar root grows it to indexed entries",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "scalar",
+    "asserts": "removing the root value clears it",
+    "via": [],
+    "title": "integration · Fidelity · remove · scalar — removing the root value clears it",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a scalar-to-object replacement then a keyed edit emit the right records",
+    "via": [],
+    "title": "integration · Fidelity · edit · object — a scalar-to-object replacement then a keyed edit emit the right records",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "inserting an object row exposes its nested child views",
+    "via": [],
+    "title": "integration · Fidelity · insert · object — inserting an object row exposes its nested child views",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "removing an absent key is a no-op",
+    "via": [],
+    "title": "integration · Fidelity · remove · object — removing an absent key is a no-op",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "overwrite",
+    "shape": "array+object",
+    "asserts": "replacing an object or array diffs added, changed and removed keys",
+    "via": [],
+    "title": "integration · Fidelity · overwrite · array+object — replacing an object or array diffs added, changed and removed keys",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "inserting an object row at the next key exposes nested views",
+    "via": [],
+    "title": "integration · Fidelity · insert · object — inserting an object row at the next key exposes nested views",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "removing a key emits a keyed remove",
+    "via": [],
+    "title": "integration · Fidelity · remove · object — removing a key emits a keyed remove",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "overwrite",
+    "shape": "object",
+    "asserts": "collapsing an object to a scalar removes its children",
+    "via": [],
+    "title": "integration · Fidelity · overwrite · object — collapsing an object to a scalar removes its children",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "array+object",
+    "asserts": "appending a scalar to an object keys by next index and to an array by length",
+    "via": [],
+    "title": "integration · Fidelity · insert · array+object — appending a scalar to an object keys by next index and to an array by length",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "array+object",
+    "asserts": "removing the only key or index empties the collection",
+    "via": [],
+    "title": "integration · Fidelity · remove · array+object — removing the only key or index empties the collection",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a keyed write on a scalar root vivifies an object",
+    "via": [],
+    "title": "integration · Fidelity · edit · object — a keyed write on a scalar root vivifies an object",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "an insert through a vivified child key",
+    "via": [],
+    "title": "integration · Fidelity · insert · object — an insert through a vivified child key",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a keyed write on an empty object inserts the key",
+    "via": [],
+    "title": "integration · Fidelity · edit · object — a keyed write on an empty object inserts the key",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "an insert through a child key on an object",
+    "via": [],
+    "title": "integration · Fidelity · insert · object — an insert through a child key on an object",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a deep keyed write vivifies the intermediate path",
+    "via": [],
+    "title": "integration · Fidelity · edit · object — a deep keyed write vivifies the intermediate path",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "a deep insert vivifies the intermediate path",
+    "via": [],
+    "title": "integration · Fidelity · insert · object — a deep insert vivifies the intermediate path",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "a deep remove leaves the intermediate path intact",
+    "via": [],
+    "title": "integration · Fidelity · remove · object — a deep remove leaves the intermediate path intact",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "to",
+    "asserts": "toggling a child recomputes a to() view and streams the value",
+    "via": [],
+    "title": "to · Propagation · edit · object — toggling a child recomputes a to() view and streams the value",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "array inserts and removes shift child views in lockstep",
+    "via": [],
+    "title": "integration · Alignment · insert/remove · array — array inserts and removes shift child views in lockstep",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Propagation",
+    "trigger": "re-point",
+    "shape": "object",
+    "asserts": "a linked view re-points and mirrors the new source",
+    "via": [],
+    "title": "integration · Propagation · re-point · object — a linked view re-points and mirrors the new source",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "to",
+    "asserts": "to() at every depth re-derives on each change",
+    "via": [],
+    "title": "to · Fidelity · edit · object — to() at every depth re-derives on each change",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "map",
+    "asserts": "map projects through the full mutation battery",
+    "via": [],
+    "title": "map · Fidelity · insert/remove · object — map projects through the full mutation battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array+object",
+    "chain": "length",
+    "asserts": "length tracks inserts, updates and removes down to zero",
+    "via": [],
+    "title": "length · Reduction · insert/remove · array+object — length tracks inserts, updates and removes down to zero",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the (key, value) filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the (key, value) filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the key-only filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the key-only filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the [key] filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the [key] filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the [key], undefined filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the [key], undefined filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the function filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the function filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "filter",
+    "asserts": "the {key: value} filter form tracks membership through the battery",
+    "via": [],
+    "title": "filter · Selection · insert/remove · object — the {key: value} filter form tracks membership through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "intersect",
+    "asserts": "intersect tracks inserts, edits and removes over objects",
+    "via": [],
+    "title": "intersect · Selection · insert/remove · object — intersect tracks inserts, edits and removes over objects",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "chain": "intersect",
+    "asserts": "intersect tracks inserts, edits and removes over arrays",
+    "via": [],
+    "title": "intersect · Selection · insert/remove · array — intersect tracks inserts, edits and removes over arrays",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Order",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "za",
+    "via": [
+      "BMV1"
+    ],
+    "asserts": "za maintains a top-n window through inserts, edits and removes",
+    "title": "za · Order · insert/remove · object · via BMV1 — za maintains a top-n window through inserts, edits and removes",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Order",
+    "trigger": "construct",
+    "shape": "object",
+    "chain": "az",
+    "asserts": "az sorts ascending, not descending like za",
+    "via": [],
+    "title": "az · Order · construct · object — az sorts ascending, not descending like za",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Order",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "az",
+    "asserts": "az tracks rank changes incrementally",
+    "via": [],
+    "title": "az · Order · edit · object — az tracks rank changes incrementally",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "chain": "az/za",
+    "asserts": "az and za dedup independently despite the same (col, n)",
+    "via": [],
+    "title": "az/za · Identity · dedup-call · object — az and za dedup independently despite the same (col, n)",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "object",
+    "chain": "between",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "between with reactive bounds tracks rows crossing the extent",
+    "title": "between · Selection · bound-move · object · via reactive-bound — between with reactive bounds tracks rows crossing the extent",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "length",
+    "asserts": "length(fn) bucket counts track the mutation battery",
+    "via": [],
+    "title": "length · Reduction · insert/remove · object — length(fn) bucket counts track the mutation battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "chain": "group",
+    "asserts": "group emits the right per-bucket change records through the battery",
+    "via": [],
+    "title": "group · Fidelity · insert/remove · object — group emits the right per-bucket change records through the battery",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Propagation",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "destructured child views track index inserts and removes",
+    "via": [],
+    "title": "integration · Propagation · insert/remove · array — destructured child views track index inserts and removes",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Robustness",
+    "asserts": "an unknown operator on a populated table lists registered names, not an empty-table claim",
+    "via": [],
+    "title": "integration · Robustness — an unknown operator on a populated table lists registered names, not an empty-table claim",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Alignment",
+    "trigger": "overwrite",
+    "shape": "array",
+    "issue": "C1",
+    "chain": "filter/map/za",
+    "asserts": "an in-bounds array hole-fill keeps downstream filter, map and sort aligned",
+    "via": [],
+    "title": "filter/map/za · Alignment · overwrite · array · C1 — an in-bounds array hole-fill keeps downstream filter, map and sort aligned",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "issue": "C2",
+    "chain": "length/sum",
+    "asserts": "insert dedup splits an existing-key overwrite into an update so aggregates do not drift",
+    "via": [],
+    "title": "length/sum · Fidelity · insert · object · C2 — insert dedup splits an existing-key overwrite into an update so aggregates do not drift",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "sum",
+    "asserts": "a deferred re-entrant write keeps running-total aggregates correct",
+    "via": [],
+    "title": "sum · Robustness · edit · object — a deferred re-entrant write keeps running-total aggregates correct",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "chain": "sum/avg",
+    "asserts": "a throwing sink does not desync aggregates registered after it",
+    "via": [],
+    "title": "sum/avg · Robustness · edit · object — a throwing sink does not desync aggregates registered after it",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Robustness",
+    "trigger": "insert",
+    "shape": "array",
+    "issue": "D1",
+    "chain": "filter→filter",
+    "asserts": "row operators survive excluded inserts and a primitive-to-object upgrade",
+    "via": [],
+    "title": "filter→filter · Robustness · insert · array · D1 — row operators survive excluded inserts and a primitive-to-object upgrade",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Alignment",
+    "trigger": "insert",
+    "shape": "array",
+    "issue": "C13",
+    "chain": "filter→map/az",
+    "asserts": "a row operator mirrors source length so tail-insert chains stay aligned",
+    "via": [],
+    "title": "filter→map/az · Alignment · insert · array · C13 — a row operator mirrors source length so tail-insert chains stay aligned",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "issue": "E4",
+    "chain": "za/az/top",
+    "asserts": "all za/az/top forms reuse the cached view, distinct ones stay separate",
+    "via": [],
+    "title": "za/az/top · Identity · dedup-call · array · E4 — all za/az/top forms reuse the cached view, distinct ones stay separate",
+    "file": "index.test.ts"
+  },
+  {
+    "op": "integration",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "issue": "F",
+    "chain": "between",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "between dedups a reactive single-VP extent by underlying view identity",
+    "title": "between · Identity · dedup-call · array · via reactive-bound · F — between dedups a reactive single-VP extent by underlying view identity",
+    "file": "index.test.ts"
   }
 ]

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { $, value, view } from './full.ts'
-import { test } from 'node:test'
+import { spec } from './tests/spec.ts'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object
   .keys(o)
@@ -9,7 +9,7 @@ $.random = o => 1 + Object
   .sort()
   .reduce(max, -1)
 
-test('update (val, val)', () => {
+spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'scalar', asserts:'a scalar root update emits update records through the public API' }, () => {
     const res = $<number>(5)
     const changes = res.connect([])
 
@@ -24,20 +24,13 @@ test('update (val, val)', () => {
     same(res[value], 20)
 })
 
-test('insert (val, val)', () => {
+spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'scalar', asserts:'inserting into a scalar root grows it to indexed entries' }, () => {
     const res = $(5)
     const changes1 = res.connect([])
     const changes2 = res[0].connect([])
     const changes3 = res[1].connect([])
     res.insert(10)
     res.insert(20)
-    // console.log(" changes1",   changes1)
-    // console.log(" changes2",   changes2)
-    // console.log(" changes3",   changes3)
-    // console.log(" res[value]",   res[value])
-    // console.log(" res[0][value]",   res[0][value])
-    // console.log(" res[1][value]",   res[1][value])
-    // process.exit()
     same(changes1, [
         { type: 'update', key: [], value: 5 },
         { type: 'insert', key: [], value: 10, at: '0' },
@@ -56,15 +49,12 @@ test('insert (val, val)', () => {
     same(res[1][value], 20)
 })
 
-test('remove (val, val)', () => {
+spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar', asserts:'removing the root value clears it' }, () => {
     const res = $<any>(5)
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     delete res[value]
     delete res[value]
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: 5 }
     , { type: 'remove', key: [], value: 5 }
@@ -74,17 +64,13 @@ test('remove (val, val)', () => {
     ])
     same(res[value], undefined)
 })
-  
-  test('update (val, dir)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a scalar-to-object replacement then a keyed edit emit the right records' }, () => {
     const res = $<any>(5)
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     res[value] = { a: 1 }
     res.a = 2
-    // console.log("changes1", JSON.stringify(changes1))
-    // console.log("changes2", JSON.stringify(changes2))
-    // console.log("res[value]", JSON.stringify(res[value]))
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: 5 }
     , { type: 'update', key: [], value: { a: 1 } }
@@ -98,20 +84,13 @@ test('remove (val, val)', () => {
     same(res[value], { a: 2 })
     same(res.a[value], 2)
   })
-  
-  test('insert (val, dir)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'inserting an object row exposes its nested child views' }, () => {
     const res = $(5)
     const changes1 = res.connect([])
     const changes2 = res[0].connect([])
     const changes3 = res[0].a.connect([])
     res.insert({ a: 10 })
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res[0][value]", res[0][value])
-    // console.log("res[0].a[value]", res[0].a[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: 5 },
       { type: 'insert', key: [], value: { a: 10 }, at: '0' }
@@ -128,17 +107,13 @@ test('remove (val, val)', () => {
     same(res[0][value], { a: 10 })
     same(res[0].a[value], 10)
   })
-  
-  test('remove (val, dir)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'removing an absent key is a no-op' }, () => {
     const res = $(5)
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     delete res.a
     delete res.a
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("res[value]", res[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: 5 },
     ])
@@ -147,8 +122,8 @@ test('remove (val, val)', () => {
     ])
   })
 
-  
-test('update (dir, dir)', () => {
+
+spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array+object', asserts:'replacing an object or array diffs added, changed and removed keys' }, () => {
     const obj = $({ a: 1, b: 2 })
     const arr = $([1, 2])
     const changes1 = obj.connect([])
@@ -161,34 +136,17 @@ test('update (dir, dir)', () => {
     const changes8 = arr[2].connect([])
     obj[value] = { b: 3, c: 4 }
     arr[value] = [,3,4]
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("changes5", changes5)
-    // console.log("changes6", changes6)
-    // console.log("changes7", changes7)
-    // console.log("changes8", changes8)
-    // console.log("obj[value]", obj[value])
-    // console.log("obj.a[value]", obj.a[value])
-    // console.log("obj.b[value]", obj.b[value])
-    // console.log("obj.c[value]", obj.c[value])
-    // console.log("arr[value]", arr[value])
-    // console.log("arr[0][value]", arr[0][value])
-    // console.log("arr[1][value]", arr[1][value])
-    // console.log("arr[2][value]", arr[2][value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { a: 1, b: 2 } },
       { type: 'update', key: [], value: { b: 3, c: 4 } }
     ])
-    same(changes2, [ 
-      { type: 'update', key: [], value: 1 }, 
-      { type: 'remove', key: [], value: 1 } 
+    same(changes2, [
+      { type: 'update', key: [], value: 1 },
+      { type: 'remove', key: [], value: 1 }
     ])
-    same(changes3, [ 
-      { type: 'update', key: [], value: 2 }, 
-      { type: 'update', key: [], value: 3 } 
+    same(changes3, [
+      { type: 'update', key: [], value: 2 },
+      { type: 'update', key: [], value: 3 }
     ])
     same(changes4, [
       { type: 'update', key: [], value: undefined },
@@ -198,13 +156,13 @@ test('update (dir, dir)', () => {
       { type: 'update', key: [], value: [ 1, 2 ] },
       { type: 'update', key: [], value: [ , 3, 4 ] }
     ])
-    same(changes6, [ 
-      { type: 'update', key: [], value: 1 }, 
-      { type: 'remove', key: [], value: 1 } 
+    same(changes6, [
+      { type: 'update', key: [], value: 1 },
+      { type: 'remove', key: [], value: 1 }
     ])
-    same(changes7, [ 
-      { type: 'update', key: [], value: 2 }, 
-      { type: 'update', key: [], value: 3 } 
+    same(changes7, [
+      { type: 'update', key: [], value: 2 },
+      { type: 'update', key: [], value: 3 }
     ])
     same(changes8, [
       { type: 'update', key: [], value: undefined },
@@ -219,20 +177,13 @@ test('update (dir, dir)', () => {
     same(arr[1][value], 3)
     same(arr[2][value], 4)
   })
-  
-  test('insert (dir, dir)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'inserting an object row at the next key exposes nested views' }, () => {
     const res = $({ 10: 'a' })
     const changes1 = res.connect([])
     const changes2 = res[11].connect([])
     const changes3 = res[11].b.connect([])
     res.insert({ b: 10 })
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res[11][value]", res[11][value])
-    // console.log("res[11].b[value]", res[11].b[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { '10': 'a' } },
       { type: 'insert', key: [], value: { b: 10 }, at: '11' }
@@ -249,22 +200,14 @@ test('update (dir, dir)', () => {
     same(res[11][value], { b: 10 })
     same(res[11].b[value], 10)
   })
-  
-  test('remove (dir, dir)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'removing a key emits a keyed remove' }, () => {
     const res = $({ a: 1, b: 2 })
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.b.connect([])
     const changes4 = res.C.connect([])
     delete res.a
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.b[value]", res.b[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { a: 1, b: 2 } }
     , { type: 'remove', key: ['a'], value: 1 }
@@ -283,16 +226,12 @@ test('update (dir, dir)', () => {
     same(res.a[value], undefined)
     same(res.b[value], 2)
   })
-  
-  test('update (dir, val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'object', asserts:'collapsing an object to a scalar removes its children' }, () => {
     const res = $({ a: 1 })
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     res[value] = 2
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("res[value]", res[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { a: 1 } }
     , { type: 'update', key: [], value: 2 }
@@ -304,8 +243,8 @@ test('update (dir, dir)', () => {
     same(res[value], 2)
     same(res.a[value], undefined)
   })
-  
-  test('insert (dir, val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'array+object', asserts:'appending a scalar to an object keys by next index and to an array by length' }, () => {
     const obj = $({ 10: 'a' })
     const arr = $(['a'])
     const changes1 = obj.connect([])
@@ -314,15 +253,6 @@ test('update (dir, dir)', () => {
     const changes4 = arr[1].connect([])
     obj.insert('b')
     arr.insert('b')
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("obj[value]", obj[value])
-    // console.log("arr[value]", arr[value])
-    // console.log("obj[11][value]", obj[11][value])
-    // console.log("arr[1][value]", arr[1][value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { '10': 'a' } },
       { type: 'insert', key: [], value: 'b', at: '11' }
@@ -344,8 +274,8 @@ test('update (dir, dir)', () => {
     same(arr[value], ['a', 'b'])
     same(arr[1][value], 'b')
   })
-  
-  test('remove (dir, val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'array+object', asserts:'removing the only key or index empties the collection' }, () => {
     const obj = $({ a: 1 })
     const arr = $([1])
     const changes1 = obj.connect([])
@@ -354,15 +284,6 @@ test('update (dir, dir)', () => {
     const changes4 = arr[0].connect([])
     delete obj.a
     delete arr[0]
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("obj[value]", obj[value])
-    // console.log("arr[value]", arr[value])
-    // console.log("obj.a[value]", obj.a[value])
-    // console.log("arr[0][value]", arr[0][value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { a: 1 } },
       { type: 'remove', key: [ 'a' ], value: 1 }
@@ -371,9 +292,9 @@ test('update (dir, dir)', () => {
       { type: 'update', key: [], value: [ 1 ] },
       { type: 'remove', key: [ '0' ], value: 1 }
     ])
-    same(changes3, [ 
-      { type: 'update', key: [], value: 1 }, 
-      { type: 'remove', key: [], value: 1 } 
+    same(changes3, [
+      { type: 'update', key: [], value: 1 },
+      { type: 'remove', key: [], value: 1 }
     ])
     same(changes4, [
       { type: 'update', key: [], value: 1 },
@@ -384,17 +305,12 @@ test('update (dir, dir)', () => {
     same(obj.a[value], undefined)
     same(arr[0][value], undefined)
   })
-  
-  test('update (val, dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a keyed write on a scalar root vivifies an object' }, () => {
     const res = $(5)
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
-    res.a = 10 
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // process.exit()
+    res.a = 10
     same(changes1, [
       { type: 'update', key: [], value: 5 }
     , { type: 'insert', key: [], value: 10, at: 'a' }
@@ -406,20 +322,13 @@ test('update (dir, dir)', () => {
     same(res[value], { a: 10 })
     same(res.a[value], 10)
   })
-  
-  test('insert (val, dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'an insert through a vivified child key' }, () => {
     const res = $(5)
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a[0].connect([])
     res.a.insert(10)
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.a[0][value]", res.a[0][value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: 5 },
       { type: 'insert', key: ['a'], value: 10, at: '0' }
@@ -436,17 +345,12 @@ test('update (dir, dir)', () => {
     same(res.a[value], { 0: 10 })
     same(res.a[0][value], 10)
   })
-  
-  test('update (dir, dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a keyed write on an empty object inserts the key' }, () => {
     const res = $({})
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     res.a = 10
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: {} }
     , { type: 'insert', key: [], value: 10, at: 'a' }
@@ -458,20 +362,13 @@ test('update (dir, dir)', () => {
     same(res[value], { a: 10 })
     same(res.a[value], 10)
   })
-  
-  test('insert (dir, dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'an insert through a child key on an object' }, () => {
     const res = $({})
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a[0].connect([])
     res.a.insert(10)
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.a[0][value]", res.a[0][value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: {} },
       { type: 'insert', key: ['a'], value: 10, at: '0' }
@@ -488,21 +385,14 @@ test('update (dir, dir)', () => {
     same(res.a[value], { 0: 10 })
     same(res.a[0][value], 10)
   })
-  
-  test('update (dir, dir/dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a deep keyed write vivifies the intermediate path' }, () => {
     const res = $()
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a.b.connect([])
     res.a.b = 10
     res.a.b = 20
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.a.b[value]", res.a.b[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: undefined }
     , { type: 'update', key: ['a', 'b'], value: 10 }
@@ -522,8 +412,8 @@ test('update (dir, dir)', () => {
     same(res.a[value], { b: 20 })
     same(res.a.b[value], 20)
   })
-  
-  test('insert (dir, dir/dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'a deep insert vivifies the intermediate path' }, () => {
     const res = $()
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
@@ -532,18 +422,7 @@ test('update (dir, dir)', () => {
     const changes5 = res.a.b[1].connect([])
     res.a.b.insert(10)
     res.a.b.insert(20)
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("changes5", changes5)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.a.b[value]", res.a.b[value])
-    // console.log("res.a.b[0][value]", res.a.b[0][value])
-    // console.log("res.a.b[1][value]", res.a.b[1][value])
-    // process.exit()
-  
+
     same(changes1, [
       { type: 'update', key: [], value: undefined },
       { type: 'insert', key: ['a', 'b'], value: 10, at: '0' },
@@ -573,21 +452,14 @@ test('update (dir, dir)', () => {
     same(res.a.b[0][value], 10)
     same(res.a.b[1][value], 20)
   })
-  
-  test('remove (dir, dir/dir/val)', () => {
+
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'a deep remove leaves the intermediate path intact' }, () => {
     const res = $({ a: { b: 1 }})
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a.b.connect([])
     delete res.a.c
     delete res.a.b
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("res[value]", res[value])
-    // console.log("res.a[value]", res.a[value])
-    // console.log("res.a.b[value]", res.a.b[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { a: { b: 1 } } },
       { type: 'remove', key: ['a', 'b'], value: 1 },
@@ -604,8 +476,8 @@ test('update (dir, dir)', () => {
     same(res.a[value], {})
     same(res.a.b[value], undefined)
   })
-  
-  test('todos', () => {
+
+  spec({ op:'integration', guarantee:'Propagation', trigger:'edit', shape:'object', chain:'to', asserts:'toggling a child recomputes a to() view and streams the value' }, () => {
     // Toggle-a-todo round trip: a `to()` view on a child recomputes on each
     // change and a connect([]) sink on the same child records the value
     // stream. (This test was assertion-free console.log debris — it passed
@@ -633,7 +505,7 @@ test('update (dir, dir)', () => {
     same(toView[value], undefined) // the side-effect fn projects to undefined
   })
 
-  test('array indexing', () => {
+  spec({ op:'integration', guarantee:'Alignment', trigger:'insert/remove', shape:'array', asserts:'array inserts and removes shift child views in lockstep' }, () => {
     const res = $({ a: [1] })
     const changes1 = res.connect([])
     const changes2 = res.a.connect([])
@@ -644,18 +516,6 @@ test('update (dir, dir)', () => {
     res.a.insert(2, 1)
     delete res.a[1]
 
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("changes5", changes5)
-    // console.log("res[value]", res[value])
-    // console.log("res[value].a", res[value].a)
-    // console.log("res[value].a[0]", res[value].a[0])
-    // console.log("res[value].a[1]", res[value].a[1])
-    // console.log("res[value].a[2]", res[value].a[2])
-    // process.exit()
-  
     same(changes1, [
       { type: 'update', key: [], value: { a: [1] } },
       { type: 'insert', key: [ 'a' ], value: 3, at: '0' },
@@ -668,9 +528,9 @@ test('update (dir, dir)', () => {
       { type: 'insert', key: [], value: 2, at: '1' },
       { type: 'remove', key: [ '1' ], value: 2 }
     ])
-    same(changes3, [ 
+    same(changes3, [
       { type: 'update', key: [], value: 1 },
-      { type: 'update', key: [], value: 3 } 
+      { type: 'update', key: [], value: 3 }
     ])
     same(changes4, [
       { type: 'update', key: [], value: undefined },
@@ -689,8 +549,8 @@ test('update (dir, dir)', () => {
     same(res[value].a[1], 1)
     same(res[value].a[2], undefined)
   })
-  
-  test('proxy/link', () => {
+
+  spec({ op:'integration', guarantee:'Propagation', trigger:'re-point', shape:'object', asserts:'a linked view re-points and mirrors the new source' }, () => {
     const c = $({ a: 1 })
     const d = $({ b: 2 })
     const e = $(c)
@@ -721,7 +581,7 @@ test('update (dir, dir)', () => {
     same(c[value], { a: 1, x: 0 })
     same(d[value], { b: 2, f: 3 })
     same(e[value], { b: 2, f: 3 })
-    
+
     same(changes1, [
       { type: 'update', key: [], value: { a: 1 } },
       { type: 'insert', key: [], value: 0, at: 'x' }
@@ -739,15 +599,11 @@ test('update (dir, dir)', () => {
       { type: 'insert', key: [], value: 4, at: 'g' },
       { type: 'remove', key: [ 'g' ], value: 4 }
     ])
-    // console.log(changes1)
-    // console.log(changes2)
-    // console.log(changes3)
-    // process.exit()
   })
-  
+
   // views
   // --------------------------------------
-  test('to view', async () => {
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', chain:'to', asserts:'to() at every depth re-derives on each change' }, async () => {
     const res = $({ a: { b : 1 }})
     const to1 = res.to(r => r.a.b * 10)
     const to2 = res.a.to(a => a.b * 100)
@@ -782,15 +638,15 @@ test('update (dir, dir)', () => {
   })
 
   // --------------------------------------
-  test('map view', async () => {
-    const res = $({ 
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', chain:'map', asserts:'map projects through the full mutation battery' }, async () => {
+    const res = $({
       0: { num: 1 },
       1: { num: 2 },
       2: { num: 3 },
     })
     const mapped = res.map(d => d.num * 10)
     const changes1 = mapped.connect([])
-    
+
     // insert
     res[3] = { num: 4 } // I0
     res[2].insert(5, 'num') // I2
@@ -805,9 +661,6 @@ test('update (dir, dir)', () => {
     res[0] = { num: 7 } // U1
     res[0].num = 8 // U2
 
-    // console.log(changes1)
-    // console.log(mapped[value])
-    // process.exit()
     same(changes1, [
       { type: 'update', key: [], value: { '0': 10, '1': 20, '2': 30 } },
       { type: 'insert', key: [], value: 40, at: '3' },
@@ -824,7 +677,7 @@ test('update (dir, dir)', () => {
 
   // --------------------------------------
 
-  test('length', () => {
+  spec({ op:'integration', guarantee:'Reduction', trigger:'insert/remove', shape:'array+object', chain:'length', asserts:'length tracks inserts, updates and removes down to zero' }, () => {
     const obj = $({ 10: 'a' })
     const arr = $(['a'])
     const count1 = obj.length()
@@ -834,27 +687,23 @@ test('update (dir, dir)', () => {
     // insert
     obj.insert('b')
     arr.insert('b')
-  
+
     // update
     obj[10] = 'c'
     arr[0] = 'c'
-  
+
     // remove
-    delete obj[10] 
+    delete obj[10]
     delete arr[0]
-  
+
     // multi-update
     obj[value] = { a: 1, b: 2, c: 3, d: 4 }
     arr[value] = ['a', 'b', 'c', 'd']
-  
+
     // multi-remove
     delete obj[value]
     delete arr[value]
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("count1[value]", count1[value])
-    // console.log("count2[value]", count2[value])
-  
+
     same(changes1, [
       { type: 'update', key: [], value: 1 },
       { type: 'update', key: [], value: 2 },
@@ -872,25 +721,25 @@ test('update (dir, dir)', () => {
     same(count1[value], 0)
     same(count2[value], 0)
   })
-  
+
   // --------------------------------------
   function filter(tx){
-    const res = $({ 
+    const res = $({
       10: { completed: true },
       20: { completed: false },
       30: { completed: true },
     })
-    const filtered = tx(res) 
+    const filtered = tx(res)
     const changes1 = filtered.connect([])
-    
+
     // remove
-    delete res[10].foo 
+    delete res[10].foo
     delete res[10].completed
-    delete res[20] 
+    delete res[20]
     delete res[value]
 
     // update
-    res[value] = { 
+    res[value] = {
       10: { completed: true },
       20: { completed: false },
       30: { completed: true },
@@ -899,15 +748,11 @@ test('update (dir, dir)', () => {
     res[20].completed = false      // 1 -> 0
     res[30] = { completed: false } // 1 -> 0
     res[30] = { completed: true }  // 0 -> 1
-    
+
     // insert
     res[40] = { completed: true }
     res[50] = { completed: false }
-  
-    // console.log("changes1", changes1)
-    // console.log("res[value]", filtered[value])
-    // process.exit()
-  
+
     same(changes1, [
       {
         type: 'update',
@@ -934,32 +779,32 @@ test('update (dir, dir)', () => {
     })
   }
 
-  test('filter - string', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the (key, value) filter form tracks membership through the battery' }, () => {
     filter(res => res.filter('completed', true))
   })
 
-  test('filter - undefined', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the key-only filter form tracks membership through the battery' }, () => {
     filter(res => res.filter('completed'))
   })
 
-  test('filter - array key', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the [key] filter form tracks membership through the battery' }, () => {
     filter(res => res.filter(['completed']))
   })
 
-  test('filter - array key - undefined', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the [key], undefined filter form tracks membership through the battery' }, () => {
     filter(res => res.filter(['completed'], undefined))
   })
 
-  test('filter - function', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the function filter form tracks membership through the battery' }, () => {
     filter(res => res.filter(d => d.completed))
   })
 
-  test('filter - object', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the {key: value} filter form tracks membership through the battery' }, () => {
     filter(res => res.filter({ completed: true }))
   })
-  
+
   // --------------------------------------
-  test('intersect', () => {
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'intersect', asserts:'intersect tracks inserts, edits and removes over objects' }, () => {
     const a = $({ 10: 'a', 20: 'b', 30: 'c' })
     const b = $({ 10: 'a', 20: 'b' })
     const res = a.intersect(b)
@@ -967,18 +812,16 @@ test('update (dir, dir)', () => {
     // insert
     b[30] = 'x'
     a[40] = 'y'
-  
+
     // update
     b[20] = 'd'
     a[20] = 'e'
     b[value] = { 20: 'g', 30: 'h' }
-  
+
     // remove
-    delete b[20] 
+    delete b[20]
     delete b[value]
-    // console.log("changes1", changes1)
-    // console.log("res[value]", res[value])
-  
+
     same(changes1, [
       { type: 'update', key: [], value: { 10: 'a', 20: 'b' } },
       { type: 'insert', key: [], value: 'c', at: '30' },
@@ -989,8 +832,8 @@ test('update (dir, dir)', () => {
     ])
     same(res[value], {})
   })
-  
-  test('intersect (arr)', () => {
+
+  spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'array', chain:'intersect', asserts:'intersect tracks inserts, edits and removes over arrays' }, () => {
     const a = $(['a', 'b', 'c'])
     const b = $(['a', 'b'])
     const res = a.intersect(b)
@@ -998,18 +841,16 @@ test('update (dir, dir)', () => {
     // insert
     b[2] = 'x'
     a[3] = 'y'
-  
+
     // update
     b[1] = 'd'
     a[1] = 'e'
     b[value] = [,'g','h']
-  
+
     // remove
-    delete b[1] 
+    delete b[1]
     delete b[value]
-    // console.log("res[value]", res[value])
-    // console.log("changes1", JSON.stringify(changes1))
-  
+
     same(changes1, [
       { type: 'update', key: [], value: ['a', 'b'] },
       { type: 'insert', key: [], value: 'c', at: '2' },
@@ -1020,15 +861,15 @@ test('update (dir, dir)', () => {
     ])
     same(res[value], [])
   })
-  
+
   // --------------------------------------
-  test('za', () => {
-    const data = $({ 
-      10: { fooo: 1, date: 1 }, 
-      40: { fooo: 4, date: 4 }, 
-      30: { fooo: 3, date: 3 }, 
-      20: { fooo: 2, date: 2 }, 
-      50: { fooo: 5, date: 5 }, 
+  spec({ op:'integration', guarantee:'Order', trigger:'insert/remove', shape:'object', chain:'za', via:['BMV1'], asserts:'za maintains a top-n window through inserts, edits and removes' }, () => {
+    const data = $({
+      10: { fooo: 1, date: 1 },
+      40: { fooo: 4, date: 4 },
+      30: { fooo: 3, date: 3 },
+      20: { fooo: 2, date: 2 },
+      50: { fooo: 5, date: 5 },
     })
     const res = data.za('date', 3)
     const changes1 = res.connect([])
@@ -1041,7 +882,7 @@ test('update (dir, dir)', () => {
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // insert
     // irrelevant > n
     data.insert({ fooo: 0, date: 0 })
@@ -1050,7 +891,7 @@ test('update (dir, dir)', () => {
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // < n
     data.insert({ fooo: [], date: 6 })
     same(res[value], [
@@ -1058,7 +899,7 @@ test('update (dir, dir)', () => {
       { fooo: 5, date: 5 },
       { fooo: 4, date: 4 },
     ])
-    
+
     // < n + k
     data[52].fooo.insert(1)
     same(res[value], [
@@ -1066,101 +907,101 @@ test('update (dir, dir)', () => {
       { fooo: 5, date: 5 },
       { fooo: 4, date: 4 },
     ])
-  
+
     // updates
     // root update
-    data[value] = { 
-      10: { fooo: 1, date: 1 }, 
-      40: { fooo: 4, date: 4 }, 
-      30: { fooo: 3, date: 3 }, 
-      20: { fooo: 2, date: 2 }, 
-      50: { fooo: 5, date: 5 }, 
+    data[value] = {
+      10: { fooo: 1, date: 1 },
+      40: { fooo: 4, date: 4 },
+      30: { fooo: 3, date: 3 },
+      20: { fooo: 2, date: 2 },
+      50: { fooo: 5, date: 5 },
     }
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-    
-    // U2: < n  
-    data[40].fooo = 40 
+
+    // U2: < n
+    data[40].fooo = 40
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 40, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // U2: > n
-    data[10].fooo = 10 
+    data[10].fooo = 10
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 40, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // U1: oidx > n nidx < n
-    data[10].date = 10 
+    data[10].date = 10
     same(res[value], [
       { fooo: 10, date: 10 },
       { fooo: 5, date: 5 },
       { fooo: 40, date: 4 },
     ])
-  
+
     // U1: oidx < n nidx < n
-    data[10].date = 4  
+    data[10].date = 4
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 40, date: 4 },
       { fooo: 10, date: 4 },
     ])
-  
+
     // oidx < n nidx > n
-    data[40].date = 0  
+    data[40].date = 0
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 10, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // root update
-    data[value] = { 
-      10: { fooo: 1, date: 1 }, 
-      40: { fooo: 4, date: 4 }, 
-      30: { fooo: 3, date: 3 }, 
-      20: { fooo: 2, date: 2 }, 
-      50: { fooo: 5, date: 5 }, 
+    data[value] = {
+      10: { fooo: 1, date: 1 },
+      40: { fooo: 4, date: 4 },
+      30: { fooo: 3, date: 3 },
+      20: { fooo: 2, date: 2 },
+      50: { fooo: 5, date: 5 },
     }
     same(res[value], [
       { fooo: 5, date: 5 },
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // remove
-    // R2: < n  
-    delete data[50].fooo 
+    // R2: < n
+    delete data[50].fooo
     same(res[value], [
       { date: 5 },
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // R2: > n
-    delete data[10].fooo 
+    delete data[10].fooo
     same(res[value], [
       { date: 5 },
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // R1: > n
-    delete data[20] 
+    delete data[20]
     same(res[value], [
       { date: 5 },
       { fooo: 4, date: 4 },
       { fooo: 3, date: 3 },
     ])
-  
+
     // R1: < n
     delete data[40]
     same(res[value], [
@@ -1168,18 +1009,11 @@ test('update (dir, dir)', () => {
       { fooo: 3, date: 3 },
       { date: 1 },
     ])
-  
+
     // R0
-    delete data[value] 
+    delete data[value]
     same(res[value], [])
-    // console.log("changes1", JSON.stringify(changes1))
-    // console.log("changes1", changes1)
-    // console.log("changes2", changes2)
-    // console.log("changes3", changes3)
-    // console.log("changes4", changes4)
-    // console.log("changes5", changes5)
-    // console.log("res[value]", res[value])
-  
+
     // A boundary-crossing window rotation (a row enters/leaves the visible top-n
     // while the window stays full) is emitted as CONTENT-STABLE `update`s at the
     // shifted positions — NOT an evict `remove` + `insert` pair. This matches the
@@ -1262,7 +1096,7 @@ test('update (dir, dir)', () => {
 
   // Regression: `az` was registered to the same ZAColumnValue/ZANumberValue
   // as `za`, so `proxy.az(...)` silently produced descending order.
-  test('az - sorts ascending (not descending like za)', () => {
+  spec({ op:'integration', guarantee:'Order', trigger:'construct', shape:'object', chain:'az', asserts:'az sorts ascending, not descending like za' }, () => {
     const data = $({
       a: { v: 3 },
       b: { v: 1 },
@@ -1276,7 +1110,7 @@ test('update (dir, dir)', () => {
     same(asc[value],  [{ v: 1 }, { v: 2 }, { v: 3 }])
   })
 
-  test('az - tracks rank changes incrementally', () => {
+  spec({ op:'integration', guarantee:'Order', trigger:'edit', shape:'object', chain:'az', asserts:'az tracks rank changes incrementally' }, () => {
     const data = $({ a: 3, b: 1, c: 2, d: 5, e: 4 })
     const asc = data.az(3)
     same(asc[value], [1, 2, 3])
@@ -1286,7 +1120,7 @@ test('update (dir, dir)', () => {
     same(asc[value], [0, 2, 3])
   })
 
-  test('az / za - independent dedup despite same (col, n)', () => {
+  spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'object', chain:'az/za', asserts:'az and za dedup independently despite the same (col, n)' }, () => {
     const data = $({ a: { v: 3 }, b: { v: 1 }, c: { v: 2 } })
     const asc1 = data.az('v', 2)
     const asc2 = data.az('v', 2)
@@ -1299,8 +1133,8 @@ test('update (dir, dir)', () => {
 
   // --------------------------------------
   // between
-  test('between - variable', async () => {
-    const all = $({ 
+  spec({ op:'integration', guarantee:'Selection', trigger:'bound-move', shape:'object', chain:'between', via:['reactive-bound'], asserts:'between with reactive bounds tracks rows crossing the extent' }, async () => {
+    const all = $({
       1: { num: 90 }
     , 2: { num: 10 }
     , 3: { num: 50 }
@@ -1313,9 +1147,6 @@ test('update (dir, dir)', () => {
     filters.hi = 100
     filters.lo = 99
     filters.lo = 100
-    // console.log("changes1", changes1)
-    // console.log("filtered[value]", filtered[value])
-    // process.exit()
     // TODO: maybe make atomic
     same(changes1, [
       // init
@@ -1338,11 +1169,11 @@ test('update (dir, dir)', () => {
       // new_lo === new_hi branch fired a spurious `XU0({})` reset here.)
     ])
   })
-  
+
   // --------------------------------------
   // length fn
-  test('length fn', () => {
-    const res = $({ 
+  spec({ op:'integration', guarantee:'Reduction', trigger:'insert/remove', shape:'object', chain:'length', asserts:'length(fn) bucket counts track the mutation battery' }, () => {
+    const res = $({
       1: { num: 1.1 }
     , 2: { num: 2.2 }
     , 3: { num: 1.9 }
@@ -1359,9 +1190,6 @@ test('update (dir, dir)', () => {
     res[9].foo = 'bar'    // deep update
     delete res[3]
     delete res[value]
-    // console.log("changes1", JSON.stringify(changes1), undefined, 4)
-    // console.log("lengths[value]", lengths[value])
-    // process.exit()
     same(changes1, [
         { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 2 } } },
         { type: 'update', key: [], value: { '1': { value: 4 }, '2': { value: 2 } } },
@@ -1372,22 +1200,13 @@ test('update (dir, dir)', () => {
         { type: 'update', key: [], value: { '1': { value: 2 }, '2': { value: 4 } } },
         { type: 'update', key: [], value: {} }
       ])
-    // same(changes1, [
-    //   { type: 'update', key: [], value: { '1': { value: 3 }, '2': { value: 2 } } },
-    //   { type: 'update', key: [ '1' ], value: 4 },
-    //   { type: 'update', key: [ '1' ], value: 3 },
-    //   { type: 'update', key: [ '2' ], value: 3 },
-    //   { type: 'update', key: [ '2' ], value: 4 },
-    //   { type: 'update', key: [ '1' ], value: 2 },
-    //   { type: 'update', key: [], value: {} }
-    // ])
     same(lengths[value], {})
   })
-  
+
   // --------------------------------------
   // group
-  test('group (obj)', () => {
-    const res = $({ 
+  spec({ op:'integration', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', chain:'group', asserts:'group emits the right per-bucket change records through the battery' }, () => {
+    const res = $({
       1: { num: 1.1 }
     , 2: { num: 2.2 }
     , 3: { num: 1.9 }
@@ -1403,13 +1222,10 @@ test('update (dir, dir)', () => {
     res[7] = { num: 1.0 }    // move last in group
     res[8] = { num: 4.1 }    // update-insert new group
     delete res[2]            // delete within in group
-    delete res[8]            // delete last in group           
+    delete res[8]            // delete last in group
     delete res[value]
-    // console.log("changes1", changes1)
-    // console.log("grouped[value]", grouped[value])
-    // process.exit()
     same(changes1, [
-      { type: 'update', key: [], value: { 
+      { type: 'update', key: [], value: {
         1: { 1: { num: 1.1 }, 3: { num: 1.9 }, 5: { num: 1.7 } },
         2: { 2: { num: 2.2 }, 4: { num: 2.6 } }
       } },
@@ -1446,14 +1262,14 @@ test('update (dir, dir)', () => {
   //   // res[7] = { num: 1.0 }    // move last in group
   //   // res[8] = { num: 4.1 }    // update-insert new group
   //   // delete res[2]            // delete within in group
-  //   // delete res[7]            // delete last in group           
+  //   // delete res[7]            // delete last in group
   //   console.log(res[value])
   //   // delete res[value]
   //   console.log("changes1", changes1)
   //   console.log("grouped[value]", grouped[value])
   //   process.exit()
   //   same(changes1, [
-  //     { type: 'update', key: [], value: { 
+  //     { type: 'update', key: [], value: {
   //       1: { 0: { num: 1.1 }, 2: { num: 1.9 }, 4: { num: 1.7 } },
   //       2: { 1: { num: 2.2 }, 3: { num: 2.6 } }
   //     } },
@@ -1478,7 +1294,7 @@ test('update (dir, dir)', () => {
   // // --------------------------------------
   // // limit
   // test('limit', () => {
-  //   const res = $({ 
+  //   const res = $({
   //     1: 2.1
   //   , 2: 1.1
   //   // , 3: undefined
@@ -1541,7 +1357,7 @@ test('update (dir, dir)', () => {
 
   // --------------------------------------
   // iterator
-  test('iterator', async () => {
+  spec({ op:'integration', guarantee:'Propagation', trigger:'insert/remove', shape:'array', asserts:'destructured child views track index inserts and removes' }, async () => {
     const res = $([1, 2])
     const [one, two, three] = res
     const changes1 = one.connect([])
@@ -1550,22 +1366,22 @@ test('update (dir, dir)', () => {
     same(one[value], 1)
     same(two[value], 2)
     same(three[value], undefined)
-  
+
     res.insert(3)
     same(one[value], 1)
     same(two[value], 2)
     same(three[value], 3)
-  
+
     res[1] = 4
     same(one[value], 1)
     same(two[value], 4)
     same(three[value], 3)
-  
+
     delete res[1]
     same(one[value], 1)
     same(two[value], 3)
     same(three[value], undefined)
-  
+
     same(changes1, [
       { type: 'update', value: 1, key: [] }
     ])
@@ -1600,7 +1416,7 @@ test('update (dir, dir)', () => {
 // an unknown name must NOT claim the dispatch table is empty / blame a
 // 'data/lean' import — it should list what IS registered so a typo'd operator
 // (or a data key called as a method) is diagnosable.
-test('unknown operator - populated-table diagnosis lists registered names', () => {
+spec({ op:'integration', guarantee:'Robustness', asserts:'an unknown operator on a populated table lists registered names, not an empty-table claim' }, () => {
   let e
   try { $({}).bogus() } catch (err) { e = err }
   if (!/Unknown operator 'bogus'/.test(e?.message)) throw e ?? new Error('no throw')
@@ -1612,7 +1428,7 @@ test('unknown operator - populated-table diagnosis lists registered names', () =
 // array hole must not splice-shift downstream filter/map/sort. Before the fix
 // the refill was emitted as an insert (BI0A), growing a phantom row: filter/map
 // one longer than the source, sort with a ghost + corrupted order.
-test('array refill of an in-bounds hole — downstream operators stay aligned', () => {
+spec({ op:'integration', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'C1', chain:'filter/map/za', asserts:'an in-bounds array hole-fill keeps downstream filter, map and sort aligned' }, () => {
   const s = $([1, 2, 3, 4])
   const f = s.filter((n) => n !== undefined && n > 0)
   const m = s.map((n) => n)
@@ -1642,7 +1458,7 @@ test('array refill of an in-bounds hole — downstream operators stay aligned', 
 // key with a NEW value emitted an insert (not an update). Incremental sinks
 // trust the delta stream, so length()/sum() drifted permanently. BI0 now
 // filters no-ops and splits existing-key overwrites into BU1, like BU1 does.
-test('insert dedup - repeated/overwriting insert at a key does not drift aggregates', () => {
+spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', issue:'C2', chain:'length/sum', asserts:'insert dedup splits an existing-key overwrite into an update so aggregates do not drift' }, () => {
   const s = $({})
   const len = s.length()
   const sum = s.sum()
@@ -1669,7 +1485,7 @@ test('insert dedup - repeated/overwriting insert at a key does not drift aggrega
 // outer cascade resumed delivering the older payload, so running-total
 // aggregates ended on the stale value and never recovered. Deferral fixes the
 // order: the outer cascade completes, then the queued write runs.
-test('re-entrant write keeps running-total aggregates correct', () => {
+spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object', chain:'sum', asserts:'a deferred re-entrant write keeps running-total aggregates correct' }, () => {
   const src = $({ a: { v: 1 }, b: { v: 2 } })
   let done = false
   src.connect({}, (c) => {
@@ -1688,7 +1504,7 @@ test('re-entrant write keeps running-total aggregates correct', () => {
 // running-total aggregate registered behind the thrower stayed stale forever.
 // Per-sink errors are now isolated (every sink still sees the event) and the
 // first is rethrown to the mutator once the cascade settles.
-test('a throwing sink does not desync aggregates registered after it', () => {
+spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object', chain:'sum/avg', asserts:'a throwing sink does not desync aggregates registered after it' }, () => {
   const src = $({ a: { v: 1 }, b: { v: 2 } })
   const s1 = src.sum('v')      // before the thrower
   let arm = true
@@ -1710,7 +1526,7 @@ test('a throwing sink does not desync aggregates registered after it', () => {
 // (process(undefined)) and abort the cascade half-applied; [12] an operator
 // built over a primitive source crashed when the root was first upgraded to an
 // object.
-test('RowOperator survives excluded inserts and primitive->object upgrade', () => {
+spec({ op:'integration', guarantee:'Robustness', trigger:'insert', shape:'array', issue:'D1', chain:'filter→filter', asserts:'row operators survive excluded inserts and a primitive-to-object upgrade' }, () => {
   // [9] chained filters, insert of a row both exclude — no crash, lengths agree
   const src = $([{ v: 30 }, { v: 40 }])
   const chain = src.filter((r) => r.v > 10).filter((r) => r.v > 20)
@@ -1742,7 +1558,7 @@ test('RowOperator survives excluded inserts and primitive->object upgrade', () =
 // re-read a hole and crashed (filter->map) or mis-sorted (filter->az). XU0 now
 // mirrors the source length (trailing holes) and skips explicit-undefined holes
 // of a brushed sparse producer (late construction).
-test('RowOperator array mirrors source length — C13 tail-insert chains', () => {
+spec({ op:'integration', guarantee:'Alignment', trigger:'insert', shape:'array', issue:'C13', chain:'filter→map/az', asserts:'a row operator mirrors source length so tail-insert chains stay aligned' }, () => {
   // filter->map with trailing-excluded rows + tail insert (was a crash)
   const s = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
   const m = s.filter((r) => r.v >= 50).map((r) => r.v)
@@ -1771,7 +1587,7 @@ test('RowOperator array mirrors source length — C13 tail-insert chains', () =>
 // the numeric forms top(n)/za(n) (col_name is the `value` Symbol, == a number
 // is always false) never deduped — every call piled up a fresh operator. View
 // identity (the `view` symbol) is the dedup signal.
-test('sort dedup - all za/az/top forms reuse the cached view', () => {
+spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'array', issue:'E4', chain:'za/az/top', asserts:'all za/az/top forms reuse the cached view, distinct ones stay separate' }, () => {
   const src = $([{ v: 1 }, { v: 2 }])
   const v = (p) => p[view]
   ok(v(src.za('v')) === v(src.za('v')), "za('col')")
@@ -1791,7 +1607,7 @@ test('sort dedup - all za/az/top forms reuse the cached view', () => {
 // and ViewProxy.get mints a FRESH wrapper per access — so dedup never matched
 // and identical calls piled up live operators. matches() now compares the
 // underlying View identity.
-test('between dedup - reactive single-VP extent reuses the cached view', () => {
+spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'array', issue:'F', chain:'between', via:['reactive-bound'], asserts:'between dedups a reactive single-VP extent by underlying view identity' }, () => {
   const s = $([{ v: 10 }, { v: 20 }])
   const ext = $([0, 100])
   ok(s.between('v', ext)[view] === s.between('v', ext)[view], 'single-VP extent')
