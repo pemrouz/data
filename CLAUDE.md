@@ -87,7 +87,7 @@ The canonical, full checklist lives in [operators/README.md](operators/README.md
 5. **Peer benchmark (optional):** `comparisons/bench/operators/<name>.bench.ts` mirroring [comparisons/bench/operators/filter.bench.ts](comparisons/bench/operators/filter.bench.ts); then regenerate [operators/BENCHMARK.md](operators/BENCHMARK.md) + the per-op BENCHMARK files via `npm run bench:ops > /tmp/bench.md && node comparisons/bench/operators/_gen-bench-md.mjs /tmp/bench.md`.
 6. **Verify & commit:** `npm test` + `npm run perf` must pass; commit per the working conventions below.
 
-For deeper internals — the View/Sink contract, when each notification method fires, parent/child propagation — see [.claude/architecture.md](.claude/architecture.md).
+For deeper internals — the View/Sink contract, when each notification method fires, parent/child propagation — see [PROTOCOL.md](PROTOCOL.md).
 
 > **Keep the two checklists in sync.** When the standard changes (e.g. a new doc location is added, like the recent per-op `BENCHMARK.md`), update both this summary AND the canonical list in [operators/README.md](operators/README.md#adding-an-operator--checklist) in the same change.
 
@@ -106,7 +106,7 @@ The full set actually used: `XU0`, `XR0`, `BU1`, `BU2`, `BI0`, `BI2`, `BR1`, `BR
 
 `NU1`/`NI0`/`NR1` you'll see inside `RowOperator.loop` ([row.ts:9](row.ts#L9)) and `Value.BU1` ([core.ts:148](core.ts#L148)) are **local accumulator arrays** ("New U1 list"), not separate notification methods.
 
-For a fuller breakdown see [.claude/architecture.md](.claude/architecture.md).
+For a fuller breakdown see [PROTOCOL.md](PROTOCOL.md).
 
 ## Testing patterns
 
@@ -167,10 +167,10 @@ All runnable via `npm run serve` then opening `http://127.0.0.1:3000/examples/to
 
 - **Keep docs in sync with code.** When you change behavior, the public API, commands, or conventions, update the relevant docs in the *same* change:
   - `CLAUDE.md` for Claude-facing notes (this file).
-  - [.claude/architecture.md](.claude/architecture.md) for internals (notification codes, View/Sink contracts, propagation rules).
+  - [PROTOCOL.md](PROTOCOL.md) — the canonical reference for internals (notification codes, View/Sink contracts, propagation rules). `.claude/architecture.md` is now just a pointer to it.
   - [README.md](README.md) for human-facing usage and API examples.
   
-  If you add or remove an operator, update the dispatch description and gotchas here, the legend (if it touches notification codes) in `architecture.md`, and the examples in `README.md`. Stale docs mislead future sessions — assume someone will trust them.
+  If you add or remove an operator, update the dispatch description and gotchas here, the legend (if it touches notification codes) in `PROTOCOL.md` (and the quick-reference subset in this file), and the examples in `README.md`. Stale docs mislead future sessions — assume someone will trust them.
 
 - **Commit granularly with detailed messages.** One logical change per commit (one bug fix, one perf improvement, one doc update — *not* bundled). Follow the existing style visible in `git log`: Conventional-Commits-ish prefixes like `fix(core): ...`, `perf: ...`, `fix(examples/todo): ...`, `docs: ...`. Each message body should explain *why* the change is needed and *what* its visible or internal effect is — not just restate the diff. Commit immediately after each logical change rather than batching at the end of a session, so a partial revert is always possible.
 

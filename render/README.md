@@ -147,6 +147,6 @@ g.tick.attr('transform', t => `translate(${x(t)}, 0)`)(
 
 ## Implementation notes
 
-- The DOM bindings are a `DOMSink` ([index.ts:11](index.ts#L11)) — a regular sink that implements the standard notification methods (`XU0`, `BU1`, `BI0`, `BR1`, …). See [.claude/architecture.md](../.claude/architecture.md) for the sink contract.
+- The DOM bindings are a `DOMSink` ([index.ts:11](index.ts#L11)) — a regular sink that implements the standard notification methods (`XU0`, `BU1`, `BI0`, `BR1`, …). See [../PROTOCOL.md](../PROTOCOL.md) for the sink contract.
 - Templates are tagged with a private `NODE` symbol ([index.ts:5](index.ts#L5)) so the builder distinguishes nested templates from raw values when you pass them as children.
 - Only three names are exported: `render`, `HTML`, `SVG`. Internal classes (`Node`, `NodeProxy`, `Attr`, `Class`, `Style`, `Text`, `Event`, `ID`, `DOMSink`) are not part of the public surface.

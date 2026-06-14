@@ -71,7 +71,7 @@ This is the canonical list of everything that needs to land when a new operator 
 1. **`index.ts`** — operator class(es) + standalone factory.
    - Extend `Operator` from [../core.ts](../core.ts), or `RowOperator` from [../row.ts](../row.ts) if you process each row independently.
    - `RowOperator`: implement `process(value, name, old_val) → value | undefined` (return `undefined` to exclude). Examples: [filter/index.ts](filter/index.ts), [map/index.ts](map/index.ts), [compare/index.ts](compare/index.ts).
-   - `Operator`: implement the notification methods you care about (`XU0`, `BU1`, `BU2`, `BI0`, `BI2`, `XR0`, `BR1`, `BR2`) — see [../.claude/architecture.md](../.claude/architecture.md) for the legend, propagation rules, and the **array-source shift contract** every key-indexed operator has to follow.
+   - `Operator`: implement the notification methods you care about (`XU0`, `BU1`, `BU2`, `BI0`, `BI2`, `XR0`, `BR1`, `BR2`) — see [../PROTOCOL.md](../PROTOCOL.md) for the legend, propagation rules, and the **array-source shift contract** every key-indexed operator has to follow.
    - Add a `matches(...args)` method if repeated calls with equivalent args should dedup (returns `true` when the cached op should be reused).
    - Export the class(es) and a standalone factory: `export const opName = (source, ...args) => createOperator(source, OpClass, ...args)`.
 

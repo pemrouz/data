@@ -240,7 +240,7 @@ idEvents.length    // 1
 - **`first` / `last`** return the proxy at the first / last key of an array-shaped view (snapshot at call time). Sugar for `proxy[0]` / `proxy[length - 1]` and the equivalent for objects (first / last enumerable key).
 - **`patch` batches writes.** `proxy.patch([name, value, name, value, ...])` applies many child updates as a *single* cascade — sinks receive one batched update (new keys become inserts) instead of one dispatch per `proxy[name] = value`. For a high-throughput producer (a simulation, a market feed) touching hundreds of rows per frame this collapses the per-row dispatch fan-out to one walk per sink. See [examples/swarm/](examples/swarm/).
 
-For internals — the View / Sink / notification model — see [.claude/architecture.md](.claude/architecture.md).
+For internals — the full notification protocol (the View / Sink contract, the notification-code legend, propagation, and the array-source shift rules) — see [PROTOCOL.md](PROTOCOL.md).
 
 ## Operators
 

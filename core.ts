@@ -388,7 +388,7 @@ type DataOps<T = any> = {
 // to the data goes through one of these methods, which then fan out to any
 // downstream Views/Sinks.
 //
-// Method-name legend (see CLAUDE.md / .claude/architecture.md):
+// Method-name legend (see CLAUDE.md / PROTOCOL.md):
 //   X / B   — root-level vs branch (with key context)
 //   U/I/R   — update / insert / remove
 //   0/1/2   — depth of the key path (0=direct, 1=single name, 2=full path)
