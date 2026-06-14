@@ -34,6 +34,12 @@ The data comes from two places:
 - **Heuristic** — un-migrated files have their facets inferred from the test title
   (directionally right, not exact). Migrating a file to `spec()` makes its row exact.
 
+As of now the **entire `npm test` unit suite is migrated** — every row is authoritative
+(registry spec count == suite test count). The heuristic path remains for any *future*
+un-migrated test file; the only non-authoritative rows today are perf/e2e (rendered *unrun*).
+The full file list lives in [../collect-registry.ts](../collect-registry.ts) — add new test
+files there when they're created.
+
 ## Auto-update on commit
 
 A tracked git hook ([../../.githooks/pre-commit](../../.githooks/pre-commit)) keeps the report
