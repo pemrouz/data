@@ -94,6 +94,7 @@
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
     "test": "node --experimental-strip-types --no-warnings --test core.test.ts entry.test.ts index.test.ts differential.test.ts operators/*/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
     "perf": "node --experimental-strip-types --no-warnings --test index.perf.ts operators/*/*.perf.ts devtools/*.perf.ts",
+    "perf:report": "node perf/_run.mjs",
     "test:all": "npm run test && npm run test:render",
     "prepublishOnly": "npm run build && npm test",
     "bench:compare": "node --experimental-strip-types --no-warnings comparisons/bench/run-all.ts",
