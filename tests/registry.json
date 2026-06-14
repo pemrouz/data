@@ -830,5 +830,95 @@
     "asserts": "with derived facets, tail insert and shifting remove stay aligned",
     "title": "filter→union · Alignment · insert/remove · array · via BI0A+BR1A · C12 — with derived facets, tail insert and shifting remove stay aligned",
     "file": "operators/union/union.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "issue": "C12",
+    "asserts": "an in-place edit pushing a row into the exclusion drops it",
+    "title": "except · Selection · edit · object · via BU2 · C12 — an in-place edit pushing a row into the exclusion drops it",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "rows in the source but not in the other source remain",
+    "via": [],
+    "title": "except · Selection · construct · object — rows in the source but not in the other source remain",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "adding a row to the exclusion source drops it from output",
+    "via": [],
+    "title": "except · Selection · insert · object — adding a row to the exclusion source drops it from output",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "removing a row from the exclusion re-admits it",
+    "via": [],
+    "title": "except · Selection · remove · object — removing a row from the exclusion re-admits it",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "removing a row from the source drops it from output",
+    "via": [],
+    "title": "except · Selection · remove · object — removing a row from the source drops it from output",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "object",
+    "asserts": "an insert into the source appears unless the exclusion has it",
+    "via": [],
+    "title": "except · Selection · insert · object — an insert into the source appears unless the exclusion has it",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "via": [
+      "BI0A",
+      "BR1A"
+    ],
+    "issue": "C12",
+    "chain": "filter→except",
+    "asserts": "with a derived exclusion, tail insert and shifting remove stay aligned",
+    "title": "filter→except · Alignment · insert/remove · array · via BI0A+BR1A · C12 — with a derived exclusion, tail insert and shifting remove stay aligned",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "array",
+    "issue": "#23",
+    "chain": "between→except",
+    "asserts": "a tail insert outside a between exclusion is admitted",
+    "via": [],
+    "title": "between→except · Selection · insert · array · #23 — a tail insert outside a between exclusion is admitted",
+    "file": "operators/except/except.test.ts"
   }
 ]

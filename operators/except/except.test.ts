@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { except } from './index.ts'
 import { filter } from '../filter/index.ts'
@@ -13,7 +13,7 @@ import { between } from '../between/index.ts'
 // default re-materialised the row, undoing the drop. except.BU2 now respects
 // exclusion membership (mirrors except's BU1): skip excluded rows, forward the
 // rest.
-test('except - in-place edit into the exclusion drops the row (BU2)', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU2'], issue:'C12', asserts:'an in-place edit pushing a row into the exclusion drops it' }, () => {
   const src = $({ k0: { v: 0 }, k1: { v: 11 }, k2: { v: 22 }, k3: { v: 77 } })
   const res = except(src, filter(src, (r) => r.v > 60))
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, x]) => x !== undefined).map(([k, x]) => [k, x.v]))
@@ -24,13 +24,13 @@ test('except - in-place edit into the exclusion drops the row (BU2)', () => {
   same(clean(res[value]), { k0: 0, k1: 5, k2: 22 })     // re-admitted
 })
 
-test('except - rows in source but not in other', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'rows in the source but not in the other source remain' }, () => {
   const a = $({ 1: 'a', 2: 'b', 3: 'c' })
   const b = $({ 2: 'b' })
   same(except(a, b)[value], { 1: 'a', 3: 'c' })
 })
 
-test('except - reactive: adding to `other` drops the row from output', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'object', asserts:'adding a row to the exclusion source drops it from output' }, () => {
   const a = $({ 1: 'a', 2: 'b' })
   const b = $({})
   const res = except(a, b)
@@ -39,7 +39,7 @@ test('except - reactive: adding to `other` drops the row from output', () => {
   same(res[value], { 2: 'b' })
 })
 
-test('except - reactive: removing from `other` re-admits the row', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'remove', shape:'object', asserts:'removing a row from the exclusion re-admits it' }, () => {
   const a = $({ 1: 'a', 2: 'b' })
   const b = $({ 1: 'a' })
   const res = except(a, b)
@@ -48,7 +48,7 @@ test('except - reactive: removing from `other` re-admits the row', () => {
   same(res[value], { 1: 'a', 2: 'b' })
 })
 
-test('except - reactive: removing from source drops from output', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'remove', shape:'object', asserts:'removing a row from the source drops it from output' }, () => {
   const a = $({ 1: 'a', 2: 'b', 3: 'c' })
   const b = $({ 1: 'a' })
   const res = except(a, b)
@@ -57,7 +57,7 @@ test('except - reactive: removing from source drops from output', () => {
   same(res[value], { 3: 'c' })
 })
 
-test('except - reactive: insert into source admits if not in other', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'object', asserts:'an insert into the source appears unless the exclusion has it' }, () => {
   const a = $({ 1: 'a' })
   const b = $({ 9: 'z' })
   const res = except(a, b)
@@ -78,7 +78,7 @@ test('except - reactive: insert into source admits if not in other', () => {
 // (visibility decided from `other`'s carried membership) fix it. Locks the live
 // view across tail inserts (admitted + excluded) and shifting removes.
 const denseV = (vp) => (vp[value] || []).filter((r) => r !== undefined).map((r) => r.v)
-test('except - array, derived `other`: tail insert + shifting remove stay aligned', () => {
+spec({ op:'except', guarantee:'Alignment', trigger:'insert/remove', shape:'array', via:['BI0A','BR1A'], issue:'C12', chain:'filter→except', asserts:'with a derived exclusion, tail insert and shifting remove stay aligned' }, () => {
   const s = $([{ v: 10 }, { v: 70 }, { v: 20 }, { v: 90 }, { v: 50 }])
   // rows NOT in `other` (v > 60) ⇒ v ≤ 60 ⇒ {10,20,50}.
   const res = except(s, filter(s, (r) => r.v > 60))
@@ -112,7 +112,7 @@ test('except - array, derived `other`: tail insert + shifting remove stay aligne
 // for a RowOperator other. A between/intersect `other` emits nothing for an
 // out-of-range insert, so an admissible row (in p, not in other) was dropped.
 // except now also admits on the PRIMARY echo, reading other.value[at].
-test('except - tail insert outside a between `other` is admitted', () => {
+spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'array', issue:'#23', chain:'between→except', asserts:'a tail insert outside a between exclusion is admitted' }, () => {
   const s = $([{ v: 10 }, { v: 70 }, { v: 30 }])
   const e = except(s, between(s, 'v', [60, 100]))
   const dense = (a) => a.filter((x) => x !== undefined).map((r) => r.v)
