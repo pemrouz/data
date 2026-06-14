@@ -1,10 +1,10 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { to } from './index.ts'
 
-test('to - scalar', async () => {
+spec({ op:'to', guarantee:'Fidelity', trigger:'edit/overwrite', shape:'object', asserts:'the scalar projection re-derives on nested edit, whole-row replace and overwrite' }, async () => {
   const res = $({ a: { b: 1 } })
   const result = to(res, r => r.a.b * 10)
   const changes = result.connect([])
@@ -20,7 +20,7 @@ test('to - scalar', async () => {
   same(result[value], 40)
 })
 
-test('to - nested property', async () => {
+spec({ op:'to', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a projection of a sub-view re-derives on edits to that sub-view' }, async () => {
   const res = $({ a: { b: 1 } })
   const result = to(res.a, a => a.b * 100)
   const changes = result.connect([])

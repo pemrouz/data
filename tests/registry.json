@@ -2200,5 +2200,25 @@
     "via": [],
     "title": "tap · Robustness · edit · object · #57 — a defaulted or destructured param still takes the record path",
     "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "to",
+    "guarantee": "Fidelity",
+    "trigger": "edit/overwrite",
+    "shape": "object",
+    "asserts": "the scalar projection re-derives on nested edit, whole-row replace and overwrite",
+    "via": [],
+    "title": "to · Fidelity · edit/overwrite · object — the scalar projection re-derives on nested edit, whole-row replace and overwrite",
+    "file": "operators/to/to.test.ts"
+  },
+  {
+    "op": "to",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a projection of a sub-view re-derives on edits to that sub-view",
+    "via": [],
+    "title": "to · Fidelity · edit · object — a projection of a sub-view re-derives on edits to that sub-view",
+    "file": "operators/to/to.test.ts"
   }
 ]
