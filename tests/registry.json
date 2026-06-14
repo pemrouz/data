@@ -2417,5 +2417,214 @@
     "asserts": "a structural source insert/remove on a sparse-bound list stays correct",
     "title": "between→render · Alignment · insert/remove · array · via BR1A+BI0A · H6 — a structural source insert/remove on a sparse-bound list stays correct",
     "file": "render/list.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a static div with className and child matches the builder trace",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a static div with className and child matches the builder trace",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "id and attribute props match the builder trace",
+    "via": [],
+    "title": "jsx · Fidelity · construct — id and attribute props match the builder trace",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a boolean attribute renders as an empty string",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a boolean attribute renders as an empty string",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "onEvent props attach event listeners like .on()",
+    "via": [],
+    "title": "jsx · Fidelity · construct — onEvent props attach event listeners like .on()",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a style object matches the per-key .style chain",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a style object matches the per-key .style chain",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a reactive class object matches the builder at construction",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a reactive class object matches the builder at construction",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "SVG tags dispatch through the SVG namespace",
+    "via": [],
+    "title": "jsx · Fidelity · construct — SVG tags dispatch through the SVG namespace",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a Fragment flattens its children into the parent",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a Fragment flattens its children into the parent",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "For routes VP children through .text() like the builder",
+    "via": [],
+    "title": "jsx · Fidelity · construct · object — For routes VP children through .text() like the builder",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "a For row fn returning a Fragment extends the pre-shaped row",
+    "via": [],
+    "title": "jsx · Fidelity · construct · object — a For row fn returning a Fragment extends the pre-shaped row",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "a reactive VP attribute matches the .attr() builder form",
+    "via": [],
+    "title": "jsx · Fidelity · construct — a reactive VP attribute matches the .attr() builder form",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Propagation",
+    "trigger": "construct",
+    "asserts": "a reactive VP child binds via DOMSink and writes its initial value",
+    "via": [],
+    "title": "jsx · Propagation · construct — a reactive VP child binds via DOMSink and writes its initial value",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "via": [
+      "ref"
+    ],
+    "asserts": "a ref callback fires once with the real DOM element",
+    "title": "jsx · Fidelity · construct · via ref — a ref callback fires once with the real DOM element",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "node(Fragment) auto-spreads its children as siblings",
+    "via": [],
+    "title": "jsx · Fidelity · construct · object — node(Fragment) auto-spreads its children as siblings",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "the automatic runtime bundles children into props and matches h()",
+    "via": [],
+    "title": "jsx · Fidelity · construct — the automatic runtime bundles children into props and matches h()",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "asserts": "jsxs spreads a children array as siblings",
+    "via": [],
+    "title": "jsx · Fidelity · construct — jsxs spreads a children array as siblings",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Identity",
+    "trigger": "construct",
+    "issue": "#42",
+    "asserts": "a VP child with an element sibling does not duplicate the host",
+    "via": [],
+    "title": "jsx · Identity · construct · #42 — a VP child with an element sibling does not duplicate the host",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Robustness",
+    "trigger": "construct",
+    "issue": "#49",
+    "asserts": "a top-level Fragment renders its children without crashing",
+    "via": [],
+    "title": "jsx · Robustness · construct · #49 — a top-level Fragment renders its children without crashing",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "issue": "#45",
+    "asserts": "a reactive className swaps the class instead of accumulating",
+    "via": [],
+    "title": "jsx · Propagation · edit · #45 — a reactive className swaps the class instead of accumulating",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "issue": "#46",
+    "asserts": "a function component receives props.children",
+    "via": [],
+    "title": "jsx · Fidelity · construct · #46 — a function component receives props.children",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "issue": "#47",
+    "asserts": "the on* heuristic excludes once={fn} and ViewProxy handlers",
+    "via": [],
+    "title": "jsx · Fidelity · construct · #47 — the on* heuristic excludes once={fn} and ViewProxy handlers",
+    "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "jsx",
+    "guarantee": "Fidelity",
+    "trigger": "construct",
+    "issue": "#48",
+    "asserts": "an HTML title uses createElement, not the SVG namespace",
+    "via": [],
+    "title": "jsx · Fidelity · construct · #48 — an HTML title uses createElement, not the SVG namespace",
+    "file": "jsx/jsx.test.ts"
   }
 ]

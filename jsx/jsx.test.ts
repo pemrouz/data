@@ -3,7 +3,7 @@
 // NodeProxy whose render output is structurally identical to the equivalent
 // HTML/SVG builder chain. We assert this by rendering both into a recording
 // DOM stub and comparing the mutation trace — same calls in the same order.
-import { test } from 'node:test'
+import { spec } from '../tests/spec.ts'
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { $, value } from '../core.ts'
 import { render } from '../render/index.ts'
@@ -66,38 +66,38 @@ function trace(template) {
   return log
 }
 
-test('jsx/h - static div with className and child matches builder', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a static div with className and child matches the builder trace' }, () => {
   const a = trace(h('div', { className: 'a b' }, 'hi'))
   const b = trace(HTML.div.a.b('hi'))
   same(a, b)
 })
 
-test('jsx/h - id and attribute props match builder', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'id and attribute props match the builder trace' }, () => {
   const a = trace(h('input', { id: 'go', type: 'checkbox', placeholder: 'name' }))
   const b = trace(HTML.input['#go']['type=checkbox']['placeholder=name']())
   same(a, b)
 })
 
-test('jsx/h - boolean attribute renders as empty string (matches autofocus= shorthand)', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a boolean attribute renders as an empty string' }, () => {
   const a = trace(h('input', { autofocus: true }))
   const b = trace(HTML.input['autofocus=']())
   same(a, b)
 })
 
-test('jsx/h - onEvent props attach event listeners', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'onEvent props attach event listeners like .on()' }, () => {
   const noop = () => {}
   const a = trace(h('button', { onClick: noop }, 'go'))
   const b = trace(HTML.button.on('click', noop)('go'))
   same(a, b)
 })
 
-test('jsx/h - style object props match per-key .style chain', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a style object matches the per-key .style chain' }, () => {
   const a = trace(h('div', { style: { color: 'red', display: 'none' } }))
   const b = trace(HTML.div.style({ color: 'red', display: 'none' }))
   same(a, b)
 })
 
-test('jsx/h - reactive class object updates incrementally', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a reactive class object matches the builder at construction' }, () => {
   const flag = $(true)
   const a = trace(h('li', { class: { done: flag } }))
   const b = trace(HTML.li.class({ done: flag }))
@@ -106,7 +106,7 @@ test('jsx/h - reactive class object updates incrementally', () => {
   same(a, b)
 })
 
-test('jsx/h - SVG tags dispatch through SVG namespace', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'SVG tags dispatch through the SVG namespace' }, () => {
   const a = trace(h('svg', null, h('path', { d: 'M0,0' })))
   const b = trace(SVG.svg(SVG.path['d=M0,0']()))
   same(a, b)
@@ -114,14 +114,14 @@ test('jsx/h - SVG tags dispatch through SVG namespace', () => {
   ok(a.some(([k]) => k === 'attr+'))
 })
 
-test('jsx/Fragment - flattens children into parent', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a Fragment flattens its children into the parent' }, () => {
   const a = trace(h('div', null, h(Fragment, null, 'a', 'b')))
   // flattened, only the last static "wins" per Node.add — same for builder
   const b = trace(HTML.div('a', 'b'))
   same(a, b)
 })
 
-test('jsx/For - keyed list matches HTML[tag](data, fn) builder shape', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'For routes VP children through .text() like the builder' }, () => {
   const data = $({ x: { title: 'one' }, y: { title: 'two' } })
   const a = trace(
     h('ul', null,
@@ -143,7 +143,7 @@ test('jsx/For - keyed list matches HTML[tag](data, fn) builder shape', () => {
   same(a, b)
 })
 
-test('jsx/For - row fn returning Fragment extends the pre-shaped row', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'a For row fn returning a Fragment extends the pre-shaped row' }, () => {
   const data = $({ a: { title: 'one' }, b: { title: 'two' } })
   const a = trace(
     h('ul', null,
@@ -163,14 +163,14 @@ test('jsx/For - row fn returning Fragment extends the pre-shaped row', () => {
   same(a, b)
 })
 
-test('jsx/h - reactive ViewProxy attribute flows through unchanged', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a reactive VP attribute matches the .attr() builder form' }, () => {
   const checked = $(true)
   const a = trace(h('input', { type: 'checkbox', checked }))
   const b = trace(HTML.input['type=checkbox'].attr('checked', checked)())
   same(a, b)
 })
 
-test('jsx/h - reactive ViewProxy as child binds via DOMSink', () => {
+spec({ op:'jsx', guarantee:'Propagation', trigger:'construct', asserts:'a reactive VP child binds via DOMSink and writes its initial value' }, () => {
   // <span>{vp}</span> sets node.data = vp; the parent's render creates a
   // DOMSink for the span, which mounts a textNode that updates incrementally.
   // We can't directly compare to span.text(vp) (different render path) but
@@ -183,7 +183,7 @@ test('jsx/h - reactive ViewProxy as child binds via DOMSink', () => {
   ok(log.some(([k]) => k === 'text'))
 })
 
-test('jsx/h - ref callback fires once with the real DOM element', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', via:['ref'], asserts:'a ref callback fires once with the real DOM element' }, () => {
   let captured: any = null
   trace(h('div', null,
     h('input', { type: 'checkbox', ref: (el: any) => { captured = el } })
@@ -196,7 +196,7 @@ test('jsx/h - ref callback fires once with the real DOM element', () => {
      'ref should receive the created input element')
 })
 
-test('jsx/Fragment-as-single-arg - node(<Fragment>...</Fragment>) auto-spreads', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'node(Fragment) auto-spreads its children as siblings' }, () => {
   // The crossfilter-jsx port relies on this: a row generator can return
   // node(<Fragment>...</Fragment>) and have the children land as siblings.
   // NodeProxy.apply detects the single-array arg and spreads — without that
@@ -222,7 +222,7 @@ test('jsx/Fragment-as-single-arg - node(<Fragment>...</Fragment>) auto-spreads',
   same(a, b)
 })
 
-test('jsx/jsx (auto-runtime) - bundles children into props', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'the automatic runtime bundles children into props and matches h()' }, () => {
   // Automatic-runtime signature: jsx(type, { children, ...rest }, key?).
   // Output should match the classic h(type, rest, ...children) call.
   const a = trace(jsx('div', { className: 'box', children: 'hi' }))
@@ -230,7 +230,7 @@ test('jsx/jsx (auto-runtime) - bundles children into props', () => {
   same(a, b)
 })
 
-test('jsx/jsxs (auto-runtime) - children array spreads as siblings', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'jsxs spreads a children array as siblings' }, () => {
   const a = trace(jsxs('ul', { children: [
     h('li', null, 'one'),
     h('li', null, 'two'),
@@ -245,7 +245,7 @@ test('jsx/jsxs (auto-runtime) - children array spreads as siblings', () => {
 // Regression (#42): a VP child with an ELEMENT (NodeProxy) sibling was flipped
 // onto the data-iteration path (hasRowFn counted the NodeProxy as a row fn),
 // duplicating the host element. A NodeProxy is excluded from the row-fn check now.
-test('jsx/h - VP child with an element sibling does not duplicate the host', () => {
+spec({ op:'jsx', guarantee:'Identity', trigger:'construct', issue:'#42', asserts:'a VP child with an element sibling does not duplicate the host' }, () => {
   let labels = 0
   const make = (tag) => {
     if (tag === 'label') labels++
@@ -266,7 +266,7 @@ test('jsx/h - VP child with an element sibling does not duplicate the host', () 
 // Regression (#49): a top-level Fragment (`render(root, <>…</>)`) is a plain
 // array; np[NODE] was undefined and Node.render threw. render() now treats it
 // as a wrapper whose children render into the parent (with their static text).
-test('jsx/render - top-level Fragment renders its children', () => {
+spec({ op:'jsx', guarantee:'Robustness', trigger:'construct', issue:'#49', asserts:'a top-level Fragment renders its children without crashing' }, () => {
   const log = recordingDom()
   const root = document.createElement('div')
   render(root, h(Fragment, null, h('div', null, 'x'), h('div', null, 'y')))
@@ -276,7 +276,7 @@ test('jsx/render - top-level Fragment renders its children', () => {
 
 // Regression (#45): className={vp} (reactive class string) accumulated classes —
 // add/remove both used the current value, so the old class was never removed.
-test('jsx/h - reactive className swaps the class instead of accumulating', () => {
+spec({ op:'jsx', guarantee:'Propagation', trigger:'edit', issue:'#45', asserts:'a reactive className swaps the class instead of accumulating' }, () => {
   const ops = []
   const make = (tag) => ({
     tag, children: [], isConnected: true,
@@ -296,7 +296,7 @@ test('jsx/h - reactive className swaps the class instead of accumulating', () =>
 })
 
 // Regression (#46): function components now receive props.children.
-test('jsx/h - function component receives props.children', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#46', asserts:'a function component receives props.children' }, () => {
   const make = (tag) => ({
     tag, children: [], isConnected: true,
     classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
@@ -319,7 +319,7 @@ test('jsx/h - function component receives props.children', () => {
 
 // Regression (#47): `once={fn}` must NOT register an event listener (it's not
 // an on-Event prop); a ViewProxy onClick must not either.
-test('jsx/h - on* heuristic excludes once={fn} and ViewProxy handlers', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#47', asserts:'the on* heuristic excludes once={fn} and ViewProxy handlers' }, () => {
   const listeners = []
   const make = (tag) => ({
     tag, children: [], isConnected: true,
@@ -337,7 +337,7 @@ test('jsx/h - on* heuristic excludes once={fn} and ViewProxy handlers', () => {
 })
 
 // Regression (#48): an HTML <title> is created in the HTML namespace, not SVG.
-test('jsx/h - HTML <title> uses createElement, not the SVG namespace', () => {
+spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#48', asserts:'an HTML title uses createElement, not the SVG namespace' }, () => {
   const kinds = []
   globalThis.document = {
     createElement: (t) => (kinds.push(['html', t]), mkEl(t)),
