@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { tap } from './index.ts'
 import { filter } from '../filter/index.ts'
@@ -11,7 +11,7 @@ import { sum } from '../aggregate/index.ts'
 const max = (a, b) => a > b ? a : b
 $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
-test('tap - fires fn for the initial XU0 and downstream events', () => {
+spec({ op:'tap', guarantee:'Fidelity', trigger:'edit/insert/remove', shape:'object', asserts:'the callback receives the initial and every downstream change record' }, () => {
   const data = $({ a: 1, b: 2 })
   const events = []
   const t = tap(data, e => events.push(e))
@@ -28,7 +28,7 @@ test('tap - fires fn for the initial XU0 and downstream events', () => {
   same(t[value], { a: 10, c: 3 })
 })
 
-test('tap - chains: downstream operator sees the same events', () => {
+spec({ op:'tap', guarantee:'Propagation', trigger:'insert', shape:'array', chain:'tap→filter→length', asserts:'a downstream operator sees the same events' }, () => {
   const data = $([{ done: false }, { done: true }, { done: false }])
   const taps = []
   const remaining = length(filter(tap(data, e => taps.push(e.type)), 'done', false))
@@ -39,7 +39,7 @@ test('tap - chains: downstream operator sees the same events', () => {
   same(taps, ['update', 'insert'])
 })
 
-test('tap - nested updates flow through BU2', () => {
+spec({ op:'tap', guarantee:'Fidelity', trigger:'edit', shape:'object', via:['BU2'], asserts:'a nested in-place edit reaches the callback as a deep record' }, () => {
   const data = $({ a: { x: 1 } })
   const events = []
   tap(data, e => events.push(e))
@@ -50,7 +50,7 @@ test('tap - nested updates flow through BU2', () => {
   ])
 })
 
-test('tap - 0-arg fn opts into bare path: fires per emit, no record, no clone', () => {
+spec({ op:'tap', guarantee:'Efficiency', trigger:'edit', shape:'object', asserts:'a 0-arg fn takes the bare per-emit path with no record or clone' }, () => {
   // Bare tap exists for hot-path consumers that re-read the live proxy
   // value inside their callback (chart redraws, count textContent updates).
   // Skipping the structuredClone+record construction is the whole point —
@@ -74,7 +74,7 @@ test('tap - 0-arg fn opts into bare path: fires per emit, no record, no clone', 
   same('b' in snapshot, false)
 })
 
-test('tap - 1-arg fn keeps the full record path (no silent downgrade)', () => {
+spec({ op:'tap', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a 1-arg fn keeps the full record path, no silent downgrade' }, () => {
   // Strict 0-arity check is what makes the dispatch safe: anyone who
   // declared `(c) => ...` (length 1) still gets full change records. A
   // future minifier-driven param drop is the failure mode this guards
@@ -98,7 +98,7 @@ test('tap - 1-arg fn keeps the full record path (no silent downgrade)', () => {
 // across remove + whole-row replace, on both object and array sources.
 function rows() { const o = {}; for (let i = 0; i < 5; i++) o[i] = { v: (i + 1) * 10, ok: i % 2 === 0 }; return $(o) }
 
-test('tap - downstream length/sum/filter stay in sync through remove + whole-row update', () => {
+spec({ op:'tap', guarantee:'Propagation', trigger:'remove/overwrite', shape:'object', chain:'tap→length/sum/filter', asserts:'a tap-interposed chain matches a direct chain through removes and overwrites' }, () => {
   const churn = s => { delete s[1]; s[3] = { v: 999, ok: true }; delete s[4]; s.insert({ v: 7, ok: true }) }
 
   const dSrc = rows(), tSrc = rows()
@@ -111,7 +111,7 @@ test('tap - downstream length/sum/filter stay in sync through remove + whole-row
   same(tFil[value], dFil[value])           // kept deleted rows before the fix
 })
 
-test('tap - change stream is byte-identical to the bare source (object and array)', () => {
+spec({ op:'tap', guarantee:'Fidelity', trigger:'insert/remove', shape:'array+object', asserts:'the change stream is byte-identical to the bare source' }, () => {
   // object source
   const bo = $({ 0: 10, 1: 20, 2: 30, 3: 40 }), to = $({ 0: 10, 1: 20, 2: 30, 3: 40 })
   const boC = bo.connect([]), toC = tap(to, () => {}).connect([])
@@ -131,7 +131,7 @@ test('tap - change stream is byte-identical to the bare source (object and array
 // destructured parameter reports length 0 — so `(c = {}) => …` was routed to
 // the bare (no-args) path and never received the change record. Path selection
 // is now by parameter PRESENCE (tapHasParam), so those take the full record path.
-test('tap - defaulted / destructured param still receives the change record', () => {
+spec({ op:'tap', guarantee:'Robustness', trigger:'edit', shape:'object', issue:'#57', asserts:'a defaulted or destructured param still takes the record path' }, () => {
   const src = $({ a: 1 })
   let got
   tap(src, (c = { type: 'DEFAULT' }) => { got = c })

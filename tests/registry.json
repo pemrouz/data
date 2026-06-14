@@ -2115,5 +2115,90 @@
     "via": [],
     "title": "reverse · Robustness · construct · array — sparse undefined slots are filtered out",
     "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Fidelity",
+    "trigger": "edit/insert/remove",
+    "shape": "object",
+    "asserts": "the callback receives the initial and every downstream change record",
+    "via": [],
+    "title": "tap · Fidelity · edit/insert/remove · object — the callback receives the initial and every downstream change record",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Propagation",
+    "trigger": "insert",
+    "shape": "array",
+    "chain": "tap→filter→length",
+    "asserts": "a downstream operator sees the same events",
+    "via": [],
+    "title": "tap→filter→length · Propagation · insert · array — a downstream operator sees the same events",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a nested in-place edit reaches the callback as a deep record",
+    "title": "tap · Fidelity · edit · object · via BU2 — a nested in-place edit reaches the callback as a deep record",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a 0-arg fn takes the bare per-emit path with no record or clone",
+    "via": [],
+    "title": "tap · Efficiency · edit · object — a 0-arg fn takes the bare per-emit path with no record or clone",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "asserts": "a 1-arg fn keeps the full record path, no silent downgrade",
+    "via": [],
+    "title": "tap · Fidelity · edit · object — a 1-arg fn keeps the full record path, no silent downgrade",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Propagation",
+    "trigger": "remove/overwrite",
+    "shape": "object",
+    "chain": "tap→length/sum/filter",
+    "asserts": "a tap-interposed chain matches a direct chain through removes and overwrites",
+    "via": [],
+    "title": "tap→length/sum/filter · Propagation · remove/overwrite · object — a tap-interposed chain matches a direct chain through removes and overwrites",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "array+object",
+    "asserts": "the change stream is byte-identical to the bare source",
+    "via": [],
+    "title": "tap · Fidelity · insert/remove · array+object — the change stream is byte-identical to the bare source",
+    "file": "operators/tap/tap.test.ts"
+  },
+  {
+    "op": "tap",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "issue": "#57",
+    "asserts": "a defaulted or destructured param still takes the record path",
+    "via": [],
+    "title": "tap · Robustness · edit · object · #57 — a defaulted or destructured param still takes the record path",
+    "file": "operators/tap/tap.test.ts"
   }
 ]
