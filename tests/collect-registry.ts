@@ -18,6 +18,7 @@ const FILES = [
   'operators/except/except.test.ts',
   'operators/aggregate/aggregate.test.ts',
   'operators/compare/compare.test.ts',
+  'operators/distinct/distinct.test.ts',
 ]
 
 for (const f of FILES) {

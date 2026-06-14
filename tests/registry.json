@@ -1326,5 +1326,89 @@
     "via": [],
     "title": "compare · Efficiency · construct · object — no sorted index is maintained, unlike between",
     "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "keeps one row per value, in first-seen order",
+    "via": [],
+    "title": "distinct · Selection · construct · array — keeps one row per value, in first-seen order",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "a key projection keeps the first row per key",
+    "via": [],
+    "title": "distinct · Selection · construct · array — a key projection keeps the first row per key",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "array",
+    "asserts": "inserting a new key appends it",
+    "via": [],
+    "title": "distinct · Selection · insert · array — inserting a new key appends it",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "array",
+    "asserts": "inserting an existing key does not change the output",
+    "via": [],
+    "title": "distinct · Selection · insert · array — inserting an existing key does not change the output",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Order",
+    "trigger": "remove",
+    "shape": "object",
+    "asserts": "removing a key's last row drops it and re-derives first-seen order",
+    "via": [],
+    "title": "distinct · Order · remove · object — removing a key's last row drops it and re-derives first-seen order",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "mutating a shared key's representative rebuckets without losing the sibling",
+    "title": "distinct · Selection · edit · object · via BU2 — mutating a shared key's representative rebuckets without losing the sibling",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "mutating a non-representative keeps the representative and adds the new key",
+    "title": "distinct · Selection · edit · object · via BU2 — mutating a non-representative keeps the representative and adds the new key",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "the same projection returns the same view",
+    "via": [],
+    "title": "distinct · Identity · dedup-call · array — the same projection returns the same view",
+    "file": "operators/distinct/distinct.test.ts"
   }
 ]

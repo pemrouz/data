@@ -1,15 +1,15 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { distinct } from './index.ts'
 
-test('distinct - identity dedup, first-seen order', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'construct', shape:'array', asserts:'keeps one row per value, in first-seen order' }, () => {
   const res = $([1, 2, 1, 3, 2, 4])
   same(distinct(res)[value], [1, 2, 3, 4])
 })
 
-test('distinct - fn projects to a key', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'construct', shape:'array', asserts:'a key projection keeps the first row per key' }, () => {
   const res = $([
     { airline: 'AA', flight: 1 },
     { airline: 'UA', flight: 2 },
@@ -23,7 +23,7 @@ test('distinct - fn projects to a key', () => {
   ])
 })
 
-test('distinct - reactive: insert of a new key appends', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'insert', shape:'array', asserts:'inserting a new key appends it' }, () => {
   const res = $(['a', 'b', 'a'])
   const d = distinct(res)
   same(d[value], ['a', 'b'])
@@ -31,7 +31,7 @@ test('distinct - reactive: insert of a new key appends', () => {
   same(d[value], ['a', 'b', 'c'])
 })
 
-test('distinct - reactive: insert of an existing key is a no-op for the output', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'insert', shape:'array', asserts:'inserting an existing key does not change the output' }, () => {
   const res = $(['a', 'b'])
   const d = distinct(res)
   same(d[value], ['a', 'b'])
@@ -39,7 +39,7 @@ test('distinct - reactive: insert of an existing key is a no-op for the output',
   same(d[value], ['a', 'b'])
 })
 
-test('distinct - reactive: removing all of a key drops it from the output', () => {
+spec({ op:'distinct', guarantee:'Order', trigger:'remove', shape:'object', asserts:'removing a key\'s last row drops it and re-derives first-seen order' }, () => {
   const res = $({ x: 'a', y: 'b', z: 'a' })
   const d = distinct(res)
   same(d[value], ['a', 'b'])
@@ -51,7 +51,7 @@ test('distinct - reactive: removing all of a key drops it from the output', () =
   same(d[value], ['b'])
 })
 
-test('distinct - reactive: mutating the representative of a shared key rebuckets (regression)', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU2'], asserts:'mutating a shared key\'s representative rebuckets without losing the sibling' }, () => {
   // Two rows project to the same key 'x'; the FIRST (the instance cached in
   // the output) is mutated in place to a new key 'y'. Bucket 'x' is still
   // occupied by the sibling, so the output must show one 'y' and one 'x' —
@@ -65,7 +65,7 @@ test('distinct - reactive: mutating the representative of a shared key rebuckets
   same(d[value], [{ k: 'y' }, { k: 'x' }]) // a→'y' (first-seen), b still 'x'
 })
 
-test('distinct - reactive: mutating a NON-representative of a shared key stays incremental', () => {
+spec({ op:'distinct', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU2'], asserts:'mutating a non-representative keeps the representative and adds the new key' }, () => {
   // Mirror of the above: mutating the SECOND row of the shared bucket must
   // NOT disturb the representative — output keeps 'x' (via a) and adds 'y'.
   const res = $({ a: { k: 'x' }, b: { k: 'x' } })
@@ -75,7 +75,7 @@ test('distinct - reactive: mutating a NON-representative of a shared key stays i
   same(d[value], [{ k: 'x' }, { k: 'y' }]) // a still represents 'x', b→'y'
 })
 
-test('distinct - dedup: same fn → same view', () => {
+spec({ op:'distinct', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'the same projection returns the same view' }, () => {
   const res = $([1, 2, 3])
   const fn = d => d
   const a = distinct(res, fn)
