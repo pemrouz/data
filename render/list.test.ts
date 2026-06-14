@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { test } from 'node:test'
+import { spec } from '../tests/spec.ts'
 import { strictEqual as eq } from 'node:assert'
 
 // Deterministic render test for ARRAY-shaped lists (a sort()/az() view). node
@@ -50,7 +50,7 @@ global.document = {
 // imported after the document stub is installed
 const { $, value, render, HTML } = await import('../full.ts')
 
-test('render - array (sort) list stays consistent through insert/remove/reorder/edit', () => {
+spec({ op:'render', guarantee:'Alignment', trigger:'insert/remove/edit', shape:'array', chain:'az→render', asserts:'the DOM mirrors a sort view through insert, remove, reorder and edit' }, () => {
   const data = $({ a: { t: 'A', o: 0 }, b: { t: 'B', o: 1 }, c: { t: 'C', o: 2 } })
   const view = data.az('o')                 // array-shaped [A, B, C]
   const root = new El('root')
@@ -71,7 +71,7 @@ test('render - array (sort) list stays consistent through insert/remove/reorder/
   eq(dom(), '!m2CA')
 })
 
-test('render - object sparse producer renders no phantom row for an excluded key (C4 object-half)', () => {
+spec({ op:'render', guarantee:'Fidelity', trigger:'bound-move', shape:'object', issue:'C4', chain:'between→render', asserts:'a sparse object producer renders no phantom row for an excluded key' }, () => {
   // A between/intersect/union/except over an OBJECT source marks an excluded
   // key with EXPLICIT `undefined` (not delete) when a row leaves via a bound
   // move. If a DOMSink connects to such a view AFTER a row has left (the
@@ -93,7 +93,7 @@ test('render - object sparse producer renders no phantom row for an excluded key
   eq(root.children[0].text, '50')
 })
 
-test('render - array sparse producer (between) renders only in-range rows in index order, no phantom holes (C4 array-half)', () => {
+spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', issue:'C4', via:['BF0','BH1'], chain:'between→render', asserts:'a sparse array producer renders only in-range rows in index order, no phantom holes' }, () => {
   // A between over an ARRAY source bound straight to a row template. Excluded
   // slots are holes (empty at construction, explicit-undefined after a bound
   // move); the array length is stable and survivors keep their index. The DOM
@@ -116,7 +116,7 @@ test('render - array sparse producer (between) renders only in-range rows in ind
   bound[value] = [40, 60];  same('re-widen');  eq(dom(), '50,55')            // 1,3 fill, 4 holes out
 })
 
-test('render - intersect/union/except over an ARRAY bound to the DOM track an incremental bound move (C4 array-half, all sparse producers)', () => {
+spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', issue:'C4', via:['BF0','BH1'], chain:'set-algebra→render', asserts:'every sparse array producer tracks an incremental bound move bound straight to the DOM' }, () => {
   // The C4 array-half fix wired DOMSink's index-keyed sparse path, but only
   // `between` emitted BH1/BF0 at first — intersect/union/except emitted plain
   // BR1/BI0 which core routes to the splice-shift BR1A/BI0A, corrupting the
@@ -176,7 +176,7 @@ test('render - intersect/union/except over an ARRAY bound to the DOM track an in
 // removed and every update appended a duplicate. (#39) clearing a sparse-bound
 // list after a tail-hole popped the hole (undefined.remove()). One _teardownAll
 // that walks holey arrays / object keys / the NODE slot fixes all three.
-test('render - list source -> undefined tears down cleanly and restores', () => {
+spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'object', issue:'H1', asserts:'a list source going undefined tears down cleanly and restores' }, () => {
   const root = document.createElement('div')
   const data = $({ a: { t: 'A' }, b: { t: 'B' } })
   render(root, HTML.ul(HTML.li(data, (n, r) => n.text(r?.t))))
@@ -187,7 +187,7 @@ test('render - list source -> undefined tears down cleanly and restores', () => 
   eq(root.children.length, 1)            // restores, no leftover/duplicate
 })
 
-test('render - scalar VP binding does not duplicate its element on update', () => {
+spec({ op:'render', guarantee:'Identity', trigger:'edit', shape:'scalar', issue:'H1', asserts:'a scalar VP binding does not duplicate its element on update' }, () => {
   const root = document.createElement('div')
   const n = $(1)
   render(root, HTML.div(HTML.span(n)))
@@ -197,7 +197,7 @@ test('render - scalar VP binding does not duplicate its element on update', () =
   eq(root.text, '3')
 })
 
-test('render - clearing a sparse-bound list after a tail hole does not crash', () => {
+spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'array', issue:'H1', chain:'between→render', asserts:'clearing a sparse-bound list after a tail hole does not crash' }, () => {
   const root = document.createElement('div')
   const d = $([{ v: 50 }, { v: 90 }])
   const ext = $([40, 100])
@@ -213,7 +213,7 @@ test('render - clearing a sparse-bound list after a tail hole does not crash', (
 // per row that all mutated the one Prop, whose `parent` ended up the LAST row —
 // so a reactive class update landed on one row, not all. generate now clones
 // each Prop/Node child.
-test('render - reactive prop on the row template applies to every row', () => {
+spec({ op:'render', guarantee:'Propagation', trigger:'edit', shape:'object', issue:'H2', asserts:'a reactive prop on the row template applies to every row' }, () => {
   const root = document.createElement('div')
   const items = $({ a: { t: 'A' }, b: { t: 'B' }, c: { t: 'C' } })
   const flag = $(false)
@@ -232,7 +232,7 @@ test('render - reactive prop on the row template applies to every row', () => {
 // root is a wrapper whose data-bound children render into the parent; a row is
 // `HTML.ul(HTML.li(items, rowFn))`. (The old docs put data on the wrapper —
 // `HTML.ul(items, fn)` — which renders nothing; corrected in the JSDoc/README.)
-test('render - documented list pattern renders rows and updates on insert', () => {
+spec({ op:'render', guarantee:'Fidelity', trigger:'insert', shape:'array', issue:'H3', asserts:'the documented list pattern renders rows and updates on insert' }, () => {
   const root = document.createElement('div')
   const items = $([{ name: 'a' }, { name: 'b' }])
   render(root, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
@@ -248,7 +248,7 @@ test('render - documented list pattern renders rows and updates on insert', () =
 // data[j] against the holey array — dropping rows (a between widened so every
 // row is in range gave "35" for [3,4,5]). All array XU0 now reconciles
 // index-keyed via _reconcile_sparse.
-test('render - sparse-bound list re-snapshotting dense keeps every row', () => {
+spec({ op:'render', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'H4', chain:'between→render', asserts:'a dense re-snapshot over a previously-sparse list keeps every row' }, () => {
   const root = document.createElement('div')
   const data = $([{ v: 3 }, { v: 1 }, { v: 4 }])
   const ext = $([3, 5])
@@ -264,7 +264,7 @@ test('render - sparse-bound list re-snapshotting dense keeps every row', () => {
 // strong ref — earlier sinks (held only by WeakRef in their view) could be
 // GC'd and silently stop rendering structural changes. `dom.sinks` now retains
 // all of them.
-test('render - multiple data-bound siblings all keep rendering', () => {
+spec({ op:'render', guarantee:'Robustness', trigger:'insert', shape:'object', issue:'H5', asserts:'multiple data-bound siblings are all retained and keep rendering' }, () => {
   const root = document.createElement('div')
   const a = $({ x: { t: 'a1' } })
   const b = $({ y: { t: 'b1' } })
@@ -282,7 +282,7 @@ test('render - multiple data-bound siblings all keep rendering', () => {
 // tail-relative BR1/BI0 against an index-keyed nodes array and blanked / mis-
 // rendered the list. BR1A/BI0A now re-sync the sparse list by index. (Dense
 // lists only get tail BR1A/BI0A and keep the cheap path.)
-test('render - structural source change on a sparse-bound list stays correct', () => {
+spec({ op:'render', guarantee:'Alignment', trigger:'insert/remove', shape:'array', issue:'H6', via:['BR1A','BI0A'], chain:'between→render', asserts:'a structural source insert/remove on a sparse-bound list stays correct' }, () => {
   const mk = (rows) => {
     const root = document.createElement('div')
     const data = $(rows)

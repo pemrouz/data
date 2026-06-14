@@ -2270,5 +2270,152 @@
     "asserts": "a static-only element gets no back-reference",
     "title": "render · Identity · construct · via __ripple_sink — a static-only element gets no back-reference",
     "file": "render/devtools_link.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove/edit",
+    "shape": "array",
+    "chain": "az→render",
+    "asserts": "the DOM mirrors a sort view through insert, remove, reorder and edit",
+    "via": [],
+    "title": "az→render · Alignment · insert/remove/edit · array — the DOM mirrors a sort view through insert, remove, reorder and edit",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Fidelity",
+    "trigger": "bound-move",
+    "shape": "object",
+    "issue": "C4",
+    "chain": "between→render",
+    "asserts": "a sparse object producer renders no phantom row for an excluded key",
+    "via": [],
+    "title": "between→render · Fidelity · bound-move · object · C4 — a sparse object producer renders no phantom row for an excluded key",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Alignment",
+    "trigger": "bound-move",
+    "shape": "array",
+    "issue": "C4",
+    "via": [
+      "BF0",
+      "BH1"
+    ],
+    "chain": "between→render",
+    "asserts": "a sparse array producer renders only in-range rows in index order, no phantom holes",
+    "title": "between→render · Alignment · bound-move · array · via BF0+BH1 · C4 — a sparse array producer renders only in-range rows in index order, no phantom holes",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Alignment",
+    "trigger": "bound-move",
+    "shape": "array",
+    "issue": "C4",
+    "via": [
+      "BF0",
+      "BH1"
+    ],
+    "chain": "set-algebra→render",
+    "asserts": "every sparse array producer tracks an incremental bound move bound straight to the DOM",
+    "title": "set-algebra→render · Alignment · bound-move · array · via BF0+BH1 · C4 — every sparse array producer tracks an incremental bound move bound straight to the DOM",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "object",
+    "issue": "H1",
+    "asserts": "a list source going undefined tears down cleanly and restores",
+    "via": [],
+    "title": "render · Robustness · overwrite · object · H1 — a list source going undefined tears down cleanly and restores",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Identity",
+    "trigger": "edit",
+    "shape": "scalar",
+    "issue": "H1",
+    "asserts": "a scalar VP binding does not duplicate its element on update",
+    "via": [],
+    "title": "render · Identity · edit · scalar · H1 — a scalar VP binding does not duplicate its element on update",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "array",
+    "issue": "H1",
+    "chain": "between→render",
+    "asserts": "clearing a sparse-bound list after a tail hole does not crash",
+    "via": [],
+    "title": "between→render · Robustness · overwrite · array · H1 — clearing a sparse-bound list after a tail hole does not crash",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "issue": "H2",
+    "asserts": "a reactive prop on the row template applies to every row",
+    "via": [],
+    "title": "render · Propagation · edit · object · H2 — a reactive prop on the row template applies to every row",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "array",
+    "issue": "H3",
+    "asserts": "the documented list pattern renders rows and updates on insert",
+    "via": [],
+    "title": "render · Fidelity · insert · array · H3 — the documented list pattern renders rows and updates on insert",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Alignment",
+    "trigger": "overwrite",
+    "shape": "array",
+    "issue": "H4",
+    "chain": "between→render",
+    "asserts": "a dense re-snapshot over a previously-sparse list keeps every row",
+    "via": [],
+    "title": "between→render · Alignment · overwrite · array · H4 — a dense re-snapshot over a previously-sparse list keeps every row",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Robustness",
+    "trigger": "insert",
+    "shape": "object",
+    "issue": "H5",
+    "asserts": "multiple data-bound siblings are all retained and keep rendering",
+    "via": [],
+    "title": "render · Robustness · insert · object · H5 — multiple data-bound siblings are all retained and keep rendering",
+    "file": "render/list.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "issue": "H6",
+    "via": [
+      "BR1A",
+      "BI0A"
+    ],
+    "chain": "between→render",
+    "asserts": "a structural source insert/remove on a sparse-bound list stays correct",
+    "title": "between→render · Alignment · insert/remove · array · via BR1A+BI0A · H6 — a structural source insert/remove on a sparse-bound list stays correct",
+    "file": "render/list.test.ts"
   }
 ]

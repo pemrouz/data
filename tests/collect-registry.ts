@@ -30,6 +30,7 @@ const FILES = [
   'operators/to/to.test.ts',
   'entry.test.ts',
   'render/devtools_link.test.ts',
+  'render/list.test.ts',
 ]
 
 for (const f of FILES) {
