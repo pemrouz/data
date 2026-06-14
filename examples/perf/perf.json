@@ -1,0 +1,1824 @@
+{
+  "schema": 1,
+  "run": {
+    "id": "2026-06-14T14-57-28Z-d2b20b0-7sy",
+    "commit": "d2b20b0",
+    "branch": "main",
+    "dirty": true,
+    "node": "v26.1.0",
+    "gc": true,
+    "ts": 1781449158817
+  },
+  "harnesses": {
+    "H4": {
+      "title": "interactive tail",
+      "rows": [
+        {
+          "id": "tail/crossfilter-brush",
+          "harness": "H4",
+          "op": "between→za(100)→length",
+          "case": "brush-240",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 84.042,
+          "dims": {
+            "N": 50000,
+            "frames": 240,
+            "synthetic": true,
+            "budget": 16
+          },
+          "stats": {
+            "p50": 2.373,
+            "p95": 69.878,
+            "p99": 84.042,
+            "max": 190.473
+          },
+          "viol16": 40,
+          "viol33": 40,
+          "frames": [
+            6.741,
+            190.473,
+            2.65,
+            1.948,
+            4.08,
+            6.585,
+            4.957,
+            2.783,
+            3.631,
+            4.612,
+            2.284,
+            2.273,
+            2.213,
+            3.64,
+            2.8,
+            2.464,
+            2.12,
+            2.03,
+            1.844,
+            1.501,
+            2.474,
+            2.933,
+            2.662,
+            2.314,
+            2.099,
+            1.899,
+            2.706,
+            11.959,
+            1.423,
+            2.95,
+            2.596,
+            2.272,
+            2.059,
+            1.9,
+            1.59,
+            1.402,
+            1.207,
+            3.115,
+            2.749,
+            2.373,
+            2.209,
+            1.851,
+            1.736,
+            1.467,
+            1.243,
+            3.043,
+            2.746,
+            2.266,
+            2.602,
+            1.954,
+            1.858,
+            1.757,
+            1.491,
+            3.335,
+            2.585,
+            2.343,
+            2.193,
+            2.758,
+            2.432,
+            1.93,
+            1.63,
+            2.873,
+            2.98,
+            2.794,
+            2.476,
+            2.703,
+            1.831,
+            1.425,
+            1.371,
+            2.383,
+            2.518,
+            2.431,
+            2.048,
+            1.831,
+            1.677,
+            1.485,
+            1.253,
+            2.444,
+            2.597,
+            2.42,
+            2.201,
+            1.833,
+            1.599,
+            1.521,
+            1.256,
+            2.59,
+            2.514,
+            2.739,
+            4.134,
+            3.542,
+            4.782,
+            1.56,
+            1.684,
+            1.91,
+            2.605,
+            2.351,
+            2.104,
+            1.933,
+            1.672,
+            1.859,
+            1.519,
+            2.08,
+            2.58,
+            2.341,
+            2.15,
+            2.105,
+            1.753,
+            11.675,
+            1.735,
+            2.26,
+            3.126,
+            2.627,
+            2.637,
+            2.422,
+            1.976,
+            2.091,
+            2.213,
+            5.215,
+            3.113,
+            2.76,
+            2.595,
+            2.206,
+            1.892,
+            1.609,
+            1.516,
+            1.533,
+            2.555,
+            2.308,
+            2.173,
+            2.157,
+            1.903,
+            1.572,
+            1.529,
+            1.617,
+            2.68,
+            2.335,
+            2.358,
+            1.934,
+            1.789,
+            1.535,
+            1.414,
+            1.731,
+            2.756,
+            2.368,
+            2.231,
+            1.988,
+            1.923,
+            1.86,
+            2.119,
+            2.385,
+            3.887,
+            2.958,
+            2.781,
+            2.469,
+            2.707,
+            2.375,
+            1.539,
+            1.26,
+            3.399,
+            2.76,
+            2.334,
+            1.99,
+            1.867,
+            1.593,
+            1.413,
+            1.433,
+            2.555,
+            2.462,
+            2.177,
+            1.994,
+            1.768,
+            1.758,
+            1.464,
+            1.271,
+            2.828,
+            2.589,
+            2.358,
+            2.147,
+            1.823,
+            1.62,
+            1.481,
+            1.319,
+            2.83,
+            2.536,
+            2.152,
+            3.623,
+            1.837,
+            1.639,
+            1.503,
+            1.286,
+            12.11,
+            2.822,
+            2.399,
+            2.119,
+            1.814,
+            1.709,
+            1.455,
+            1.325,
+            2.482,
+            2.641,
+            2.297,
+            73.127,
+            48.44,
+            68.432,
+            47.568,
+            64.925,
+            53.277,
+            70.019,
+            51.293,
+            76.628,
+            40.462,
+            79.256,
+            36.484,
+            84.333,
+            47.056,
+            78.19,
+            35.802,
+            80.848,
+            48.566,
+            63.989,
+            47.079,
+            54.312,
+            47.525,
+            60.697,
+            54.975,
+            58.709,
+            45.5,
+            64.569,
+            36.271,
+            84.042,
+            39.519,
+            76.3,
+            38.515,
+            67.938,
+            35.734,
+            69.878,
+            37.305,
+            75.48,
+            64.613,
+            59.701
+          ],
+          "worst": {
+            "ms": 190.473,
+            "at": 1,
+            "phase": "drag",
+            "op": "za",
+            "verb": "window",
+            "note": "windowed top-K churn"
+          }
+        }
+      ]
+    },
+    "ops": {
+      "title": "operators",
+      "rows": [
+        {
+          "id": "filter/setup@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 10.7303,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 10.7303
+          }
+        },
+        {
+          "id": "filter/single@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.4319,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.4319
+          }
+        },
+        {
+          "id": "filter/batch@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 8.418,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 8.418
+          }
+        },
+        {
+          "id": "map/setup@N=10000",
+          "harness": "ops",
+          "group": "map",
+          "op": "map",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 6.6608,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 6.6608
+          }
+        },
+        {
+          "id": "map/single@N=10000",
+          "harness": "ops",
+          "group": "map",
+          "op": "map",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.129,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.129
+          }
+        },
+        {
+          "id": "map/batch@N=10000",
+          "harness": "ops",
+          "group": "map",
+          "op": "map",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 7.2064,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 7.2064
+          }
+        },
+        {
+          "id": "to/setup@N=10000",
+          "harness": "ops",
+          "group": "to",
+          "op": "to",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.5849,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.5849
+          }
+        },
+        {
+          "id": "to/single@N=10000",
+          "harness": "ops",
+          "group": "to",
+          "op": "to",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.9541,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.9541
+          }
+        },
+        {
+          "id": "to/batch@N=10000",
+          "harness": "ops",
+          "group": "to",
+          "op": "to",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 189.9739,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 189.9739
+          }
+        },
+        {
+          "id": "between/setup@N=10000",
+          "harness": "ops",
+          "group": "between",
+          "op": "between",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 22.184,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 22.184
+          }
+        },
+        {
+          "id": "between/single@N=10000",
+          "harness": "ops",
+          "group": "between",
+          "op": "between",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1947,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1947
+          }
+        },
+        {
+          "id": "between/batch@N=10000",
+          "harness": "ops",
+          "group": "between",
+          "op": "between",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 7.6708,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 7.6708
+          }
+        },
+        {
+          "id": "gt/setup@N=10000",
+          "harness": "ops",
+          "group": "gt",
+          "op": "gt",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 7.8066,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 7.8066
+          }
+        },
+        {
+          "id": "gt/single@N=10000",
+          "harness": "ops",
+          "group": "gt",
+          "op": "gt",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1259,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1259
+          }
+        },
+        {
+          "id": "gt/batch@N=10000",
+          "harness": "ops",
+          "group": "gt",
+          "op": "gt",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 4.4202,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 4.4202
+          }
+        },
+        {
+          "id": "az/setup@N=10000",
+          "harness": "ops",
+          "group": "az",
+          "op": "az",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 26.2435,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 26.2435
+          }
+        },
+        {
+          "id": "az/single@N=10000",
+          "harness": "ops",
+          "group": "az",
+          "op": "az",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.1378,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.1378
+          }
+        },
+        {
+          "id": "az/batch@N=10000",
+          "harness": "ops",
+          "group": "az",
+          "op": "az",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 304.2798,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 304.2798
+          }
+        },
+        {
+          "id": "za(100)/setup@N=10000",
+          "harness": "ops",
+          "group": "za(100)",
+          "op": "za(100)",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 18.421,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 18.421
+          }
+        },
+        {
+          "id": "za(100)/single@N=10000",
+          "harness": "ops",
+          "group": "za(100)",
+          "op": "za(100)",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.4458,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.4458
+          }
+        },
+        {
+          "id": "za(100)/batch@N=10000",
+          "harness": "ops",
+          "group": "za(100)",
+          "op": "za(100)",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 171.2557,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 171.2557
+          }
+        },
+        {
+          "id": "length/setup@N=10000",
+          "harness": "ops",
+          "group": "length",
+          "op": "length",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.8754,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.8754
+          }
+        },
+        {
+          "id": "length/single@N=10000",
+          "harness": "ops",
+          "group": "length",
+          "op": "length",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.0535,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.0535
+          }
+        },
+        {
+          "id": "length/batch@N=10000",
+          "harness": "ops",
+          "group": "length",
+          "op": "length",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.7979,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 1.7979
+          }
+        },
+        {
+          "id": "length(fn)/setup@N=10000",
+          "harness": "ops",
+          "group": "length(fn)",
+          "op": "length(fn)",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 2.4779,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 2.4779
+          }
+        },
+        {
+          "id": "length(fn)/single@N=10000",
+          "harness": "ops",
+          "group": "length(fn)",
+          "op": "length(fn)",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.2481,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.2481
+          }
+        },
+        {
+          "id": "length(fn)/batch@N=10000",
+          "harness": "ops",
+          "group": "length(fn)",
+          "op": "length(fn)",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 493.0298,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 493.0298
+          }
+        },
+        {
+          "id": "sum/setup@N=10000",
+          "harness": "ops",
+          "group": "sum",
+          "op": "sum",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 5.9585,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 5.9585
+          }
+        },
+        {
+          "id": "sum/single@N=10000",
+          "harness": "ops",
+          "group": "sum",
+          "op": "sum",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1315,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1315
+          }
+        },
+        {
+          "id": "sum/batch@N=10000",
+          "harness": "ops",
+          "group": "sum",
+          "op": "sum",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 5.4613,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 5.4613
+          }
+        },
+        {
+          "id": "avg/setup@N=10000",
+          "harness": "ops",
+          "group": "avg",
+          "op": "avg",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 6.4345,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 6.4345
+          }
+        },
+        {
+          "id": "avg/single@N=10000",
+          "harness": "ops",
+          "group": "avg",
+          "op": "avg",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1145,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1145
+          }
+        },
+        {
+          "id": "avg/batch@N=10000",
+          "harness": "ops",
+          "group": "avg",
+          "op": "avg",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 6.449,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 6.449
+          }
+        },
+        {
+          "id": "max/setup@N=10000",
+          "harness": "ops",
+          "group": "max",
+          "op": "max",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 12.0278,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 12.0278
+          }
+        },
+        {
+          "id": "max/single@N=10000",
+          "harness": "ops",
+          "group": "max",
+          "op": "max",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1366,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1366
+          }
+        },
+        {
+          "id": "max/batch@N=10000",
+          "harness": "ops",
+          "group": "max",
+          "op": "max",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 20.7542,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 20.7542
+          }
+        },
+        {
+          "id": "min/setup@N=10000",
+          "harness": "ops",
+          "group": "min",
+          "op": "min",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 15.462,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 15.462
+          }
+        },
+        {
+          "id": "min/single@N=10000",
+          "harness": "ops",
+          "group": "min",
+          "op": "min",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1292,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1292
+          }
+        },
+        {
+          "id": "min/batch@N=10000",
+          "harness": "ops",
+          "group": "min",
+          "op": "min",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 15.2122,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 15.2122
+          }
+        },
+        {
+          "id": "group/setup@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 48.5503,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 48.5503
+          }
+        },
+        {
+          "id": "group/single@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.4075,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.4075
+          }
+        },
+        {
+          "id": "group/batch@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 67.8809,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 67.8809
+          }
+        },
+        {
+          "id": "distinct/setup@N=10000",
+          "harness": "ops",
+          "group": "distinct",
+          "op": "distinct",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 9.0007,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 9.0007
+          }
+        },
+        {
+          "id": "distinct/single@N=10000",
+          "harness": "ops",
+          "group": "distinct",
+          "op": "distinct",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 8.468,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 8.468
+          }
+        },
+        {
+          "id": "distinct/batch@N=10000",
+          "harness": "ops",
+          "group": "distinct",
+          "op": "distinct",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 2.5267,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 2.5267
+          }
+        },
+        {
+          "id": "reduce/setup@N=10000",
+          "harness": "ops",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 3.7608,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 3.7608
+          }
+        },
+        {
+          "id": "reduce/single@N=10000",
+          "harness": "ops",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.8757,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.8757
+          }
+        },
+        {
+          "id": "reduce/batch@N=10000",
+          "harness": "ops",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 392.2095,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 392.2095
+          }
+        },
+        {
+          "id": "tap/setup@N=10000",
+          "harness": "ops",
+          "group": "tap",
+          "op": "tap",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 19.4798,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 19.4798
+          }
+        },
+        {
+          "id": "tap/single@N=10000",
+          "harness": "ops",
+          "group": "tap",
+          "op": "tap",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1657,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1657
+          }
+        },
+        {
+          "id": "tap/batch@N=10000",
+          "harness": "ops",
+          "group": "tap",
+          "op": "tap",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 4.4836,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 4.4836
+          }
+        },
+        {
+          "id": "reverse/setup@N=10000",
+          "harness": "ops",
+          "group": "reverse",
+          "op": "reverse",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 17.036,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 17.036
+          }
+        },
+        {
+          "id": "reverse/single@N=10000",
+          "harness": "ops",
+          "group": "reverse",
+          "op": "reverse",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 13.0943,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 13.0943
+          }
+        },
+        {
+          "id": "reverse/batch@N=10000",
+          "harness": "ops",
+          "group": "reverse",
+          "op": "reverse",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 5590.642,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 5590.642
+          }
+        },
+        {
+          "id": "keys/setup@N=10000",
+          "harness": "ops",
+          "group": "keys",
+          "op": "keys",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 3.3084,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 3.3084
+          }
+        },
+        {
+          "id": "keys/single@N=10000",
+          "harness": "ops",
+          "group": "keys",
+          "op": "keys",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 3.4477,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 3.4477
+          }
+        },
+        {
+          "id": "keys/batch@N=10000",
+          "harness": "ops",
+          "group": "keys",
+          "op": "keys",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1782.6557,
+          "dims": {
+            "N": 10000,
+            "batch": 500
+          },
+          "stats": {
+            "median": 1782.6557
+          }
+        }
+      ]
+    }
+  },
+  "history": [
+    {
+      "run": {
+        "id": "2026-06-14T14-45-33Z-d2b20b0-qb6",
+        "commit": "d2b20b0",
+        "ts": 1781448432434
+      },
+      "points": {
+        "tail/crossfilter-brush": 83.221,
+        "filter/setup@N=10000": 6.5236,
+        "filter/single@N=10000": 0.298,
+        "filter/batch@N=10000": 3.9884,
+        "map/setup@N=10000": 6.2626,
+        "map/single@N=10000": 0.113,
+        "map/batch@N=10000": 4.3063,
+        "to/setup@N=10000": 1.9091,
+        "to/single@N=10000": 1.2137,
+        "to/batch@N=10000": 144.2423,
+        "between/setup@N=10000": 18.4123,
+        "between/single@N=10000": 0.1523,
+        "between/batch@N=10000": 4.5251,
+        "gt/setup@N=10000": 8.0977,
+        "gt/single@N=10000": 0.14,
+        "gt/batch@N=10000": 4.6761,
+        "az/setup@N=10000": 23.67,
+        "az/single@N=10000": 1.1615,
+        "az/batch@N=10000": 220.433,
+        "za(100)/setup@N=10000": 13.0605,
+        "za(100)/single@N=10000": 0.1503,
+        "za(100)/batch@N=10000": 125.8448,
+        "length/setup@N=10000": 2.3562,
+        "length/single@N=10000": 0.0628,
+        "length/batch@N=10000": 1.6488,
+        "length(fn)/setup@N=10000": 2.3972,
+        "length(fn)/single@N=10000": 0.2383,
+        "length(fn)/batch@N=10000": 452.2378,
+        "sum/setup@N=10000": 5.507,
+        "sum/single@N=10000": 0.1068,
+        "sum/batch@N=10000": 3.91,
+        "avg/setup@N=10000": 5.6308,
+        "avg/single@N=10000": 0.1597,
+        "avg/batch@N=10000": 4.5142,
+        "max/setup@N=10000": 9.6025,
+        "max/single@N=10000": 0.117,
+        "max/batch@N=10000": 10.4656,
+        "min/setup@N=10000": 10.5636,
+        "min/single@N=10000": 0.0958,
+        "min/batch@N=10000": 15.7713,
+        "group/setup@N=10000": 40.4151,
+        "group/single@N=10000": 0.4501,
+        "group/batch@N=10000": 63.3166,
+        "distinct/setup@N=10000": 9.7344,
+        "distinct/single@N=10000": 7.4996,
+        "distinct/batch@N=10000": 3.8214,
+        "reduce/setup@N=10000": 2.3708,
+        "reduce/single@N=10000": 1.8014,
+        "reduce/batch@N=10000": 301.2426,
+        "tap/setup@N=10000": 10.7849,
+        "tap/single@N=10000": 0.0955,
+        "tap/batch@N=10000": 3.6188,
+        "reverse/setup@N=10000": 10.6554,
+        "reverse/single@N=10000": 13.8132,
+        "reverse/batch@N=10000": 5653.2614,
+        "keys/setup@N=10000": 3.5762,
+        "keys/single@N=10000": 2.0007,
+        "keys/batch@N=10000": 1379.7075
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-47-14Z-d2b20b0-pxf",
+        "commit": "d2b20b0",
+        "ts": 1781448534547
+      },
+      "points": {
+        "tail/crossfilter-brush": 82.596,
+        "filter/setup@N=10000": 10.569,
+        "filter/single@N=10000": 0.4432,
+        "filter/batch@N=10000": 5.1362,
+        "map/setup@N=10000": 5.0608,
+        "map/single@N=10000": 0.1288,
+        "map/batch@N=10000": 6.0172,
+        "to/setup@N=10000": 1.6349,
+        "to/single@N=10000": 1.6162,
+        "to/batch@N=10000": 181.5383,
+        "between/setup@N=10000": 21.7435,
+        "between/single@N=10000": 0.2608,
+        "between/batch@N=10000": 6.2143,
+        "gt/setup@N=10000": 9.9255,
+        "gt/single@N=10000": 0.1461,
+        "gt/batch@N=10000": 5.3055,
+        "az/setup@N=10000": 29.1849,
+        "az/single@N=10000": 1.542,
+        "az/batch@N=10000": 240.571,
+        "za(100)/setup@N=10000": 12.0869,
+        "za(100)/single@N=10000": 0.1493,
+        "za(100)/batch@N=10000": 122.2919,
+        "length/setup@N=10000": 1.9948,
+        "length/single@N=10000": 0.0507,
+        "length/batch@N=10000": 1.6488,
+        "length(fn)/setup@N=10000": 3.1696,
+        "length(fn)/single@N=10000": 0.3434,
+        "length(fn)/batch@N=10000": 587.0144,
+        "sum/setup@N=10000": 6.5758,
+        "sum/single@N=10000": 0.1304,
+        "sum/batch@N=10000": 4.3292,
+        "avg/setup@N=10000": 7.6888,
+        "avg/single@N=10000": 0.1771,
+        "avg/batch@N=10000": 6.954,
+        "max/setup@N=10000": 9.6932,
+        "max/single@N=10000": 0.1359,
+        "max/batch@N=10000": 10.712,
+        "min/setup@N=10000": 9.6115,
+        "min/single@N=10000": 0.1193,
+        "min/batch@N=10000": 13.1135,
+        "group/setup@N=10000": 39.4155,
+        "group/single@N=10000": 0.3462,
+        "group/batch@N=10000": 50.3714,
+        "distinct/setup@N=10000": 6.6448,
+        "distinct/single@N=10000": 7.5886,
+        "distinct/batch@N=10000": 2.9424,
+        "reduce/setup@N=10000": 2.0202,
+        "reduce/single@N=10000": 1.9035,
+        "reduce/batch@N=10000": 340.0696,
+        "tap/setup@N=10000": 11.3994,
+        "tap/single@N=10000": 0.121,
+        "tap/batch@N=10000": 4.2029,
+        "reverse/setup@N=10000": 15.9701,
+        "reverse/single@N=10000": 15.0497,
+        "reverse/batch@N=10000": 5000.7987,
+        "keys/setup@N=10000": 3.6066,
+        "keys/single@N=10000": 2.0922,
+        "keys/batch@N=10000": 1399.9054
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-48-56Z-d2b20b0-fei",
+        "commit": "d2b20b0",
+        "ts": 1781448633635
+      },
+      "points": {
+        "tail/crossfilter-brush": 100.263,
+        "filter/setup@N=10000": 8.0536,
+        "filter/single@N=10000": 0.4516,
+        "filter/batch@N=10000": 4.4618,
+        "map/setup@N=10000": 4.5259,
+        "map/single@N=10000": 0.0935,
+        "map/batch@N=10000": 4.0139,
+        "to/setup@N=10000": 1.0859,
+        "to/single@N=10000": 0.7249,
+        "to/batch@N=10000": 164.3882,
+        "between/setup@N=10000": 21.3132,
+        "between/single@N=10000": 0.2042,
+        "between/batch@N=10000": 5.1572,
+        "gt/setup@N=10000": 9.2842,
+        "gt/single@N=10000": 0.1201,
+        "gt/batch@N=10000": 6.6957,
+        "az/setup@N=10000": 26.4088,
+        "az/single@N=10000": 1.3566,
+        "az/batch@N=10000": 235.1483,
+        "za(100)/setup@N=10000": 15.0458,
+        "za(100)/single@N=10000": 0.1522,
+        "za(100)/batch@N=10000": 136.4771,
+        "length/setup@N=10000": 2.7396,
+        "length/single@N=10000": 0.0494,
+        "length/batch@N=10000": 1.5809,
+        "length(fn)/setup@N=10000": 2.4908,
+        "length(fn)/single@N=10000": 0.3041,
+        "length(fn)/batch@N=10000": 578.2202,
+        "sum/setup@N=10000": 6.4839,
+        "sum/single@N=10000": 0.1226,
+        "sum/batch@N=10000": 6.9108,
+        "avg/setup@N=10000": 6.8048,
+        "avg/single@N=10000": 0.139,
+        "avg/batch@N=10000": 5.5287,
+        "max/setup@N=10000": 11.5644,
+        "max/single@N=10000": 0.1254,
+        "max/batch@N=10000": 14.066,
+        "min/setup@N=10000": 9.0182,
+        "min/single@N=10000": 0.1079,
+        "min/batch@N=10000": 12.3454,
+        "group/setup@N=10000": 42.4447,
+        "group/single@N=10000": 0.3379,
+        "group/batch@N=10000": 50.1519,
+        "distinct/setup@N=10000": 6.2614,
+        "distinct/single@N=10000": 6.5206,
+        "distinct/batch@N=10000": 1.903,
+        "reduce/setup@N=10000": 2.22,
+        "reduce/single@N=10000": 1.7845,
+        "reduce/batch@N=10000": 333.2695,
+        "tap/setup@N=10000": 17.7487,
+        "tap/single@N=10000": 0.1008,
+        "tap/batch@N=10000": 4.4075,
+        "reverse/setup@N=10000": 12.5034,
+        "reverse/single@N=10000": 10.5614,
+        "reverse/batch@N=10000": 4809.8435,
+        "keys/setup@N=10000": 2.1807,
+        "keys/single@N=10000": 2.7922,
+        "keys/batch@N=10000": 1423.3869
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-50-35Z-d2b20b0-1s6",
+        "commit": "d2b20b0",
+        "ts": 1781448745478
+      },
+      "points": {
+        "tail/crossfilter-brush": 91.413,
+        "filter/setup@N=10000": 13.9816,
+        "filter/single@N=10000": 0.4281,
+        "filter/batch@N=10000": 7.7498,
+        "map/setup@N=10000": 6.3472,
+        "map/single@N=10000": 0.1376,
+        "map/batch@N=10000": 6.2841,
+        "to/setup@N=10000": 2.0208,
+        "to/single@N=10000": 1.3504,
+        "to/batch@N=10000": 239.5845,
+        "between/setup@N=10000": 31.2936,
+        "between/single@N=10000": 0.2464,
+        "between/batch@N=10000": 15.617,
+        "gt/setup@N=10000": 19.2518,
+        "gt/single@N=10000": 0.1706,
+        "gt/batch@N=10000": 9.6912,
+        "az/setup@N=10000": 37.74,
+        "az/single@N=10000": 2.511,
+        "az/batch@N=10000": 785.2482,
+        "za(100)/setup@N=10000": 29.8302,
+        "za(100)/single@N=10000": 0.3091,
+        "za(100)/batch@N=10000": 194.8438,
+        "length/setup@N=10000": 2.896,
+        "length/single@N=10000": 0.0885,
+        "length/batch@N=10000": 3.419,
+        "length(fn)/setup@N=10000": 10.8683,
+        "length(fn)/single@N=10000": 0.4886,
+        "length(fn)/batch@N=10000": 662.3684,
+        "sum/setup@N=10000": 11.5711,
+        "sum/single@N=10000": 0.1904,
+        "sum/batch@N=10000": 8.2668,
+        "avg/setup@N=10000": 10.875,
+        "avg/single@N=10000": 0.1689,
+        "avg/batch@N=10000": 11.8866,
+        "max/setup@N=10000": 12.5433,
+        "max/single@N=10000": 0.1177,
+        "max/batch@N=10000": 12.3152,
+        "min/setup@N=10000": 10.7658,
+        "min/single@N=10000": 0.1439,
+        "min/batch@N=10000": 14.9152,
+        "group/setup@N=10000": 39.5097,
+        "group/single@N=10000": 0.4432,
+        "group/batch@N=10000": 57.8135,
+        "distinct/setup@N=10000": 10.1732,
+        "distinct/single@N=10000": 11.3891,
+        "distinct/batch@N=10000": 6.0057,
+        "reduce/setup@N=10000": 3.0627,
+        "reduce/single@N=10000": 2.3499,
+        "reduce/batch@N=10000": 392.6882,
+        "tap/setup@N=10000": 11.6741,
+        "tap/single@N=10000": 0.1295,
+        "tap/batch@N=10000": 3.9946,
+        "reverse/setup@N=10000": 16.0248,
+        "reverse/single@N=10000": 13.7194,
+        "reverse/batch@N=10000": 4793.7993,
+        "keys/setup@N=10000": 2.5478,
+        "keys/single@N=10000": 2.4552,
+        "keys/batch@N=10000": 1379.8192
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-52-27Z-d2b20b0-8x6",
+        "commit": "d2b20b0",
+        "ts": 1781448838370
+      },
+      "points": {
+        "tail/crossfilter-brush": 72.512,
+        "filter/setup@N=10000": 11.633,
+        "filter/single@N=10000": 0.3704,
+        "filter/batch@N=10000": 4.9413,
+        "map/setup@N=10000": 5.8198,
+        "map/single@N=10000": 0.1065,
+        "map/batch@N=10000": 7.7597,
+        "to/setup@N=10000": 2.3558,
+        "to/single@N=10000": 1.4647,
+        "to/batch@N=10000": 194.06,
+        "between/setup@N=10000": 20.0636,
+        "between/single@N=10000": 0.1661,
+        "between/batch@N=10000": 5.3185,
+        "gt/setup@N=10000": 11.3577,
+        "gt/single@N=10000": 0.1186,
+        "gt/batch@N=10000": 5.6339,
+        "az/setup@N=10000": 28.0639,
+        "az/single@N=10000": 1.712,
+        "az/batch@N=10000": 218.5475,
+        "za(100)/setup@N=10000": 14.1052,
+        "za(100)/single@N=10000": 0.143,
+        "za(100)/batch@N=10000": 117.379,
+        "length/setup@N=10000": 2.4172,
+        "length/single@N=10000": 0.0694,
+        "length/batch@N=10000": 3.2162,
+        "length(fn)/setup@N=10000": 5.0751,
+        "length(fn)/single@N=10000": 0.3638,
+        "length(fn)/batch@N=10000": 499.2129,
+        "sum/setup@N=10000": 6.2968,
+        "sum/single@N=10000": 0.1188,
+        "sum/batch@N=10000": 4.2021,
+        "avg/setup@N=10000": 5.7139,
+        "avg/single@N=10000": 0.117,
+        "avg/batch@N=10000": 4.3217,
+        "max/setup@N=10000": 9.6276,
+        "max/single@N=10000": 0.112,
+        "max/batch@N=10000": 10.6812,
+        "min/setup@N=10000": 9.7275,
+        "min/single@N=10000": 0.1146,
+        "min/batch@N=10000": 11.5776,
+        "group/setup@N=10000": 50.8833,
+        "group/single@N=10000": 0.4275,
+        "group/batch@N=10000": 55.6663,
+        "distinct/setup@N=10000": 8.0596,
+        "distinct/single@N=10000": 6.4025,
+        "distinct/batch@N=10000": 2.1588,
+        "reduce/setup@N=10000": 2.0738,
+        "reduce/single@N=10000": 1.2034,
+        "reduce/batch@N=10000": 311.1477,
+        "tap/setup@N=10000": 11.3073,
+        "tap/single@N=10000": 0.1112,
+        "tap/batch@N=10000": 3.2446,
+        "reverse/setup@N=10000": 10.0745,
+        "reverse/single@N=10000": 10.4229,
+        "reverse/batch@N=10000": 4293.3895,
+        "keys/setup@N=10000": 2.3113,
+        "keys/single@N=10000": 1.9198,
+        "keys/batch@N=10000": 1264.1144
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-54-00Z-d2b20b0-95e",
+        "commit": "d2b20b0",
+        "ts": 1781448944897
+      },
+      "points": {
+        "tail/crossfilter-brush": 97.538,
+        "filter/setup@N=10000": 9.825,
+        "filter/single@N=10000": 0.3997,
+        "filter/batch@N=10000": 10.1735,
+        "map/setup@N=10000": 7.0566,
+        "map/single@N=10000": 0.122,
+        "map/batch@N=10000": 6.1407,
+        "to/setup@N=10000": 1.4912,
+        "to/single@N=10000": 0.8622,
+        "to/batch@N=10000": 193.8907,
+        "between/setup@N=10000": 20.9714,
+        "between/single@N=10000": 0.2632,
+        "between/batch@N=10000": 8.2064,
+        "gt/setup@N=10000": 10.5107,
+        "gt/single@N=10000": 0.1323,
+        "gt/batch@N=10000": 4.9338,
+        "az/setup@N=10000": 31.0874,
+        "az/single@N=10000": 1.3363,
+        "az/batch@N=10000": 237.1412,
+        "za(100)/setup@N=10000": 15.3869,
+        "za(100)/single@N=10000": 0.2147,
+        "za(100)/batch@N=10000": 136.1283,
+        "length/setup@N=10000": 3.0449,
+        "length/single@N=10000": 0.0522,
+        "length/batch@N=10000": 1.5526,
+        "length(fn)/setup@N=10000": 2.5965,
+        "length(fn)/single@N=10000": 0.2653,
+        "length(fn)/batch@N=10000": 509.6488,
+        "sum/setup@N=10000": 9.7667,
+        "sum/single@N=10000": 0.132,
+        "sum/batch@N=10000": 4.2736,
+        "avg/setup@N=10000": 8.1708,
+        "avg/single@N=10000": 0.136,
+        "avg/batch@N=10000": 5.5951,
+        "max/setup@N=10000": 10.7688,
+        "max/single@N=10000": 0.1126,
+        "max/batch@N=10000": 14.928,
+        "min/setup@N=10000": 8.6546,
+        "min/single@N=10000": 0.1052,
+        "min/batch@N=10000": 10.9833,
+        "group/setup@N=10000": 61.7033,
+        "group/single@N=10000": 0.7399,
+        "group/batch@N=10000": 73.4675,
+        "distinct/setup@N=10000": 10.7975,
+        "distinct/single@N=10000": 8.1904,
+        "distinct/batch@N=10000": 2.452,
+        "reduce/setup@N=10000": 2.1293,
+        "reduce/single@N=10000": 1.3213,
+        "reduce/batch@N=10000": 275.9106,
+        "tap/setup@N=10000": 13.4043,
+        "tap/single@N=10000": 0.1215,
+        "tap/batch@N=10000": 3.7467,
+        "reverse/setup@N=10000": 12.8864,
+        "reverse/single@N=10000": 13.466,
+        "reverse/batch@N=10000": 5284.4087,
+        "keys/setup@N=10000": 3.0236,
+        "keys/single@N=10000": 2.8368,
+        "keys/batch@N=10000": 1483.6264
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-55-47Z-d2b20b0-9u3",
+        "commit": "d2b20b0",
+        "ts": 1781449045509
+      },
+      "points": {
+        "tail/crossfilter-brush": 116.597,
+        "filter/setup@N=10000": 6.7217,
+        "filter/single@N=10000": 0.3536,
+        "filter/batch@N=10000": 5.9227,
+        "map/setup@N=10000": 4.2761,
+        "map/single@N=10000": 0.111,
+        "map/batch@N=10000": 4.6694,
+        "to/setup@N=10000": 1.9652,
+        "to/single@N=10000": 1.3145,
+        "to/batch@N=10000": 181.5669,
+        "between/setup@N=10000": 27.8838,
+        "between/single@N=10000": 0.2673,
+        "between/batch@N=10000": 8.1077,
+        "gt/setup@N=10000": 9.8685,
+        "gt/single@N=10000": 0.2,
+        "gt/batch@N=10000": 5.3966,
+        "az/setup@N=10000": 29.1132,
+        "az/single@N=10000": 2.5323,
+        "az/batch@N=10000": 253.5899,
+        "za(100)/setup@N=10000": 14.4275,
+        "za(100)/single@N=10000": 0.3143,
+        "za(100)/batch@N=10000": 128.1538,
+        "length/setup@N=10000": 1.6468,
+        "length/single@N=10000": 0.0569,
+        "length/batch@N=10000": 1.8165,
+        "length(fn)/setup@N=10000": 3.1078,
+        "length(fn)/single@N=10000": 0.2403,
+        "length(fn)/batch@N=10000": 482.7862,
+        "sum/setup@N=10000": 14.2755,
+        "sum/single@N=10000": 0.1861,
+        "sum/batch@N=10000": 4.9385,
+        "avg/setup@N=10000": 7.872,
+        "avg/single@N=10000": 0.1251,
+        "avg/batch@N=10000": 9.7294,
+        "max/setup@N=10000": 14.6254,
+        "max/single@N=10000": 0.1124,
+        "max/batch@N=10000": 12.0945,
+        "min/setup@N=10000": 13.201,
+        "min/single@N=10000": 0.108,
+        "min/batch@N=10000": 11.6138,
+        "group/setup@N=10000": 45.2316,
+        "group/single@N=10000": 0.485,
+        "group/batch@N=10000": 56.4267,
+        "distinct/setup@N=10000": 7.5223,
+        "distinct/single@N=10000": 8.0416,
+        "distinct/batch@N=10000": 2.4614,
+        "reduce/setup@N=10000": 2.8429,
+        "reduce/single@N=10000": 1.3504,
+        "reduce/batch@N=10000": 370.701,
+        "tap/setup@N=10000": 12.0915,
+        "tap/single@N=10000": 0.0946,
+        "tap/batch@N=10000": 4.1458,
+        "reverse/setup@N=10000": 12.0185,
+        "reverse/single@N=10000": 10.4609,
+        "reverse/batch@N=10000": 4818.851,
+        "keys/setup@N=10000": 2.2795,
+        "keys/single@N=10000": 2.2129,
+        "keys/batch@N=10000": 1309.3696
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T14-57-28Z-d2b20b0-7sy",
+        "commit": "d2b20b0",
+        "ts": 1781449158817
+      },
+      "points": {
+        "tail/crossfilter-brush": 84.042,
+        "filter/setup@N=10000": 10.7303,
+        "filter/single@N=10000": 0.4319,
+        "filter/batch@N=10000": 8.418,
+        "map/setup@N=10000": 6.6608,
+        "map/single@N=10000": 0.129,
+        "map/batch@N=10000": 7.2064,
+        "to/setup@N=10000": 1.5849,
+        "to/single@N=10000": 0.9541,
+        "to/batch@N=10000": 189.9739,
+        "between/setup@N=10000": 22.184,
+        "between/single@N=10000": 0.1947,
+        "between/batch@N=10000": 7.6708,
+        "gt/setup@N=10000": 7.8066,
+        "gt/single@N=10000": 0.1259,
+        "gt/batch@N=10000": 4.4202,
+        "az/setup@N=10000": 26.2435,
+        "az/single@N=10000": 1.1378,
+        "az/batch@N=10000": 304.2798,
+        "za(100)/setup@N=10000": 18.421,
+        "za(100)/single@N=10000": 0.4458,
+        "za(100)/batch@N=10000": 171.2557,
+        "length/setup@N=10000": 1.8754,
+        "length/single@N=10000": 0.0535,
+        "length/batch@N=10000": 1.7979,
+        "length(fn)/setup@N=10000": 2.4779,
+        "length(fn)/single@N=10000": 0.2481,
+        "length(fn)/batch@N=10000": 493.0298,
+        "sum/setup@N=10000": 5.9585,
+        "sum/single@N=10000": 0.1315,
+        "sum/batch@N=10000": 5.4613,
+        "avg/setup@N=10000": 6.4345,
+        "avg/single@N=10000": 0.1145,
+        "avg/batch@N=10000": 6.449,
+        "max/setup@N=10000": 12.0278,
+        "max/single@N=10000": 0.1366,
+        "max/batch@N=10000": 20.7542,
+        "min/setup@N=10000": 15.462,
+        "min/single@N=10000": 0.1292,
+        "min/batch@N=10000": 15.2122,
+        "group/setup@N=10000": 48.5503,
+        "group/single@N=10000": 0.4075,
+        "group/batch@N=10000": 67.8809,
+        "distinct/setup@N=10000": 9.0007,
+        "distinct/single@N=10000": 8.468,
+        "distinct/batch@N=10000": 2.5267,
+        "reduce/setup@N=10000": 3.7608,
+        "reduce/single@N=10000": 1.8757,
+        "reduce/batch@N=10000": 392.2095,
+        "tap/setup@N=10000": 19.4798,
+        "tap/single@N=10000": 0.1657,
+        "tap/batch@N=10000": 4.4836,
+        "reverse/setup@N=10000": 17.036,
+        "reverse/single@N=10000": 13.0943,
+        "reverse/batch@N=10000": 5590.642,
+        "keys/setup@N=10000": 3.3084,
+        "keys/single@N=10000": 3.4477,
+        "keys/batch@N=10000": 1782.6557
+      }
+    }
+  ]
+}
