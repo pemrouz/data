@@ -1,15 +1,130 @@
 {
   "schema": 1,
   "run": {
-    "id": "2026-06-14T16-27-21Z-bac4866-ivm",
-    "commit": "bac4866",
+    "id": "2026-06-14T16-44-33Z-ca1da05-1ar",
+    "commit": "ca1da05",
     "branch": "main",
     "dirty": true,
     "node": "v26.1.0",
     "gc": true,
-    "ts": 1781454468399
+    "ts": 1781455503715
   },
   "harnesses": {
+    "H1": {
+      "title": "complexity / scaling",
+      "rows": [
+        {
+          "id": "aggregate/object-insert@N=5000",
+          "harness": "H1",
+          "group": "aggregate",
+          "op": "aggregate",
+          "case": "object-insert",
+          "kind": "count",
+          "dir": "down",
+          "unit": "ops",
+          "value": 1,
+          "dims": {
+            "N": 5000
+          },
+          "stats": {
+            "count": 1
+          },
+          "instrument": {
+            "readsPerInsert": 1,
+            "reads/N": 0.0002
+          },
+          "note": "O(1) incremental BI0"
+        },
+        {
+          "id": "aggregate/array-insert@N=5000",
+          "harness": "H1",
+          "group": "aggregate",
+          "op": "aggregate",
+          "case": "array-insert",
+          "kind": "count",
+          "dir": "down",
+          "unit": "ops",
+          "value": 5001,
+          "dims": {
+            "N": 5000
+          },
+          "stats": {
+            "count": 5001
+          },
+          "instrument": {
+            "readsPerInsert": 5001,
+            "reads/N": 1.0002
+          },
+          "note": "O(N) XU0 rebuild (P7)"
+        },
+        {
+          "id": "reduce/inc-insert@N=5000",
+          "harness": "H1",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "inc-insert",
+          "kind": "count",
+          "dir": "down",
+          "unit": "ops",
+          "value": 1,
+          "dims": {
+            "N": 5000
+          },
+          "stats": {
+            "count": 1
+          },
+          "instrument": {
+            "readsPerInsert": 1,
+            "reads/N": 0.0002
+          },
+          "note": "O(1) incremental add()"
+        },
+        {
+          "id": "reduce/full-insert@N=5000",
+          "harness": "H1",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "full-insert",
+          "kind": "count",
+          "dir": "down",
+          "unit": "ops",
+          "value": 5001,
+          "dims": {
+            "N": 5000
+          },
+          "stats": {
+            "count": 5001
+          },
+          "instrument": {
+            "readsPerInsert": 5001,
+            "reads/N": 1.0002
+          },
+          "note": "O(N) general re-fold"
+        },
+        {
+          "id": "length(fn)/rebucket-insert@N=5000",
+          "harness": "H1",
+          "group": "length(fn)",
+          "op": "length(fn)",
+          "case": "rebucket-insert",
+          "kind": "count",
+          "dir": "down",
+          "unit": "ops",
+          "value": 1,
+          "dims": {
+            "N": 5000
+          },
+          "stats": {
+            "count": 1
+          },
+          "instrument": {
+            "readsPerInsert": 1,
+            "reads/N": 0.0002
+          },
+          "note": "O(1) one rebucket"
+        }
+      ]
+    },
     "H4": {
       "title": "interactive tail",
       "rows": [
@@ -21,7 +136,7 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 109.546,
+          "value": 139.061,
           "dims": {
             "N": 50000,
             "frames": 240,
@@ -29,257 +144,257 @@
             "budget": 16
           },
           "stats": {
-            "p50": 2.629,
-            "p95": 88.142,
-            "p99": 109.546,
-            "max": 205.759
+            "p50": 3.479,
+            "p95": 91.378,
+            "p99": 139.061,
+            "max": 271.279
           },
-          "viol16": 40,
+          "viol16": 41,
           "viol33": 40,
           "frames": [
-            7.927,
-            205.759,
-            4.086,
-            2.238,
-            2.886,
-            3.55,
-            3.047,
-            2.853,
-            2.512,
-            2.165,
-            2.012,
-            1.826,
-            2.112,
-            3.349,
-            3.022,
-            2.92,
-            3.452,
-            2.546,
-            2.539,
-            4.051,
-            2.609,
-            3.197,
-            2.872,
-            2.607,
-            2.475,
-            2.303,
-            2.015,
-            1.625,
-            1.569,
-            3.301,
-            2.858,
-            2.667,
-            2.302,
-            2.042,
-            1.823,
-            1.753,
-            1.492,
-            3.052,
-            3.006,
-            2.633,
-            2.435,
-            2.086,
-            1.946,
-            1.761,
-            1.643,
-            4.371,
-            3.294,
-            2.692,
-            2.462,
-            2.063,
-            2.035,
-            1.89,
-            1.441,
-            3.131,
-            2.73,
-            2.639,
-            2.351,
-            2.625,
-            2.137,
-            1.717,
-            7.575,
-            2.761,
-            2.772,
-            2.782,
-            2.342,
-            2.077,
-            1.934,
-            1.702,
-            1.443,
-            2.69,
-            3.005,
-            2.635,
-            2.361,
-            2.097,
-            1.888,
-            1.694,
-            1.686,
-            2.718,
-            2.908,
-            2.544,
-            2.471,
-            2.149,
-            2.259,
-            1.847,
-            1.727,
-            3.126,
-            2.903,
-            2.535,
-            2.266,
-            2.77,
-            2.533,
-            1.713,
-            1.524,
-            2.169,
-            2.761,
-            2.643,
-            2.486,
-            2.21,
-            1.986,
-            1.734,
-            1.514,
-            2.109,
+            9.142,
+            271.279,
+            5.513,
+            3.695,
+            6.771,
+            7.355,
+            7.264,
+            5.111,
+            6.368,
+            3.991,
             2.954,
-            2.629,
-            2.432,
-            2.239,
-            2.021,
-            1.859,
-            1.601,
-            2.578,
-            3.171,
-            2.779,
-            2.89,
-            2.634,
-            2.154,
-            1.814,
-            1.833,
-            2.42,
-            2.81,
-            2.561,
-            2.587,
-            2.244,
-            2.611,
-            3.037,
-            1.734,
-            2.602,
-            4.646,
-            3.328,
-            2.728,
-            2.365,
-            2.135,
-            1.774,
-            1.629,
-            1.838,
-            3.224,
-            2.82,
-            2.54,
-            2.354,
-            2.012,
-            1.996,
-            1.797,
-            2.161,
-            3.162,
-            2.611,
-            2.538,
-            2.251,
-            2.035,
-            1.802,
-            1.768,
-            2.073,
-            2.817,
-            2.57,
-            2.444,
-            2.224,
-            2.662,
-            2.372,
-            5.571,
-            1.721,
-            3.128,
-            2.835,
-            2.674,
-            2.548,
-            2.462,
-            2.037,
-            1.842,
-            1.661,
-            4.613,
-            3.412,
-            3.241,
-            2.968,
+            2.725,
+            2.887,
+            7.613,
+            4.45,
+            3.666,
+            3.404,
+            4.092,
+            4.024,
             2.836,
-            2.204,
-            1.85,
-            1.587,
-            3.284,
-            3.465,
-            3.012,
-            2.629,
-            3.122,
-            3.805,
-            3.362,
-            1.915,
-            3.283,
-            3.088,
-            2.789,
-            3.251,
-            2.214,
-            2.093,
-            1.869,
-            1.565,
-            2.761,
-            2.955,
-            2.649,
-            2.334,
-            2.482,
-            1.991,
-            1.853,
-            1.583,
-            2.623,
-            3.167,
-            2.944,
-            87.39,
-            60.734,
-            102.888,
-            55.106,
-            102.288,
-            57.109,
-            109.546,
-            77.983,
-            118.173,
-            74.312,
-            99.739,
-            73.021,
-            107.599,
-            61.865,
-            92.194,
-            56.465,
-            91.588,
-            50.46,
-            88.142,
-            48.34,
-            95.326,
-            49.706,
-            86.675,
-            49.599,
-            85.989,
-            44.559,
-            76.999,
-            44.902,
-            79.014,
-            44.331,
-            87.9,
-            44.627,
-            73.448,
-            47.764,
-            72.315,
-            45.63,
-            71.536,
-            54.94,
-            90.324
+            4.018,
+            4.324,
+            3.868,
+            3.365,
+            2.986,
+            2.615,
+            2.597,
+            2.665,
+            2.248,
+            4.047,
+            3.726,
+            3.305,
+            2.926,
+            2.549,
+            2.506,
+            2.052,
+            1.924,
+            3.671,
+            3.825,
+            3.506,
+            3,
+            2.717,
+            2.349,
+            1.996,
+            2.661,
+            5.549,
+            4.314,
+            17.394,
+            4.948,
+            3.543,
+            2.804,
+            2.501,
+            2.356,
+            4.901,
+            5.172,
+            3.984,
+            4.014,
+            3.506,
+            3.091,
+            2.717,
+            2.596,
+            5.792,
+            4.682,
+            3.479,
+            2.816,
+            2.987,
+            2.468,
+            2.627,
+            2.194,
+            3.239,
+            3.63,
+            3.544,
+            2.943,
+            3.505,
+            2.754,
+            2.215,
+            2.295,
+            3.406,
+            3.844,
+            3.17,
+            2.961,
+            3.574,
+            2.697,
+            2.405,
+            2.019,
+            4.433,
+            3.951,
+            3.458,
+            2.969,
+            2.566,
+            3.202,
+            2.75,
+            1.891,
+            2.796,
+            3.415,
+            3.444,
+            3.32,
+            2.806,
+            2.583,
+            2.333,
+            2.111,
+            2.784,
+            4.316,
+            7.289,
+            3.207,
+            4.403,
+            3.306,
+            3.215,
+            2.293,
+            3.1,
+            4.518,
+            3.349,
+            2.923,
+            2.716,
+            2.535,
+            2.937,
+            3.581,
+            4.183,
+            4.515,
+            4.284,
+            3.825,
+            3.353,
+            3.137,
+            2.957,
+            2.457,
+            3.422,
+            4.689,
+            5.058,
+            3.985,
+            3.719,
+            3.329,
+            3.039,
+            2.81,
+            3.149,
+            5.993,
+            5.664,
+            3.455,
+            2.914,
+            2.745,
+            2.584,
+            2.048,
+            2.517,
+            3.976,
+            8.976,
+            3.37,
+            2.914,
+            2.634,
+            2.38,
+            1.988,
+            2.544,
+            4.137,
+            3.899,
+            5.505,
+            3.529,
+            3.582,
+            3.559,
+            2.839,
+            2.486,
+            3.961,
+            3.473,
+            3.209,
+            2.759,
+            3.932,
+            2.773,
+            2.286,
+            1.821,
+            3.699,
+            3.464,
+            3.118,
+            3.006,
+            2.545,
+            2.346,
+            2.667,
+            1.954,
+            4.348,
+            3.852,
+            3.636,
+            2.929,
+            2.555,
+            2.587,
+            2.229,
+            1.902,
+            4.007,
+            3.469,
+            4.021,
+            4.568,
+            3.728,
+            2.881,
+            2.432,
+            2.026,
+            3.372,
+            3.625,
+            3.223,
+            3.19,
+            3.21,
+            4.017,
+            3.481,
+            3.081,
+            3.818,
+            4.065,
+            3.295,
+            160.839,
+            82.526,
+            139.061,
+            65.083,
+            124.052,
+            78.997,
+            127.156,
+            76.242,
+            118.055,
+            65.963,
+            107.626,
+            63.712,
+            106.022,
+            77.482,
+            134.605,
+            59.401,
+            103.781,
+            58.158,
+            91.378,
+            51.825,
+            93.095,
+            53.984,
+            90.252,
+            51.023,
+            86.446,
+            54.219,
+            90.745,
+            47.014,
+            80.733,
+            44.374,
+            79.431,
+            43.366,
+            79.654,
+            45.747,
+            77.9,
+            45.285,
+            78.861,
+            51.118,
+            71.211
           ],
           "worst": {
-            "ms": 205.759,
+            "ms": 271.279,
             "at": 1,
             "phase": "drag",
             "op": "za",
@@ -301,12 +416,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 4.8688,
+          "value": 4.5762,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 4.8688
+            "median": 4.5762
           }
         },
         {
@@ -318,12 +433,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1278,
+          "value": 0.1552,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1278
+            "median": 0.1552
           }
         },
         {
@@ -335,13 +450,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.9201,
+          "value": 3.0035,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.9201
+            "median": 3.0035
           }
         },
         {
@@ -353,12 +468,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 6.1493,
+          "value": 6.06,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 6.1493
+            "median": 6.06
           }
         },
         {
@@ -370,12 +485,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1948,
+          "value": 0.1757,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1948
+            "median": 0.1757
           }
         },
         {
@@ -387,13 +502,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.7065,
+          "value": 1.6456,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 1.7065
+            "median": 1.6456
           }
         },
         {
@@ -405,12 +520,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 4.6309,
+          "value": 4.5075,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 4.6309
+            "median": 4.5075
           }
         },
         {
@@ -422,13 +537,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.8994,
+          "value": 3.8137,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.8994
+            "median": 3.8137
           }
         },
         {
@@ -440,12 +555,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 14.6774,
+          "value": 14.5473,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 14.6774
+            "median": 14.5473
           }
         },
         {
@@ -457,12 +572,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.9795,
+          "value": 3.601,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.9795
+            "median": 3.601
           }
         },
         {
@@ -474,13 +589,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.6044,
+          "value": 3.724,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.6044
+            "median": 3.724
           }
         },
         {
@@ -492,13 +607,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.4604,
+          "value": 1.2839,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.4604
+            "median": 1.2839
           }
         },
         {
@@ -510,12 +625,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.4952,
+          "value": 2.006,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.4952
+            "median": 2.006
           }
         },
         {
@@ -527,12 +642,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1412,
+          "value": 0.1363,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1412
+            "median": 0.1363
           }
         },
         {
@@ -544,13 +659,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.2636,
+          "value": 2.9232,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 3.2636
+            "median": 2.9232
           }
         },
         {
@@ -562,12 +677,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.9396,
+          "value": 1.7798,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.9396
+            "median": 1.7798
           }
         },
         {
@@ -579,12 +694,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.3169,
+          "value": 1.951,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.3169
+            "median": 1.951
           }
         },
         {
@@ -596,12 +711,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.8161,
+          "value": 1.8598,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.8161
+            "median": 1.8598
           }
         },
         {
@@ -613,12 +728,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 7.2969,
+          "value": 7.19,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 7.2969
+            "median": 7.19
           }
         },
         {
@@ -626,6 +741,266 @@
           "harness": "ops",
           "group": "distinct",
           "op": "distinct",
+          "case": "insert",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.102,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.102
+          }
+        },
+        {
+          "id": "distinct/batch@N=10000",
+          "harness": "ops",
+          "group": "distinct",
+          "op": "distinct",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.537,
+          "dims": {
+            "N": 10000,
+            "batch": 100
+          },
+          "stats": {
+            "median": 0.537
+          }
+        },
+        {
+          "id": "except/setup@N=10000",
+          "harness": "ops",
+          "group": "except",
+          "op": "except",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 3.0718,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 3.0718
+          }
+        },
+        {
+          "id": "except/insert-other@N=10000",
+          "harness": "ops",
+          "group": "except",
+          "op": "except",
+          "case": "insert-other",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 2.6839,
+          "dims": {
+            "N": 10000,
+            "batch": 1000
+          },
+          "stats": {
+            "median": 2.6839
+          }
+        },
+        {
+          "id": "except/remove-other@N=10000",
+          "harness": "ops",
+          "group": "except",
+          "op": "except",
+          "case": "remove-other",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.4237,
+          "dims": {
+            "N": 10000,
+            "batch": 1000
+          },
+          "stats": {
+            "median": 1.4237
+          }
+        },
+        {
+          "id": "filter/setup@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.8381,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.8381
+          }
+        },
+        {
+          "id": "filter/single@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "single",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.0921,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.0921
+          }
+        },
+        {
+          "id": "filter/batch@N=10000",
+          "harness": "ops",
+          "group": "filter",
+          "op": "filter",
+          "case": "batch",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 2.9972,
+          "dims": {
+            "N": 10000,
+            "batch": 1000
+          },
+          "stats": {
+            "median": 2.9972
+          }
+        },
+        {
+          "id": "group/setup@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 6.3493,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 6.3493
+          }
+        },
+        {
+          "id": "group/insert@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "insert",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1282,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1282
+          }
+        },
+        {
+          "id": "group/churn@N=10000",
+          "harness": "ops",
+          "group": "group",
+          "op": "group",
+          "case": "churn",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.0813,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.0813
+          }
+        },
+        {
+          "id": "intersect/setup@N=10000",
+          "harness": "ops",
+          "group": "intersect",
+          "op": "intersect",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 9.6704,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 9.6704
+          }
+        },
+        {
+          "id": "intersect/churn@N=10000",
+          "harness": "ops",
+          "group": "intersect",
+          "op": "intersect",
+          "case": "churn",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 2.9948,
+          "dims": {
+            "N": 10000,
+            "batch": 1000
+          },
+          "stats": {
+            "median": 2.9948
+          }
+        },
+        {
+          "id": "keys/setup@N=10000",
+          "harness": "ops",
+          "group": "keys",
+          "op": "keys",
+          "case": "setup",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 1.9914,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 1.9914
+          }
+        },
+        {
+          "id": "keys/insert@N=10000",
+          "harness": "ops",
+          "group": "keys",
+          "op": "keys",
+          "case": "insert",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1199,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1199
+          }
+        },
+        {
+          "id": "length/insert@N=10000",
+          "harness": "ops",
+          "group": "length",
+          "op": "length",
           "case": "insert",
           "kind": "timing",
           "dir": "down",
@@ -639,266 +1014,6 @@
           }
         },
         {
-          "id": "distinct/batch@N=10000",
-          "harness": "ops",
-          "group": "distinct",
-          "op": "distinct",
-          "case": "batch",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.3794,
-          "dims": {
-            "N": 10000,
-            "batch": 100
-          },
-          "stats": {
-            "median": 0.3794
-          }
-        },
-        {
-          "id": "except/setup@N=10000",
-          "harness": "ops",
-          "group": "except",
-          "op": "except",
-          "case": "setup",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 3.5777,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 3.5777
-          }
-        },
-        {
-          "id": "except/insert-other@N=10000",
-          "harness": "ops",
-          "group": "except",
-          "op": "except",
-          "case": "insert-other",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 2.4695,
-          "dims": {
-            "N": 10000,
-            "batch": 1000
-          },
-          "stats": {
-            "median": 2.4695
-          }
-        },
-        {
-          "id": "except/remove-other@N=10000",
-          "harness": "ops",
-          "group": "except",
-          "op": "except",
-          "case": "remove-other",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 2.0381,
-          "dims": {
-            "N": 10000,
-            "batch": 1000
-          },
-          "stats": {
-            "median": 2.0381
-          }
-        },
-        {
-          "id": "filter/setup@N=10000",
-          "harness": "ops",
-          "group": "filter",
-          "op": "filter",
-          "case": "setup",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 2.7155,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 2.7155
-          }
-        },
-        {
-          "id": "filter/single@N=10000",
-          "harness": "ops",
-          "group": "filter",
-          "op": "filter",
-          "case": "single",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.1345,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.1345
-          }
-        },
-        {
-          "id": "filter/batch@N=10000",
-          "harness": "ops",
-          "group": "filter",
-          "op": "filter",
-          "case": "batch",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 4.379,
-          "dims": {
-            "N": 10000,
-            "batch": 1000
-          },
-          "stats": {
-            "median": 4.379
-          }
-        },
-        {
-          "id": "group/setup@N=10000",
-          "harness": "ops",
-          "group": "group",
-          "op": "group",
-          "case": "setup",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 8.9076,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 8.9076
-          }
-        },
-        {
-          "id": "group/insert@N=10000",
-          "harness": "ops",
-          "group": "group",
-          "op": "group",
-          "case": "insert",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.1772,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.1772
-          }
-        },
-        {
-          "id": "group/churn@N=10000",
-          "harness": "ops",
-          "group": "group",
-          "op": "group",
-          "case": "churn",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.1418,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.1418
-          }
-        },
-        {
-          "id": "intersect/setup@N=10000",
-          "harness": "ops",
-          "group": "intersect",
-          "op": "intersect",
-          "case": "setup",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 11.3469,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 11.3469
-          }
-        },
-        {
-          "id": "intersect/churn@N=10000",
-          "harness": "ops",
-          "group": "intersect",
-          "op": "intersect",
-          "case": "churn",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 3.3809,
-          "dims": {
-            "N": 10000,
-            "batch": 1000
-          },
-          "stats": {
-            "median": 3.3809
-          }
-        },
-        {
-          "id": "keys/setup@N=10000",
-          "harness": "ops",
-          "group": "keys",
-          "op": "keys",
-          "case": "setup",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 2.3516,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 2.3516
-          }
-        },
-        {
-          "id": "keys/insert@N=10000",
-          "harness": "ops",
-          "group": "keys",
-          "op": "keys",
-          "case": "insert",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.146,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.146
-          }
-        },
-        {
-          "id": "length/insert@N=10000",
-          "harness": "ops",
-          "group": "length",
-          "op": "length",
-          "case": "insert",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.1106,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.1106
-          }
-        },
-        {
           "id": "length(fn)/setup@N=10000",
           "harness": "ops",
           "group": "length(fn)",
@@ -907,12 +1022,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 5.3128,
+          "value": 4.9556,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 5.3128
+            "median": 4.9556
           }
         },
         {
@@ -924,12 +1039,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 5.2275,
+          "value": 2.9659,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 5.2275
+            "median": 2.9659
           }
         },
         {
@@ -941,12 +1056,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1817,
+          "value": 0.1183,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1817
+            "median": 0.1183
           }
         },
         {
@@ -958,12 +1073,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.7807,
+          "value": 2.6048,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.7807
+            "median": 2.6048
           }
         },
         {
@@ -975,12 +1090,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.2264,
+          "value": 2.122,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.2264
+            "median": 2.122
           }
         },
         {
@@ -992,13 +1107,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 78.1832,
+          "value": 90.8943,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 78.1832
+            "median": 90.8943
           }
         },
         {
@@ -1010,12 +1125,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 6.4031,
+          "value": 11.7877,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 6.4031
+            "median": 11.7877
           }
         },
         {
@@ -1027,12 +1142,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1262,
+          "value": 0.1664,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1262
+            "median": 0.1664
           }
         },
         {
@@ -1044,13 +1159,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.298,
+          "value": 0.5502,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 0.298
+            "median": 0.5502
           }
         },
         {
@@ -1062,13 +1177,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3211,
+          "value": 0.5737,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 0.3211
+            "median": 0.5737
           }
         },
         {
@@ -1080,12 +1195,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.8521,
+          "value": 2.6825,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.8521
+            "median": 2.6825
           }
         },
         {
@@ -1097,12 +1212,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.14,
+          "value": 0.1917,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.14
+            "median": 0.1917
           }
         },
         {
@@ -1114,13 +1229,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 83.6802,
+          "value": 90.4223,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 83.6802
+            "median": 90.4223
           }
         },
         {
@@ -1132,12 +1247,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 23.9464,
+          "value": 26.1896,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 23.9464
+            "median": 26.1896
           }
         },
         {
@@ -1149,12 +1264,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1738,
+          "value": 0.2387,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1738
+            "median": 0.2387
           }
         },
         {
@@ -1166,12 +1281,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1992,
+          "value": 0.204,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1992
+            "median": 0.204
           }
         },
         {
@@ -1183,12 +1298,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 22.7552,
+          "value": 28.5393,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 22.7552
+            "median": 28.5393
           }
         },
         {
@@ -1200,12 +1315,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3679,
+          "value": 0.4838,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.3679
+            "median": 0.4838
           }
         },
         {
@@ -1217,12 +1332,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1983,
+          "value": 0.2987,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1983
+            "median": 0.2987
           }
         },
         {
@@ -1234,13 +1349,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.974,
+          "value": 6.4044,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 3.974
+            "median": 6.4044
           }
         },
         {
@@ -1252,13 +1367,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 4.542,
+          "value": 3.2255,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 4.542
+            "median": 3.2255
           }
         },
         {
@@ -1270,12 +1385,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.0888,
+          "value": 1.2542,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.0888
+            "median": 1.2542
           }
         },
         {
@@ -1287,12 +1402,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.6496,
+          "value": 0.4934,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.6496
+            "median": 0.4934
           }
         },
         {
@@ -1304,13 +1419,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 229.4009,
+          "value": 280.5897,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 229.4009
+            "median": 280.5897
           }
         },
         {
@@ -1322,12 +1437,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 13.7135,
+          "value": 22.3463,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 13.7135
+            "median": 22.3463
           }
         },
         {
@@ -1339,13 +1454,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.2016,
+          "value": 6.1699,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 3.2016
+            "median": 6.1699
           }
         },
         {
@@ -1357,13 +1472,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.9529,
+          "value": 2.5349,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.9529
+            "median": 2.5349
           }
         },
         {
@@ -1375,12 +1490,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.7552,
+          "value": 1.6886,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.7552
+            "median": 1.6886
           }
         },
         {
@@ -1392,13 +1507,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 94.3548,
+          "value": 106.4395,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 94.3548
+            "median": 106.4395
           }
         }
       ]
@@ -3603,6 +3718,638 @@
         "union/insert@N=10000": 2.9529,
         "values/setup@N=10000": 1.7552,
         "values/batch@N=10000": 94.3548
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-39-31Z-5ca1e1a-xdx",
+        "commit": "5ca1e1a",
+        "ts": 1781455203451
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 189.055,
+        "aggregate/sum-setup@N=10000": 6.5607,
+        "aggregate/sum-insert@N=10000": 0.225,
+        "aggregate/avg-batch@N=10000": 3.3496,
+        "aggregate/max-setup@N=10000": 6.9838,
+        "aggregate/max-insert@N=10000": 0.2509,
+        "aggregate/min-batch@N=10000": 2.5534,
+        "aggregate/some-setup@N=10000": 6.4755,
+        "aggregate/every-batch@N=10000": 5.2342,
+        "between/setup@N=10000": 23.0068,
+        "between/narrow@N=10000": 4.8376,
+        "between/insert@N=10000": 3.4506,
+        "between/remove@N=10000": 1.6568,
+        "compare/gt-setup@N=10000": 3.4114,
+        "compare/gt-insert@N=10000": 0.137,
+        "compare/gt-batch@N=10000": 3.5029,
+        "compare/lt-setup@N=10000": 3.1264,
+        "compare/gte-setup@N=10000": 3.674,
+        "compare/lte-setup@N=10000": 2.3583,
+        "distinct/setup@N=10000": 8.0797,
+        "distinct/insert@N=10000": 0.1053,
+        "distinct/batch@N=10000": 0.3312,
+        "except/setup@N=10000": 4.7661,
+        "except/insert-other@N=10000": 2.5964,
+        "except/remove-other@N=10000": 2.1312,
+        "filter/setup@N=10000": 3.5069,
+        "filter/single@N=10000": 0.1157,
+        "filter/batch@N=10000": 3.6593,
+        "group/setup@N=10000": 8.8106,
+        "group/insert@N=10000": 0.1461,
+        "group/churn@N=10000": 0.0713,
+        "intersect/setup@N=10000": 11.4624,
+        "intersect/churn@N=10000": 3.0925,
+        "keys/setup@N=10000": 1.9312,
+        "keys/insert@N=10000": 0.1291,
+        "length/insert@N=10000": 0.1546,
+        "length(fn)/setup@N=10000": 3.0542,
+        "map/setup@N=10000": 3.2004,
+        "map/insert@N=10000": 0.1136,
+        "reduce/setup@N=10000": 1.8216,
+        "reduce/insert@N=10000": 2.2049,
+        "reduce/batch@N=10000": 82.0995,
+        "reduce/inc-setup@N=10000": 5.6101,
+        "reduce/inc-insert@N=10000": 0.1658,
+        "reduce/inc-overwrite@N=10000": 0.3853,
+        "reduce/inc-remove@N=10000": 0.3421,
+        "reverse/setup@N=10000": 1.7824,
+        "reverse/insert@N=10000": 0.1501,
+        "reverse/batch@N=10000": 61.2237,
+        "sort/setup@N=10000": 22.5937,
+        "sort/insert@N=10000": 0.1625,
+        "sort/rotate@N=10000": 0.1378,
+        "sort/brush@N=10000": 86.1736,
+        "tap/setup@N=10000": 0.5364,
+        "tap/insert@N=10000": 0.3481,
+        "tap/batch@N=10000": 8.2945,
+        "tap/bare@N=10000": 6.9542,
+        "to/setup@N=10000": 1.4392,
+        "to/insert@N=10000": 0.7607,
+        "to/batch@N=10000": 246.1653,
+        "union/setup@N=10000": 17.5446,
+        "union/churn@N=10000": 4.8158,
+        "union/insert@N=10000": 2.4759,
+        "values/setup@N=10000": 1.942,
+        "values/batch@N=10000": 116.0174
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-40-55Z-5ca1e1a-trn",
+        "commit": "a414553",
+        "ts": 1781455292154
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 168.544,
+        "aggregate/sum-setup@N=10000": 8.5145,
+        "aggregate/sum-insert@N=10000": 0.2375,
+        "aggregate/avg-batch@N=10000": 4.4859,
+        "aggregate/max-setup@N=10000": 11.4221,
+        "aggregate/max-insert@N=10000": 0.3677,
+        "aggregate/min-batch@N=10000": 2.3754,
+        "aggregate/some-setup@N=10000": 7.1716,
+        "aggregate/every-batch@N=10000": 5.5699,
+        "between/setup@N=10000": 33.6015,
+        "between/narrow@N=10000": 27.5077,
+        "between/insert@N=10000": 11.9884,
+        "between/remove@N=10000": 7.0514,
+        "compare/gt-setup@N=10000": 11.4555,
+        "compare/gt-insert@N=10000": 0.1863,
+        "compare/gt-batch@N=10000": 11.6729,
+        "compare/lt-setup@N=10000": 9.0995,
+        "compare/gte-setup@N=10000": 5.1145,
+        "compare/lte-setup@N=10000": 4.2724,
+        "distinct/setup@N=10000": 9.0144,
+        "distinct/insert@N=10000": 0.1512,
+        "distinct/batch@N=10000": 0.3897,
+        "except/setup@N=10000": 4.2031,
+        "except/insert-other@N=10000": 3.5431,
+        "except/remove-other@N=10000": 3.5359,
+        "filter/setup@N=10000": 3.4102,
+        "filter/single@N=10000": 0.1667,
+        "filter/batch@N=10000": 5.5123,
+        "group/setup@N=10000": 9.69,
+        "group/insert@N=10000": 0.1857,
+        "group/churn@N=10000": 0.0876,
+        "intersect/setup@N=10000": 10.9279,
+        "intersect/churn@N=10000": 3.4189,
+        "keys/setup@N=10000": 2.3998,
+        "keys/insert@N=10000": 0.1882,
+        "length/insert@N=10000": 0.1135,
+        "length(fn)/setup@N=10000": 3.8275,
+        "map/setup@N=10000": 3.9555,
+        "map/insert@N=10000": 0.1075,
+        "reduce/setup@N=10000": 2.0578,
+        "reduce/insert@N=10000": 2.3116,
+        "reduce/batch@N=10000": 84.1898,
+        "reduce/inc-setup@N=10000": 8.6677,
+        "reduce/inc-insert@N=10000": 0.1256,
+        "reduce/inc-overwrite@N=10000": 0.3359,
+        "reduce/inc-remove@N=10000": 0.3192,
+        "reverse/setup@N=10000": 2.5677,
+        "reverse/insert@N=10000": 0.156,
+        "reverse/batch@N=10000": 89.9371,
+        "sort/setup@N=10000": 27.3582,
+        "sort/insert@N=10000": 0.1962,
+        "sort/rotate@N=10000": 0.2226,
+        "sort/brush@N=10000": 98.9786,
+        "tap/setup@N=10000": 0.4456,
+        "tap/insert@N=10000": 0.3476,
+        "tap/batch@N=10000": 8.6595,
+        "tap/bare@N=10000": 3.4076,
+        "to/setup@N=10000": 1.1365,
+        "to/insert@N=10000": 1.066,
+        "to/batch@N=10000": 299.9345,
+        "union/setup@N=10000": 20.7041,
+        "union/churn@N=10000": 4.148,
+        "union/insert@N=10000": 4.7073,
+        "values/setup@N=10000": 3.1819,
+        "values/batch@N=10000": 143.0848
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-41-34Z-a414553-5xv",
+        "commit": "a414553",
+        "ts": 1781455322262
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 151.138,
+        "aggregate/sum-setup@N=10000": 5.6225,
+        "aggregate/sum-insert@N=10000": 0.1409,
+        "aggregate/avg-batch@N=10000": 4.8879,
+        "aggregate/max-setup@N=10000": 8.5778,
+        "aggregate/max-insert@N=10000": 0.2315,
+        "aggregate/min-batch@N=10000": 2.1007,
+        "aggregate/some-setup@N=10000": 6.4516,
+        "aggregate/every-batch@N=10000": 4.9065,
+        "between/setup@N=10000": 16.6553,
+        "between/narrow@N=10000": 6.4586,
+        "between/insert@N=10000": 4.1388,
+        "between/remove@N=10000": 1.7424,
+        "compare/gt-setup@N=10000": 3.4299,
+        "compare/gt-insert@N=10000": 0.166,
+        "compare/gt-batch@N=10000": 3.7359,
+        "compare/lt-setup@N=10000": 2.0138,
+        "compare/gte-setup@N=10000": 2.4032,
+        "compare/lte-setup@N=10000": 2.8934,
+        "distinct/setup@N=10000": 6.8738,
+        "distinct/insert@N=10000": 0.1267,
+        "distinct/batch@N=10000": 0.3716,
+        "except/setup@N=10000": 3.5257,
+        "except/insert-other@N=10000": 2.6582,
+        "except/remove-other@N=10000": 2.7756,
+        "filter/setup@N=10000": 2.5183,
+        "filter/single@N=10000": 0.1391,
+        "filter/batch@N=10000": 5.4606,
+        "group/setup@N=10000": 8.4124,
+        "group/insert@N=10000": 0.1591,
+        "group/churn@N=10000": 0.103,
+        "intersect/setup@N=10000": 12.3402,
+        "intersect/churn@N=10000": 3.6061,
+        "keys/setup@N=10000": 1.9725,
+        "keys/insert@N=10000": 0.1332,
+        "length/insert@N=10000": 0.129,
+        "length(fn)/setup@N=10000": 4.1333,
+        "map/setup@N=10000": 2.8171,
+        "map/insert@N=10000": 0.1557,
+        "reduce/setup@N=10000": 2.9069,
+        "reduce/insert@N=10000": 2.733,
+        "reduce/batch@N=10000": 85.0713,
+        "reduce/inc-setup@N=10000": 8.128,
+        "reduce/inc-insert@N=10000": 0.2026,
+        "reduce/inc-overwrite@N=10000": 0.4794,
+        "reduce/inc-remove@N=10000": 0.3437,
+        "reverse/setup@N=10000": 1.9941,
+        "reverse/insert@N=10000": 0.1665,
+        "reverse/batch@N=10000": 71.5938,
+        "sort/setup@N=10000": 19.4499,
+        "sort/insert@N=10000": 0.159,
+        "sort/rotate@N=10000": 0.1433,
+        "sort/brush@N=10000": 81.6917,
+        "tap/setup@N=10000": 0.386,
+        "tap/insert@N=10000": 0.2653,
+        "tap/batch@N=10000": 4.8668,
+        "tap/bare@N=10000": 4.4184,
+        "to/setup@N=10000": 1.4104,
+        "to/insert@N=10000": 0.6232,
+        "to/batch@N=10000": 297.4321,
+        "union/setup@N=10000": 12.8175,
+        "union/churn@N=10000": 2.7085,
+        "union/insert@N=10000": 2.0266,
+        "values/setup@N=10000": 1.452,
+        "values/batch@N=10000": 80.319
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-42-03Z-a414553-ydq",
+        "commit": "a414553",
+        "ts": 1781455352903
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 192.269,
+        "aggregate/sum-setup@N=10000": 4.2972,
+        "aggregate/sum-insert@N=10000": 0.1487,
+        "aggregate/avg-batch@N=10000": 3.1877,
+        "aggregate/max-setup@N=10000": 5.5081,
+        "aggregate/max-insert@N=10000": 0.1893,
+        "aggregate/min-batch@N=10000": 1.7367,
+        "aggregate/some-setup@N=10000": 4.7096,
+        "aggregate/every-batch@N=10000": 3.2366,
+        "between/setup@N=10000": 18.9663,
+        "between/narrow@N=10000": 7.9891,
+        "between/insert@N=10000": 4.7058,
+        "between/remove@N=10000": 1.5787,
+        "compare/gt-setup@N=10000": 3.4374,
+        "compare/gt-insert@N=10000": 0.1083,
+        "compare/gt-batch@N=10000": 6.2511,
+        "compare/lt-setup@N=10000": 1.926,
+        "compare/gte-setup@N=10000": 2.1812,
+        "compare/lte-setup@N=10000": 2.0047,
+        "distinct/setup@N=10000": 7.7518,
+        "distinct/insert@N=10000": 0.1057,
+        "distinct/batch@N=10000": 0.4783,
+        "except/setup@N=10000": 3.0861,
+        "except/insert-other@N=10000": 2.4106,
+        "except/remove-other@N=10000": 1.5948,
+        "filter/setup@N=10000": 2.3834,
+        "filter/single@N=10000": 0.1068,
+        "filter/batch@N=10000": 2.9996,
+        "group/setup@N=10000": 8.4867,
+        "group/insert@N=10000": 0.2253,
+        "group/churn@N=10000": 0.0936,
+        "intersect/setup@N=10000": 12.3456,
+        "intersect/churn@N=10000": 3.3165,
+        "keys/setup@N=10000": 3.0472,
+        "keys/insert@N=10000": 0.1112,
+        "length/insert@N=10000": 0.1388,
+        "length(fn)/setup@N=10000": 4.4053,
+        "map/setup@N=10000": 2.2426,
+        "map/insert@N=10000": 0.1509,
+        "reduce/setup@N=10000": 2.2467,
+        "reduce/insert@N=10000": 2.0978,
+        "reduce/batch@N=10000": 82.9519,
+        "reduce/inc-setup@N=10000": 5.9709,
+        "reduce/inc-insert@N=10000": 0.1341,
+        "reduce/inc-overwrite@N=10000": 0.2889,
+        "reduce/inc-remove@N=10000": 0.3392,
+        "reverse/setup@N=10000": 2.1302,
+        "reverse/insert@N=10000": 0.1923,
+        "reverse/batch@N=10000": 73.9506,
+        "sort/setup@N=10000": 23.0462,
+        "sort/insert@N=10000": 0.1679,
+        "sort/rotate@N=10000": 0.2331,
+        "sort/brush@N=10000": 20.3422,
+        "tap/setup@N=10000": 0.4896,
+        "tap/insert@N=10000": 0.205,
+        "tap/batch@N=10000": 8.8552,
+        "tap/bare@N=10000": 6.4086,
+        "to/setup@N=10000": 1.6621,
+        "to/insert@N=10000": 0.7128,
+        "to/batch@N=10000": 254.5919,
+        "union/setup@N=10000": 23.5203,
+        "union/churn@N=10000": 4.0496,
+        "union/insert@N=10000": 2.4194,
+        "values/setup@N=10000": 1.8668,
+        "values/batch@N=10000": 101.0725
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-42-34Z-a414553-t3k",
+        "commit": "a414553",
+        "ts": 1781455389440
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 115.555,
+        "aggregate/sum-setup@N=10000": 7.1902,
+        "aggregate/sum-insert@N=10000": 0.1889,
+        "aggregate/avg-batch@N=10000": 3.5938,
+        "aggregate/max-setup@N=10000": 7.9601,
+        "aggregate/max-insert@N=10000": 0.3363,
+        "aggregate/min-batch@N=10000": 3.3969,
+        "aggregate/some-setup@N=10000": 5.7853,
+        "aggregate/every-batch@N=10000": 3.83,
+        "between/setup@N=10000": 20.3299,
+        "between/narrow@N=10000": 6.2027,
+        "between/insert@N=10000": 5.3861,
+        "between/remove@N=10000": 2.5758,
+        "compare/gt-setup@N=10000": 4.0544,
+        "compare/gt-insert@N=10000": 0.1507,
+        "compare/gt-batch@N=10000": 5.045,
+        "compare/lt-setup@N=10000": 3.1584,
+        "compare/gte-setup@N=10000": 6.421,
+        "compare/lte-setup@N=10000": 2.2879,
+        "distinct/setup@N=10000": 9.0038,
+        "distinct/insert@N=10000": 0.1695,
+        "distinct/batch@N=10000": 0.64,
+        "except/setup@N=10000": 5.375,
+        "except/insert-other@N=10000": 6.8697,
+        "except/remove-other@N=10000": 2.7137,
+        "filter/setup@N=10000": 4.3489,
+        "filter/single@N=10000": 0.1514,
+        "filter/batch@N=10000": 4.044,
+        "group/setup@N=10000": 12.8226,
+        "group/insert@N=10000": 0.2247,
+        "group/churn@N=10000": 0.1021,
+        "intersect/setup@N=10000": 20.5047,
+        "intersect/churn@N=10000": 6.1153,
+        "keys/setup@N=10000": 4.8967,
+        "keys/insert@N=10000": 0.1879,
+        "length/insert@N=10000": 0.2071,
+        "length(fn)/setup@N=10000": 6.4376,
+        "map/setup@N=10000": 6.433,
+        "map/insert@N=10000": 0.1811,
+        "reduce/setup@N=10000": 4.2208,
+        "reduce/insert@N=10000": 4.9905,
+        "reduce/batch@N=10000": 151.2564,
+        "reduce/inc-setup@N=10000": 7.9901,
+        "reduce/inc-insert@N=10000": 0.1652,
+        "reduce/inc-overwrite@N=10000": 0.5253,
+        "reduce/inc-remove@N=10000": 0.3878,
+        "reverse/setup@N=10000": 2.2737,
+        "reverse/insert@N=10000": 0.1606,
+        "reverse/batch@N=10000": 75.8216,
+        "sort/setup@N=10000": 24.2993,
+        "sort/insert@N=10000": 0.1738,
+        "sort/rotate@N=10000": 0.2126,
+        "sort/brush@N=10000": 28.3827,
+        "tap/setup@N=10000": 0.3612,
+        "tap/insert@N=10000": 0.1963,
+        "tap/batch@N=10000": 4.1206,
+        "tap/bare@N=10000": 3.2172,
+        "to/setup@N=10000": 0.8111,
+        "to/insert@N=10000": 0.3667,
+        "to/batch@N=10000": 256.3604,
+        "union/setup@N=10000": 22.5405,
+        "union/churn@N=10000": 5.778,
+        "union/insert@N=10000": 4.6648,
+        "values/setup@N=10000": 2.8219,
+        "values/batch@N=10000": 162.0873
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-43-11Z-a414553-lca",
+        "commit": "a414553",
+        "ts": 1781455435794
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 206.965,
+        "aggregate/sum-setup@N=10000": 5.4853,
+        "aggregate/sum-insert@N=10000": 0.1967,
+        "aggregate/avg-batch@N=10000": 3.2066,
+        "aggregate/max-setup@N=10000": 6.6895,
+        "aggregate/max-insert@N=10000": 0.2358,
+        "aggregate/min-batch@N=10000": 2.2665,
+        "aggregate/some-setup@N=10000": 6.5709,
+        "aggregate/every-batch@N=10000": 3.5224,
+        "between/setup@N=10000": 23.1497,
+        "between/narrow@N=10000": 4.8334,
+        "between/insert@N=10000": 4.9312,
+        "between/remove@N=10000": 1.693,
+        "compare/gt-setup@N=10000": 3.0319,
+        "compare/gt-insert@N=10000": 0.1365,
+        "compare/gt-batch@N=10000": 4.4835,
+        "compare/lt-setup@N=10000": 2.8261,
+        "compare/gte-setup@N=10000": 3.8468,
+        "compare/lte-setup@N=10000": 4.9706,
+        "distinct/setup@N=10000": 12.0645,
+        "distinct/insert@N=10000": 0.1855,
+        "distinct/batch@N=10000": 0.3789,
+        "except/setup@N=10000": 3.7862,
+        "except/insert-other@N=10000": 2.9362,
+        "except/remove-other@N=10000": 2.0397,
+        "filter/setup@N=10000": 4.3867,
+        "filter/single@N=10000": 0.1891,
+        "filter/batch@N=10000": 8.3486,
+        "group/setup@N=10000": 18.3596,
+        "group/insert@N=10000": 0.269,
+        "group/churn@N=10000": 0.0976,
+        "intersect/setup@N=10000": 15.1342,
+        "intersect/churn@N=10000": 5.6091,
+        "keys/setup@N=10000": 10.0919,
+        "keys/insert@N=10000": 0.1738,
+        "length/insert@N=10000": 0.1944,
+        "length(fn)/setup@N=10000": 7.1017,
+        "map/setup@N=10000": 6.2213,
+        "map/insert@N=10000": 0.1986,
+        "reduce/setup@N=10000": 2.876,
+        "reduce/insert@N=10000": 2.5306,
+        "reduce/batch@N=10000": 119.8188,
+        "reduce/inc-setup@N=10000": 13.0595,
+        "reduce/inc-insert@N=10000": 0.1897,
+        "reduce/inc-overwrite@N=10000": 0.4915,
+        "reduce/inc-remove@N=10000": 0.4093,
+        "reverse/setup@N=10000": 2.9823,
+        "reverse/insert@N=10000": 0.2156,
+        "reverse/batch@N=10000": 97.4578,
+        "sort/setup@N=10000": 36.5269,
+        "sort/insert@N=10000": 0.3137,
+        "sort/rotate@N=10000": 0.3043,
+        "sort/brush@N=10000": 47.9538,
+        "tap/setup@N=10000": 0.8015,
+        "tap/insert@N=10000": 0.3903,
+        "tap/batch@N=10000": 8.8624,
+        "tap/bare@N=10000": 6.464,
+        "to/setup@N=10000": 1.6026,
+        "to/insert@N=10000": 0.6015,
+        "to/batch@N=10000": 492.7427,
+        "union/setup@N=10000": 47.5247,
+        "union/churn@N=10000": 7.0904,
+        "union/insert@N=10000": 5.7228,
+        "values/setup@N=10000": 3.7283,
+        "values/batch@N=10000": 178.636
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-43-58Z-a414553-j06",
+        "commit": "ca1da05",
+        "ts": 1781455472376
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 92.85,
+        "aggregate/sum-setup@N=10000": 6.6595,
+        "aggregate/sum-insert@N=10000": 0.2295,
+        "aggregate/avg-batch@N=10000": 5.9224,
+        "aggregate/max-setup@N=10000": 13.2258,
+        "aggregate/max-insert@N=10000": 0.4092,
+        "aggregate/min-batch@N=10000": 4.4144,
+        "aggregate/some-setup@N=10000": 12.9991,
+        "aggregate/every-batch@N=10000": 7.6297,
+        "between/setup@N=10000": 32.4088,
+        "between/narrow@N=10000": 8.5836,
+        "between/insert@N=10000": 4.0244,
+        "between/remove@N=10000": 2.8473,
+        "compare/gt-setup@N=10000": 5.1503,
+        "compare/gt-insert@N=10000": 0.1837,
+        "compare/gt-batch@N=10000": 4.8707,
+        "compare/lt-setup@N=10000": 3.6843,
+        "compare/gte-setup@N=10000": 4.0686,
+        "compare/lte-setup@N=10000": 4.3335,
+        "distinct/setup@N=10000": 10.4175,
+        "distinct/insert@N=10000": 0.1633,
+        "distinct/batch@N=10000": 0.6514,
+        "except/setup@N=10000": 5.65,
+        "except/insert-other@N=10000": 4.6713,
+        "except/remove-other@N=10000": 3.3011,
+        "filter/setup@N=10000": 4.3658,
+        "filter/single@N=10000": 0.1137,
+        "filter/batch@N=10000": 5.1939,
+        "group/setup@N=10000": 8.9276,
+        "group/insert@N=10000": 0.1783,
+        "group/churn@N=10000": 0.0868,
+        "intersect/setup@N=10000": 11.6087,
+        "intersect/churn@N=10000": 4.0734,
+        "keys/setup@N=10000": 2.8417,
+        "keys/insert@N=10000": 0.1707,
+        "length/insert@N=10000": 0.1473,
+        "length(fn)/setup@N=10000": 4.2931,
+        "map/setup@N=10000": 4.1694,
+        "map/insert@N=10000": 0.1829,
+        "reduce/setup@N=10000": 2.7315,
+        "reduce/insert@N=10000": 2.4945,
+        "reduce/batch@N=10000": 92.4928,
+        "reduce/inc-setup@N=10000": 23.5206,
+        "reduce/inc-insert@N=10000": 0.1622,
+        "reduce/inc-overwrite@N=10000": 0.5073,
+        "reduce/inc-remove@N=10000": 0.6009,
+        "reverse/setup@N=10000": 3.938,
+        "reverse/insert@N=10000": 0.1752,
+        "reverse/batch@N=10000": 74.1975,
+        "sort/setup@N=10000": 27.2964,
+        "sort/insert@N=10000": 0.2369,
+        "sort/rotate@N=10000": 0.1753,
+        "sort/brush@N=10000": 28.3454,
+        "tap/setup@N=10000": 0.6421,
+        "tap/insert@N=10000": 0.2071,
+        "tap/batch@N=10000": 8.8954,
+        "tap/bare@N=10000": 5.4728,
+        "to/setup@N=10000": 0.8294,
+        "to/insert@N=10000": 0.5136,
+        "to/batch@N=10000": 269.387,
+        "union/setup@N=10000": 15.4068,
+        "union/churn@N=10000": 4.0537,
+        "union/insert@N=10000": 2.0702,
+        "values/setup@N=10000": 2.1664,
+        "values/batch@N=10000": 88.7184
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T16-44-33Z-ca1da05-1ar",
+        "commit": "ca1da05",
+        "ts": 1781455503715
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 139.061,
+        "aggregate/sum-setup@N=10000": 4.5762,
+        "aggregate/sum-insert@N=10000": 0.1552,
+        "aggregate/avg-batch@N=10000": 3.0035,
+        "aggregate/max-setup@N=10000": 6.06,
+        "aggregate/max-insert@N=10000": 0.1757,
+        "aggregate/min-batch@N=10000": 1.6456,
+        "aggregate/some-setup@N=10000": 4.5075,
+        "aggregate/every-batch@N=10000": 3.8137,
+        "between/setup@N=10000": 14.5473,
+        "between/narrow@N=10000": 3.601,
+        "between/insert@N=10000": 3.724,
+        "between/remove@N=10000": 1.2839,
+        "compare/gt-setup@N=10000": 2.006,
+        "compare/gt-insert@N=10000": 0.1363,
+        "compare/gt-batch@N=10000": 2.9232,
+        "compare/lt-setup@N=10000": 1.7798,
+        "compare/gte-setup@N=10000": 1.951,
+        "compare/lte-setup@N=10000": 1.8598,
+        "distinct/setup@N=10000": 7.19,
+        "distinct/insert@N=10000": 0.102,
+        "distinct/batch@N=10000": 0.537,
+        "except/setup@N=10000": 3.0718,
+        "except/insert-other@N=10000": 2.6839,
+        "except/remove-other@N=10000": 1.4237,
+        "filter/setup@N=10000": 1.8381,
+        "filter/single@N=10000": 0.0921,
+        "filter/batch@N=10000": 2.9972,
+        "group/setup@N=10000": 6.3493,
+        "group/insert@N=10000": 0.1282,
+        "group/churn@N=10000": 0.0813,
+        "intersect/setup@N=10000": 9.6704,
+        "intersect/churn@N=10000": 2.9948,
+        "keys/setup@N=10000": 1.9914,
+        "keys/insert@N=10000": 0.1199,
+        "length/insert@N=10000": 0.109,
+        "length(fn)/setup@N=10000": 4.9556,
+        "map/setup@N=10000": 2.9659,
+        "map/insert@N=10000": 0.1183,
+        "reduce/setup@N=10000": 2.6048,
+        "reduce/insert@N=10000": 2.122,
+        "reduce/batch@N=10000": 90.8943,
+        "reduce/inc-setup@N=10000": 11.7877,
+        "reduce/inc-insert@N=10000": 0.1664,
+        "reduce/inc-overwrite@N=10000": 0.5502,
+        "reduce/inc-remove@N=10000": 0.5737,
+        "reverse/setup@N=10000": 2.6825,
+        "reverse/insert@N=10000": 0.1917,
+        "reverse/batch@N=10000": 90.4223,
+        "sort/setup@N=10000": 26.1896,
+        "sort/insert@N=10000": 0.2387,
+        "sort/rotate@N=10000": 0.204,
+        "sort/brush@N=10000": 28.5393,
+        "tap/setup@N=10000": 0.4838,
+        "tap/insert@N=10000": 0.2987,
+        "tap/batch@N=10000": 6.4044,
+        "tap/bare@N=10000": 3.2255,
+        "to/setup@N=10000": 1.2542,
+        "to/insert@N=10000": 0.4934,
+        "to/batch@N=10000": 280.5897,
+        "union/setup@N=10000": 22.3463,
+        "union/churn@N=10000": 6.1699,
+        "union/insert@N=10000": 2.5349,
+        "values/setup@N=10000": 1.6886,
+        "values/batch@N=10000": 106.4395
       }
     }
   ]

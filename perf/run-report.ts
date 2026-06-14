@@ -145,8 +145,56 @@ function h4BrushTail() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// H1 — complexity / scaling: the DETERMINISTIC op-count per single insert.
+// The timing rows above are sub-ms over 10k and can't tell an O(1) incremental
+// delta from an O(N) rebuild (both finish instantly). This instrument counts
+// projector / fold / key-fn invocations after ONE insert — a machine-
+// independent, jitter-proof measure of how many rows the delta actually
+// touched. It pairs each operator's incremental path (≈1 op) against the naive
+// path (≈N ops) so the report shows the algorithmic guarantee, not just a
+// wall-clock that happens to be fast today. dir:down (fewer ops is better);
+// kind:count (the report bands any drift as real, no run-noise clamp).
+// ---------------------------------------------------------------------------
+function h1Complexity() {
+  const N = 5000
+  const emit = (op, kase, count, note) => record({
+    id: `${op}/${kase}@N=${N}`, harness: 'H1', group: op, op, case: kase,
+    kind: 'count', dir: 'down', unit: 'ops', value: count,
+    dims: { N }, stats: { count }, instrument: { readsPerInsert: count, 'reads/N': +(count / N).toFixed(4) }, note,
+  })
+  const obj = build => { const o = {}; for (let i = 0; i < N; i++) o[i] = build(i); return o }
+  // aggregate: object insert is O(1) (BI0 projects one row); array insert is the
+  // O(N) XU0 rebuild (P7 — positions shift, no sound incremental path).
+  {
+    let c = 0; const s = $(obj(i => ({ active: true, val: i }))); const a = s.some(r => { c++; return r.active }); a[value]; c = 0
+    s.insert({ active: true, val: N }); emit('aggregate', 'object-insert', c, 'O(1) incremental BI0')
+  }
+  {
+    let c = 0; const arr = []; for (let i = 0; i < N; i++) arr.push({ active: true, val: i }); const s = $(arr)
+    const a = s.some(r => { c++; return r.active }); a[value]; c = 0
+    s.insert({ active: true, val: N }); emit('aggregate', 'array-insert', c, 'O(N) XU0 rebuild (P7)')
+  }
+  // reduce: incremental form add()s once; the general fold re-folds all N.
+  {
+    let c = 0; const s = $(obj(i => ({ val: i }))); const a = s.reduce((acc, r) => { c++; return acc + r.val }, (acc, r) => acc - r.val, 0); a[value]; c = 0
+    s.insert({ val: N }); emit('reduce', 'inc-insert', c, 'O(1) incremental add()')
+  }
+  {
+    let c = 0; const s = $(obj(i => ({ val: i }))); const a = s.reduce((acc, r) => { c++; return acc + r.val }, 0); a[value]; c = 0
+    s.insert({ val: N }); emit('reduce', 'full-insert', c, 'O(N) general re-fold')
+  }
+  // length(fn): one rebucket key-fn call per inserted row.
+  {
+    let c = 0; const s = $(obj(i => ({ bucket: i % 100 }))); const l = s.length(d => { c++; return d.bucket }); l[value]; c = 0
+    s.insert({ bucket: 7 }); emit('length(fn)', 'rebucket-insert', c, 'O(1) one rebucket')
+  }
+  console.log('[h1] 5 complexity-count rows')
+}
+
 console.log(`[run-report] sweeping (gc=${!!globalThis.gc})…`)
 backfillOperators()
+h1Complexity()
 h4BrushTail()
 // Sampling provenance the collator can't otherwise know (was GC forced?).
 writeFileSync(
