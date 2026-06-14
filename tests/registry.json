@@ -1865,5 +1865,205 @@
     "asserts": "a mid-array positional insert keeps the displaced row",
     "title": "map · Alignment · insert · array · via BI0A · C2 — a mid-array positional insert keeps the displaced row",
     "file": "operators/map/map.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "folds an array down to an accumulator",
+    "via": [],
+    "title": "reduce · Reduction · construct · array — folds an array down to an accumulator",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Order",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "a non-commutative fold respects iteration order",
+    "via": [],
+    "title": "reduce · Order · construct · object — a non-commutative fold respects iteration order",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "asserts": "an insert or remove rebuilds the fold",
+    "via": [],
+    "title": "reduce · Reduction · insert/remove · array — an insert or remove rebuilds the fold",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "the fold callback receives (acc, row, key)",
+    "via": [],
+    "title": "reduce · Reduction · construct · object — the fold callback receives (acc, row, key)",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "debug"
+    ],
+    "asserts": "with $.debug, an asymmetric remove warns of accumulator drift",
+    "title": "reduce · Robustness · remove · object · via debug — with $.debug, an asymmetric remove warns of accumulator drift",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Robustness",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "via": [
+      "debug"
+    ],
+    "asserts": "with $.debug, a correct symmetric remove stays silent",
+    "title": "reduce · Robustness · insert/remove · object · via debug — with $.debug, a correct symmetric remove stays silent",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "the same fn and init reuse the operator view",
+    "via": [],
+    "title": "reduce · Identity · dedup-call · array — the same fn and init reuse the operator view",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Efficiency",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "an object insert threads add for only the new row",
+    "title": "reduce · Efficiency · insert · object · via BI0 — an object insert threads add for only the new row",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "remove",
+    "shape": "array",
+    "issue": "#28",
+    "asserts": "an array splice rebuilds so the position-keyed cache cannot desync",
+    "via": [],
+    "title": "reduce · Reduction · remove · array · #28 — an array splice rebuilds so the position-keyed cache cannot desync",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Efficiency",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "BR1"
+    ],
+    "asserts": "a remove threads remove for only the deleted row",
+    "title": "reduce · Efficiency · remove · object · via BR1 — a remove threads remove for only the deleted row",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "the incremental fold matches the equivalent plain fold",
+    "via": [],
+    "title": "reduce · Reduction · insert/remove · object — the incremental fold matches the equivalent plain fold",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "object",
+    "asserts": "a thunk init produces a fresh accumulator on rebuild",
+    "via": [],
+    "title": "reduce · Robustness · overwrite · object — a thunk init produces a fresh accumulator on rebuild",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Efficiency",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "asserts": "a whole-slot overwrite subtracts the old and adds the new in O(delta)",
+    "title": "reduce · Efficiency · overwrite · object · via BU1 — a whole-slot overwrite subtracts the old and adds the new in O(delta)",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a nested in-place edit falls back to a full rebuild",
+    "title": "reduce · Efficiency · edit · object · via BU2 — a nested in-place edit falls back to a full rebuild",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "overwrite",
+    "shape": "array",
+    "via": [
+      "BU1"
+    ],
+    "asserts": "a whole-slot overwrite over an array subtracts the old value via key normalization",
+    "title": "reduce · Reduction · overwrite · array · via BU1 — a whole-slot overwrite over an array subtracts the old value via key normalization",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "via": [
+      "BI0",
+      "BU1",
+      "BR1"
+    ],
+    "asserts": "the value cache stays consistent across insert, overwrite and remove",
+    "title": "reduce · Reduction · insert/remove · object · via BI0+BU1+BR1 — the value cache stays consistent across insert, overwrite and remove",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "asserts": "the same (add, remove, init) triple reuses the operator view",
+    "via": [],
+    "title": "reduce · Identity · dedup-call · array — the same (add, remove, init) triple reuses the operator view",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
+    "op": "reduce",
+    "guarantee": "Reduction",
+    "trigger": "edit",
+    "shape": "object",
+    "issue": "#32",
+    "asserts": "a mutable object init is cloned per rebuild, not accumulated",
+    "via": [],
+    "title": "reduce · Reduction · edit · object · #32 — a mutable object init is cloned per rebuild, not accumulated",
+    "file": "operators/reduce/reduce.test.ts"
   }
 ]

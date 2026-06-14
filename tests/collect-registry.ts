@@ -24,6 +24,7 @@ const FILES = [
   'operators/keys/keys.test.ts',
   'operators/length/length.test.ts',
   'operators/map/map.test.ts',
+  'operators/reduce/reduce.test.ts',
 ]
 
 for (const f of FILES) {

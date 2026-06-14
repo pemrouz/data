@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { reduce } from './index.ts'
 
@@ -15,17 +15,17 @@ function withDebug(fn) {
   return warnings
 }
 
-test('reduce - sums an array', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'folds an array down to an accumulator' }, () => {
   const res = $([1, 2, 3, 4])
   eq(reduce(res, (a, b) => a + b, 0)[value], 10)
 })
 
-test('reduce - non-commutative concat respects iteration order', () => {
+spec({ op:'reduce', guarantee:'Order', trigger:'construct', shape:'object', asserts:'a non-commutative fold respects iteration order' }, () => {
   const res = $({ a: 'X', b: 'Y', c: 'Z' })
   eq(reduce(res, (acc, v) => acc + v, '')[value], 'XYZ')
 })
 
-test('reduce - reactive: insert/remove rebuilds the fold', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'an insert or remove rebuilds the fold' }, () => {
   const res = $([1, 2, 3])
   const r = reduce(res, (a, b) => a + b, 0)
   eq(r[value], 6)
@@ -35,13 +35,13 @@ test('reduce - reactive: insert/remove rebuilds the fold', () => {
   eq(r[value], 9)   // 2 + 3 + 4
 })
 
-test('reduce - fn receives (acc, row, key)', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'construct', shape:'object', asserts:'the fold callback receives (acc, row, key)' }, () => {
   const res = $({ a: 1, b: 2, c: 3 })
   const r = reduce(res, (acc, row, key) => acc + key + row, '')
   eq(r[value], 'a1b2c3')
 })
 
-test('reduce.incremental - $.debug warns when remove does not invert add', () => {
+spec({ op:'reduce', guarantee:'Robustness', trigger:'remove', shape:'object', via:['debug'], asserts:'with $.debug, an asymmetric remove warns of accumulator drift' }, () => {
   const warnings = withDebug(() => {
     // BROKEN remove: subtracts a constant 1 instead of the row's value, so a
     // remove leaves `acc` desynced from a fresh fold.
@@ -56,7 +56,7 @@ test('reduce.incremental - $.debug warns when remove does not invert add', () =>
   )
 })
 
-test('reduce.incremental - $.debug stays silent for a correct symmetric remove', () => {
+spec({ op:'reduce', guarantee:'Robustness', trigger:'insert/remove', shape:'object', via:['debug'], asserts:'with $.debug, a correct symmetric remove stays silent' }, () => {
   const warnings = withDebug(() => {
     const src = $({ a: 10, b: 20 })
     const r = reduce(src, (acc, v) => acc + v, (acc, v) => acc - v, 0)
@@ -67,7 +67,7 @@ test('reduce.incremental - $.debug stays silent for a correct symmetric remove',
   same(warnings, [])
 })
 
-test('reduce - dedup: same fn + init reuse the operator view', () => {
+spec({ op:'reduce', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'the same fn and init reuse the operator view' }, () => {
   const res = $([1, 2, 3])
   const fn = (a, b) => a + b
   const r1 = reduce(res, fn, 0)
@@ -80,7 +80,7 @@ test('reduce - dedup: same fn + init reuse the operator view', () => {
 // a full rebuild, so the assertions here pin both the *result* (matches
 // the equivalent 2-arg reduce) and the *call count* (only the delta rows
 // hit the user functions).
-test('reduce.incremental - insert calls add only for the inserted row', () => {
+spec({ op:'reduce', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], asserts:'an object insert threads add for only the new row' }, () => {
   // OBJECT source: keys are stable, so an insert threads incrementally (add the
   // one new row). An ARRAY source deliberately rebuilds on insert/remove — a
   // splice shifts every position and the position-keyed cache can't survive it
@@ -100,7 +100,7 @@ test('reduce.incremental - insert calls add only for the inserted row', () => {
   eq(removeCalls, 0)
 })
 
-test('reduce.incremental - array structural change rebuilds (cache cannot survive a splice)', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'remove', shape:'array', issue:'#28', asserts:'an array splice rebuilds so the position-keyed cache cannot desync' }, () => {
   // Regression (#28): the position-keyed _cache went stale after an array
   // splice — a later BU1 recovered the wrong old row and the accumulator
   // drifted silently. Array inserts/removes now rebuild (re-keying the cache).
@@ -113,7 +113,7 @@ test('reduce.incremental - array structural change rebuilds (cache cannot surviv
   eq(r[value], 129)                              // was 149 (subtracted the wrong cached row)
 })
 
-test('reduce.incremental - remove calls remove only for the removed row', () => {
+spec({ op:'reduce', guarantee:'Efficiency', trigger:'remove', shape:'object', via:['BR1'], asserts:'a remove threads remove for only the deleted row' }, () => {
   const src = $({ a: 1, b: 2, c: 3 })
   let addCalls = 0, removeCalls = 0
   const r = reduce(src,
@@ -127,7 +127,7 @@ test('reduce.incremental - remove calls remove only for the removed row', () => 
   eq(removeCalls, 1)                             // exactly the deleted row
 })
 
-test('reduce.incremental - matches equivalent non-incremental reduce on the same source', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'insert/remove', shape:'object', asserts:'the incremental fold matches the equivalent plain fold' }, () => {
   const src = $({ a: 1, b: 2, c: 3 })
   const total = reduce(src, (a, v) => a + v, 0)
   const totalInc = reduce(src,
@@ -142,7 +142,7 @@ test('reduce.incremental - matches equivalent non-incremental reduce on the same
   eq(totalInc[value], total[value])
 })
 
-test('reduce.incremental - thunk init produces a fresh acc on rebuild', () => {
+spec({ op:'reduce', guarantee:'Robustness', trigger:'overwrite', shape:'object', asserts:'a thunk init produces a fresh accumulator on rebuild' }, () => {
   // Mutation-in-place is the common case for histogram-shaped accs. A
   // thunk init guarantees XU0/XR0 starts from a clean object instead of
   // re-using a polluted one.
@@ -167,7 +167,7 @@ test('reduce.incremental - thunk init produces a fresh acc on rebuild', () => {
   same(histogram[value], { z: 1 })
 })
 
-test('reduce.incremental - BU1 (whole-slot overwrite) is incremental via the value cache', () => {
+spec({ op:'reduce', guarantee:'Efficiency', trigger:'overwrite', shape:'object', via:['BU1'], asserts:'a whole-slot overwrite subtracts the old and adds the new in O(delta)' }, () => {
   // A whole-slot overwrite (`data[k] = newRow`) changes the slot reference, so
   // the per-key cache holds the distinct OLD row: BU1 subtracts it and adds
   // the new one in O(Δ) instead of re-folding both rows. (BU2 — an in-place
@@ -188,7 +188,7 @@ test('reduce.incremental - BU1 (whole-slot overwrite) is incremental via the val
   eq(removeCalls, 1)                             // -1 for the old value only
 })
 
-test('reduce.incremental - BU2 (nested in-place edit) still rebuilds', () => {
+spec({ op:'reduce', guarantee:'Efficiency', trigger:'edit', shape:'object', via:['BU2'], asserts:'a nested in-place edit falls back to a full rebuild' }, () => {
   // The row reference is unchanged on `data[k].f = x`, so the cache holds the
   // already-mutated row — no pre-edit value to subtract. Rebuild is the safe
   // fallback (and it re-seeds the cache, so a later BU1 stays correct).
@@ -206,7 +206,7 @@ test('reduce.incremental - BU2 (nested in-place edit) still rebuilds', () => {
   eq(removeCalls, 0)                             // rebuild re-adds, never removes
 })
 
-test('reduce.incremental - BU1 over an ARRAY source subtracts the old value (key normalization)', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'overwrite', shape:'array', via:['BU1'], asserts:'a whole-slot overwrite over an array subtracts the old value via key normalization' }, () => {
   // Regression: the per-key cache is keyed by STRING, but `iter` yields NUMERIC
   // keys for arrays while BU1 carries STRING keys. Without `'' + key`
   // normalization the lookup misses, `remove` is skipped, and only `add` runs
@@ -219,7 +219,7 @@ test('reduce.incremental - BU1 over an ARRAY source subtracts the old value (key
   eq(r[value], 240)
 })
 
-test('reduce.incremental - BI0 → BU1 → BR1 keeps the value cache consistent', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'insert/remove', shape:'object', via:['BI0','BU1','BR1'], asserts:'the value cache stays consistent across insert, overwrite and remove' }, () => {
   // Exercises the cache across all three incremental entry points: an insert
   // seeds it, a whole-slot overwrite reads+updates it, a remove deletes it.
   const src = $({ a: 1 })
@@ -237,7 +237,7 @@ test('reduce.incremental - BI0 → BU1 → BR1 keeps the value cache consistent'
   same(r[value], { a: 100 })
 })
 
-test('reduce.incremental - dedup on (add, remove, init) identity', () => {
+spec({ op:'reduce', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'the same (add, remove, init) triple reuses the operator view' }, () => {
   const src = $([1, 2])
   const add = (a, v) => a + v
   const remove = (a, v) => a - v
@@ -255,7 +255,7 @@ test('reduce.incremental - dedup on (add, remove, init) identity', () => {
 // accumulated across rebuilds (3 -> 9 -> 24 instead of 3 -> 6 -> 15) AND the
 // publish gate `acc !== view.value` was permanently false (acc WAS view.value),
 // so sinks never updated. A mutable init is now cloned per rebuild.
-test('reduce (2-arg) - mutable object init does not accumulate across rebuilds', () => {
+spec({ op:'reduce', guarantee:'Reduction', trigger:'edit', shape:'object', issue:'#32', asserts:'a mutable object init is cloned per rebuild, not accumulated' }, () => {
   const src = $({ a: 1, b: 2 })
   const r = reduce(src, (acc, row) => { acc.total = (acc.total || 0) + row; return acc }, {})
   const ev = r.connect([])
