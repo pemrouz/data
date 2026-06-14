@@ -1,6 +1,6 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { filter } from './index.ts'
 
@@ -44,23 +44,23 @@ function filterTest(tx) {
   })
 }
 
-test('filter - function', () => {
+spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the function predicate form tracks inserts, edits and removes' }, () => {
   filterTest(res => filter(res, d => d.completed))
 })
 
-test('filter - string key/value', () => {
+spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the (key, value) form tracks inserts, edits and removes' }, () => {
   filterTest(res => filter(res, 'completed', true))
 })
 
-test('filter - string key only', () => {
+spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the key-only truthy form tracks inserts, edits and removes' }, () => {
   filterTest(res => filter(res, 'completed'))
 })
 
-test('filter - array key', () => {
+spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the [key] array form tracks inserts, edits and removes' }, () => {
   filterTest(res => filter(res, ['completed']))
 })
 
-test('filter - object', () => {
+spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the {key: value} object form tracks inserts, edits and removes' }, () => {
   filterTest(res => filter(res, { completed: true }))
 })
 
@@ -68,7 +68,7 @@ test('filter - object', () => {
 // `delete view.value[name]`), or the filter's array layout drifts away from
 // the source. Subsequent BU2 events on a post-shift row would then read a
 // hole, classify as a fresh insert, and double-count downstream.
-test('filter - array source delete propagates shift', () => {
+spec({ op:'filter', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BR1'], asserts:'an array delete splices the view so post-shift edits hit the right slot' }, () => {
   const data = $([
     { keep: true, n: 1 },
     { keep: false, n: 2 },
@@ -98,7 +98,7 @@ test('filter - array source delete propagates shift', () => {
 // removing RowOperator.BI0A still passed the suite. core routes the array
 // insert-at-position through BI0A; without the splice-aware override the
 // displaced surviving row is misclassified as an update and lost.
-test('filter - mid-array positional insert keeps the displaced row (BI0A / C2)', () => {
+spec({ op:'filter', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], issue:'C2', asserts:'a mid-array positional insert keeps the displaced row' }, () => {
   const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
   const f = filter(src, (r) => r.v >= 15)
   same(f[value].filter((x) => x !== undefined), [{ v: 20 }, { v: 30 }])
@@ -113,7 +113,7 @@ test('filter - mid-array positional insert keeps the displaced row (BI0A / C2)',
 // the shift() once r is nullish, so the path array never drained. A row simply
 // missing an intermediate segment (ordinary data) froze the process at 100% cpu
 // with no error, at construction or inside any later cascade.
-test('filter - nested-path form terminates on missing/null intermediate segments', () => {
+spec({ op:'filter', guarantee:'Robustness', trigger:'construct', shape:'object', via:['nested-path'], asserts:'the nested-path form terminates on a null intermediate segment' }, () => {
   const res = $({
     a: { x: { y: 1 } },   // full path present — kept
     b: { g: 2 },          // x missing — must classify as excluded, not hang
@@ -135,7 +135,7 @@ test('filter - nested-path form terminates on missing/null intermediate segments
 // `src.k = undefined` arrives as a BU1 leave, and a sparse view's XU0 walk
 // hands undefined slots through — so both forms threw TypeError mid-cascade
 // while the function / object / nested-path forms (all guarded) survived.
-test('filter - string forms classify an undefined row as a leave, not a crash', () => {
+spec({ op:'filter', guarantee:'Robustness', trigger:'edit', shape:'object', via:['BU1'], asserts:'an undefined row is a leave, not a crash, for the string forms' }, () => {
   const src = $({ a: { on: 1 }, b: { on: 0 } })
   const truthy = filter(src, 'on')
   const eq = filter(src, 'on', 1)
@@ -154,7 +154,7 @@ test('filter - string forms classify an undefined row as a leave, not a crash', 
 // connect(obj,fn) consumers — RowOperator forwards `[index, undefined]` to keep
 // array-aware sinks' positions aligned, but a record sink must not report a
 // remove for a row that was never in the view. A genuine remove still fires.
-test('filter - deleting an excluded array row emits no phantom remove record', () => {
+spec({ op:'filter', guarantee:'Fidelity', trigger:'remove', shape:'array', issue:'D3', asserts:'deleting an excluded array row emits no phantom remove record' }, () => {
   const src = $([{ v: 30 }, { v: 5 }, { v: 40 }])
   const f = filter(src, (r) => r.v > 10)
   const log = f.connect([])
