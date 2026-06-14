@@ -29,6 +29,7 @@ const FILES = [
   'operators/tap/tap.test.ts',
   'operators/to/to.test.ts',
   'entry.test.ts',
+  'render/devtools_link.test.ts',
 ]
 
 for (const f of FILES) {

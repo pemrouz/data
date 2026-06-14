@@ -2237,5 +2237,38 @@
     "via": [],
     "title": "filter→length · Fidelity — chaining works from the default entry without importing data/full",
     "file": "entry.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Identity",
+    "trigger": "construct",
+    "via": [
+      "__ripple_sink"
+    ],
+    "asserts": "a data-bound element carries a back-reference to its sink and view",
+    "title": "render · Identity · construct · via __ripple_sink — a data-bound element carries a back-reference to its sink and view",
+    "file": "render/devtools_link.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Robustness",
+    "trigger": "construct",
+    "via": [
+      "__ripple_sink"
+    ],
+    "asserts": "the back-reference is non-enumerable and configurable so it neither leaks nor blocks a re-render",
+    "title": "render · Robustness · construct · via __ripple_sink — the back-reference is non-enumerable and configurable so it neither leaks nor blocks a re-render",
+    "file": "render/devtools_link.test.ts"
+  },
+  {
+    "op": "render",
+    "guarantee": "Identity",
+    "trigger": "construct",
+    "via": [
+      "__ripple_sink"
+    ],
+    "asserts": "a static-only element gets no back-reference",
+    "title": "render · Identity · construct · via __ripple_sink — a static-only element gets no back-reference",
+    "file": "render/devtools_link.test.ts"
   }
 ]

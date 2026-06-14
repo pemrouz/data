@@ -2,7 +2,7 @@
 // Locks in the __ripple_sink back-reference set in Node.render. $.fromDOM(el)
 // in the devtools layer relies on this property existing on every DOM element
 // that's been bound to a reactive view.
-import { test } from 'node:test'
+import { spec } from '../tests/spec.ts'
 import { ok, strictEqual } from 'node:assert'
 import { $, view } from '../core.ts'
 import { render, HTML } from './index.ts'
@@ -35,7 +35,7 @@ function recordingDom() {
 // must live on a child. So tests use the canonical HTML.ul(HTML.li(data, fn))
 // shape from the todo example.
 
-test('render - __ripple_sink set on data-bound DOM element', () => {
+spec({ op:'render', guarantee:'Identity', trigger:'construct', via:['__ripple_sink'], asserts:'a data-bound element carries a back-reference to its sink and view' }, () => {
   recordingDom()
   const items = $({})
   const root = document.createElement('div')
@@ -45,7 +45,7 @@ test('render - __ripple_sink set on data-bound DOM element', () => {
   strictEqual(root.__ripple_sink.p, items[view])
 })
 
-test('render - __ripple_sink is non-enumerable and configurable', () => {
+spec({ op:'render', guarantee:'Robustness', trigger:'construct', via:['__ripple_sink'], asserts:'the back-reference is non-enumerable and configurable so it neither leaks nor blocks a re-render' }, () => {
   recordingDom()
   const items = $({})
   const root = document.createElement('div')
@@ -56,7 +56,7 @@ test('render - __ripple_sink is non-enumerable and configurable', () => {
   ok(desc.configurable, '__ripple_sink should be configurable so a re-render can replace it')
 })
 
-test('render - elements without reactive data have no __ripple_sink', () => {
+spec({ op:'render', guarantee:'Identity', trigger:'construct', via:['__ripple_sink'], asserts:'a static-only element gets no back-reference' }, () => {
   recordingDom()
   const root = document.createElement('div')
   render(root, HTML.div('static text only'))
