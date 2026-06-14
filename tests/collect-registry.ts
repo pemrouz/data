@@ -28,6 +28,7 @@ const FILES = [
   'operators/reverse/reverse.test.ts',
   'operators/tap/tap.test.ts',
   'operators/to/to.test.ts',
+  'entry.test.ts',
 ]
 
 for (const f of FILES) {

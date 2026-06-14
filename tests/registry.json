@@ -2220,5 +2220,22 @@
     "via": [],
     "title": "to · Fidelity · edit · object — a projection of a sub-view re-derives on edits to that sub-view",
     "file": "operators/to/to.test.ts"
+  },
+  {
+    "op": "entry",
+    "guarantee": "Fidelity",
+    "asserts": "importing the default entry registers every operator on the dispatch table",
+    "via": [],
+    "title": "entry · Fidelity — importing the default entry registers every operator on the dispatch table",
+    "file": "entry.test.ts"
+  },
+  {
+    "op": "entry",
+    "guarantee": "Fidelity",
+    "chain": "filter→length",
+    "asserts": "chaining works from the default entry without importing data/full",
+    "via": [],
+    "title": "filter→length · Fidelity — chaining works from the default entry without importing data/full",
+    "file": "entry.test.ts"
   }
 ]

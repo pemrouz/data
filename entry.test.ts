@@ -7,16 +7,16 @@
 // node --test runs each file in its own process, so importing only ./index.ts
 // here proves the standalone path: nothing else populates the Operators table.
 import { deepStrictEqual as same, ok } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from './tests/spec.ts'
 import { $, value, Operators } from './index.ts'
 
-test('default entry registers operators on import', () => {
+spec({ op:'entry', guarantee:'Fidelity', asserts:'importing the default entry registers every operator on the dispatch table' }, () => {
     // A representative spread across dispatch shapes, not the whole catalog.
     for (const name of ['filter', 'between', 'gt', 'map', 'length', 'sum', 'group', 'za'])
         ok(typeof Operators[name] === 'function', `Operators['${name}'] registered`)
 })
 
-test('default entry: chainable operators work without data/full', () => {
+spec({ op:'entry', guarantee:'Fidelity', chain:'filter→length', asserts:'chaining works from the default entry without importing data/full' }, () => {
     const res = $([{ a: 1 }, { a: 5 }, { a: 9 }]).filter(d => d.a > 3).length()
     same(res[value], 2)
 })
