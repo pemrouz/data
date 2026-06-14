@@ -4,15 +4,8 @@ import { test } from 'node:test'
 import { $, value } from '../../core.ts'
 import { group } from './index.ts'
 import { limit } from '../sort/index.ts'
+import { gateMeasure as measure } from '../../perf/measure.ts'
 
-const REPS = 5
-const measure = (fn, reps = REPS) => {
-  const times = []
-  for (let i = 0; i < reps; i++) {
-    const t0 = performance.now(); fn(); times.push(performance.now() - t0)
-  }
-  return [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]
-}
 
 function makeData(n, categories = 10) {
   const obj = {}
