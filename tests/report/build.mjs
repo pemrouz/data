@@ -73,7 +73,7 @@ const meta={total:records.length,authoritative:records.filter(r=>r.migrated).len
   byType:{unit:records.filter(r=>r.type==='unit').length,perf:records.filter(r=>r.type==='perf').length,e2e:records.filter(r=>r.type==='e2e').length},
   guarantees:GUARANTEES,gabbr:GABBR,order:['core','index','differential','entry'],run:RUN?RUN.summary:null};
 
-mkdirSync('tests/report',{recursive:true});
+mkdirSync('report',{recursive:true});
 const html=`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>data · tests</title><style>${readFileSync(join(HERE,'report.css'),'utf8')}</style></head><body>
@@ -103,5 +103,8 @@ const DATA=${JSON.stringify(records)};
 const META=${JSON.stringify(meta)};
 ${readFileSync(join(HERE,'app.js'),'utf8')}
 </script></body></html>`;
-writeFileSync('tests/report/explorer.html',html);
-console.log('wrote explorer.html',html.length,'bytes ·',records.length,'records,',meta.authoritative,'authoritative');
+// Published to a top-level /report/ so GitHub Pages serves it at a clean URL
+// (pemrouz.github.io/data/report/) — outside /examples. Self-contained (CSS +
+// JS + data all inlined above), so its location doesn't affect any asset paths.
+writeFileSync('report/index.html',html);
+console.log('wrote report/index.html',html.length,'bytes ·',records.length,'records,',meta.authoritative,'authoritative');

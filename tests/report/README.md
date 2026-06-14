@@ -5,24 +5,30 @@ A self-contained HTML view over the whole test suite, organised **top-down**
 matrix; click a cell / row / column to drill into Trigger → assertion, with live
 pass/fail + timing from the last run.
 
+**Published** at [pemrouz.github.io/data/report/](https://pemrouz.github.io/data/report/)
+— the build writes the artifact to a top-level `report/index.html` so GitHub Pages
+serves it at that clean URL (outside `/examples/`). The sources that produce it
+live here under `tests/report/`.
+
 ## Build it
 
 ```sh
-npm run report        # run the unit suite, capture results, rebuild explorer.html
+npm run report        # run the unit suite, capture results, rebuild report/index.html
 npm run report:build  # rebuild from the last results.json only (no test run)
 ```
 
-Then open [tests/report/explorer.html](explorer.html) (a single self-contained
-file — no server needed; `localhost:PORT/tests/report/explorer.html` also works).
+Then open [report/index.html](../../report/index.html) (a single self-contained
+file — no server needed; `localhost:PORT/report/` also works, and it's live on
+Pages at [pemrouz.github.io/data/report/](https://pemrouz.github.io/data/report/)).
 
 ## How it works
 
 | File | Role |
 |---|---|
 | [run.mjs](run.mjs) | Runs the unit suite (`node --test`, **same scope as `npm test`**) with the TAP reporter, parses pass/fail + `duration_ms` per test, writes `results.json` (gitignored). |
-| [build.mjs](build.mjs) | Merges three sources into one record per test, then inlines everything into `explorer.html`. |
+| [build.mjs](build.mjs) | Merges three sources into one record per test, then inlines everything into the top-level `report/index.html`. |
 | [report.css](report.css) / [app.js](app.js) | Styles + client logic, inlined into the built HTML. |
-| `explorer.html` | The built artifact (committed so it opens without a build). |
+| `../../report/index.html` | The built artifact (committed so it opens — and serves on Pages — without a build). |
 
 Each test gets a **coordinate**: `Subject · Guarantee · Trigger · Shape · via · issue — assertion`.
 The data comes from two places:
@@ -44,7 +50,7 @@ files there when they're created.
 
 A tracked git hook ([../../.githooks/pre-commit](../../.githooks/pre-commit)) keeps the report
 in sync: when a commit stages any `.ts` file, it refreshes the registry, runs the unit suite,
-rebuilds `explorer.html`, and includes both in that commit (docs-only commits skip it). It
+rebuilds `report/index.html`, and includes both in that commit (docs-only commits skip it). It
 **records** results — it does not block the commit on test failures.
 
 The hook is enabled via `core.hooksPath` — set automatically on `npm install` (the `prepare`
