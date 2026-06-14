@@ -10,25 +10,11 @@
 import { test } from 'node:test'
 import { ok } from 'node:assert'
 import { $, value } from '../core.ts'
+import { gateMeasure as timeRun } from '../perf/measure.ts'
 import '../full.ts'
 import './index.ts'
 
 const ITERATIONS = 1000
-
-function median(samples) {
-  const s = samples.slice().sort((a, b) => a - b)
-  return s[s.length >> 1]
-}
-
-function timeRun(fn, runs = 5) {
-  const samples = []
-  for (let i = 0; i < runs; i++) {
-    const t0 = performance.now()
-    fn()
-    samples.push(performance.now() - t0)
-  }
-  return median(samples)
-}
 
 test('devtools perf - off-state matches baseline (single insert burst)', () => {
   const data = $({})

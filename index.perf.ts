@@ -4,25 +4,9 @@ import { $, value } from './full.ts'
 import { test } from 'node:test'
 import { data as flights500 } from './examples/crossfilter/flights500.js'
 import { data as flights50000 } from './examples/crossfilter/flights50000.js'
+import { gateMeasure as measure } from './perf/measure.ts'
 
 const { min, max, floor } = Math
-
-const REPS = 5
-
-function median(arr: number[]) {
-  const sorted = [...arr].sort((a, b) => a - b)
-  return sorted[floor(sorted.length / 2)]
-}
-
-function measure(fn: () => void, reps = REPS): number {
-  const times: number[] = []
-  for (let i = 0; i < reps; i++) {
-    const t0 = performance.now()
-    fn()
-    times.push(performance.now() - t0)
-  }
-  return median(times)
-}
 
 function deterministicRandom(o) {
   return 1 + Object.keys(o).map(Number).sort((a, b) => a - b).reduce((acc, k) => k > acc ? k : acc, -1)
