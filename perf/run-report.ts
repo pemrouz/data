@@ -30,41 +30,20 @@ const pct = (sorted, p) =>
   sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]
 
 // ---------------------------------------------------------------------------
-// Backfill — the "ops" harness: a uniform setup / single / batch micro-bench
-// over every operator, so the report fills out with the library's real perf
-// surface (a fresh sweep this run — NOT a copy of the gate *.perf.ts numbers).
-// Each op gives three rows; the report nests them harness → operator → case.
+// Backfill — the "ops" harness: every operator's gate workload, re-measured.
+// EVERY operator now lives in perf/workloads.ts (Mode A): the report measures
+// the SAME setup/single/batch closures the gate *.perf.ts asserts on, with
+// report rigor (benchMeasure: warmup + gc), so no report row is a number no
+// gate asserted. The old parallel {v,g,w} uniform sweep was retired once the
+// last operator (reduce) migrated. The report nests rows harness → op → case.
 // ---------------------------------------------------------------------------
-function makeSource(N) {
-  const o = {}
-  for (let i = 0; i < N; i++) o[i] = { v: (i * 733) % 1000, g: i % 12, w: (i * 277) % 500 }
-  return o
-}
-
-// Legacy uniform sweep, for operators not yet migrated to perf/workloads.ts.
-// As each operator gains a shared workload (Mode A), it moves OUT of this list
-// and is driven from WL instead — the report then re-measures the gate's exact
-// closures rather than this parallel {v,g,w} sweep.
-// MIGRATED (now in WL): filter, map, to, length, length(fn), keys, values, tap,
-// reverse, distinct, group (clean tier); compare(gt/lt/gte/lte), between, sort
-// (az/za), aggregate(sum/avg/max/min/some/every), union, intersect, except
-// (complex tier). Only `reduce` remains on the legacy sweep.
-// field = the row field a single/batch update mutates (drives the recompute).
-const OPS = [
-  { op: 'reduce', field: 'v', make: s => s.reduce((a, r) => a + r.v, 0) },
-]
-
 function backfillOperators() {
-  const N = 10_000, BATCH = 500
   const r4 = x => +x.toFixed(4)
   const emit = (op, kase, ms, dims) => record({
     id: `${op}/${kase}@N=${dims.N}`, harness: 'ops', group: op, op, case: kase,
     kind: 'timing', dir: 'down', unit: 'ms', value: r4(ms), dims, stats: { median: r4(ms) },
   })
   let n = 0
-  // Mode A: operators with a shared workload — re-measure the GATE's exact
-  // setup/single/batch closures with report rigor (benchMeasure). The row is the
-  // gate's workload, not a parallel sweep.
   for (const [name, spec] of Object.entries(WL)) {
     try {
       for (const [kase, w] of Object.entries(spec.workloads())) {
@@ -73,33 +52,6 @@ function backfillOperators() {
       }
     } catch (e) {
       console.log(`[backfill] ${spec.label ?? name} (workload) skipped: ${e.message}`)
-    }
-  }
-  // Legacy sweep for not-yet-migrated operators.
-  for (const spec of OPS) {
-    try {
-      // setup: build source + view + sink each rep
-      const setup = measure(() => {
-        const v = spec.make($(makeSource(N)))
-        try { v.connect([]) } catch {}
-      })
-      // one live graph for single + batch
-      const s = $(makeSource(N))
-      const v = spec.make(s)
-      try { v.connect([]) } catch {}
-      const ids = Object.keys(s[value])
-      let i = 0
-      const single = measure(() => { const k = ids[i++ % ids.length]; s[k][spec.field] = (i * 131) % 1000 })
-      let j = 0
-      const batch = measure(() => {
-        for (let b = 0; b < BATCH; b++) { const k = ids[j++ % ids.length]; s[k][spec.field] = (j * 131) % 1000 }
-      })
-      emit(spec.op, 'setup', setup, { N })
-      emit(spec.op, 'single', single, { N })
-      emit(spec.op, 'batch', batch, { N, batch: BATCH })
-      n += 3
-    } catch (e) {
-      console.log(`[backfill] ${spec.op} skipped: ${e.message}`)
     }
   }
   console.log(`[backfill] ${n} operator rows`)

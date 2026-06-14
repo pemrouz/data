@@ -387,3 +387,33 @@ export const except = {
     }
   },
 }
+
+export const reduce = {
+  N: 10_000,
+  label: 'reduce',
+  source(n = this.N) {
+    const o = {}
+    for (let i = 0; i < n; i++) o[i] = { active: i % 2 === 0, val: i }
+    return o
+  },
+  workloads(n = this.N) {
+    const add = (acc, r) => acc + r.val
+    const sub = (acc, r) => acc - r.val
+    const mkFull = () => { const s = $(this.source(n)); const a = s.reduce(add, 0); return { s, a } }                  // general fold, O(n)/event
+    const mkInc = () => { const s = $(this.source(n)); const a = s.reduce(add, sub, 0); return { s, a } }              // incremental, O(Δ)/event
+    const fIns = mkFull(); const fBat = mkFull(); const iIns = mkInc(); const iOvr = mkInc(); const iRem = mkInc()
+    let fi = n; let ii = n; let toggle = false; let j = 0; let rbase = 9900
+    return {
+      setup: { gate: 500, run: () => { const s = $(this.source(n)); s.reduce(add, 0) } },
+      insert: { gate: 50, keep: fIns, run: () => { fIns.s.insert({ active: true, val: fi++ }) } },
+      // alternate base so every rep mutates (else reps 2+ dedup to no-ops)
+      batch: { gate: 1000, batch: 100, keep: fBat, run: () => { toggle = !toggle; const b = toggle ? 1 : 2; for (let i = 0; i < 100; i++) fBat.s[i].val = i + b } },
+      'inc-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.reduce(add, sub, 0) } },
+      'inc-insert': { gate: 5, keep: iIns, run: () => { iIns.s.insert({ active: true, val: ii++ }) } },        // O(1), much tighter than the full form's 50ms
+      // whole-slot overwrite (BU1): remove(old)+add(new) via the per-key cache; j grows → real work each rep
+      'inc-overwrite': { gate: 50, batch: 100, keep: iOvr, run: () => { for (let i = 0; i < 100; i++) iOvr.s[i] = { active: true, val: 100000 + (j++) } } },
+      // delete DISTINCT keys per rep (rbase descends from 9900) so each rep does real removes; source holds 0..9999
+      'inc-remove': { gate: 100, batch: 100, reps: 5, keep: iRem, run: () => { for (let i = 0; i < 100; i++) delete iRem.s[rbase + i]; rbase -= 100 } },
+    }
+  },
+}
