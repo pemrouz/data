@@ -35,6 +35,7 @@ const FILES = [
   'devtools/devtools.test.ts',
   'core.test.ts',
   'index.test.ts',
+  'differential.test.ts',
 ]
 
 for (const f of FILES) {

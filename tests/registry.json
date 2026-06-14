@@ -3929,5 +3929,1139 @@
     "asserts": "between dedups a reactive single-VP extent by underlying view identity",
     "title": "between · Identity · dedup-call · array · via reactive-bound · F — between dedups a reactive single-VP extent by underlying view identity",
     "file": "index.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "gt stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — gt stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "gt stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — gt stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "lt stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — lt stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "lt stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — lt stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "length-fn stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — length-fn stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "length-fn stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — length-fn stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "avg stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — avg stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "avg stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — avg stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "max stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — max stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "max stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — max stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "min stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — min stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "min stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — min stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "some stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — some stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "some stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — some stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "every stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — every stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "every stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — every stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "keys stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — keys stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "keys stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — keys stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "values stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — values stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "values stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — values stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "reverse stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — reverse stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "reverse stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — reverse stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "to stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — to stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "to stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — to stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect2 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect2 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect2 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect2 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect-between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect-between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect-between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect-between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "union stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — union stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "union stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — union stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "except stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — except stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "except stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — except stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "reduce2 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — reduce2 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "reduce2 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — reduce2 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "reduce3 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — reduce3 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "reduce3 stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — reduce3 stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→filter stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→filter stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "az-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — az-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "az-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — az-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→za-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za→az (unbounded chain) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za→az (unbounded chain) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za→az (unbounded chain) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za→az (unbounded chain) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→az-window→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→az-window→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→az-window→map stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→az-window→map stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "filter→za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — filter→za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "filter→za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — filter→za-window→az-window stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→distinct stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→distinct stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "filter→az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — filter→az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "filter→az stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — filter→az stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "lt→map (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — lt→map (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "lt→map (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — lt→map (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "lt→az (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — lt→az (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "lt→az (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — lt→az (trailing-excluded) stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "filter→between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — filter→between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "filter→between stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — filter→between stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "filter→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — filter→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "filter→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — filter→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za-window→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za-window→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za-window→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za-window→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "az→limit stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — az→limit stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "az→limit stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — az→limit stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "za→limit stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — za→limit stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "za→limit stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — za→limit stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "between→avg stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — between→avg stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "between→avg stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — between→avg stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect→length stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect→length stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "intersect→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — intersect→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "intersect→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — intersect→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "union→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — union→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "union→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — union→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "union→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — union→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "union→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — union→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "union→group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — union→group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "union→group stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — union→group stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "except→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — except→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "except→sum stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — except→sum stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "array",
+    "asserts": "except→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · array — except→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
+  },
+  {
+    "op": "differential",
+    "guarantee": "Robustness",
+    "shape": "object",
+    "asserts": "except→za stays equal to a from-scratch rebuild through random churn",
+    "via": [],
+    "title": "differential · Robustness · object — except→za stays equal to a from-scratch rebuild through random churn",
+    "file": "differential.test.ts"
   }
 ]

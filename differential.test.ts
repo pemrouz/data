@@ -15,7 +15,7 @@
 //
 // This file IS in the default `npm test` glob (see package.json). Run it alone:
 //   node --experimental-strip-types --test differential.test.ts
-import { test } from 'node:test'
+import { spec } from './tests/spec.ts'
 import { strictEqual as eq, ok } from 'node:assert'
 import { $, value } from './index.ts'
 
@@ -338,7 +338,7 @@ const KNOWN_FAILURES = new Set([])
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {
     const key = `${scn.tag} [${shape}]`
-    test(`diff: ${key}`, () => {
+    spec({ op:'differential', guarantee:'Robustness', shape, asserts:`${scn.tag} stays equal to a from-scratch rebuild through random churn` }, () => {
       let firstFail = null
       // a few seeds so a single lucky/unlucky sequence doesn't hide a bug
       for (const seed of [1, 7, 42, 99]) {
