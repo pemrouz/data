@@ -1,0 +1,27 @@
+// @ts-nocheck
+// Collect spec() metadata into tests/registry.json WITHOUT running the tests.
+// Run:  SPEC_COLLECT=1 node --experimental-strip-types tests/collect-registry.ts
+//
+// In collect mode spec() records its metadata and skips test(), so importing a
+// migrated test file just registers its specs. We import each file individually
+// and tag the new entries with their source path (for the File column).
+import { writeFileSync } from 'node:fs'
+import { registry } from './spec.ts'
+
+// Files migrated to the spec() format. Add to this list as more convert.
+const FILES = [
+  'operators/between/between.test.ts',
+  'operators/sort/sort.test.ts',
+  'operators/sort/za-replace.test.ts',
+  'operators/intersect/intersect.test.ts',
+]
+
+for (const f of FILES) {
+  const before = registry().length
+  await import(new URL('../' + f, import.meta.url).href)
+  for (let i = before; i < registry().length; i++) registry()[i].file = f
+}
+
+const out = new URL('./registry.json', import.meta.url)
+writeFileSync(out, JSON.stringify(registry(), null, 2) + '\n')
+console.log('wrote tests/registry.json —', registry().length, 'specs from', FILES.length, 'file(s)')
