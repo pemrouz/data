@@ -95,6 +95,7 @@
     "test": "node --experimental-strip-types --no-warnings --test core.test.ts entry.test.ts index.test.ts differential.test.ts operators/*/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
     "perf": "node perf/run-gate.mjs",
     "perf:report": "node perf/_run.mjs",
+    "perf:h7": "node perf/gen-h7.mjs",
     "test:all": "npm run test && npm run test:render",
     "report": "node tests/report/run.mjs && node tests/report/build.mjs",
     "report:build": "node tests/report/build.mjs",

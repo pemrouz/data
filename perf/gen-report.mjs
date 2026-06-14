@@ -64,6 +64,16 @@ for (const file of readdirSync(runDir)) {
   harnesses[key] = { title: TITLES[key] || key, rows }
 }
 
+// H7 (cross-library) is generated separately from the committed
+// operators/<op>/BENCHMARK.md tables (perf/gen-h7.mjs → perf/h7.jsonl), not from
+// the per-sweep run dir — running the peer suite takes minutes, so it refreshes
+// on the BENCHMARK.md cadence. Inject it so every perf.json carries the tile.
+const H7_PATH = join(ROOT, 'perf', 'h7.jsonl')
+if (existsSync(H7_PATH)) {
+  const h7rows = readFileSync(H7_PATH, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+  if (h7rows.length) harnesses.H7 = { title: TITLES.H7 || 'H7', rows: h7rows }
+}
+
 const run = {
   id: runId,
   commit: git('rev-parse --short HEAD', 'unknown'),

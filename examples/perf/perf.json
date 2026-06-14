@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "run": {
-    "id": "2026-06-14T16-58-24Z-18e5519-4py",
-    "commit": "80769c3",
+    "id": "2026-06-14T17-07-09Z-dd8ff18-pdo",
+    "commit": "dd8ff18",
     "branch": "main",
     "dirty": true,
     "node": "v26.1.0",
     "gc": true,
-    "ts": 1781456330452
+    "ts": 1781456856513
   },
   "harnesses": {
     "H1": {
@@ -136,7 +136,7 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 75.794,
+          "value": 89.024,
           "dims": {
             "N": 50000,
             "frames": 240,
@@ -144,257 +144,257 @@
             "budget": 16
           },
           "stats": {
-            "p50": 2.057,
-            "p95": 65.338,
-            "p99": 75.794,
-            "max": 159.265
+            "p50": 2.205,
+            "p95": 79.314,
+            "p99": 89.024,
+            "max": 172.597
           },
           "viol16": 40,
           "viol33": 40,
           "frames": [
-            5.477,
-            159.265,
-            2.834,
-            2.102,
-            2.006,
-            2.651,
-            2.343,
-            2.255,
-            2.917,
-            1.902,
-            1.688,
-            1.538,
-            1.974,
-            2.954,
-            2.414,
-            2.359,
-            2.208,
-            2.216,
-            1.8,
-            1.484,
-            1.776,
-            2.479,
-            2.317,
-            3.12,
-            2.189,
-            1.97,
-            1.824,
-            1.492,
-            1.505,
-            2.501,
-            2.449,
-            2.132,
-            1.895,
-            1.793,
-            1.573,
-            1.458,
-            1.224,
-            2.452,
-            2.416,
-            2.101,
-            1.913,
-            1.743,
-            1.565,
-            1.349,
-            1.196,
-            2.6,
-            3.351,
-            8.001,
-            2.055,
-            1.741,
-            1.677,
-            1.492,
-            1.269,
-            2.681,
-            2.239,
-            2.012,
-            1.85,
-            1.652,
-            1.481,
-            1.318,
-            1.274,
-            2.007,
-            2.15,
-            1.988,
-            1.846,
-            1.651,
-            1.489,
-            1.485,
-            1.189,
-            2.213,
-            2.385,
-            2.057,
-            1.915,
-            1.693,
-            1.5,
-            1.368,
-            1.26,
-            2.177,
-            2.405,
-            2.049,
-            1.897,
-            1.789,
-            1.607,
-            1.465,
-            1.359,
-            2.956,
-            2.645,
-            2.195,
-            1.873,
-            1.737,
-            1.98,
-            1.409,
-            1.244,
-            1.721,
-            2.357,
-            2.068,
-            1.883,
-            1.669,
-            1.59,
-            1.397,
-            1.163,
-            1.769,
-            2.592,
-            3.385,
-            2.099,
-            1.826,
-            1.663,
-            1.422,
-            1.316,
-            2.032,
-            2.535,
-            2.315,
-            2.078,
-            1.819,
-            1.648,
-            1.587,
-            1.451,
-            2.141,
-            2.33,
-            2.249,
-            2.07,
-            2.088,
-            2.121,
-            1.691,
-            1.355,
-            1.842,
-            2.841,
-            2.534,
-            2.184,
-            1.941,
-            1.684,
-            1.603,
-            1.471,
-            1.611,
+            6.164,
+            172.597,
+            2.824,
+            2.138,
+            2.295,
+            3.011,
             2.498,
-            2.349,
-            2.022,
-            1.978,
-            1.719,
-            1.686,
-            1.343,
-            1.624,
-            2.672,
-            4.887,
-            2.203,
-            1.873,
-            1.762,
-            1.505,
-            1.387,
-            1.719,
-            2.448,
-            2.243,
-            2.095,
+            2.282,
+            2.125,
+            1.871,
+            1.794,
+            1.615,
+            1.826,
+            3.488,
+            2.793,
+            3.22,
+            2.748,
+            2.949,
+            2.4,
+            1.929,
+            2.348,
+            2.668,
+            2.56,
+            2.955,
+            2.048,
+            2.251,
+            1.822,
+            1.711,
+            1.619,
+            4.501,
+            3.487,
+            2.99,
+            2.247,
+            1.992,
+            1.623,
+            1.608,
+            1.287,
+            2.687,
+            2.59,
+            2.278,
+            2.03,
+            1.914,
+            1.644,
+            1.487,
+            1.36,
+            2.956,
+            3.779,
+            8.947,
+            2.313,
+            2.062,
+            1.604,
+            1.483,
+            1.184,
+            2.713,
+            2.309,
+            2.154,
             1.909,
-            1.758,
-            1.512,
-            1.38,
-            1.242,
-            2.567,
-            2.255,
-            2.038,
-            1.889,
-            1.68,
-            1.611,
-            1.381,
-            1.194,
-            2.372,
-            2.399,
-            2.076,
-            1.934,
-            1.87,
-            1.658,
-            1.495,
-            1.198,
-            2.521,
-            2.388,
-            2.156,
-            1.866,
-            1.787,
-            1.508,
-            1.352,
-            1.291,
-            2.509,
-            3.286,
-            2.642,
-            3.335,
-            2.075,
-            1.811,
-            1.53,
-            1.357,
-            2.226,
-            2.293,
-            2.244,
+            2.2,
+            2.008,
+            1.75,
+            1.474,
+            2.402,
+            2.352,
+            2.232,
+            1.925,
+            2.192,
+            1.689,
+            1.44,
+            1.319,
+            2.199,
+            2.43,
+            2.165,
+            1.911,
+            1.915,
+            1.593,
+            1.5,
+            1.409,
+            2.317,
+            2.647,
+            2.446,
+            2.143,
+            1.884,
+            1.644,
+            1.604,
+            1.318,
+            2.672,
+            2.542,
+            2.327,
+            2.223,
+            1.979,
+            2.26,
+            1.604,
+            1.545,
+            2.198,
+            2.404,
+            2.442,
+            2.094,
+            1.799,
+            1.561,
+            1.644,
+            1.435,
+            1.884,
+            2.762,
+            2.306,
+            2.943,
+            2.041,
+            2.008,
+            1.727,
+            1.547,
+            2.489,
+            2.903,
+            2.329,
+            2.322,
+            1.916,
+            1.802,
+            1.768,
+            2.532,
+            2.834,
+            2.649,
+            2.588,
+            2.306,
+            2.011,
+            1.795,
+            1.706,
+            1.506,
             2.043,
-            1.943,
-            1.657,
-            1.601,
-            1.322,
-            2.296,
-            2.83,
-            2.301,
-            86.568,
-            43.563,
-            73.326,
-            39.13,
-            66.769,
-            40.888,
-            64.901,
-            40.641,
-            64.988,
-            42.479,
-            64.172,
-            38.193,
-            63.649,
-            44.017,
-            66.934,
-            40.274,
-            61.366,
-            39.436,
-            65.286,
-            37.439,
-            65.338,
-            39.112,
-            67.653,
-            40.45,
-            75.794,
-            42.823,
-            69.166,
-            36.974,
-            68.454,
-            35.305,
-            62.735,
-            35.16,
-            61.856,
-            36.462,
-            66.042,
-            38.729,
-            68.402,
-            46.232,
-            63.401
+            2.767,
+            2.569,
+            2.517,
+            2.155,
+            1.958,
+            1.635,
+            1.58,
+            1.641,
+            2.662,
+            2.395,
+            2.09,
+            1.898,
+            1.793,
+            1.755,
+            1.784,
+            1.734,
+            2.642,
+            2.242,
+            5.229,
+            2.205,
+            1.809,
+            1.537,
+            1.4,
+            1.843,
+            2.411,
+            2.284,
+            2.039,
+            1.923,
+            2.152,
+            1.732,
+            1.43,
+            1.244,
+            2.448,
+            2.255,
+            2.136,
+            1.911,
+            1.818,
+            1.582,
+            1.453,
+            1.256,
+            2.486,
+            2.508,
+            2.172,
+            1.999,
+            2.388,
+            1.781,
+            1.625,
+            1.315,
+            2.712,
+            2.456,
+            2.101,
+            1.974,
+            2.091,
+            1.693,
+            1.469,
+            1.258,
+            2.619,
+            2.326,
+            2.099,
+            2.601,
+            1.829,
+            1.643,
+            1.37,
+            1.407,
+            2.231,
+            2.281,
+            2.077,
+            1.888,
+            1.872,
+            1.709,
+            1.507,
+            1.298,
+            2.104,
+            2.339,
+            2.183,
+            80.584,
+            46.431,
+            82.096,
+            65.638,
+            89.024,
+            48.559,
+            73.371,
+            48.194,
+            73.156,
+            52.608,
+            90.479,
+            62.227,
+            81.199,
+            48.782,
+            74.77,
+            46.183,
+            73.914,
+            48.357,
+            72.071,
+            42.417,
+            72.999,
+            46.352,
+            80.199,
+            46.62,
+            75.377,
+            41.14,
+            80.675,
+            42.349,
+            76.338,
+            43.065,
+            85.344,
+            42.454,
+            77.355,
+            44.103,
+            79.401,
+            43.514,
+            79.314,
+            54.759,
+            84.882
           ],
           "worst": {
-            "ms": 159.265,
+            "ms": 172.597,
             "at": 1,
             "phase": "drag",
             "op": "za",
@@ -443,12 +443,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.4341,
+          "value": 4.467,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.4341
+            "median": 4.467
           }
         },
         {
@@ -460,12 +460,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1148,
+          "value": 0.1217,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1148
+            "median": 0.1217
           }
         },
         {
@@ -477,13 +477,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.3835,
+          "value": 2.4677,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.3835
+            "median": 2.4677
           }
         },
         {
@@ -495,12 +495,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 5.5644,
+          "value": 5.7139,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 5.5644
+            "median": 5.7139
           }
         },
         {
@@ -512,12 +512,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1796,
+          "value": 0.1999,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1796
+            "median": 0.1999
           }
         },
         {
@@ -529,13 +529,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.4284,
+          "value": 2.4332,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 1.4284
+            "median": 2.4332
           }
         },
         {
@@ -547,12 +547,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.9125,
+          "value": 6.6928,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.9125
+            "median": 6.6928
           }
         },
         {
@@ -564,13 +564,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.6092,
+          "value": 3.8698,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.6092
+            "median": 3.8698
           }
         },
         {
@@ -582,12 +582,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 12.5438,
+          "value": 16.8856,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 12.5438
+            "median": 16.8856
           }
         },
         {
@@ -599,12 +599,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.7984,
+          "value": 4.8672,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.7984
+            "median": 4.8672
           }
         },
         {
@@ -616,13 +616,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.5398,
+          "value": 4.2056,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.5398
+            "median": 4.2056
           }
         },
         {
@@ -634,13 +634,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.1071,
+          "value": 1.5061,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.1071
+            "median": 1.5061
           }
         },
         {
@@ -652,12 +652,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.9768,
+          "value": 2.2824,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.9768
+            "median": 2.2824
           }
         },
         {
@@ -669,12 +669,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.0991,
+          "value": 0.1062,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.0991
+            "median": 0.1062
           }
         },
         {
@@ -686,13 +686,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.9684,
+          "value": 3.2906,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 3.9684
+            "median": 3.2906
           }
         },
         {
@@ -704,12 +704,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.6527,
+          "value": 3.4368,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.6527
+            "median": 3.4368
           }
         },
         {
@@ -721,12 +721,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.0883,
+          "value": 3.5494,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.0883
+            "median": 3.5494
           }
         },
         {
@@ -738,12 +738,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.7381,
+          "value": 1.9365,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.7381
+            "median": 1.9365
           }
         },
         {
@@ -755,12 +755,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 8.1671,
+          "value": 8.4691,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 8.1671
+            "median": 8.4691
           }
         },
         {
@@ -772,12 +772,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1372,
+          "value": 0.1223,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1372
+            "median": 0.1223
           }
         },
         {
@@ -789,13 +789,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3544,
+          "value": 0.481,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 0.3544
+            "median": 0.481
           }
         },
         {
@@ -807,12 +807,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.7627,
+          "value": 3.1223,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 2.7627
+            "median": 3.1223
           }
         },
         {
@@ -824,13 +824,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.0355,
+          "value": 2.3724,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.0355
+            "median": 2.3724
           }
         },
         {
@@ -842,13 +842,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.5808,
+          "value": 1.9675,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 1.5808
+            "median": 1.9675
           }
         },
         {
@@ -860,12 +860,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.9878,
+          "value": 3.6055,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.9878
+            "median": 3.6055
           }
         },
         {
@@ -877,12 +877,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1024,
+          "value": 0.1047,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1024
+            "median": 0.1047
           }
         },
         {
@@ -894,13 +894,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.9661,
+          "value": 3.2659,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.9661
+            "median": 3.2659
           }
         },
         {
@@ -912,12 +912,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 7.4205,
+          "value": 10.098,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 7.4205
+            "median": 10.098
           }
         },
         {
@@ -929,12 +929,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1369,
+          "value": 0.1776,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1369
+            "median": 0.1776
           }
         },
         {
@@ -946,12 +946,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1348,
+          "value": 0.1403,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1348
+            "median": 0.1403
           }
         },
         {
@@ -963,12 +963,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 13.7929,
+          "value": 12.0652,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 13.7929
+            "median": 12.0652
           }
         },
         {
@@ -980,13 +980,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 10.3978,
+          "value": 3.8282,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 10.3978
+            "median": 3.8282
           }
         },
         {
@@ -998,12 +998,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 7.8945,
+          "value": 3.0747,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 7.8945
+            "median": 3.0747
           }
         },
         {
@@ -1015,12 +1015,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1847,
+          "value": 0.131,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1847
+            "median": 0.131
           }
         },
         {
@@ -1032,12 +1032,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1545,
+          "value": 0.1177,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1545
+            "median": 0.1177
           }
         },
         {
@@ -1049,12 +1049,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 8.0988,
+          "value": 4.0837,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 8.0988
+            "median": 4.0837
           }
         },
         {
@@ -1066,12 +1066,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 4.9064,
+          "value": 3.0726,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 4.9064
+            "median": 3.0726
           }
         },
         {
@@ -1083,12 +1083,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1461,
+          "value": 0.1183,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1461
+            "median": 0.1183
           }
         },
         {
@@ -1100,12 +1100,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.1341,
+          "value": 2.3701,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.1341
+            "median": 2.3701
           }
         },
         {
@@ -1117,12 +1117,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 3.6482,
+          "value": 2.4832,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 3.6482
+            "median": 2.4832
           }
         },
         {
@@ -1134,13 +1134,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 99.4695,
+          "value": 98.4239,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 99.4695
+            "median": 98.4239
           }
         },
         {
@@ -1152,12 +1152,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 6.1934,
+          "value": 7.9921,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 6.1934
+            "median": 7.9921
           }
         },
         {
@@ -1169,12 +1169,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.123,
+          "value": 0.1318,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.123
+            "median": 0.1318
           }
         },
         {
@@ -1186,13 +1186,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3374,
+          "value": 0.3949,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 0.3374
+            "median": 0.3949
           }
         },
         {
@@ -1204,13 +1204,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3042,
+          "value": 0.4694,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 0.3042
+            "median": 0.4694
           }
         },
         {
@@ -1222,12 +1222,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.8124,
+          "value": 2.1198,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.8124
+            "median": 2.1198
           }
         },
         {
@@ -1239,12 +1239,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.147,
+          "value": 0.1421,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.147
+            "median": 0.1421
           }
         },
         {
@@ -1256,13 +1256,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 51.3418,
+          "value": 67.2701,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 51.3418
+            "median": 67.2701
           }
         },
         {
@@ -1274,12 +1274,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 22.5783,
+          "value": 25.6221,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 22.5783
+            "median": 25.6221
           }
         },
         {
@@ -1288,6 +1288,23 @@
           "group": "sort",
           "op": "sort",
           "case": "insert",
+          "kind": "timing",
+          "dir": "down",
+          "unit": "ms",
+          "value": 0.1848,
+          "dims": {
+            "N": 10000
+          },
+          "stats": {
+            "median": 0.1848
+          }
+        },
+        {
+          "id": "sort/rotate@N=10000",
+          "harness": "ops",
+          "group": "sort",
+          "op": "sort",
+          "case": "rotate",
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
@@ -1300,23 +1317,6 @@
           }
         },
         {
-          "id": "sort/rotate@N=10000",
-          "harness": "ops",
-          "group": "sort",
-          "op": "sort",
-          "case": "rotate",
-          "kind": "timing",
-          "dir": "down",
-          "unit": "ms",
-          "value": 0.2274,
-          "dims": {
-            "N": 10000
-          },
-          "stats": {
-            "median": 0.2274
-          }
-        },
-        {
           "id": "sort/brush@N=10000",
           "harness": "ops",
           "group": "sort",
@@ -1325,12 +1325,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 19.9031,
+          "value": 80.2611,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 19.9031
+            "median": 80.2611
           }
         },
         {
@@ -1342,12 +1342,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.4063,
+          "value": 0.3616,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.4063
+            "median": 0.3616
           }
         },
         {
@@ -1359,12 +1359,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.1917,
+          "value": 0.1909,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.1917
+            "median": 0.1909
           }
         },
         {
@@ -1376,13 +1376,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 4.1306,
+          "value": 3.7151,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 4.1306
+            "median": 3.7151
           }
         },
         {
@@ -1394,13 +1394,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.6099,
+          "value": 2.7031,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.6099
+            "median": 2.7031
           }
         },
         {
@@ -1412,12 +1412,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.7224,
+          "value": 1.0109,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.7224
+            "median": 1.0109
           }
         },
         {
@@ -1429,12 +1429,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 0.3939,
+          "value": 0.4972,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 0.3939
+            "median": 0.4972
           }
         },
         {
@@ -1446,13 +1446,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 207.1535,
+          "value": 216.6737,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 207.1535
+            "median": 216.6737
           }
         },
         {
@@ -1464,12 +1464,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 10.5914,
+          "value": 16.8511,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 10.5914
+            "median": 16.8511
           }
         },
         {
@@ -1481,13 +1481,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 2.4329,
+          "value": 2.4069,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 2.4329
+            "median": 2.4069
           }
         },
         {
@@ -1499,13 +1499,13 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.942,
+          "value": 2.336,
           "dims": {
             "N": 10000,
             "batch": 1000
           },
           "stats": {
-            "median": 1.942
+            "median": 2.336
           }
         },
         {
@@ -1517,12 +1517,12 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 1.4058,
+          "value": 1.7355,
           "dims": {
             "N": 10000
           },
           "stats": {
-            "median": 1.4058
+            "median": 1.7355
           }
         },
         {
@@ -1534,229 +1534,1437 @@
           "kind": "timing",
           "dir": "down",
           "unit": "ms",
-          "value": 71.0835,
+          "value": 81.1682,
           "dims": {
             "N": 10000,
             "batch": 100
           },
           "stats": {
-            "median": 71.0835
+            "median": 81.1682
           }
+        }
+      ]
+    },
+    "H7": {
+      "title": "cross-library",
+      "rows": [
+        {
+          "id": "aggregate/cross-lib",
+          "harness": "H7",
+          "group": "aggregate",
+          "op": "aggregate",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 4.4,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.059,
+            "closest": "svelte-store",
+            "closest ×": 4.4,
+            "batch × (closest)": 77.6
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.059,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.26,
+              "singleX": 4.4,
+              "batch": 206.49,
+              "batchX": 77.6
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.28,
+              "singleX": 4.7,
+              "batch": 295.34,
+              "batchX": 111
+            },
+            {
+              "lib": "react",
+              "single": 0.393,
+              "singleX": 6.7,
+              "batch": 256.59,
+              "batchX": 96.5
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.477,
+              "singleX": 8.1,
+              "batch": 31.48,
+              "batchX": 11.8
+            },
+            {
+              "lib": "crossfilter",
+              "single": 0.833,
+              "singleX": 14.1,
+              "batch": 112.56,
+              "batchX": 42.3
+            },
+            {
+              "lib": "solid",
+              "single": 1.93,
+              "singleX": 32.7,
+              "batch": 152.63,
+              "batchX": 57.4
+            },
+            {
+              "lib": "mobx",
+              "single": 8.56,
+              "singleX": 145,
+              "batch": 631.41,
+              "batchX": 237
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 23.87,
+              "singleX": 405,
+              "batch": 1924.02,
+              "batchX": 723
+            }
+          ],
+          "note": "data 4.4× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "between/cross-lib",
+          "harness": "H7",
+          "group": "between",
+          "op": "between",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 10.8,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.037,
+            "closest": "svelte-store",
+            "closest ×": 10.8,
+            "batch × (closest)": 241
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.037,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.4,
+              "singleX": 10.8,
+              "batch": 453.39,
+              "batchX": 241
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.402,
+              "singleX": 10.9,
+              "batch": 415.28,
+              "batchX": 221
+            },
+            {
+              "lib": "react",
+              "single": 0.499,
+              "singleX": 13.5,
+              "batch": 511.31,
+              "batchX": 272
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.925,
+              "singleX": 25,
+              "batch": 42.78,
+              "batchX": 22.8
+            },
+            {
+              "lib": "crossfilter",
+              "single": 1.5,
+              "singleX": 40.5,
+              "batch": 398.4,
+              "batchX": 212
+            },
+            {
+              "lib": "solid",
+              "single": 2.18,
+              "singleX": 58.9,
+              "batch": 178.61,
+              "batchX": 95
+            },
+            {
+              "lib": "mobx",
+              "single": 3.9,
+              "singleX": 105,
+              "batch": 301.95,
+              "batchX": 161
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 7.61,
+              "singleX": 206,
+              "batch": 1027.83,
+              "batchX": 547
+            }
+          ],
+          "note": "data 10.8× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "compare/cross-lib",
+          "harness": "H7",
+          "group": "compare",
+          "op": "compare",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 13.9,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.02,
+            "closest": "svelte-store",
+            "closest ×": 13.9,
+            "batch × (closest)": 186
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.02,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.278,
+              "singleX": 13.9,
+              "batch": 334.99,
+              "batchX": 186
+            },
+            {
+              "lib": "react",
+              "single": 0.298,
+              "singleX": 14.9,
+              "batch": 345.52,
+              "batchX": 192
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.377,
+              "singleX": 18.9,
+              "batch": 306.3,
+              "batchX": 170
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.54,
+              "singleX": 27,
+              "batch": 49.21,
+              "batchX": 27.3
+            },
+            {
+              "lib": "crossfilter",
+              "single": 1.29,
+              "singleX": 64.5,
+              "batch": 410.76,
+              "batchX": 228
+            },
+            {
+              "lib": "solid",
+              "single": 2.33,
+              "singleX": 117,
+              "batch": 213.51,
+              "batchX": 119
+            },
+            {
+              "lib": "mobx",
+              "single": 2.81,
+              "singleX": 141,
+              "batch": 228.58,
+              "batchX": 127
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 6.86,
+              "singleX": 343,
+              "batch": 631.37,
+              "batchX": 351
+            }
+          ],
+          "note": "data 13.9× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "distinct/cross-lib",
+          "harness": "H7",
+          "group": "distinct",
+          "op": "distinct",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 27.6,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.014,
+            "closest": "svelte-store",
+            "closest ×": 27.6,
+            "batch × (closest)": 274
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.014,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.387,
+              "singleX": 27.6,
+              "batch": 435.11,
+              "batchX": 274
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.405,
+              "singleX": 28.9,
+              "batch": 414.56,
+              "batchX": 261
+            },
+            {
+              "lib": "react",
+              "single": 0.522,
+              "singleX": 37.3,
+              "batch": 460.82,
+              "batchX": 290
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.543,
+              "singleX": 38.8,
+              "batch": 51.47,
+              "batchX": 32.4
+            },
+            {
+              "lib": "solid",
+              "single": 1.73,
+              "singleX": 124,
+              "batch": 180.19,
+              "batchX": 113
+            },
+            {
+              "lib": "mobx",
+              "single": 6.7,
+              "singleX": 479,
+              "batch": 624.88,
+              "batchX": 393
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 17.37,
+              "singleX": 1241,
+              "batch": 1544.65,
+              "batchX": 971
+            }
+          ],
+          "note": "data 27.6× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "except/cross-lib",
+          "harness": "H7",
+          "group": "except",
+          "op": "except",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 3.4,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.118,
+            "closest": "rxjs",
+            "closest ×": 3.4,
+            "batch × (closest)": 131
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.118,
+              "singleX": 1
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.405,
+              "singleX": 3.4,
+              "batch": 414.35,
+              "batchX": 131
+            },
+            {
+              "lib": "react",
+              "single": 0.455,
+              "singleX": 3.9,
+              "batch": 411.54,
+              "batchX": 130
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.675,
+              "singleX": 5.7,
+              "batch": 22.38,
+              "batchX": 7.1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.751,
+              "singleX": 6.4,
+              "batch": 597.91,
+              "batchX": 189
+            },
+            {
+              "lib": "solid",
+              "single": 2.72,
+              "singleX": 23.1,
+              "batch": 49.06,
+              "batchX": 15.5
+            },
+            {
+              "lib": "mobx",
+              "single": 9.91,
+              "singleX": 84,
+              "batch": 137.52,
+              "batchX": 43.4
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 19.56,
+              "singleX": 166,
+              "batch": 473.38,
+              "batchX": 149
+            }
+          ],
+          "note": "data 3.4× faster than rxjs (closest peer) on a single tick"
+        },
+        {
+          "id": "filter/cross-lib",
+          "harness": "H7",
+          "group": "filter",
+          "op": "filter",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 36.3,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.008,
+            "closest": "svelte-store",
+            "closest ×": 36.3,
+            "batch × (closest)": 119
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.008,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.29,
+              "singleX": 36.3,
+              "batch": 300.02,
+              "batchX": 119
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.314,
+              "singleX": 39.3,
+              "batch": 404.47,
+              "batchX": 161
+            },
+            {
+              "lib": "react",
+              "single": 0.44,
+              "singleX": 55,
+              "batch": 362.29,
+              "batchX": 144
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.625,
+              "singleX": 78.1,
+              "batch": 63.95,
+              "batchX": 25.4
+            },
+            {
+              "lib": "solid",
+              "single": 2.96,
+              "singleX": 370,
+              "batch": 217.29,
+              "batchX": 86.2
+            },
+            {
+              "lib": "crossfilter",
+              "single": 3.23,
+              "singleX": 404,
+              "batch": 557.29,
+              "batchX": 221
+            },
+            {
+              "lib": "mobx",
+              "single": 3.88,
+              "singleX": 485,
+              "batch": 337.53,
+              "batchX": 134
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 13.37,
+              "singleX": 1671,
+              "batch": 882.92,
+              "batchX": 350
+            }
+          ],
+          "note": "data 36.3× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "group/cross-lib",
+          "harness": "H7",
+          "group": "group",
+          "op": "group",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 113,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.005,
+            "closest": "preact-signals",
+            "closest ×": 113,
+            "batch × (closest)": 49.3
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.005,
+              "singleX": 1
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.565,
+              "singleX": 113,
+              "batch": 51.24,
+              "batchX": 49.3
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.587,
+              "singleX": 117,
+              "batch": 589.7,
+              "batchX": 567
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.693,
+              "singleX": 139,
+              "batch": 847.13,
+              "batchX": 815
+            },
+            {
+              "lib": "react",
+              "single": 1.08,
+              "singleX": 216,
+              "batch": 692.31,
+              "batchX": 666
+            },
+            {
+              "lib": "solid",
+              "single": 1.61,
+              "singleX": 322,
+              "batch": 143.53,
+              "batchX": 138
+            },
+            {
+              "lib": "crossfilter",
+              "single": 2.12,
+              "singleX": 424,
+              "batch": 461.54,
+              "batchX": 444
+            },
+            {
+              "lib": "mobx",
+              "single": 8.68,
+              "singleX": 1736,
+              "batch": 551.64,
+              "batchX": 530
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 11.55,
+              "singleX": 2310,
+              "batch": 1716.77,
+              "batchX": 1651
+            }
+          ],
+          "note": "data 113× faster than preact-signals (closest peer) on a single tick"
+        },
+        {
+          "id": "intersect/cross-lib",
+          "harness": "H7",
+          "group": "intersect",
+          "op": "intersect",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 3.4,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.126,
+            "closest": "svelte-store",
+            "closest ×": 3.4,
+            "batch × (closest)": 236
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.126,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.434,
+              "singleX": 3.4,
+              "batch": 554.15,
+              "batchX": 236
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.528,
+              "singleX": 4.2,
+              "batch": 541.4,
+              "batchX": 230
+            },
+            {
+              "lib": "react",
+              "single": 0.595,
+              "singleX": 4.7,
+              "batch": 749.09,
+              "batchX": 319
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.769,
+              "singleX": 6.1,
+              "batch": 16.53,
+              "batchX": 7
+            },
+            {
+              "lib": "solid",
+              "single": 2.72,
+              "singleX": 21.6,
+              "batch": 58.6,
+              "batchX": 24.9
+            },
+            {
+              "lib": "crossfilter",
+              "single": 3.08,
+              "singleX": 24.4,
+              "batch": 1036.09,
+              "batchX": 441
+            },
+            {
+              "lib": "mobx",
+              "single": 11.75,
+              "singleX": 93.3,
+              "batch": 174.87,
+              "batchX": 74.4
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 17.08,
+              "singleX": 136,
+              "batch": 589.97,
+              "batchX": 251
+            }
+          ],
+          "note": "data 3.4× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "keys/cross-lib",
+          "harness": "H7",
+          "group": "keys",
+          "op": "keys",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 8.2,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.02,
+            "closest": "solid",
+            "closest ×": 8.2,
+            "batch × (closest)": 110
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.02,
+              "singleX": 1
+            },
+            {
+              "lib": "solid",
+              "single": 0.163,
+              "singleX": 8.2,
+              "batch": 235.84,
+              "batchX": 110
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.17,
+              "singleX": 8.5,
+              "batch": 286.58,
+              "batchX": 133
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.174,
+              "singleX": 8.7,
+              "batch": 402.14,
+              "batchX": 187
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.239,
+              "singleX": 11.9,
+              "batch": 208.33,
+              "batchX": 96.9
+            },
+            {
+              "lib": "react",
+              "single": 0.316,
+              "singleX": 15.8,
+              "batch": 555.61,
+              "batchX": 258
+            },
+            {
+              "lib": "mobx",
+              "single": 4.32,
+              "singleX": 216,
+              "batch": 4198.39,
+              "batchX": 1953
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 7.07,
+              "singleX": 354,
+              "batch": 16385.94,
+              "batchX": 7621
+            }
+          ],
+          "note": "data 8.2× faster than solid (closest peer) on a single tick"
+        },
+        {
+          "id": "length/cross-lib",
+          "harness": "H7",
+          "group": "length",
+          "op": "length",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 0.04,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.103,
+            "closest": "preact-signals",
+            "closest ×": 0.04,
+            "batch × (closest)": 4.1
+          },
+          "peers": [
+            {
+              "lib": "preact-signals",
+              "single": 0.004,
+              "singleX": 0.04,
+              "batch": 19.77,
+              "batchX": 4.1
+            },
+            {
+              "lib": "solid",
+              "single": 0.006,
+              "singleX": 0.06,
+              "batch": 83.6,
+              "batchX": 17.4
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 0.025,
+              "singleX": 0.24,
+              "batch": 2150.13,
+              "batchX": 447
+            },
+            {
+              "lib": "mobx",
+              "single": 0.025,
+              "singleX": 0.24,
+              "batch": 526.43,
+              "batchX": 109
+            },
+            {
+              "lib": "data",
+              "single": 0.103,
+              "singleX": 1
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.455,
+              "singleX": 4.4,
+              "batch": 504.76,
+              "batchX": 105
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.635,
+              "singleX": 6.2,
+              "batch": 630.01,
+              "batchX": 131
+            },
+            {
+              "lib": "react",
+              "single": 1.01,
+              "singleX": 9.8,
+              "batch": 843.97,
+              "batchX": 175
+            },
+            {
+              "lib": "crossfilter",
+              "single": 3.2,
+              "singleX": 31.1,
+              "batch": 598.47,
+              "batchX": 124
+            }
+          ],
+          "note": "data 0.04× faster than preact-signals (closest peer) on a single tick"
+        },
+        {
+          "id": "map/cross-lib",
+          "harness": "H7",
+          "group": "map",
+          "op": "map",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 49.1,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.012,
+            "closest": "react",
+            "closest ×": 49.1,
+            "batch × (closest)": 253
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.012,
+              "singleX": 1
+            },
+            {
+              "lib": "react",
+              "single": 0.589,
+              "singleX": 49.1,
+              "batch": 853.88,
+              "batchX": 253
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.684,
+              "singleX": 57,
+              "batch": 923.44,
+              "batchX": 274
+            },
+            {
+              "lib": "svelte-store",
+              "single": 1.17,
+              "singleX": 97.5,
+              "batch": 672.24,
+              "batchX": 199
+            },
+            {
+              "lib": "preact-signals",
+              "single": 1.56,
+              "singleX": 130,
+              "batch": 126.69,
+              "batchX": 37.6
+            },
+            {
+              "lib": "solid",
+              "single": 6.81,
+              "singleX": 568,
+              "batch": 574.33,
+              "batchX": 170
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 17.47,
+              "singleX": 1456,
+              "batch": 1994.22,
+              "batchX": 592
+            },
+            {
+              "lib": "mobx",
+              "single": 22.82,
+              "singleX": 1902,
+              "batch": 1459.6,
+              "batchX": 433
+            }
+          ],
+          "note": "data 49.1× faster than react (closest peer) on a single tick"
+        },
+        {
+          "id": "reduce/cross-lib",
+          "harness": "H7",
+          "group": "reduce",
+          "op": "reduce",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 3,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.005,
+            "closest": "crossfilter",
+            "closest ×": 3,
+            "batch × (closest)": 18.8
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.005,
+              "singleX": 1
+            },
+            {
+              "lib": "crossfilter",
+              "single": 0.015,
+              "singleX": 3,
+              "batch": 27.06,
+              "batchX": 18.8
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.253,
+              "singleX": 50.6,
+              "batch": 697.69,
+              "batchX": 485
+            },
+            {
+              "lib": "solid",
+              "single": 0.292,
+              "singleX": 58.4,
+              "batch": 570.89,
+              "batchX": 396
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.304,
+              "singleX": 60.8,
+              "batch": 594.17,
+              "batchX": 413
+            },
+            {
+              "lib": "react",
+              "single": 0.363,
+              "singleX": 72.6,
+              "batch": 604.94,
+              "batchX": 420
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.653,
+              "singleX": 131,
+              "batch": 875.12,
+              "batchX": 608
+            },
+            {
+              "lib": "mobx",
+              "single": 8.05,
+              "singleX": 1610,
+              "batch": 15339.95,
+              "batchX": 10653
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 21.39,
+              "singleX": 4278,
+              "batch": 42561.31,
+              "batchX": 29556
+            }
+          ],
+          "note": "data 3× faster than crossfilter (closest peer) on a single tick"
+        },
+        {
+          "id": "reverse/cross-lib",
+          "harness": "H7",
+          "group": "reverse",
+          "op": "reverse",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 4.2,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.01,
+            "closest": "svelte-store",
+            "closest ×": 4.2,
+            "batch × (closest)": 29.6
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.01,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.042,
+              "singleX": 4.2,
+              "batch": 164.7,
+              "batchX": 29.6
+            },
+            {
+              "lib": "solid",
+              "single": 0.046,
+              "singleX": 4.6,
+              "batch": 106.48,
+              "batchX": 19.1
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.061,
+              "singleX": 6.1,
+              "batch": 114.46,
+              "batchX": 20.5
+            },
+            {
+              "lib": "mobx",
+              "single": 0.061,
+              "singleX": 6.1,
+              "batch": 72.01,
+              "batchX": 12.9
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.063,
+              "singleX": 6.3,
+              "batch": 216.58,
+              "batchX": 38.9
+            },
+            {
+              "lib": "react",
+              "single": 0.08,
+              "singleX": 8,
+              "batch": 118.39,
+              "batchX": 21.3
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 10.42,
+              "singleX": 1042,
+              "batch": 18155.75,
+              "batchX": 3260
+            }
+          ],
+          "note": "data 4.2× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "sort/cross-lib",
+          "harness": "H7",
+          "group": "sort",
+          "op": "sort",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 16.3,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.274,
+            "closest": "crossfilter",
+            "closest ×": 16.3,
+            "batch × (closest)": 3
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.274,
+              "singleX": 1
+            },
+            {
+              "lib": "crossfilter",
+              "single": 4.46,
+              "singleX": 16.3,
+              "batch": 507.64,
+              "batchX": 3
+            },
+            {
+              "lib": "react",
+              "single": 5.15,
+              "singleX": 18.8,
+              "batch": 4720.26,
+              "batchX": 28.3
+            },
+            {
+              "lib": "svelte-store",
+              "single": 5.16,
+              "singleX": 18.8,
+              "batch": 5570.31,
+              "batchX": 33.4
+            },
+            {
+              "lib": "rxjs",
+              "single": 6.44,
+              "singleX": 23.5,
+              "batch": 8036.67,
+              "batchX": 48.3
+            },
+            {
+              "lib": "preact-signals",
+              "single": 10.13,
+              "singleX": 37,
+              "batch": 792.12,
+              "batchX": 4.8
+            },
+            {
+              "lib": "solid",
+              "single": 12.46,
+              "singleX": 45.5,
+              "batch": 1152.42,
+              "batchX": 6.9
+            },
+            {
+              "lib": "mobx",
+              "single": 49.18,
+              "singleX": 179,
+              "batch": 7002.78,
+              "batchX": 42
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 115.03,
+              "singleX": 420,
+              "batch": 6745.7,
+              "batchX": 40.5
+            }
+          ],
+          "note": "data 16.3× faster than crossfilter (closest peer) on a single tick"
+        },
+        {
+          "id": "tap/cross-lib",
+          "harness": "H7",
+          "group": "tap",
+          "op": "tap",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 1.3,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 8,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.006,
+            "closest": "svelte-store",
+            "closest ×": 1.3,
+            "batch × (closest)": 9.6
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.006,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.008,
+              "singleX": 1.3,
+              "batch": 10.4,
+              "batchX": 9.6
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.009,
+              "singleX": 1.5,
+              "batch": 10.11,
+              "batchX": 9.4
+            },
+            {
+              "lib": "data (1-arg)",
+              "single": 0.012,
+              "singleX": null,
+              "batch": 1.66,
+              "batchX": null
+            },
+            {
+              "lib": "react",
+              "single": 0.056,
+              "singleX": 9.3,
+              "batch": 34.24,
+              "batchX": 31.7
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.251,
+              "singleX": 41.8,
+              "batch": 23.55,
+              "batchX": 21.8
+            },
+            {
+              "lib": "solid",
+              "single": 1.2,
+              "singleX": 200,
+              "batch": 110.58,
+              "batchX": 102
+            },
+            {
+              "lib": "mobx",
+              "single": 5.17,
+              "singleX": 862,
+              "batch": 527.41,
+              "batchX": 488
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 11.25,
+              "singleX": 1875,
+              "batch": 1872.97,
+              "batchX": 1734
+            }
+          ],
+          "note": "data 1.3× faster than svelte-store (closest peer) on a single tick"
+        },
+        {
+          "id": "to/cross-lib",
+          "harness": "H7",
+          "group": "to",
+          "op": "to",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 0.33,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.012,
+            "closest": "vue-reactivity",
+            "closest ×": 0.33,
+            "batch × (closest)": 1.1
+          },
+          "peers": [
+            {
+              "lib": "vue-reactivity",
+              "single": 0.004,
+              "singleX": 0.33,
+              "batch": 1.5,
+              "batchX": 1.1
+            },
+            {
+              "lib": "mobx",
+              "single": 0.005,
+              "singleX": 0.42,
+              "batch": 2.27,
+              "batchX": 1.6
+            },
+            {
+              "lib": "data",
+              "single": 0.012,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.012,
+              "singleX": 1,
+              "batch": 12.09,
+              "batchX": 8.7
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.012,
+              "singleX": 1,
+              "batch": 18.69,
+              "batchX": 13.4
+            },
+            {
+              "lib": "react",
+              "single": 0.045,
+              "singleX": 3.8,
+              "batch": 35.4,
+              "batchX": 25.5
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.339,
+              "singleX": 28.3,
+              "batch": 30.51,
+              "batchX": 21.9
+            },
+            {
+              "lib": "solid",
+              "single": 1.72,
+              "singleX": 143,
+              "batch": 151.56,
+              "batchX": 109
+            }
+          ],
+          "note": "data 0.33× faster than vue-reactivity (closest peer) on a single tick"
+        },
+        {
+          "id": "union/cross-lib",
+          "harness": "H7",
+          "group": "union",
+          "op": "union",
+          "case": "cross-lib",
+          "kind": "ratio",
+          "dir": "up",
+          "unit": "×",
+          "value": 4.8,
+          "dims": {
+            "metric": "single-tick",
+            "peers": 7,
+            "N": 10000
+          },
+          "stats": {
+            "data (ms)": 0.084,
+            "closest": "svelte-store",
+            "closest ×": 4.8,
+            "batch × (closest)": 144
+          },
+          "peers": [
+            {
+              "lib": "data",
+              "single": 0.084,
+              "singleX": 1
+            },
+            {
+              "lib": "svelte-store",
+              "single": 0.407,
+              "singleX": 4.8,
+              "batch": 427.94,
+              "batchX": 144
+            },
+            {
+              "lib": "rxjs",
+              "single": 0.449,
+              "singleX": 5.3,
+              "batch": 431.69,
+              "batchX": 145
+            },
+            {
+              "lib": "react",
+              "single": 0.469,
+              "singleX": 5.6,
+              "batch": 384.59,
+              "batchX": 129
+            },
+            {
+              "lib": "preact-signals",
+              "single": 0.729,
+              "singleX": 8.7,
+              "batch": 23.79,
+              "batchX": 8
+            },
+            {
+              "lib": "solid",
+              "single": 2.36,
+              "singleX": 28.1,
+              "batch": 81.79,
+              "batchX": 27.4
+            },
+            {
+              "lib": "mobx",
+              "single": 8.78,
+              "singleX": 105,
+              "batch": 218.33,
+              "batchX": 73.3
+            },
+            {
+              "lib": "vue-reactivity",
+              "single": 15.41,
+              "singleX": 183,
+              "batch": 744.26,
+              "batchX": 250
+            }
+          ],
+          "note": "data 4.8× faster than svelte-store (closest peer) on a single tick"
         }
       ]
     }
   },
   "history": [
-    {
-      "run": {
-        "id": "2026-06-14T16-15-58Z-81d11eb-5ou",
-        "commit": "81d11eb",
-        "ts": 1781453787999
-      },
-      "points": {
-        "tail/crossfilter-brush": 91.669,
-        "aggregate/sum-setup@N=10000": 4.7,
-        "aggregate/sum-insert@N=10000": 0.1889,
-        "aggregate/avg-batch@N=10000": 3.5766,
-        "aggregate/max-setup@N=10000": 6.915,
-        "aggregate/max-insert@N=10000": 0.2196,
-        "aggregate/min-batch@N=10000": 2.066,
-        "aggregate/some-setup@N=10000": 6.0976,
-        "aggregate/every-batch@N=10000": 3.9107,
-        "between/setup@N=10000": 17.8477,
-        "between/narrow@N=10000": 5.3018,
-        "between/insert@N=10000": 5.2898,
-        "between/remove@N=10000": 1.6707,
-        "compare/gt-setup@N=10000": 3.3077,
-        "compare/gt-insert@N=10000": 0.127,
-        "compare/gt-batch@N=10000": 5.8512,
-        "compare/lt-setup@N=10000": 3.1847,
-        "compare/gte-setup@N=10000": 3.8219,
-        "compare/lte-setup@N=10000": 3.289,
-        "distinct/setup@N=10000": 13.0105,
-        "distinct/insert@N=10000": 0.1652,
-        "distinct/batch@N=10000": 0.4157,
-        "except/setup@N=10000": 6.0712,
-        "except/insert-other@N=10000": 3.6098,
-        "except/remove-other@N=10000": 1.9418,
-        "filter/setup@N=10000": 3.0802,
-        "filter/single@N=10000": 0.1556,
-        "filter/batch@N=10000": 4.4893,
-        "group/setup@N=10000": 11.936,
-        "group/insert@N=10000": 0.1454,
-        "group/churn@N=10000": 0.1062,
-        "intersect/setup@N=10000": 12.7528,
-        "intersect/churn@N=10000": 3.6712,
-        "keys/setup@N=10000": 2.613,
-        "keys/insert@N=10000": 0.1199,
-        "length/insert@N=10000": 0.1124,
-        "length(fn)/setup@N=10000": 3.6849,
-        "map/setup@N=10000": 3.8685,
-        "map/insert@N=10000": 0.1315,
-        "reverse/setup@N=10000": 3.2381,
-        "reverse/insert@N=10000": 0.233,
-        "reverse/batch@N=10000": 103.1558,
-        "sort/setup@N=10000": 35.273,
-        "sort/insert@N=10000": 0.2765,
-        "sort/rotate@N=10000": 0.2581,
-        "sort/brush@N=10000": 27.7069,
-        "tap/setup@N=10000": 0.3797,
-        "tap/insert@N=10000": 0.2572,
-        "tap/batch@N=10000": 4.9616,
-        "tap/bare@N=10000": 3.5943,
-        "to/setup@N=10000": 1.4882,
-        "to/insert@N=10000": 0.606,
-        "to/batch@N=10000": 283.7549,
-        "union/setup@N=10000": 19.3138,
-        "union/churn@N=10000": 4.5259,
-        "union/insert@N=10000": 2.5058,
-        "values/setup@N=10000": 1.8399,
-        "values/batch@N=10000": 93.76,
-        "reduce/setup@N=10000": 2.5439,
-        "reduce/single@N=10000": 1.1762,
-        "reduce/batch@N=10000": 307.0478
-      }
-    },
-    {
-      "run": {
-        "id": "2026-06-14T16-16-40Z-ce0c8f9-fap",
-        "commit": "ce0c8f9",
-        "ts": 1781453827940
-      },
-      "points": {
-        "tail/crossfilter-brush": 115.54,
-        "aggregate/sum-setup@N=10000": 5.9516,
-        "aggregate/sum-insert@N=10000": 0.1443,
-        "aggregate/avg-batch@N=10000": 3.6127,
-        "aggregate/max-setup@N=10000": 7.4847,
-        "aggregate/max-insert@N=10000": 0.2162,
-        "aggregate/min-batch@N=10000": 2.0675,
-        "aggregate/some-setup@N=10000": 6.0034,
-        "aggregate/every-batch@N=10000": 4.1479,
-        "between/setup@N=10000": 18.5513,
-        "between/narrow@N=10000": 5.8776,
-        "between/insert@N=10000": 3.3551,
-        "between/remove@N=10000": 1.7266,
-        "compare/gt-setup@N=10000": 2.5847,
-        "compare/gt-insert@N=10000": 0.122,
-        "compare/gt-batch@N=10000": 5.4801,
-        "compare/lt-setup@N=10000": 2.7707,
-        "compare/gte-setup@N=10000": 4.4,
-        "compare/lte-setup@N=10000": 3.0313,
-        "distinct/setup@N=10000": 9.3863,
-        "distinct/insert@N=10000": 0.1548,
-        "distinct/batch@N=10000": 0.4177,
-        "except/setup@N=10000": 6.5332,
-        "except/insert-other@N=10000": 3.2923,
-        "except/remove-other@N=10000": 3.4125,
-        "filter/setup@N=10000": 2.7154,
-        "filter/single@N=10000": 0.1304,
-        "filter/batch@N=10000": 3.9025,
-        "group/setup@N=10000": 12.2494,
-        "group/insert@N=10000": 0.204,
-        "group/churn@N=10000": 0.0597,
-        "intersect/setup@N=10000": 13.7705,
-        "intersect/churn@N=10000": 5.1868,
-        "keys/setup@N=10000": 2.4498,
-        "keys/insert@N=10000": 0.1203,
-        "length/insert@N=10000": 0.1482,
-        "length(fn)/setup@N=10000": 4.3059,
-        "map/setup@N=10000": 2.5838,
-        "map/insert@N=10000": 0.1645,
-        "reverse/setup@N=10000": 1.9434,
-        "reverse/insert@N=10000": 0.1664,
-        "reverse/batch@N=10000": 71.5789,
-        "sort/setup@N=10000": 19.8972,
-        "sort/insert@N=10000": 0.1805,
-        "sort/rotate@N=10000": 0.2032,
-        "sort/brush@N=10000": 20.2567,
-        "tap/setup@N=10000": 0.3967,
-        "tap/insert@N=10000": 0.1934,
-        "tap/batch@N=10000": 4.3824,
-        "tap/bare@N=10000": 3.0287,
-        "to/setup@N=10000": 0.8127,
-        "to/insert@N=10000": 0.5112,
-        "to/batch@N=10000": 207.1056,
-        "union/setup@N=10000": 13.2315,
-        "union/churn@N=10000": 2.4862,
-        "union/insert@N=10000": 2.1835,
-        "values/setup@N=10000": 1.3815,
-        "values/batch@N=10000": 99.8444,
-        "reduce/setup@N=10000": 3.1549,
-        "reduce/single@N=10000": 2.2299,
-        "reduce/batch@N=10000": 360.8099
-      }
-    },
-    {
-      "run": {
-        "id": "2026-06-14T16-17-09Z-ce0c8f9-rhc",
-        "commit": "ce0c8f9",
-        "ts": 1781453856582
-      },
-      "points": {
-        "tail/crossfilter-brush": 104.268,
-        "aggregate/sum-setup@N=10000": 4.0033,
-        "aggregate/sum-insert@N=10000": 0.1613,
-        "aggregate/avg-batch@N=10000": 2.7819,
-        "aggregate/max-setup@N=10000": 6.4997,
-        "aggregate/max-insert@N=10000": 0.2118,
-        "aggregate/min-batch@N=10000": 1.6079,
-        "aggregate/some-setup@N=10000": 5.1613,
-        "aggregate/every-batch@N=10000": 3.9916,
-        "between/setup@N=10000": 18.9616,
-        "between/narrow@N=10000": 4.4269,
-        "between/insert@N=10000": 3.8041,
-        "between/remove@N=10000": 2.1383,
-        "compare/gt-setup@N=10000": 2.567,
-        "compare/gt-insert@N=10000": 0.119,
-        "compare/gt-batch@N=10000": 3.0524,
-        "compare/lt-setup@N=10000": 2.0954,
-        "compare/gte-setup@N=10000": 3.0847,
-        "compare/lte-setup@N=10000": 1.7491,
-        "distinct/setup@N=10000": 7.096,
-        "distinct/insert@N=10000": 0.1256,
-        "distinct/batch@N=10000": 0.3145,
-        "except/setup@N=10000": 2.7317,
-        "except/insert-other@N=10000": 2.5966,
-        "except/remove-other@N=10000": 1.7339,
-        "filter/setup@N=10000": 2.0341,
-        "filter/single@N=10000": 0.0941,
-        "filter/batch@N=10000": 3.4847,
-        "group/setup@N=10000": 8.0094,
-        "group/insert@N=10000": 0.1558,
-        "group/churn@N=10000": 0.0648,
-        "intersect/setup@N=10000": 9.9373,
-        "intersect/churn@N=10000": 3.7762,
-        "keys/setup@N=10000": 3.1983,
-        "keys/insert@N=10000": 0.1198,
-        "length/insert@N=10000": 0.1272,
-        "length(fn)/setup@N=10000": 3.7161,
-        "map/setup@N=10000": 2.4507,
-        "map/insert@N=10000": 0.1064,
-        "reverse/setup@N=10000": 2.0639,
-        "reverse/insert@N=10000": 0.1183,
-        "reverse/batch@N=10000": 61.1984,
-        "sort/setup@N=10000": 18.3543,
-        "sort/insert@N=10000": 0.2008,
-        "sort/rotate@N=10000": 0.1595,
-        "sort/brush@N=10000": 89.4103,
-        "tap/setup@N=10000": 0.3886,
-        "tap/insert@N=10000": 0.1946,
-        "tap/batch@N=10000": 6.3922,
-        "tap/bare@N=10000": 2.7546,
-        "to/setup@N=10000": 1.0503,
-        "to/insert@N=10000": 0.5526,
-        "to/batch@N=10000": 268.7028,
-        "union/setup@N=10000": 14.8494,
-        "union/churn@N=10000": 3.9719,
-        "union/insert@N=10000": 2.2215,
-        "values/setup@N=10000": 1.6318,
-        "values/batch@N=10000": 92.4064,
-        "reduce/setup@N=10000": 2.4191,
-        "reduce/single@N=10000": 1.8612,
-        "reduce/batch@N=10000": 490.0732
-      }
-    },
     {
       "run": {
         "id": "2026-06-14T16-17-38Z-ce0c8f9-yot",
@@ -4609,6 +5817,297 @@
         "union/insert@N=10000": 1.942,
         "values/setup@N=10000": 1.4058,
         "values/batch@N=10000": 71.0835
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T17-05-26Z-dd8ff18-lxv",
+        "commit": "dd8ff18",
+        "ts": 1781456756954
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 91.641,
+        "selfreg/regressions": 1,
+        "aggregate/sum-setup@N=10000": 4.7055,
+        "aggregate/sum-insert@N=10000": 0.1424,
+        "aggregate/avg-batch@N=10000": 2.8089,
+        "aggregate/max-setup@N=10000": 7.1002,
+        "aggregate/max-insert@N=10000": 0.2323,
+        "aggregate/min-batch@N=10000": 1.9791,
+        "aggregate/some-setup@N=10000": 6.1033,
+        "aggregate/every-batch@N=10000": 4.0132,
+        "between/setup@N=10000": 16.6751,
+        "between/narrow@N=10000": 3.5122,
+        "between/insert@N=10000": 4.0631,
+        "between/remove@N=10000": 1.5544,
+        "compare/gt-setup@N=10000": 3.2436,
+        "compare/gt-insert@N=10000": 0.1364,
+        "compare/gt-batch@N=10000": 5.3558,
+        "compare/lt-setup@N=10000": 3.2178,
+        "compare/gte-setup@N=10000": 3.063,
+        "compare/lte-setup@N=10000": 3.6081,
+        "distinct/setup@N=10000": 10.7975,
+        "distinct/insert@N=10000": 0.1598,
+        "distinct/batch@N=10000": 0.7116,
+        "except/setup@N=10000": 4.1163,
+        "except/insert-other@N=10000": 4.546,
+        "except/remove-other@N=10000": 1.7905,
+        "filter/setup@N=10000": 2.7401,
+        "filter/single@N=10000": 0.1105,
+        "filter/batch@N=10000": 6.8831,
+        "group/setup@N=10000": 12.2556,
+        "group/insert@N=10000": 0.1968,
+        "group/churn@N=10000": 0.2117,
+        "intersect/setup@N=10000": 14.5501,
+        "intersect/churn@N=10000": 5.5183,
+        "keys/setup@N=10000": 3.3731,
+        "keys/insert@N=10000": 0.1367,
+        "length/insert@N=10000": 0.1594,
+        "length(fn)/setup@N=10000": 4.1715,
+        "map/setup@N=10000": 4.0197,
+        "map/insert@N=10000": 0.1753,
+        "reduce/setup@N=10000": 3.4336,
+        "reduce/insert@N=10000": 3.0767,
+        "reduce/batch@N=10000": 96.7837,
+        "reduce/inc-setup@N=10000": 8.9404,
+        "reduce/inc-insert@N=10000": 0.1742,
+        "reduce/inc-overwrite@N=10000": 0.5551,
+        "reduce/inc-remove@N=10000": 0.522,
+        "reverse/setup@N=10000": 4.1277,
+        "reverse/insert@N=10000": 0.213,
+        "reverse/batch@N=10000": 77.6396,
+        "sort/setup@N=10000": 29.4077,
+        "sort/insert@N=10000": 0.34,
+        "sort/rotate@N=10000": 0.1918,
+        "sort/brush@N=10000": 25.0163,
+        "tap/setup@N=10000": 0.5937,
+        "tap/insert@N=10000": 0.2009,
+        "tap/batch@N=10000": 4.5801,
+        "tap/bare@N=10000": 3.0963,
+        "to/setup@N=10000": 0.8105,
+        "to/insert@N=10000": 0.5755,
+        "to/batch@N=10000": 236.8035,
+        "union/setup@N=10000": 17.9828,
+        "union/churn@N=10000": 2.6709,
+        "union/insert@N=10000": 2.1481,
+        "values/setup@N=10000": 1.6857,
+        "values/batch@N=10000": 106.7199,
+        "aggregate/cross-lib": 4.4,
+        "between/cross-lib": 10.8,
+        "compare/cross-lib": 13.9,
+        "distinct/cross-lib": 27.6,
+        "except/cross-lib": 3.4,
+        "filter/cross-lib": 36.3,
+        "group/cross-lib": 113,
+        "intersect/cross-lib": 3.4,
+        "keys/cross-lib": 8.2,
+        "length/cross-lib": 0.04,
+        "map/cross-lib": 49.1,
+        "reduce/cross-lib": 3,
+        "reverse/cross-lib": 4.2,
+        "sort/cross-lib": 16.3,
+        "tap/cross-lib": 1.3,
+        "to/cross-lib": 0.33,
+        "union/cross-lib": 4.8
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T17-06-36Z-dd8ff18-kqs",
+        "commit": "dd8ff18",
+        "ts": 1781456827906
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 183.297,
+        "selfreg/regressions": 2,
+        "aggregate/sum-setup@N=10000": 4.4124,
+        "aggregate/sum-insert@N=10000": 0.1394,
+        "aggregate/avg-batch@N=10000": 3.05,
+        "aggregate/max-setup@N=10000": 6.5706,
+        "aggregate/max-insert@N=10000": 0.3514,
+        "aggregate/min-batch@N=10000": 1.849,
+        "aggregate/some-setup@N=10000": 6.1279,
+        "aggregate/every-batch@N=10000": 3.9998,
+        "between/setup@N=10000": 16.5344,
+        "between/narrow@N=10000": 4.8169,
+        "between/insert@N=10000": 5.5307,
+        "between/remove@N=10000": 1.7527,
+        "compare/gt-setup@N=10000": 4.3575,
+        "compare/gt-insert@N=10000": 0.1721,
+        "compare/gt-batch@N=10000": 5.9045,
+        "compare/lt-setup@N=10000": 3.1472,
+        "compare/gte-setup@N=10000": 4.4635,
+        "compare/lte-setup@N=10000": 3.9704,
+        "distinct/setup@N=10000": 8.6562,
+        "distinct/insert@N=10000": 0.1979,
+        "distinct/batch@N=10000": 0.6688,
+        "except/setup@N=10000": 8.5987,
+        "except/insert-other@N=10000": 5.4101,
+        "except/remove-other@N=10000": 3.4726,
+        "filter/setup@N=10000": 4.5944,
+        "filter/single@N=10000": 0.1267,
+        "filter/batch@N=10000": 6.0501,
+        "group/setup@N=10000": 9.88,
+        "group/insert@N=10000": 0.1859,
+        "group/churn@N=10000": 0.0972,
+        "intersect/setup@N=10000": 14.4182,
+        "intersect/churn@N=10000": 3.9321,
+        "keys/setup@N=10000": 2.4295,
+        "keys/insert@N=10000": 0.1436,
+        "length/insert@N=10000": 0.1458,
+        "length(fn)/setup@N=10000": 6.5243,
+        "map/setup@N=10000": 2.7245,
+        "map/insert@N=10000": 0.12,
+        "reduce/setup@N=10000": 3.1098,
+        "reduce/insert@N=10000": 1.9369,
+        "reduce/batch@N=10000": 78.4106,
+        "reduce/inc-setup@N=10000": 5.4569,
+        "reduce/inc-insert@N=10000": 0.1125,
+        "reduce/inc-overwrite@N=10000": 0.2589,
+        "reduce/inc-remove@N=10000": 0.2872,
+        "reverse/setup@N=10000": 4.5637,
+        "reverse/insert@N=10000": 0.1495,
+        "reverse/batch@N=10000": 115.5977,
+        "sort/setup@N=10000": 40.5517,
+        "sort/insert@N=10000": 0.2735,
+        "sort/rotate@N=10000": 0.3304,
+        "sort/brush@N=10000": 32.8144,
+        "tap/setup@N=10000": 0.4099,
+        "tap/insert@N=10000": 0.287,
+        "tap/batch@N=10000": 4.5045,
+        "tap/bare@N=10000": 3.4102,
+        "to/setup@N=10000": 1.4375,
+        "to/insert@N=10000": 0.5419,
+        "to/batch@N=10000": 235.0747,
+        "union/setup@N=10000": 15.6775,
+        "union/churn@N=10000": 3.037,
+        "union/insert@N=10000": 2.1254,
+        "values/setup@N=10000": 1.6013,
+        "values/batch@N=10000": 103.496,
+        "aggregate/cross-lib": 4.4,
+        "between/cross-lib": 10.8,
+        "compare/cross-lib": 13.9,
+        "distinct/cross-lib": 27.6,
+        "except/cross-lib": 3.4,
+        "filter/cross-lib": 36.3,
+        "group/cross-lib": 113,
+        "intersect/cross-lib": 3.4,
+        "keys/cross-lib": 8.2,
+        "length/cross-lib": 0.04,
+        "map/cross-lib": 49.1,
+        "reduce/cross-lib": 3,
+        "reverse/cross-lib": 4.2,
+        "sort/cross-lib": 16.3,
+        "tap/cross-lib": 1.3,
+        "to/cross-lib": 0.33,
+        "union/cross-lib": 4.8
+      }
+    },
+    {
+      "run": {
+        "id": "2026-06-14T17-07-09Z-dd8ff18-pdo",
+        "commit": "dd8ff18",
+        "ts": 1781456856513
+      },
+      "points": {
+        "aggregate/object-insert@N=5000": 1,
+        "aggregate/array-insert@N=5000": 5001,
+        "reduce/inc-insert@N=5000": 1,
+        "reduce/full-insert@N=5000": 5001,
+        "length(fn)/rebucket-insert@N=5000": 1,
+        "tail/crossfilter-brush": 89.024,
+        "selfreg/regressions": 0,
+        "aggregate/sum-setup@N=10000": 4.467,
+        "aggregate/sum-insert@N=10000": 0.1217,
+        "aggregate/avg-batch@N=10000": 2.4677,
+        "aggregate/max-setup@N=10000": 5.7139,
+        "aggregate/max-insert@N=10000": 0.1999,
+        "aggregate/min-batch@N=10000": 2.4332,
+        "aggregate/some-setup@N=10000": 6.6928,
+        "aggregate/every-batch@N=10000": 3.8698,
+        "between/setup@N=10000": 16.8856,
+        "between/narrow@N=10000": 4.8672,
+        "between/insert@N=10000": 4.2056,
+        "between/remove@N=10000": 1.5061,
+        "compare/gt-setup@N=10000": 2.2824,
+        "compare/gt-insert@N=10000": 0.1062,
+        "compare/gt-batch@N=10000": 3.2906,
+        "compare/lt-setup@N=10000": 3.4368,
+        "compare/gte-setup@N=10000": 3.5494,
+        "compare/lte-setup@N=10000": 1.9365,
+        "distinct/setup@N=10000": 8.4691,
+        "distinct/insert@N=10000": 0.1223,
+        "distinct/batch@N=10000": 0.481,
+        "except/setup@N=10000": 3.1223,
+        "except/insert-other@N=10000": 2.3724,
+        "except/remove-other@N=10000": 1.9675,
+        "filter/setup@N=10000": 3.6055,
+        "filter/single@N=10000": 0.1047,
+        "filter/batch@N=10000": 3.2659,
+        "group/setup@N=10000": 10.098,
+        "group/insert@N=10000": 0.1776,
+        "group/churn@N=10000": 0.1403,
+        "intersect/setup@N=10000": 12.0652,
+        "intersect/churn@N=10000": 3.8282,
+        "keys/setup@N=10000": 3.0747,
+        "keys/insert@N=10000": 0.131,
+        "length/insert@N=10000": 0.1177,
+        "length(fn)/setup@N=10000": 4.0837,
+        "map/setup@N=10000": 3.0726,
+        "map/insert@N=10000": 0.1183,
+        "reduce/setup@N=10000": 2.3701,
+        "reduce/insert@N=10000": 2.4832,
+        "reduce/batch@N=10000": 98.4239,
+        "reduce/inc-setup@N=10000": 7.9921,
+        "reduce/inc-insert@N=10000": 0.1318,
+        "reduce/inc-overwrite@N=10000": 0.3949,
+        "reduce/inc-remove@N=10000": 0.4694,
+        "reverse/setup@N=10000": 2.1198,
+        "reverse/insert@N=10000": 0.1421,
+        "reverse/batch@N=10000": 67.2701,
+        "sort/setup@N=10000": 25.6221,
+        "sort/insert@N=10000": 0.1848,
+        "sort/rotate@N=10000": 0.1682,
+        "sort/brush@N=10000": 80.2611,
+        "tap/setup@N=10000": 0.3616,
+        "tap/insert@N=10000": 0.1909,
+        "tap/batch@N=10000": 3.7151,
+        "tap/bare@N=10000": 2.7031,
+        "to/setup@N=10000": 1.0109,
+        "to/insert@N=10000": 0.4972,
+        "to/batch@N=10000": 216.6737,
+        "union/setup@N=10000": 16.8511,
+        "union/churn@N=10000": 2.4069,
+        "union/insert@N=10000": 2.336,
+        "values/setup@N=10000": 1.7355,
+        "values/batch@N=10000": 81.1682,
+        "aggregate/cross-lib": 4.4,
+        "between/cross-lib": 10.8,
+        "compare/cross-lib": 13.9,
+        "distinct/cross-lib": 27.6,
+        "except/cross-lib": 3.4,
+        "filter/cross-lib": 36.3,
+        "group/cross-lib": 113,
+        "intersect/cross-lib": 3.4,
+        "keys/cross-lib": 8.2,
+        "length/cross-lib": 0.04,
+        "map/cross-lib": 49.1,
+        "reduce/cross-lib": 3,
+        "reverse/cross-lib": 4.2,
+        "sort/cross-lib": 16.3,
+        "tap/cross-lib": 1.3,
+        "to/cross-lib": 0.33,
+        "union/cross-lib": 4.8
       }
     }
   ]

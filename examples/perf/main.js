@@ -281,6 +281,7 @@ function detailFor(r) {
   wrap.className = 'ix-detail'
   if (r.harness === 'H4') wrap.appendChild(detailTail(r))
   else if (r.harness === 'H1') wrap.appendChild(detailScaling(r))
+  else if (r.harness === 'H7') wrap.appendChild(detailCrossLib(r))
   else wrap.appendChild(detailGeneric(r))
   wrap.appendChild(detailFooter(r)) // shared: min/max band + trend spark + provenance
   return wrap
@@ -315,6 +316,29 @@ function detailScaling(r) {
       insert evaluates the predicate once. <span class="dim">(this run)</span></div>
      <div class="rcard-foot">${fstat('value', r.value, r.unit)}${fstat('reads/insert', ins.readsPerInsert)}${fstat('N', r.dims.N, '', fmtN)}${fstat('dir', goodSign(r) < 0 ? '↓ lower' : '↑ higher', '', String)}</div>
      ${insBars ? `<div class="tcount-block" style="padding:.4rem 1.2rem">${insBars}</div>` : ''}`
+  return el
+}
+
+function detailCrossLib(r) {
+  const el = document.createElement('div')
+  const peers = r.peers || []
+  const maxS = Math.max(...peers.map(p => p.single || 0), 1e-9)
+  const bars = peers.map(p => {
+    const isData = p.lib === 'data'
+    const w = Math.max(1.5, ((p.single || 0) / maxS) * 100)   // linear bar by single-tick ms
+    const sx = p.singleX && p.singleX !== 1 ? `${fmt(p.singleX)}×` : '—'
+    return `<div class="tcount-row" style="${isData ? 'font-weight:600' : ''}">` +
+      `<span class="tcount-label">${esc(p.lib)}</span>` +
+      `<span class="tcount-bar"><span class="tcount-fill" style="width:${w}%${isData ? ';opacity:.55' : ''}"></span></span>` +
+      `<span class="tcount-val">${fmt(p.single, 3)}ms${isData ? '' : ` · ${sx}`}</span></div>`
+  }).join('')
+  el.innerHTML =
+    `<div class="tile-cap">single-tick reactive cost vs <b>${r.dims.peers}</b> peer libraries at
+      <b>N=${fmtN(r.dims.N)}</b>, from the committed <b>${esc(r.op)}</b> benchmark. data is
+      <b>${fmt(r.value)}×</b> faster than its closest competitor (${esc(r.stats.closest)}).
+      <span class="dim">(refresh: npm run bench:ops → npm run perf:h7)</span></div>
+     <div class="rcard-foot">${fstat('data', r.stats['data (ms)'], 'ms')}${fstat('closest ×', r.stats['closest ×'], '', fmt)}${fstat('batch ×', r.stats['batch × (closest)'], '', fmt)}${fstat('peers', r.dims.peers, '', String)}</div>
+     <div class="tcount-block" style="padding:.4rem 1.2rem">${bars}</div>`
   return el
 }
 
