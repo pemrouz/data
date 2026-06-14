@@ -23,6 +23,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { $, value } from '../full.ts'
 import { benchMeasure as measure, median } from './measure.ts'
+import * as WL from './workloads.ts'
 import { record, resultsDir } from './record.ts'
 
 const pct = (sorted, p) =>
@@ -40,9 +41,12 @@ function makeSource(N) {
   return o
 }
 
+// Legacy uniform sweep, for operators not yet migrated to perf/workloads.ts.
+// As each operator gains a shared workload (Mode A), it moves OUT of this list
+// and is driven from WL instead — the report then re-measures the gate's exact
+// closures rather than this parallel {v,g,w} sweep.
 // field = the row field a single/batch update mutates (drives the recompute).
 const OPS = [
-  { op: 'filter', field: 'v', make: s => s.filter(r => r.v > 500) },
   { op: 'map', field: 'v', make: s => s.map(r => r.v * 2) },
   { op: 'to', field: 'v', make: s => s.to(a => Object.keys(a).length) },
   { op: 'between', field: 'v', make: s => s.between('v', [200, 800]) },
@@ -71,6 +75,20 @@ function backfillOperators() {
     kind: 'timing', dir: 'down', unit: 'ms', value: r4(ms), dims, stats: { median: r4(ms) },
   })
   let n = 0
+  // Mode A: operators with a shared workload — re-measure the GATE's exact
+  // setup/single/batch closures with report rigor (benchMeasure). The row is the
+  // gate's workload, not a parallel sweep.
+  for (const [name, spec] of Object.entries(WL)) {
+    try {
+      for (const [kase, w] of Object.entries(spec.workloads())) {
+        emit(name, kase, measure(w.run), { N: spec.N, ...(w.batch ? { batch: w.batch } : {}) })
+        n++
+      }
+    } catch (e) {
+      console.log(`[backfill] ${name} (workload) skipped: ${e.message}`)
+    }
+  }
+  // Legacy sweep for not-yet-migrated operators.
   for (const spec of OPS) {
     try {
       // setup: build source + view + sink each rep
