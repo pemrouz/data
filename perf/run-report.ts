@@ -45,18 +45,12 @@ function makeSource(N) {
 // As each operator gains a shared workload (Mode A), it moves OUT of this list
 // and is driven from WL instead — the report then re-measures the gate's exact
 // closures rather than this parallel {v,g,w} sweep.
-// MIGRATED (now in WL, removed below): filter, map, to, length, length(fn),
-// keys, values, tap, reverse, distinct, group.
+// MIGRATED (now in WL): filter, map, to, length, length(fn), keys, values, tap,
+// reverse, distinct, group (clean tier); compare(gt/lt/gte/lte), between, sort
+// (az/za), aggregate(sum/avg/max/min/some/every), union, intersect, except
+// (complex tier). Only `reduce` remains on the legacy sweep.
 // field = the row field a single/batch update mutates (drives the recompute).
 const OPS = [
-  { op: 'between', field: 'v', make: s => s.between('v', [200, 800]) },
-  { op: 'gt', field: 'v', make: s => s.gt('v', 500) },
-  { op: 'az', field: 'v', make: s => s.az('v') },
-  { op: 'za(100)', field: 'v', make: s => s.za('v', 100) },
-  { op: 'sum', field: 'v', make: s => s.sum('v') },
-  { op: 'avg', field: 'v', make: s => s.avg('v') },
-  { op: 'max', field: 'v', make: s => s.max('v') },
-  { op: 'min', field: 'v', make: s => s.min('v') },
   { op: 'reduce', field: 'v', make: s => s.reduce((a, r) => a + r.v, 0) },
 ]
 
@@ -74,7 +68,7 @@ function backfillOperators() {
   for (const [name, spec] of Object.entries(WL)) {
     try {
       for (const [kase, w] of Object.entries(spec.workloads())) {
-        emit(spec.label ?? name, kase, measure(w.run), { N: spec.N, ...(w.batch ? { batch: w.batch } : {}) })
+        emit(spec.label ?? name, kase, measure(w.run, w.reps), { N: spec.N, ...(w.batch ? { batch: w.batch } : {}) })
         n++
       }
     } catch (e) {

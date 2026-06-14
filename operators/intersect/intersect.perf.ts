@@ -1,37 +1,15 @@
-﻿// @ts-nocheck
+// @ts-nocheck
+// Thin gate driver (Mode A) — workload lives in perf/workloads.ts. Per-source
+// delta is O(affected rows) on the seeded bitmask; setup is O(rows × sources).
 import { ok } from 'node:assert'
 import { test } from 'node:test'
-import { $, value } from '../../core.ts'
-import { intersect } from './index.ts'
 import { gateMeasure as measure } from '../../perf/measure.ts'
+import { intersect } from '../../perf/workloads.ts'
 
-
-function makeData(n) {
-  const obj = {}
-  for (let i = 0; i < n; i++) obj[i] = `v${i}`
-  return obj
+for (const [name, w] of Object.entries(intersect.workloads())) {
+  test(`intersect ${name} - 3 sources of ${intersect.N}`, () => {
+    const elapsed = measure(w.run, w.reps)
+    console.log(`  intersect ${name} ${intersect.N}x3: ${elapsed.toFixed(2)}ms`)
+    ok(elapsed < w.gate, `intersect ${name}: ${elapsed.toFixed(2)}ms over ${w.gate}ms`)
+  })
 }
-
-test('intersect setup - 10000 rows 3 sources', () => {
-  const elapsed = measure(() => {
-    const a = $(makeData(10000))
-    const b = $(makeData(8000))
-    const c = $(makeData(6000))
-    intersect(a, b, c)
-  })
-  console.log(`  intersect setup 10k x3: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 500)
-})
-
-test('intersect filter update - remove 1000 from b', () => {
-  const a = $(makeData(10000))
-  const b = $(makeData(8000))
-  const c = $(makeData(6000))
-  intersect(a, b, c)
-  const elapsed = measure(() => {
-    for (let i = 0; i < 1000; i++) delete b[i]
-    for (let i = 0; i < 1000; i++) b[i] = `v${i}`
-  })
-  console.log(`  intersect update 10k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 200)
-})

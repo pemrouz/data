@@ -12,7 +12,7 @@
 // Shape per operator: { N, source(n), workloads(n) -> { <case>: { gate, run, batch? } } }.
 // A workload that needs a live graph across reps holds it on a `keep` field so
 // the WeakRef-held operator chain isn't collected mid-measurement.
-import { $ } from '../full.ts'
+import { $, value } from '../full.ts'
 
 export const filter = {
   N: 10_000,
@@ -221,6 +221,169 @@ export const group = {
       setup: { gate: 500, run: () => { const s = $(this.source(n)); s.group(d => d.cat) } },
       insert: { gate: 50, keep: ins.g, run: () => { ins.s.insert({ cat: i % 10, val: i }); i++ } },
       churn: { gate: 50, keep: cg, run: () => { delete cs[removed]; removed++ } },
+    }
+  },
+}
+
+// ── complex-tier operators (Mode A) ────────────────────────────────────────
+// These diverge from the uniform clean-tier shape: reactive bounds, multi-
+// source set algebra, dynamic (view-reading) setups, and per-case sampling
+// counts. A case may carry `reps` (passed to the timer as its second arg) when
+// the gate sampled it with a non-default rep count — typically because the run
+// CONSUMES its source (distinct keys per rep) so the source must hold enough
+// rows for warmup + reps. `keep` bundles every graph piece (sources + bounds +
+// view) because a multi-source / reactive-bounds operator holds its inputs by
+// WeakRef and the run closure only references the one it mutates — the rest
+// would be collected mid-measurement and the op would silently measure nothing.
+
+export const compare = {
+  N: 10_000,
+  label: 'compare',
+  source(n = this.N) {
+    const o = {}
+    for (let i = 0; i < n; i++) o[i] = { active: i % 2 === 0, val: i }
+    return o
+  },
+  workloads(n = this.N) {
+    const mkGt = () => { const s = $(this.source(n)); const f = s.gt('val', 5000); return { s, f } }
+    const ins = mkGt(); const bat = mkGt(); let bump = 0
+    return {
+      'gt-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.gt('val', 5000) } },
+      'gt-insert': { gate: 50, keep: ins, run: () => { ins.s.insert({ active: true, val: 99999 }) } },
+      // shift 1000 rows across the threshold to drive membership flips (bump grows → real work each rep)
+      'gt-batch': { gate: 500, batch: 1000, keep: bat, run: () => { bump++; for (let i = 4500; i < 5500; i++) bat.s[i].val = bump * 10000 + i } },
+      'lt-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.lt('val', 5000) } },
+      'gte-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.gte('val', 5000) } },
+      'lte-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.lte('val', 5000) } },
+    }
+  },
+}
+
+export const between = {
+  N: 10_000,
+  label: 'between',
+  source(n = this.N) {
+    const o = {}
+    for (let i = 0; i < n; i++) o[i] = { val: Math.random() * 1000 }
+    return o
+  },
+  workloads(n = this.N) {
+    // narrow/widen brush on reactive bounds (idempotent pair)
+    const nS = $(this.source(n)); const nb = $({ lo: 0, hi: 1000 }); const nV = nS.between('val', [nb.lo, nb.hi])
+    // insert churn (object): src.insert grows the source; reps=3 (consumes)
+    const iS = $(this.source(n)); const ib = $({ lo: 200, hi: 800 }); const iV = iS.between('val', [ib.lo, ib.hi]); let id = 100000
+    // remove churn (object): delete distinct keys per rep; reps=5 (consumes 5×1000 of 10000)
+    const rS = $(this.source(n)); const rb = $({ lo: 200, hi: 800 }); const rV = rS.between('val', [rb.lo, rb.hi]); let base = 0
+    return {
+      setup: { gate: 500, run: () => { const s = $(this.source(n)); const b = $({ lo: 200, hi: 800 }); s.between('val', [b.lo, b.hi]) } },
+      narrow: { gate: 100, keep: { nS, nb, nV }, run: () => { nb.lo = 400; nb.hi = 600; nb.lo = 0; nb.hi = 1000 } },
+      insert: { gate: 50, reps: 3, batch: 1000, keep: { iS, ib, iV }, run: () => { for (let i = 0; i < 1000; i++) iS.insert({ val: Math.random() * 1000 }, 'n' + (id++)) } },
+      remove: { gate: 50, reps: 5, batch: 1000, keep: { rS, rb, rV }, run: () => { for (let i = 0; i < 1000; i++) delete rS[base + i]; base += 1000 } },
+    }
+  },
+}
+
+export const sort = {
+  N: 10_000,
+  label: 'sort',
+  source(n = this.N) {
+    const o = {}
+    for (let i = 0; i < n; i++) o[i] = { score: Math.random() * 1000, id: i }
+    return o
+  },
+  workloads(n = this.N) {
+    // sort(src,'score',100) === za('score',100): ZAColumnValue, descending bounded top-100
+    const iS = $(this.source(n)); const iV = iS.za('score', 100); let i = n
+    // rotate: bump the row at the window tail (rank 99, lowest) past rank 0
+    const rS = $(this.source(n)); const rV = rS.za('score', 100)
+    const lastId = rV[value][rV[value].length - 1].id
+    let bump = Math.max(...rV[value].map(r => r.score)) + 1
+    // brush: bounded top-100 over a between, brush the whole window out then in
+    const bo = {}; for (let k = 0; k < n; k++) bo['v' + k] = { r: Math.random(), id: k }
+    const bS = $(bo); const bB = $([0, 1]); const bV = bS.between('r', bB).za('r', 100)
+    return {
+      setup: { gate: 500, run: () => { const s = $(this.source(n)); s.za('score', 100) } },
+      insert: { gate: 50, keep: { iS, iV }, run: () => { iS.insert({ score: Math.random() * 1000, id: i++ }) } },
+      rotate: { gate: 50, keep: { rS, rV }, run: () => { rS[lastId].score = bump++ } },
+      brush: { gate: 200, keep: { bS, bB, bV }, run: () => { bB[value] = [0, 0.5]; bB[value] = [0, 1] } },
+    }
+  },
+}
+
+export const aggregate = {
+  N: 10_000,
+  label: 'aggregate',
+  source(n = this.N) {
+    const o = {}
+    for (let i = 0; i < n; i++) o[i] = { active: i % 2 === 0, val: i }
+    return o
+  },
+  workloads(n = this.N) {
+    const mk = (build) => { const s = $(this.source(n)); const a = build(s); return { s, a } }
+    const sumIns = mk(s => s.sum('val')); const maxIns = mk(s => s.max('val'))
+    const avgBat = mk(s => s.avg('val')); const minBat = mk(s => s.min('val')); const everyBat = mk(s => s.every(r => r.active))
+    let si = n; let mi = n; let ta = false; let tm = false; let te = false
+    return {
+      'sum-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.sum('val') } },
+      'sum-insert': { gate: 10, keep: sumIns, run: () => { sumIns.s.insert({ active: true, val: si++ }) } },
+      // alternate base so every rep mutates (else reps 2+ dedup to no-ops)
+      'avg-batch': { gate: 500, batch: 1000, keep: avgBat, run: () => { ta = !ta; const b = ta ? 1 : 2; for (let i = 0; i < 1000; i++) avgBat.s[i].val = i + b } },
+      'max-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.max('val') } },
+      'max-insert': { gate: 10, keep: maxIns, run: () => { maxIns.s.insert({ active: true, val: mi++ }) } },
+      'min-batch': { gate: 500, batch: 100, keep: minBat, run: () => { tm = !tm; const b = tm ? 1 : 2; for (let i = 0; i < 100; i++) minBat.s[i].val = i + b } },
+      'some-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.some(r => r.active) } },
+      'every-batch': { gate: 500, batch: 1000, keep: everyBat, run: () => { te = !te; for (let i = 0; i < 1000; i++) everyBat.s[i].active = te } },
+    }
+  },
+}
+
+export const union = {
+  N: 10_000,
+  label: 'union',
+  src(start, n) { const o = {}; for (let i = 0; i < n; i++) o[start + i] = `v${start + i}`; return o },
+  workloads() {
+    const N = this.N
+    const build = () => { const a = $(this.src(0, N)); const b = $(this.src(5000, N)); const c = $(this.src(10000, N)); const u = a.union(b, c); return { a, b, c, u } }
+    const churnG = build(); const insG = build(); let ins = 25000
+    return {
+      setup: { gate: 500, run: () => { const a = $(this.src(0, N)); const b = $(this.src(5000, N)); const c = $(this.src(10000, N)); a.union(b, c) } },
+      // remove 1000 from b then re-add (idempotent — net zero, rep-stable)
+      churn: { gate: 500, batch: 1000, keep: churnG, run: () => { for (let i = 0; i < 1000; i++) delete churnG.b[5000 + i]; for (let i = 0; i < 1000; i++) churnG.b[5000 + i] = `v${5000 + i}` } },
+      insert: { gate: 500, batch: 1000, keep: insG, run: () => { for (let k = 0; k < 1000; k++) { insG.a[ins] = `v${ins}`; ins++ } } },
+    }
+  },
+}
+
+export const intersect = {
+  N: 10_000,
+  label: 'intersect',
+  src(n) { const o = {}; for (let i = 0; i < n; i++) o[i] = `v${i}`; return o },
+  workloads() {
+    const N = this.N
+    const build = () => { const a = $(this.src(N)); const b = $(this.src(8000)); const c = $(this.src(6000)); const x = a.intersect(b, c); return { a, b, c, x } }
+    const churnG = build()
+    return {
+      setup: { gate: 500, run: () => { const a = $(this.src(N)); const b = $(this.src(8000)); const c = $(this.src(6000)); a.intersect(b, c) } },
+      churn: { gate: 200, batch: 1000, keep: churnG, run: () => { for (let i = 0; i < 1000; i++) delete churnG.b[i]; for (let i = 0; i < 1000; i++) churnG.b[i] = `v${i}` } },
+    }
+  },
+}
+
+export const except = {
+  N: 10_000,
+  label: 'except',
+  src(start, n) { const o = {}; for (let i = 0; i < n; i++) o[start + i] = `v${start + i}`; return o },
+  workloads() {
+    const N = this.N
+    const insG = (() => { const a = $(this.src(0, N)); const b = $(this.src(0, 5000)); const x = a.except(b); return { a, b, x } })()
+    // remove-other deletes DISTINCT keys per rep (base grows) so each rep re-admits
+    // a different 1000 rows; b sized 6000 to hold warmup + 5 reps of 1000.
+    const remG = (() => { const a = $(this.src(0, N)); const b = $(this.src(0, 6000)); const x = a.except(b); return { a, b, x } })()
+    let ins = 5000; let base = 0
+    return {
+      setup: { gate: 500, run: () => { const a = $(this.src(0, N)); const b = $(this.src(0, 5000)); a.except(b) } },
+      'insert-other': { gate: 500, batch: 1000, keep: insG, run: () => { for (let k = 0; k < 1000; k++) { insG.b[ins] = `v${ins}`; ins++ } } },
+      'remove-other': { gate: 500, batch: 1000, keep: remG, run: () => { for (let i = 0; i < 1000; i++) delete remG.b[base + i]; base += 1000 } },
     }
   },
 }

@@ -1,52 +1,17 @@
 // @ts-nocheck
+// Thin gate driver (Mode A) — workload lives in perf/workloads.ts. except keeps
+// rows in p but not in `other`; setup walks p once, per-event updates from
+// either side are O(affected rows). insert-other drops matching rows (BI0 from
+// other); remove-other re-admits rows p still has (BR1 from other).
 import { ok } from 'node:assert'
 import { test } from 'node:test'
-import { $ } from '../../core.ts'
-import { except } from './index.ts'
 import { gateMeasure as measure } from '../../perf/measure.ts'
+import { except } from '../../perf/workloads.ts'
 
-
-function makeData(start, n) {
-  const obj = {}
-  for (let i = 0; i < n; i++) obj[start + i] = `v${start + i}`
-  return obj
+for (const [name, w] of Object.entries(except.workloads())) {
+  test(`except ${name} - ${except.N} rows`, () => {
+    const elapsed = measure(w.run, w.reps)
+    console.log(`  except ${name} ${except.N}: ${elapsed.toFixed(2)}ms`)
+    ok(elapsed < w.gate, `except ${name}: ${elapsed.toFixed(2)}ms over ${w.gate}ms`)
+  })
 }
-
-// except keeps rows in p but not in `other`. Setup walks p once; per-event
-// updates from either side are O(affected rows).
-test('except setup - 10000 minus 5000', () => {
-  const elapsed = measure(() => {
-    const a = $(makeData(0, 10000))
-    const b = $(makeData(0, 5000))
-    except(a, b)
-  })
-  console.log(`  except setup 10k-5k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 500)
-})
-
-// Inserting into `other` should drop matching rows from the output —
-// exercises BI0 from other branch.
-test('except update - insert 1000 into other', () => {
-  const a = $(makeData(0, 10000))
-  const b = $(makeData(0, 5000))
-  except(a, b)
-  let i = 5000
-  const elapsed = measure(() => {
-    for (let k = 0; k < 1000; k++) { b[i] = `v${i}`; i++ }
-  })
-  console.log(`  except insert other 10k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 500)
-})
-
-// Removing from `other` re-admits rows that p still has — exercises BR1
-// from other branch.
-test('except update - remove 1000 from other', () => {
-  const a = $(makeData(0, 10000))
-  const b = $(makeData(0, 5000))
-  except(a, b)
-  const elapsed = measure(() => {
-    for (let i = 0; i < 1000; i++) delete b[i]
-  })
-  console.log(`  except remove other 10k: ${elapsed.toFixed(2)}ms`)
-  ok(elapsed < 500)
-})
