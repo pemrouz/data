@@ -1,0 +1,777 @@
+[
+  {
+    "op": "between",
+    "guarantee": "Alignment",
+    "trigger": "remove",
+    "shape": "array",
+    "via": [
+      "BH1",
+      "BR1"
+    ],
+    "issue": "C1",
+    "chain": "between→filter",
+    "asserts": "removing an out-of-range row keeps a downstream filter aligned",
+    "title": "between→filter · Alignment · remove · array · via BH1+BR1 · C1 — removing an out-of-range row keeps a downstream filter aligned",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Alignment",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BH1",
+      "BF0"
+    ],
+    "issue": "C1",
+    "chain": "filter→between",
+    "asserts": "an upstream hole-fill or hole-remove changes membership without splicing",
+    "title": "filter→between · Alignment · edit · array · via BH1+BF0 · C1 — an upstream hole-fill or hole-remove changes membership without splicing",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Propagation",
+    "trigger": "bound-move",
+    "shape": "array",
+    "via": [
+      "reactive-bound"
+    ],
+    "issue": "C1",
+    "chain": "between→filter",
+    "asserts": "a bound move re-points membership downstream without a ghost",
+    "title": "between→filter · Propagation · bound-move · array · via reactive-bound · C1 — a bound move re-points membership downstream without a ghost",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "plain numeric bounds select the in-range rows",
+    "via": [],
+    "title": "between · Selection · construct · object — plain numeric bounds select the in-range rows",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "object",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "a reactive bound end re-selects when it changes",
+    "title": "between · Selection · bound-move · object · via reactive-bound — a reactive bound end re-selects when it changes",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a row whose value crosses the bound enters or leaves",
+    "title": "between · Selection · edit · object · via BU2 — a row whose value crosses the bound enters or leaves",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "via": [
+      "BI0",
+      "BR1"
+    ],
+    "asserts": "in-range inserts and removes change membership; out-of-range ones do not",
+    "title": "between · Selection · insert/remove · object · via BI0+BR1 — in-range inserts and removes change membership; out-of-range ones do not",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "array",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "widening onto a boundary value re-includes that row (high)",
+    "title": "between · Selection · bound-move · array · via reactive-bound — widening onto a boundary value re-includes that row (high)",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "array",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "widening onto a boundary value re-includes that row (low)",
+    "title": "between · Selection · bound-move · array · via reactive-bound — widening onto a boundary value re-includes that row (low)",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Fidelity",
+    "trigger": "bound-move",
+    "shape": "object",
+    "via": [
+      "reactive-bound"
+    ],
+    "emits": [
+      "insert",
+      "remove",
+      "update"
+    ],
+    "asserts": "bound moves emit the exact insert/remove/update stream; a point range emits nothing",
+    "title": "between · Fidelity · bound-move · object · via reactive-bound — bound moves emit the exact insert/remove/update stream; a point range emits nothing",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Robustness",
+    "trigger": "insert",
+    "shape": "array+object",
+    "via": [
+      "BU2",
+      "BI0"
+    ],
+    "asserts": "an insert after an in-place edit neither crashes nor duplicates",
+    "title": "between · Robustness · insert · array+object · via BU2+BI0 — an insert after an in-place edit neither crashes nor duplicates",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "array+object",
+    "via": [
+      "reactive-bound"
+    ],
+    "asserts": "narrowing to a point range keeps rows equal to the bound",
+    "title": "between · Selection · bound-move · array+object · via reactive-bound — narrowing to a point range keeps rows equal to the bound",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Propagation",
+    "trigger": "bound-move",
+    "shape": "object",
+    "via": [
+      "reactive-bound"
+    ],
+    "issue": "C8",
+    "chain": "between→length/sum",
+    "asserts": "sweeping a bound past the other emits no phantom removes to a downstream count or sum",
+    "title": "between→length/sum · Propagation · bound-move · object · via reactive-bound · C8 — sweeping a bound past the other emits no phantom removes to a downstream count or sum",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Propagation",
+    "trigger": "brush",
+    "shape": "array",
+    "via": [
+      "BH1",
+      "BF0"
+    ],
+    "chain": "between→az",
+    "asserts": "a sideways brush keeps a downstream sort correctly ordered",
+    "title": "between→az · Propagation · brush · array · via BH1+BF0 — a sideways brush keeps a downstream sort correctly ordered",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "between",
+    "guarantee": "Selection",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "via": [
+      "reactive-bound"
+    ],
+    "issue": "#21",
+    "asserts": "a mutation made while unfiltered shows on the next narrow",
+    "title": "between · Selection · insert/remove · array · via reactive-bound · #21 — a mutation made while unfiltered shows on the next narrow",
+    "file": "operators/between/between.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Propagation",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "BI0A",
+      "BR1A"
+    ],
+    "issue": "C2",
+    "chain": "za-window→map/filter",
+    "asserts": "a row rotating into the window reaches downstream map/filter without dropping a row",
+    "title": "za-window→map/filter · Propagation · insert · array · via BI0A+BR1A · C2 — a row rotating into the window reaches downstream map/filter without dropping a row",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "insert/edit/remove",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "BU2",
+      "BI0",
+      "BR1",
+      "XU0"
+    ],
+    "asserts": "descending top-K stays correctly ordered across inserts, edits and removes",
+    "title": "sort · Order · insert/edit/remove · object · via BU1+BU2+BI0+BR1+XU0 — descending top-K stays correctly ordered across inserts, edits and removes",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "asserts": "a middle row edited upward is promoted to the top",
+    "title": "sort · Order · edit · object · via BU1 — a middle row edited upward is promoted to the top",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "window"
+    ],
+    "asserts": "out-of-window updates do not grow the materialized window",
+    "title": "sort · Efficiency · edit · object · via BU1+window — out-of-window updates do not grow the materialized window",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Alignment",
+    "trigger": "remove",
+    "shape": "array",
+    "via": [
+      "BR1"
+    ],
+    "asserts": "an array-source delete shifts later sorted keys in lockstep",
+    "title": "sort · Alignment · remove · array · via BR1 — an array-source delete shifts later sorted keys in lockstep",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Alignment",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "an array-source insert at a position shifts later sorted keys in lockstep",
+    "title": "sort · Alignment · insert · array · via BI0 — an array-source insert at a position shifts later sorted keys in lockstep",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BMV1"
+    ],
+    "asserts": "an in-window rank change emits a single move event",
+    "title": "sort · Fidelity · edit · object · via BMV1 — an in-window rank change emits a single move event",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2",
+      "BR2",
+      "window"
+    ],
+    "chain": "za-window→az-window",
+    "asserts": "a chained windowed sort never forwards a -1 position key",
+    "title": "za-window→az-window · Robustness · edit · array · via BU2+BR2+window — a chained windowed sort never forwards a -1 position key",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "XU0"
+    ],
+    "chain": "filter→sort→sum",
+    "asserts": "an in-place edit through filter refreshes the downstream aggregate and child view",
+    "title": "filter→sort→sum · Propagation · edit · object · via BU1+XU0 — an in-place edit through filter refreshes the downstream aggregate and child view",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Efficiency",
+    "trigger": "brush",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "window",
+      "reactive-bound"
+    ],
+    "chain": "between→za-window",
+    "asserts": "a bounded window reconciles a batch removal/insert without churn",
+    "title": "between→za-window · Efficiency · brush · object · via BU1+window+reactive-bound — a bounded window reconciles a batch removal/insert without churn",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "limit takes the first n keys in iteration order",
+    "via": [],
+    "title": "limit · Selection · construct · object — limit takes the first n keys in iteration order",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "XU0",
+      "window"
+    ],
+    "asserts": "an update inside the window emits a BU1, not a full refresh",
+    "title": "limit · Fidelity · edit · object · via BU1+XU0+window — an update inside the window emits a BU1, not a full refresh",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "window"
+    ],
+    "asserts": "an update outside the window is a no-op",
+    "title": "limit · Fidelity · edit · object · via window — an update outside the window is a no-op",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "BR1A",
+      "BI0A",
+      "window"
+    ],
+    "asserts": "removing a windowed key refills from the next iteration-order key",
+    "title": "limit · Selection · remove · object · via BR1A+BI0A+window — removing a windowed key refills from the next iteration-order key",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "window"
+    ],
+    "asserts": "removing a key outside the window is a no-op",
+    "title": "limit · Selection · remove · object · via window — removing a key outside the window is a no-op",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "BR1A",
+      "window"
+    ],
+    "asserts": "a key leaving via assignment-to-undefined refills like delete",
+    "title": "limit · Selection · remove · object · via BU1+BR1A+window — a key leaving via assignment-to-undefined refills like delete",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Propagation",
+    "trigger": "insert/edit/remove",
+    "shape": "array",
+    "via": [
+      "BR1A",
+      "BI0A",
+      "BMV1"
+    ],
+    "chain": "az→limit",
+    "asserts": "limit after a sort tracks rank moves and removals",
+    "title": "az→limit · Propagation · insert/edit/remove · array · via BR1A+BI0A+BMV1 — limit after a sort tracks rank moves and removals",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Robustness",
+    "trigger": "brush",
+    "shape": "array",
+    "via": [
+      "BH1",
+      "BF0",
+      "BR1",
+      "BI0",
+      "reactive-bound"
+    ],
+    "chain": "between→limit",
+    "asserts": "a sideways brush over a sparse producer does not duplicate a row",
+    "title": "between→limit · Robustness · brush · array · via BH1+BF0+BR1+BI0+reactive-bound — a sideways brush over a sparse producer does not duplicate a row",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0",
+      "window"
+    ],
+    "asserts": "a new key joins when the window has headroom",
+    "title": "limit · Selection · insert · object · via BI0+window — a new key joins when the window has headroom",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "window"
+    ],
+    "asserts": "a new key does not join a full window",
+    "title": "limit · Selection · insert · object · via window — a new key does not join a full window",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Robustness",
+    "trigger": "brush",
+    "shape": "object",
+    "via": [
+      "XU0",
+      "hole",
+      "reactive-bound"
+    ],
+    "chain": "between→sort",
+    "asserts": "sort over a sparse source skips excluded slots without crashing",
+    "title": "between→sort · Robustness · brush · object · via XU0+hole+reactive-bound — sort over a sparse source skips excluded slots without crashing",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "batch",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "issue": "#14",
+    "asserts": "a patch of multiple overwrites re-ranks correctly",
+    "title": "sort · Order · batch · object · via BU1 · #14 — a patch of multiple overwrites re-ranks correctly",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "issue": "#15",
+    "asserts": "setting a row to undefined leaves cleanly without a ghost slot",
+    "title": "sort · Robustness · overwrite · object · via BU1 · #15 — setting a row to undefined leaves cleanly without a ghost slot",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Robustness",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "XU0"
+    ],
+    "issue": "#18",
+    "asserts": "a null source does not crash",
+    "title": "sort · Robustness · overwrite · object · via XU0 · #18 — a null source does not crash",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "construct",
+    "shape": "array",
+    "issue": "#20",
+    "asserts": "a NaN key sorts last without corrupting other rows",
+    "via": [],
+    "title": "sort · Order · construct · array · #20 — a NaN key sorts last without corrupting other rows",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Fidelity",
+    "trigger": "overwrite",
+    "shape": "array",
+    "via": [
+      "BU1",
+      "window"
+    ],
+    "issue": "#19",
+    "asserts": "an in-window rotation emits string keys",
+    "title": "sort · Fidelity · overwrite · array · via BU1+window · #19 — an in-window rotation emits string keys",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "overwrite",
+    "shape": "array",
+    "via": [
+      "BU1",
+      "window"
+    ],
+    "issue": "#16",
+    "asserts": "an array key leaving via assignment-to-undefined refills the window",
+    "title": "limit · Selection · overwrite · array · via BU1+window · #16 — an array key leaving via assignment-to-undefined refills the window",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "BR1",
+      "window"
+    ],
+    "issue": "#55",
+    "asserts": "a batch removal refills the window correctly in one pass",
+    "title": "limit · Selection · remove · object · via BR1+window · #55 — a batch removal refills the window correctly in one pass",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BMV1",
+      "BU1"
+    ],
+    "chain": "za-window",
+    "asserts": "whole-row replacement inside window, new value sits at new rank",
+    "title": "za-window · Order · overwrite · object · via BMV1+BU1 — whole-row replacement inside window, new value sits at new rank",
+    "file": "operators/sort/za-replace.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Propagation",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BMV1"
+    ],
+    "chain": "za-window→tap",
+    "asserts": "in-window rotation with tap downstream, observed view stays consistent",
+    "title": "za-window→tap · Propagation · overwrite · object · via BMV1 — in-window rotation with tap downstream, observed view stays consistent",
+    "file": "operators/sort/za-replace.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Order",
+    "trigger": "overwrite",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "BR1A",
+      "BI0A"
+    ],
+    "chain": "za-window",
+    "asserts": "whole-row replacement crossing window boundary, view stays sorted with no dupes",
+    "title": "za-window · Order · overwrite · object · via BU1+BR1A+BI0A — whole-row replacement crossing window boundary, view stays sorted with no dupes",
+    "file": "operators/sort/za-replace.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "via": [
+      "reactive-bound"
+    ],
+    "chain": "between→intersect",
+    "asserts": "construction skips explicit-undefined slots of a sparse source",
+    "title": "between→intersect · Selection · construct · object · via reactive-bound — construction skips explicit-undefined slots of a sparse source",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "BI0",
+      "BR1",
+      "XU0"
+    ],
+    "asserts": "the intersection over object sources tracks inserts, edits and removes",
+    "title": "intersect · Selection · edit · object · via BU1+BI0+BR1+XU0 — the intersection over object sources tracks inserts, edits and removes",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "XU0"
+    ],
+    "asserts": "a source expanding past construction admits the newly-shared rows",
+    "title": "intersect · Selection · insert · object · via XU0 — a source expanding past construction admits the newly-shared rows",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU1",
+      "BI0",
+      "BR1",
+      "XU0"
+    ],
+    "asserts": "the intersection over array sources tracks inserts, edits and removes",
+    "title": "intersect · Selection · edit · array · via BU1+BI0+BR1+XU0 — the intersection over array sources tracks inserts, edits and removes",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Alignment",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "via": [
+      "BI0A",
+      "BR1A"
+    ],
+    "issue": "C12",
+    "chain": "filter→intersect",
+    "asserts": "with derived facets, tail insert and shifting remove stay aligned",
+    "title": "filter→intersect · Alignment · insert/remove · array · via BI0A+BR1A · C12 — with derived facets, tail insert and shifting remove stay aligned",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "the dims object form intersects all named values",
+    "via": [],
+    "title": "intersect · Selection · construct · object — the dims object form intersects all named values",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Selection",
+    "trigger": "construct",
+    "shape": "object",
+    "asserts": "the dims object with a key excludes that dim (leave-one-out)",
+    "via": [],
+    "title": "intersect · Selection · construct · object — the dims object with a key excludes that dim (leave-one-out)",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "asserts": "calling with identical args returns the same operator view",
+    "via": [],
+    "title": "intersect · Identity · dedup-call · object — calling with identical args returns the same operator view",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "asserts": "dims-form with the same key reuses, a different key creates new",
+    "via": [],
+    "title": "intersect · Identity · dedup-call · object — dims-form with the same key reuses, a different key creates new",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a deep update on a row excluded from the intersection does not emit",
+    "title": "intersect · Fidelity · edit · object · via BU2 — a deep update on a row excluded from the intersection does not emit",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "asserts": "a secondary source nested update does not emit",
+    "title": "intersect · Fidelity · edit · object · via BU2 — a secondary source nested update does not emit",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Alignment",
+    "trigger": "remove",
+    "shape": "array",
+    "via": [
+      "BR1A"
+    ],
+    "issue": "#22",
+    "chain": "filter→intersect→map",
+    "asserts": "a primary remove of a holed slot keeps downstream positions aligned",
+    "title": "filter→intersect→map · Alignment · remove · array · via BR1A · #22 — a primary remove of a holed slot keeps downstream positions aligned",
+    "file": "operators/intersect/intersect.test.ts"
+  },
+  {
+    "op": "intersect",
+    "guarantee": "Identity",
+    "trigger": "construct",
+    "shape": "array",
+    "issue": "#27",
+    "asserts": "a duplicate or self source is idempotent, not empty",
+    "via": [],
+    "title": "intersect · Identity · construct · array · #27 — a duplicate or self source is idempotent, not empty",
+    "file": "operators/intersect/intersect.test.ts"
+  }
+]

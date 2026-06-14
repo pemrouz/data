@@ -1,6 +1,6 @@
 ﻿// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value, createOperator } from '../../core.ts'
 import { between } from './index.ts'
 import { filter } from '../filter/index.ts'
@@ -11,7 +11,8 @@ const az = (src, col, n) => createOperator(src, AZColumnValue, col, n)
 
 const dense = (a) => (Array.isArray(a) ? a.filter((x) => x !== undefined) : a)
 
-test('between → filter over an ARRAY source stays aligned through a holed-row removal (C1)', () => {
+spec({ op:'between', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BH1','BR1'], issue:'C1', chain:'between→filter',
+  asserts:'removing an out-of-range row keeps a downstream filter aligned' }, () => {
   // A row OUT of between's range is a hole in between's array. Removing it
   // splices between's array; between must emit that splice (BH1/BR1 path) so
   // the downstream filter shifts in lockstep — otherwise filter keeps a ghost.
@@ -28,7 +29,8 @@ test('between → filter over an ARRAY source stays aligned through a holed-row 
   same(dense(f[value]), [{ v: 55 }])
 })
 
-test('filter → between over an ARRAY source: between consumes upstream holes/fills (C1)', () => {
+spec({ op:'between', guarantee:'Alignment', trigger:'edit', shape:'array', via:['BH1','BF0'], issue:'C1', chain:'filter→between',
+  asserts:'an upstream hole-fill or hole-remove changes membership without splicing' }, () => {
   // between DOWNSTREAM of filter: filter's array carries holes for excluded
   // rows. between must skip them (no crash deref-ing `.v` on a hole) and treat
   // an upstream hole-fill/hole-remove (BF0/BH1) as a membership change without
@@ -45,7 +47,8 @@ test('filter → between over an ARRAY source: between consumes upstream holes/f
   same(dense(b[value]), [{ v: 60 }, { v: 90 }, { v: 70 }])
 })
 
-test('between → filter over an ARRAY source tracks a reactive bound move (C1)', () => {
+spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'array', via:'reactive-bound', issue:'C1', chain:'between→filter',
+  asserts:'a bound move re-points membership downstream without a ghost' }, () => {
   const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
   const bound = $([40, 70])
   const b = between(src, 'v', bound)
@@ -60,13 +63,15 @@ test('between → filter over an ARRAY source tracks a reactive bound move (C1)'
 // `arg[0].connect is not a function` because it called .connect on raw
 // numbers. The README and operators/README explicitly document plain bounds
 // as valid ("captured once"), so this is a doc/code contract gap.
-test('between - plain numeric bounds', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'construct', shape:'object',
+  asserts:'plain numeric bounds select the in-range rows' }, () => {
   const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
   const filtered = between(all, 'num', [20, 80])
   same(filtered[value], { 3: { num: 50 } })
 })
 
-test('between - mixed reactive/plain bounds', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'object', via:'reactive-bound',
+  asserts:'a reactive bound end re-selects when it changes' }, () => {
   const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
   const lo = $(20)
   const filtered = between(all, 'num', [lo, 80])
@@ -80,7 +85,8 @@ test('between - mixed reactive/plain bounds', () => {
 // across a bound, the view kept the row at its old membership and `sorted`
 // drifted out of sync with the source. The crossfilter demo never exposed
 // this because it brushes a static dataset.
-test('between - row crosses bound via BU2', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'edit', shape:'object', via:'BU2',
+  asserts:'a row whose value crosses the bound enters or leaves' }, () => {
   const data = $({
     a: { price: 10 },
     b: { price: 50 },
@@ -96,7 +102,8 @@ test('between - row crosses bound via BU2', () => {
   same(inRange[value], { c: { price: 50 }, b: { price: 45 } })
 })
 
-test('between - insert/remove track membership', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'object', via:['BI0','BR1'],
+  asserts:'in-range inserts and removes change membership; out-of-range ones do not' }, () => {
   const data = $({ a: { price: 50 } })
   const inRange = between(data, 'price', [40, 60])
   same(inRange[value], { a: { price: 50 } })
@@ -121,7 +128,8 @@ test('between - insert/remove track membership', () => {
 // row's col-value the bisect landed *on* the row instead of past it, and
 // the strict comparison then refused to (re)include the boundary row when
 // the bound moved out to a value that equaled another row.
-test('between - widen onto boundary row (hi)', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array', via:'reactive-bound',
+  asserts:'widening onto a boundary value re-includes that row (high)' }, () => {
   const flights = $([
     { dest: 'A', ts: 10 },
     { dest: 'B', ts: 11 },
@@ -137,7 +145,8 @@ test('between - widen onto boundary row (hi)', () => {
   same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
 })
 
-test('between - widen onto boundary row (lo)', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array', via:'reactive-bound',
+  asserts:'widening onto a boundary value re-includes that row (low)' }, () => {
   const flights = $([
     { dest: 'A', ts: 10 },
     { dest: 'B', ts: 11 },
@@ -153,7 +162,8 @@ test('between - widen onto boundary row (lo)', () => {
   same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
 })
 
-test('between - reactive bounds', async () => {
+spec({ op:'between', guarantee:'Fidelity', trigger:'bound-move', shape:'object', via:'reactive-bound', emits:['insert','remove','update'],
+  asserts:'bound moves emit the exact insert/remove/update stream; a point range emits nothing' }, async () => {
   const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
   const filters = $({ lo: 20, hi: 80 })
   const filtered = between(all, 'num', [filters.lo, filters.hi])
@@ -189,7 +199,8 @@ test('between - reactive bounds', async () => {
 // 'v')` thrown to the caller's .insert(). This is the crossfilter/swarm shape
 // (stream inserts while attributes mutate in place). Now the dirty path rebuilds
 // via XU0. Object sources had the silent-duplicate analogue.
-test('between - insert after an in-place column edit does not crash (array + object)', () => {
+spec({ op:'between', guarantee:'Robustness', trigger:'insert', shape:'array+object', via:['BU2','BI0'],
+  asserts:'an insert after an in-place edit neither crashes nor duplicates' }, () => {
   // array
   const arr = $([{ v: 50, g: 0 }])
   const wa = between(arr, 'v', [20, 80])
@@ -217,7 +228,8 @@ test('between - insert after an in-place column edit does not crash (array + obj
 // contradicted both the constructor (a fresh `between(col,[v,v])` keeps col===v)
 // and the inclusive narrow loops, so a brush dragged to zero width silently
 // dropped the boundary rows (the swarm gx/gy cohort-brush path).
-test('between - narrowing a reactive bound to a point range keeps the boundary rows', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array+object', via:'reactive-bound',
+  asserts:'narrowing to a point range keeps rows equal to the bound' }, () => {
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
 
   // object source — narrow the high bound down onto the low bound
@@ -252,7 +264,8 @@ test('between - narrowing a reactive bound to a point range keeps the boundary r
 // The differential harness missed this (it had no between→aggregate scenario);
 // it now does. Each sweep below starts from a fresh window so the pre-fix value
 // is exact, not compounded.
-test('between → length/sum stays correct when a brush sweeps a bound past the opposite bound (C8)', () => {
+spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'object', via:'reactive-bound', issue:'C8', chain:'between→length/sum',
+  asserts:'sweeping a bound past the other emits no phantom removes to a downstream count or sum' }, () => {
   // k0..k8 with v = 0,11,…,88; window [20,70] holds k2..k6 (v 22,33,44,55,66).
   const mk = () => $(Object.fromEntries(Array.from({ length: 9 }, (_, i) => ['k' + i, { v: i * 11 }])))
 
@@ -292,7 +305,8 @@ test('between → length/sum stays correct when a brush sweeps a bound past the 
 // by emitting removes before fills, so the sort drops the holed positions from
 // `sorted` before it bisects any fill. (Laundered by intersect/union/except —
 // they re-emit their own membership — so only a sort DIRECTLY on between bit.)
-test('between → az keeps order through a sideways brush (removes + fills in one set extent)', () => {
+spec({ op:'between', guarantee:'Propagation', trigger:'brush', shape:'array', via:['BH1','BF0'], chain:'between→az',
+  asserts:'a sideways brush keeps a downstream sort correctly ordered' }, () => {
   // rows v = 0,11,…,88 at indices 0..8.
   const src = $(Array.from({ length: 9 }, (_, i) => ({ id: i, v: i * 11 })))
   const bound = $([33, 66])
@@ -314,7 +328,8 @@ test('between → az keeps order through a sideways brush (removes + fills in on
 // was then absent from the stale `sorted`, so the next narrow either leaked it
 // as an out-of-range ghost or skipped a since-removed key. The relays now set
 // sortedDirty. (Crossfilter's reset state is exactly full-domain bounds.)
-test('between - source mutation while unfiltered is reflected on the next narrow', () => {
+spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'array', via:'reactive-bound', issue:'#21',
+  asserts:'a mutation made while unfiltered shows on the next narrow' }, () => {
   const ext = $([0, 100])
   const s = $([{ v: 10 }, { v: 20 }, { v: 30 }])
   const b = between(s, 'v', ext)

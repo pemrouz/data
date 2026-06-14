@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { deepStrictEqual as same } from 'node:assert/strict'
 import { $, value } from '../../full.ts'
 
@@ -9,7 +9,7 @@ import { $, value } from '../../full.ts'
 // value because it's the same reference, mutated in place. Whole-row
 // replacement (data[1] = {date: 99}) creates a NEW object reference
 // and the BMV1 path leaves the old reference at the new position.
-test('sort (za) - whole-row replacement inside window updates value at new rank', () => {
+spec({ op:'sort', guarantee:'Order', trigger:'overwrite', shape:'object', via:['BMV1','BU1'], chain:'za-window', asserts:'whole-row replacement inside window, new value sits at new rank' }, () => {
   const data = $({})
   data['A'] = { pctChg: 1.0 }
   data['B'] = { pctChg: 2.0 }
@@ -33,7 +33,7 @@ test('sort (za) - whole-row replacement inside window updates value at new rank'
 // shares the reference via Operator.XU0). The shared-ref guard in
 // Operator.BR1A/BI0A/BMV1 gates the splice on `view.value !== p.value`
 // so pass-through operators don't re-mutate the shared array.
-test('sort (za) - in-window rotation with tap downstream stays consistent', () => {
+spec({ op:'sort', guarantee:'Propagation', trigger:'overwrite', shape:'object', via:'BMV1', chain:'za-window→tap', asserts:'in-window rotation with tap downstream, observed view stays consistent' }, () => {
   const data = $({})
   for (const s of ['A', 'B', 'C', 'D', 'E']) data[s] = { pctChg: 'ABCDE'.indexOf(s) + 1 }
   const top = data.za('pctChg', 5)
@@ -53,7 +53,7 @@ test('sort (za) - in-window rotation with tap downstream stays consistent', () =
 // (the BU1+BMV1 branch). With 8 entries and n=3 we exercise out-to-in,
 // in-to-out, and out-to-out transitions too. Replays a many-symbol
 // streaming workload where every assignment is a whole-row replacement.
-test('sort (za) - whole-row replacement crossing window boundary stays sorted', () => {
+spec({ op:'sort', guarantee:'Order', trigger:'overwrite', shape:'object', via:['BU1','BR1A','BI0A'], chain:'za-window', asserts:'whole-row replacement crossing window boundary, view stays sorted with no dupes' }, () => {
   const data = $({})
   const symbols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
   for (const s of symbols) data[s] = { pctChg: 0 }
