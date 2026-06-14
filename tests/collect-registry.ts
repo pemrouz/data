@@ -14,6 +14,7 @@ const FILES = [
   'operators/sort/sort.test.ts',
   'operators/sort/za-replace.test.ts',
   'operators/intersect/intersect.test.ts',
+  'operators/union/union.test.ts',
 ]
 
 for (const f of FILES) {
