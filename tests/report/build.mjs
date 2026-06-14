@@ -65,7 +65,7 @@ for(const f of files){ if(migratedFiles.has(f))continue;
   while((mm=reTitle.exec(src))) records.push(guess(f,mm[4].replace(/\\(['"`])/g,'$1'))); }
 
 records.forEach(r=>{ if(r.type==='e2e') r.subject='e2e'; });
-let RUN=null; try{ RUN=JSON.parse(readFileSync('proto/test-report/results.json','utf8')); }catch(e){}
+let RUN=null; try{ RUN=JSON.parse(readFileSync('tests/report/results.json','utf8')); }catch(e){}
 records.forEach(r=>{ const x=RUN&&RUN.results[r.title]; r.status = x?x.status:'unrun'; r.ms = x?x.ms:null; });
 const GUARANTEES=['Selection','Order','Reduction','Identity','Alignment','Propagation','Fidelity','Efficiency','Robustness'];
 const GABBR={Selection:'Sel',Order:'Ord',Reduction:'Red',Identity:'Idn',Alignment:'Aln',Propagation:'Prop',Fidelity:'Fid',Efficiency:'Eff',Robustness:'Rob'};
@@ -73,7 +73,7 @@ const meta={total:records.length,authoritative:records.filter(r=>r.migrated).len
   byType:{unit:records.filter(r=>r.type==='unit').length,perf:records.filter(r=>r.type==='perf').length,e2e:records.filter(r=>r.type==='e2e').length},
   guarantees:GUARANTEES,gabbr:GABBR,order:['core','index','differential','entry'],run:RUN?RUN.summary:null};
 
-mkdirSync('proto/test-report',{recursive:true});
+mkdirSync('tests/report',{recursive:true});
 const html=`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>data · tests</title><style>${readFileSync(join(HERE,'report.css'),'utf8')}</style></head><body>
@@ -103,5 +103,5 @@ const DATA=${JSON.stringify(records)};
 const META=${JSON.stringify(meta)};
 ${readFileSync(join(HERE,'app.js'),'utf8')}
 </script></body></html>`;
-writeFileSync('proto/test-report/explorer.html',html);
+writeFileSync('tests/report/explorer.html',html);
 console.log('wrote explorer.html',html.length,'bytes ·',records.length,'records,',meta.authoritative,'authoritative');

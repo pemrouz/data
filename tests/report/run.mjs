@@ -28,5 +28,5 @@ const summary={
   ms:Math.round(vals.reduce((s,r)=>s+(r.ms||0),0)),
   when:new Date().toISOString(),
 };
-writeFileSync('proto/test-report/results.json', JSON.stringify({summary,results},null,2));
+writeFileSync('tests/report/results.json', JSON.stringify({summary,results},null,2));
 console.log('results.json —', summary.pass+'p/'+summary.fail+'f/'+summary.skip+'s of', summary.total, 'in', summary.ms+'ms');

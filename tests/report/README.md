@@ -12,8 +12,8 @@ npm run report        # run the unit suite, capture results, rebuild explorer.ht
 npm run report:build  # rebuild from the last results.json only (no test run)
 ```
 
-Then open [proto/test-report/explorer.html](explorer.html) (a single self-contained
-file — no server needed; `localhost:PORT/proto/test-report/explorer.html` also works).
+Then open [tests/report/explorer.html](explorer.html) (a single self-contained
+file — no server needed; `localhost:PORT/tests/report/explorer.html` also works).
 
 ## How it works
 

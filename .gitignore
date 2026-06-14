@@ -32,6 +32,6 @@
 !/dist/**
 /dist/**/*.map
 
-# test report (proto/test-report): commit sources + built explorer.html; ignore the run artifact
-!proto/test-report/**/*.js
-proto/test-report/results.json
+# test report (tests/report): commit sources + built explorer.html; ignore the run artifact
+!tests/report/**/*.js
+tests/report/results.json
