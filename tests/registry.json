@@ -2626,5 +2626,395 @@
     "via": [],
     "title": "jsx · Fidelity · construct · #48 — an HTML title uses createElement, not the SVG namespace",
     "file": "jsx/jsx.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "summarize passes primitives through unchanged",
+    "via": [],
+    "title": "devtools · Fidelity — summarize passes primitives through unchanged",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "summarize truncates long strings to 80 chars with an ellipsis",
+    "via": [],
+    "title": "devtools · Fidelity — summarize truncates long strings to 80 chars with an ellipsis",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "summarize shows array length and object key count",
+    "via": [],
+    "title": "devtools · Fidelity — summarize shows array length and object key count",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "summarize shows a function name",
+    "via": [],
+    "title": "devtools · Fidelity — summarize shows a function name",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "classify distinguishes operator, connect-style sink and unknown",
+    "via": [],
+    "title": "devtools · Fidelity — classify distinguishes operator, connect-style sink and unknown",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "ancestorOf is true for self and ancestors, false for descendants",
+    "via": [],
+    "title": "devtools · Fidelity — ancestorOf is true for self and ancestors, false for descendants",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "ancestorOf depth cap prevents a runaway walk",
+    "via": [],
+    "title": "devtools · Robustness — ancestorOf depth cap prevents a runaway walk",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "walk returns kind:root with no children and a summarized value",
+    "via": [],
+    "title": "devtools · Fidelity — walk returns kind:root with no children and a summarized value",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "walk shows an operator sink with kind:operator and its ctor name",
+    "via": [],
+    "title": "devtools · Fidelity — walk shows an operator sink with kind:operator and its ctor name",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "walk prunes dead WeakRef sinks during traversal without crashing",
+    "via": [],
+    "title": "devtools · Robustness — walk prunes dead WeakRef sinks during traversal without crashing",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "walk shows a LinkedView as kind:linked-alias and does not recurse into its source",
+    "via": [],
+    "title": "devtools · Fidelity — walk shows a LinkedView as kind:linked-alias and does not recurse into its source",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "walk marks a re-encountered view kind:cycle instead of recursing",
+    "via": [],
+    "title": "devtools · Robustness — walk marks a re-encountered view kind:cycle instead of recursing",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.inspect of a root reports key:[] and parent:null",
+    "via": [],
+    "title": "devtools · Fidelity — $.inspect of a root reports key:[] and parent:null",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.inspect of a child reports its parent and own key",
+    "via": [],
+    "title": "devtools · Fidelity — $.inspect of a child reports its parent and own key",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.inspect lists operator and connect-style sinks attached to a view",
+    "via": [],
+    "title": "devtools · Fidelity — $.inspect lists operator and connect-style sinks attached to a view",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.graph(proxy) returns the same shape as walk()",
+    "via": [],
+    "title": "devtools · Fidelity — $.graph(proxy) returns the same shape as walk()",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "chain": "filter→length",
+    "asserts": "$.graph shows a filter→length chain under root.sinks",
+    "via": [],
+    "title": "filter→length · Fidelity — $.graph shows a filter→length chain under root.sinks",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "iterRoots yields every live root and prunes dead WeakRefs",
+    "via": [],
+    "title": "devtools · Robustness — iterRoots yields every live root and prunes dead WeakRefs",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Selection",
+    "asserts": "iterRoots excludes internal roots by default, includes them with {internal:true}",
+    "via": [],
+    "title": "devtools · Selection — iterRoots excludes internal roots by default, includes them with {internal:true}",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.graph() with no arg returns root trees for all live roots",
+    "via": [],
+    "title": "devtools · Fidelity — $.graph() with no arg returns root trees for all live roots",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.fromDOM walks the parentElement chain to the nearest __ripple_sink",
+    "via": [],
+    "title": "devtools · Fidelity — $.fromDOM walks the parentElement chain to the nearest __ripple_sink",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.fromDOM returns null when no __ripple_sink is in the chain",
+    "via": [],
+    "title": "devtools · Fidelity — $.fromDOM returns null when no __ripple_sink is in the chain",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "ensureInstrumented patches View.prototype and restore reverts it byte-identical",
+    "via": [],
+    "title": "devtools · Robustness — ensureInstrumented patches View.prototype and restore reverts it byte-identical",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "patched verbs preserve byte-identical change records with no listeners attached",
+    "via": [],
+    "title": "devtools · Fidelity · edit — patched verbs preserve byte-identical change records with no listeners attached",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "a registered trace receives dispatch events with the right verb and key",
+    "via": [],
+    "title": "devtools · Fidelity · edit — a registered trace receives dispatch events with the right verb and key",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "trace ancestor scoping skips events outside the traced subtree",
+    "via": [],
+    "title": "devtools · Fidelity · edit — trace ancestor scoping skips events outside the traced subtree",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "asserts": "profilers accumulate per-operator counts and times",
+    "via": [],
+    "title": "devtools · Fidelity · batch — profilers accumulate per-operator counts and times",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "asserts": "re-entrant nested verb calls do not double-count wall time",
+    "via": [],
+    "title": "devtools · Fidelity · batch — re-entrant nested verb calls do not double-count wall time",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.trace captures subtree events and the disposer stops capture",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.trace captures subtree events and the disposer stops capture",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.trace ancestor scoping skips events outside the traced subtree",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.trace ancestor scoping skips events outside the traced subtree",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "asserts": "$.profile accumulates a report and stop returns byOperator sorted by totalMs",
+    "via": [],
+    "title": "devtools · Fidelity · batch — $.profile accumulates a report and stop returns byOperator sorted by totalMs",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.profile report() returns a snapshot without stopping",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.profile report() returns a snapshot without stopping",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "$.devtools.disable restores View.prototype byte-identical and drops state",
+    "via": [],
+    "title": "devtools · Robustness — $.devtools.disable restores View.prototype byte-identical and drops state",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades records one cascade per mutation with frames timed >= 0",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades records one cascade per mutation with frames timed >= 0",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "asserts": "$.cascades frame parent indices reconstruct a well-formed forest",
+    "via": [],
+    "title": "devtools · Fidelity · insert — $.cascades frame parent indices reconstruct a well-formed forest",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades subtree root scoping skips cascades outside the subtree",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades subtree root scoping skips cascades outside the subtree",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades produces a distinct cascade per task tick",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades produces a distinct cascade per task tick",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "asserts": "$.cascades coalesces back-to-back sync mutations into one cascade",
+    "via": [],
+    "title": "devtools · Fidelity · batch — $.cascades coalesces back-to-back sync mutations into one cascade",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "chain": "filter→length",
+    "asserts": "$.cascades fan-out shows chained operators under the root frame",
+    "via": [],
+    "title": "filter→length · Fidelity · insert — $.cascades fan-out shows chained operators under the root frame",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades report() snapshots without stopping and clear() empties the buffer",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades report() snapshots without stopping and clear() empties the buffer",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "trigger": "batch",
+    "asserts": "$.cascades maxCascades caps the ring buffer, evicting the oldest",
+    "via": [],
+    "title": "devtools · Robustness · batch — $.cascades maxCascades caps the ring buffer, evicting the oldest",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "asserts": "$.cascades stop disposer cleans up so further mutations do not append",
+    "via": [],
+    "title": "devtools · Robustness · edit — $.cascades stop disposer cleans up so further mutations do not append",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades captureState:true records an independent post-cascade snapshot",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades captureState:true records an independent post-cascade snapshot",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "trigger": "edit",
+    "asserts": "$.cascades captureState defaults to false, leaving state undefined",
+    "via": [],
+    "title": "devtools · Fidelity · edit — $.cascades captureState defaults to false, leaving state undefined",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Robustness",
+    "asserts": "$.cascades disable() restores View.prototype and clears the recorders",
+    "via": [],
+    "title": "devtools · Robustness — $.cascades disable() restores View.prototype and clears the recorders",
+    "file": "devtools/devtools.test.ts"
+  },
+  {
+    "op": "devtools",
+    "guarantee": "Fidelity",
+    "asserts": "$.highlight adds the highlight class and schedules its removal",
+    "via": [],
+    "title": "devtools · Fidelity — $.highlight adds the highlight class and schedules its removal",
+    "file": "devtools/devtools.test.ts"
   }
 ]

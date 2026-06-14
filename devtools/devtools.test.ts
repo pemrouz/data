@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { test } from 'node:test'
+import { spec } from '../tests/spec.ts'
 import { deepStrictEqual as same, ok, strictEqual } from 'node:assert'
 import { $, value, view } from '../core.ts'
 // Importing 'data/full' to get operator dispatch registered. The lean core
@@ -19,7 +19,7 @@ const noop = () => {}
 console.group = noop; console.log = noop; console.table = noop
 console.groupEnd = noop; console.dir = noop; console.warn = noop
 
-test('summarize - primitives pass through', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize passes primitives through unchanged' }, () => {
   strictEqual(summarize(42), 42)
   strictEqual(summarize(true), true)
   strictEqual(summarize(null), null)
@@ -27,24 +27,24 @@ test('summarize - primitives pass through', () => {
   strictEqual(summarize('short'), 'short')
 })
 
-test('summarize - long strings truncated', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize truncates long strings to 80 chars with an ellipsis' }, () => {
   const s = 'x'.repeat(200)
   const out = summarize(s)
   strictEqual(out.length, 80)
   ok(out.endsWith('...'))
 })
 
-test('summarize - arrays show length, objects show key count', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize shows array length and object key count' }, () => {
   strictEqual(summarize([1, 2, 3]), 'Array(3)')
   strictEqual(summarize({ a: 1, b: 2 }), '{ keys: 2 }')
 })
 
-test('summarize - functions show name', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize shows a function name' }, () => {
   strictEqual(summarize(function foo() {}), 'Function(foo)')
   strictEqual(summarize(() => {}), 'Function(anonymous)')
 })
 
-test('classify - operator vs connect-style sink vs unknown', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'classify distinguishes operator, connect-style sink and unknown' }, () => {
   const data = $({ x: { v: 1 } })
   const filtered = data.filter(d => d.v > 0)
   const sinks = []
@@ -65,7 +65,7 @@ test('classify - operator vs connect-style sink vs unknown', () => {
   ok(arr)
 })
 
-test('ancestorOf - walks parent chain, true for self and ancestors', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'ancestorOf is true for self and ancestors, false for descendants' }, () => {
   const data = $({ a: { b: { c: 1 } } })
   const root = data[view]
   const a = data.a[view]
@@ -76,7 +76,7 @@ test('ancestorOf - walks parent chain, true for self and ancestors', () => {
   ok(!ancestorOf(root, c), 'descendant is not ancestor of root')
 })
 
-test('ancestorOf - depth cap prevents runaway walks', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'ancestorOf depth cap prevents a runaway walk' }, () => {
   // Build a fake parent chain of depth 100 and assert the default cap of 32
   // returns false (root not found) instead of looping.
   let chain = { p: null }
@@ -86,7 +86,7 @@ test('ancestorOf - depth cap prevents runaway walks', () => {
   ok(!ancestorOf(head, sentinel), 'cap should prevent finding distant ancestor')
 })
 
-test('walk - root returns kind:root, no children, value summarized', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk returns kind:root with no children and a summarized value' }, () => {
   const data = $({ a: 1, b: 2 })
   const tree = walk(data[view])
   strictEqual(tree.kind, 'root')
@@ -94,7 +94,7 @@ test('walk - root returns kind:root, no children, value summarized', () => {
   strictEqual(tree.value, '{ keys: 2 }')
 })
 
-test('walk - operator sink shown with kind:operator and ctor name', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk shows an operator sink with kind:operator and its ctor name' }, () => {
   const data = $({ x: { active: true }, y: { active: false } })
   const filtered = data.filter(d => d.active)
   // Keep the chain alive for the duration of the assertions
@@ -108,7 +108,7 @@ test('walk - operator sink shown with kind:operator and ctor name', () => {
   ok(lifeline)
 })
 
-test('walk - dead WeakRef sinks pruned during traversal', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'walk prunes dead WeakRef sinks during traversal without crashing' }, () => {
   const data = $({ a: 1 })
   // Attach an ArrSink that we deliberately do NOT keep a strong ref to.
   // It survives initial walk because the local var in connect() holds it
@@ -125,7 +125,7 @@ test('walk - dead WeakRef sinks pruned during traversal', () => {
   ok(connects.every(s => s.kind === 'connect'))
 })
 
-test('walk - LinkedView shown as kind:linked-alias, does not recurse into source', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk shows a LinkedView as kind:linked-alias and does not recurse into its source' }, () => {
   const src = $({ items: [1, 2, 3] })
   const linked = $(src)
   const tree = walk(linked[view])
@@ -136,7 +136,7 @@ test('walk - LinkedView shown as kind:linked-alias, does not recurse into source
   same(tree.sinks, [])
 })
 
-test('walk - cycle defense: re-encountered view marked kind:cycle', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'walk marks a re-encountered view kind:cycle instead of recursing' }, () => {
   // Synthetic check: pre-populate the seen set with the root, then walk —
   // the function should immediately return a cycle marker rather than recurse.
   const data = $({ a: 1 })
@@ -146,7 +146,7 @@ test('walk - cycle defense: re-encountered view marked kind:cycle', () => {
   strictEqual(tree.kind, 'cycle')
 })
 
-test('$.inspect - root view returns key:[], parent:null', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect of a root reports key:[] and parent:null' }, () => {
   const data = $({ a: 1, b: 2 })
   const out = $.inspect(data)
   same(out.key, [])
@@ -154,7 +154,7 @@ test('$.inspect - root view returns key:[], parent:null', () => {
   same(out.value, { a: 1, b: 2 })
 })
 
-test('$.inspect - child view shows parent and own key', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect of a child reports its parent and own key' }, () => {
   const data = $({ a: { b: 1 } })
   const out = $.inspect(data.a)
   same(out.key, ['a'])
@@ -164,7 +164,7 @@ test('$.inspect - child view shows parent and own key', () => {
   same(out.parent[value], { a: { b: 1 } })
 })
 
-test('$.inspect - sinks list operator + connect-style attached to view', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect lists operator and connect-style sinks attached to a view' }, () => {
   const data = $({ x: { active: true } })
   const op = data.filter(d => d.active)
   const arr = data.connect([])
@@ -174,14 +174,14 @@ test('$.inspect - sinks list operator + connect-style attached to view', () => {
   ok(op && arr)
 })
 
-test('$.graph(proxy) returns the same shape as walk()', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.graph(proxy) returns the same shape as walk()' }, () => {
   const data = $({ a: 1 })
   const tree = $.graph(data)
   strictEqual(tree.kind, 'root')
   same(tree.key, [])
 })
 
-test('$.graph - chain shape: filter → length appears under root.sinks', () => {
+spec({ op:'devtools', guarantee:'Fidelity', chain:'filter→length', asserts:'$.graph shows a filter→length chain under root.sinks' }, () => {
   const data = $({ x: { active: true, n: 1 }, y: { active: false, n: 2 } })
   const filtered = data.filter(d => d.active)
   const counted = filtered.length()
@@ -193,7 +193,7 @@ test('$.graph - chain shape: filter → length appears under root.sinks', () => 
   ok(counted)
 })
 
-test('iterRoots - yields every live root, prunes dead WeakRefs', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'iterRoots yields every live root and prunes dead WeakRefs' }, () => {
   // Pin a fresh root, then verify it appears in the iteration.
   const a = $({ x: 1 })
   const seen = []
@@ -201,7 +201,7 @@ test('iterRoots - yields every live root, prunes dead WeakRefs', () => {
   ok(seen.includes(a[view]), 'newly-created root should be enumerable')
 })
 
-test('iterRoots - excludes _devtoolsInternalRoots by default; included with {internal:true}', () => {
+spec({ op:'devtools', guarantee:'Selection', asserts:'iterRoots excludes internal roots by default, includes them with {internal:true}' }, () => {
   const internal = $({ panel: 'state' })
   internalRoot(internal)
   ok(_devtoolsInternalRoots.has(internal[view]))
@@ -213,7 +213,7 @@ test('iterRoots - excludes _devtoolsInternalRoots by default; included with {int
   ok(allSeen.includes(internal[view]), 'internal root visible with {internal:true}')
 })
 
-test('$.graph() with no arg returns trees for all live roots', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.graph() with no arg returns root trees for all live roots' }, () => {
   const a = $({ alive: true })
   const out = $.graph()
   ok(Array.isArray(out), 'no-arg form returns an array')
@@ -221,7 +221,7 @@ test('$.graph() with no arg returns trees for all live roots', () => {
   ok(out.some(t => t.kind === 'root'), 'every entry shape matches walk() root output')
 })
 
-test('$.fromDOM - walks parentElement chain to find __ripple_sink', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.fromDOM walks the parentElement chain to the nearest __ripple_sink' }, () => {
   // Synthesize a DOM element with __ripple_sink directly (we don't need the
   // real render layer for this unit test — the walking logic is what matters).
   const data = $({ items: { a: 1 } })
@@ -233,12 +233,12 @@ test('$.fromDOM - walks parentElement chain to find __ripple_sink', () => {
   same(proxy[value], { items: { a: 1 } })
 })
 
-test('$.fromDOM - returns null when no __ripple_sink found in chain', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.fromDOM returns null when no __ripple_sink is in the chain' }, () => {
   const orphan = { parentElement: { parentElement: null } }
   strictEqual($.fromDOM(orphan), null)
 })
 
-test('instrument - ensureInstrumented patches View.prototype, restore restores byte-identical', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'ensureInstrumented patches View.prototype and restore reverts it byte-identical' }, () => {
   const origXU0 = View.prototype.XU0
   const origBU1 = View.prototype.BU1
   ok(!isInstrumented())
@@ -252,7 +252,7 @@ test('instrument - ensureInstrumented patches View.prototype, restore restores b
   ok(!isInstrumented())
 })
 
-test('instrument - patched verbs preserve correctness when no listeners attached', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'patched verbs preserve byte-identical change records with no listeners attached' }, () => {
   ensureInstrumented()
   // Run a small core-test-shaped scenario with instrumentation on but no
   // listeners — fast-out path should kick in and the result should be
@@ -271,7 +271,7 @@ test('instrument - patched verbs preserve correctness when no listeners attached
   restoreInstrumentation()
 })
 
-test('instrument - dispatchTrace fires when a trace is registered', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'a registered trace receives dispatch events with the right verb and key' }, () => {
   ensureInstrumented()
   const data = $({ a: 1, b: 2 })
   const events = []
@@ -291,7 +291,7 @@ test('instrument - dispatchTrace fires when a trace is registered', () => {
   restoreInstrumentation()
 })
 
-test('instrument - trace ancestor scoping skips events outside subtree', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'trace ancestor scoping skips events outside the traced subtree' }, () => {
   ensureInstrumented()
   const data = $({ foo: { x: 1 }, bar: { y: 1 } })
   // Trace only the foo subtree.
@@ -310,7 +310,7 @@ test('instrument - trace ancestor scoping skips events outside subtree', () => {
   ok(!events.some(e => e.key.includes('bar')), 'no bar events should leak through')
 })
 
-test('instrument - profilers accumulate per-operator counts and times', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'profilers accumulate per-operator counts and times' }, () => {
   ensureInstrumented()
   const data = $({})
   const filtered = data.filter(d => d.active)
@@ -329,7 +329,7 @@ test('instrument - profilers accumulate per-operator counts and times', () => {
   ok(counted)
 })
 
-test('instrument - re-entrancy: nested verb calls don\'t double-count wall time', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'re-entrant nested verb calls do not double-count wall time' }, () => {
   ensureInstrumented()
   const data = $({})
   const acc = newProfileAcc()
@@ -349,7 +349,7 @@ test('instrument - re-entrancy: nested verb calls don\'t double-count wall time'
   ok(acc.ms < 1000, `wall time should be small, got ${acc.ms}`)
 })
 
-test('$.trace - captures events for the subtree, disposer stops capture', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.trace captures subtree events and the disposer stops capture' }, () => {
   const data = $({ a: 1, b: 2 })
   const events = []
   const stop = $.trace(data, { log: false, onEvent: (ev) => events.push(ev) })
@@ -363,7 +363,7 @@ test('$.trace - captures events for the subtree, disposer stops capture', () => 
   $.devtools.disable()
 })
 
-test('$.trace - ancestor scoping skips events outside the traced subtree', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.trace ancestor scoping skips events outside the traced subtree' }, () => {
   const data = $({ foo: { x: 1 }, bar: { y: 1 } })
   const events = []
   const stop = $.trace(data.foo, { log: false, onEvent: (ev) => events.push(ev) })
@@ -375,7 +375,7 @@ test('$.trace - ancestor scoping skips events outside the traced subtree', () =>
   $.devtools.disable()
 })
 
-test('$.profile - accumulates report; stop returns sorted byOperator', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'$.profile accumulates a report and stop returns byOperator sorted by totalMs' }, () => {
   const data = $({})
   const filtered = data.filter(d => d.active)
   const counted = filtered.length()
@@ -392,7 +392,7 @@ test('$.profile - accumulates report; stop returns sorted byOperator', () => {
   $.devtools.disable()
 })
 
-test('$.profile - report() returns snapshot without stopping', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.profile report() returns a snapshot without stopping' }, () => {
   const data = $({})
   const p = $.profile(data)
   data.x = 1
@@ -404,7 +404,7 @@ test('$.profile - report() returns snapshot without stopping', () => {
   $.devtools.disable()
 })
 
-test('$.devtools.disable - restores View.prototype byte-identical', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'$.devtools.disable restores View.prototype byte-identical and drops state' }, () => {
   const data = $({ a: 1 })
   const origXU0 = View.prototype.XU0
   $.trace(data, { log: false })
@@ -417,7 +417,7 @@ test('$.devtools.disable - restores View.prototype byte-identical', () => {
   strictEqual(profilers.size, 0)
 })
 
-test('$.cascades - single mutation produces one cascade with frames timed >= 0', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades records one cascade per mutation with frames timed >= 0' }, () => {
   const data = $({ a: 1 })
   const rec = $.cascades(data)
   data.a = 2
@@ -434,7 +434,7 @@ test('$.cascades - single mutation produces one cascade with frames timed >= 0',
   $.devtools.disable()
 })
 
-test('$.cascades - frame parent indices reconstruct a forest of well-formed trees', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'insert', asserts:'$.cascades frame parent indices reconstruct a well-formed forest' }, () => {
   const data = $({})
   const filtered = data.filter(d => d.active)
   const counted = filtered.length()
@@ -458,7 +458,7 @@ test('$.cascades - frame parent indices reconstruct a forest of well-formed tree
   $.devtools.disable()
 })
 
-test('$.cascades - subtree root scoping skips cascades outside the subtree', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades subtree root scoping skips cascades outside the subtree' }, () => {
   const data = $({ foo: { x: 1 }, bar: { y: 1 } })
   const rec = $.cascades(data.foo)
   data.bar.y = 999  // outside scope
@@ -474,7 +474,7 @@ test('$.cascades - subtree root scoping skips cascades outside the subtree', () 
   $.devtools.disable()
 })
 
-test('$.cascades - mutations across task ticks produce distinct cascades', async () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades produces a distinct cascade per task tick' }, async () => {
   // Within one sync tick, all top-level patched verbs coalesce into a
   // single cascade (see events.ts). To get N cascades we must yield to
   // the microtask queue between mutations — a single Promise.resolve()
@@ -502,7 +502,7 @@ test('$.cascades - mutations across task ticks produce distinct cascades', async
   $.devtools.disable()
 })
 
-test('$.cascades - sync mutations within one tick coalesce into a single cascade', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'$.cascades coalesces back-to-back sync mutations into one cascade' }, () => {
   // The flip side of the previous test: when mutations are back-to-back
   // sync (no microtask in between), they all belong to the same cascade.
   // This is the "user clicked once and four things changed" model.
@@ -520,7 +520,7 @@ test('$.cascades - sync mutations within one tick coalesce into a single cascade
   $.devtools.disable()
 })
 
-test('$.cascades - fan-out: chained operators all appear under root frame', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'insert', chain:'filter→length', asserts:'$.cascades fan-out shows chained operators under the root frame' }, () => {
   const data = $({})
   const a = data.filter(d => d.active).length()
   const b = data.filter(d => !d.active).length()
@@ -540,7 +540,7 @@ test('$.cascades - fan-out: chained operators all appear under root frame', () =
   $.devtools.disable()
 })
 
-test('$.cascades - report() returns snapshot without stopping; clear() empties buffer', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades report() snapshots without stopping and clear() empties the buffer' }, () => {
   const data = $({})
   const rec = $.cascades(data)
   data.a = 1
@@ -556,7 +556,7 @@ test('$.cascades - report() returns snapshot without stopping; clear() empties b
   $.devtools.disable()
 })
 
-test('$.cascades - maxCascades caps ring buffer (oldest evicted)', async () => {
+spec({ op:'devtools', guarantee:'Robustness', trigger:'batch', asserts:'$.cascades maxCascades caps the ring buffer, evicting the oldest' }, async () => {
   const data = $({})
   const rec = $.cascades(data, { maxCascades: 3 })
   for (let i = 0; i < 10; i++) {
@@ -571,7 +571,7 @@ test('$.cascades - maxCascades caps ring buffer (oldest evicted)', async () => {
   $.devtools.disable()
 })
 
-test('$.cascades - stop disposer cleans up; further mutations don\'t append', () => {
+spec({ op:'devtools', guarantee:'Robustness', trigger:'edit', asserts:'$.cascades stop disposer cleans up so further mutations do not append' }, () => {
   const data = $({})
   const rec = $.cascades(data)
   data.a = 1
@@ -588,7 +588,7 @@ test('$.cascades - stop disposer cleans up; further mutations don\'t append', ()
   $.devtools.disable()
 })
 
-test('$.cascades - captureState:true records post-cascade state snapshot per cascade', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades captureState:true records an independent post-cascade snapshot' }, () => {
   const data = $({ a: 1, b: 2 })
   const rec = $.cascades(data, { captureState: true })
   data.a = 10
@@ -605,7 +605,7 @@ test('$.cascades - captureState:true records post-cascade state snapshot per cas
   $.devtools.disable()
 })
 
-test('$.cascades - captureState:false (default) leaves state undefined', () => {
+spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades captureState defaults to false, leaving state undefined' }, () => {
   const data = $({ a: 1 })
   const rec = $.cascades(data)  // no captureState option
   data.a = 2
@@ -614,7 +614,7 @@ test('$.cascades - captureState:false (default) leaves state undefined', () => {
   $.devtools.disable()
 })
 
-test('$.cascades - disable() restores View.prototype and clears recorders', () => {
+spec({ op:'devtools', guarantee:'Robustness', asserts:'$.cascades disable() restores View.prototype and clears the recorders' }, () => {
   const origXU0 = View.prototype.XU0
   const data = $({ a: 1 })
   $.cascades(data)
@@ -625,7 +625,7 @@ test('$.cascades - disable() restores View.prototype and clears recorders', () =
   strictEqual(cascadeRecorders.size, 0, 'cascadeRecorders cleared')
 })
 
-test('$.highlight - adds and schedules removal of __ripple_highlight class', () => {
+spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.highlight adds the highlight class and schedules its removal' }, () => {
   const data = $({ items: {} })
   const calls = []
   // Fake DOMSink with a parent whose classList records add/remove.
