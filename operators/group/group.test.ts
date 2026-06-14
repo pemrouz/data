@@ -1,6 +1,6 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
-import { test } from 'node:test'
+import { spec } from '../../tests/spec.ts'
 import { $, value, view } from '../../core.ts'
 import { group, GroupValue } from './index.ts'
 import { sort, limit } from '../sort/index.ts'
@@ -13,7 +13,7 @@ $.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 const groups = (g) => Object.fromEntries(
   Object.entries(g[value]).map(([k, b]) => [k, Object.values(b).map((r) => r.id)]))
 
-test('group - array source rebuckets on an in-place group-key edit (C1)', () => {
+spec({ op:'group', guarantee:'Selection', trigger:'edit', shape:'array', via:['BU2'], issue:'C1', asserts:'an in-place key edit moves the row to its new bucket' }, () => {
   // Array-source group's BU2 used to be a no-op, so changing a row's group key
   // in place left it stranded in its old bucket. It now rebuilds on a key move.
   const src = $([{ id: 0, g: 'a' }, { id: 1, g: 'b' }, { id: 2, g: 'a' }])
@@ -25,7 +25,7 @@ test('group - array source rebuckets on an in-place group-key edit (C1)', () => 
   same(groups(g), { b: [0, 1, 2] })
 })
 
-test('group - over between on an ARRAY source follows bound moves (C1)', () => {
+spec({ op:'group', guarantee:'Selection', trigger:'bound-move', shape:'array', via:['BF0'], issue:'C1', chain:'between→group', asserts:'a row entering the range joins its bucket on a bound move' }, () => {
   const src = $([{ id: 0, g: 'a', v: 10 }, { id: 1, g: 'b', v: 50 }, { id: 2, g: 'a', v: 90 }])
   const g = group(between(src, 'v', [40, 100]), (r) => r.g)
   same(groups(g), { b: [1], a: [2] })       // v in [40,100]: id1(b), id2(a)
@@ -33,7 +33,7 @@ test('group - over between on an ARRAY source follows bound moves (C1)', () => {
   same(groups(g), { a: [0, 2], b: [1] })
 })
 
-test('group - object', () => {
+spec({ op:'group', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', asserts:'bucket inserts, edits and removes emit the right change records' }, () => {
   const res = $({
     1: { num: 1.1 }, 2: { num: 2.2 }, 3: { num: 1.9 },
     4: { num: 2.6 }, 5: { num: 1.7 }
@@ -69,18 +69,12 @@ test('group - object', () => {
   same(grouped[value], {})
 })
 
-// regression: a batched BU1 where multiple rows leave the same source group
-// (e.g. limit emitting several updates in one call after a filter shifts) used
-// to push the empty-group cleanup once per row, so downstream sinks received
-// the same group-remove twice and DOMSink's remove_node threw on the second
-// call. The cleared group should now be reported exactly once, with the
-// removed rows as the value.
 // Regression: group's BU2 was a no-op, so in-place field edits on an object
 // source were invisible — a row whose group key changed in place was never
 // rebucketed, and a non-key edit never reached bucket consumers (e.g. an
 // aggregate over a bucket). Surfaced by the pivot example (group-by-region
 // with editable revenue / region). Mirrors the length(fn)-on-BU2 fix.
-test('group (object) - BU2 rebuckets on key change and forwards non-key edits', () => {
+spec({ op:'group', guarantee:'Propagation', trigger:'edit', shape:'object', via:['BU2'], chain:'group→sum', asserts:'a non-key edit reaches bucket aggregates; a key edit rebuckets' }, () => {
   const res = $({
     x: { g: 'A', v: 1 }, y: { g: 'A', v: 2 }, z: { g: 'B', v: 5 },
   })
@@ -106,7 +100,13 @@ test('group (object) - BU2 rebuckets on key change and forwards non-key edits', 
   same(grouped[value].A, undefined)
 })
 
-test('group - batched BU1 with multiple rows leaving the same group', () => {
+// regression: a batched BU1 where multiple rows leave the same source group
+// (e.g. limit emitting several updates in one call after a filter shifts) used
+// to push the empty-group cleanup once per row, so downstream sinks received
+// the same group-remove twice and DOMSink's remove_node threw on the second
+// call. The cleared group should now be reported exactly once, with the
+// removed rows as the value.
+spec({ op:'group', guarantee:'Fidelity', trigger:'batch', shape:'object', via:['BU1'], asserts:'a batched cross-group move reports the cleared group exactly once' }, () => {
   const res = $({
     1: { num: 1.1 }, 2: { num: 1.2 }, 3: { num: 5.0 },
   })
@@ -130,7 +130,7 @@ test('group - batched BU1 with multiple rows leaving the same group', () => {
 // with implicit suffix-shift semantics, keeping a per-group bucket array
 // and emitting BR2/BI2/BU2 keyed by per-group local index. This is what
 // limit→group composition relies on for incremental DOM updates.
-test('group - array source incremental updates', () => {
+spec({ op:'group', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BR1A'], asserts:'array removes splice buckets keyed by per-group local index' }, () => {
   const res = $([
     { num: 1.1 },   // 0 → group 1, idx 0
     { num: 5.0 },   // 1 → group 5, idx 0
@@ -167,7 +167,7 @@ test('group - array source incremental updates', () => {
 // Array source: BI0A inserts at an upstream position and shifts every
 // later upstream key up by one. The new row lands in its group's bucket
 // at the position dictated by upstream order.
-test('group - array source BI0A insert in middle', () => {
+spec({ op:'group', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], asserts:'a mid-array insert lands in its bucket in upstream order' }, () => {
   const res = $([
     { num: 1.1 },
     { num: 1.3 },
@@ -196,7 +196,7 @@ test('group - array source BI0A insert in middle', () => {
 // events referenced the *current* position and missed, eventually crashing
 // downstream sinks. Now group keeps array buckets in upstream order with
 // idx tracking, so a brush-style churn against limit→group stays consistent.
-test('group - limit→group survives churn that shifts upstream positions', () => {
+spec({ op:'group', guarantee:'Alignment', trigger:'brush', shape:'array', chain:'limit→group', asserts:'limit churn that shifts upstream positions keeps buckets consistent' }, () => {
   // 30 source rows in 3 categories. limit(10) keeps the 10 lowest-id rows
   // (object iteration order). Each category has ~3 rows in the window.
   const data = {}
@@ -247,7 +247,7 @@ test('group - limit→group survives churn that shifts upstream positions', () =
 // idiom) used to crash on that row's remove ("unexpected group r1") and silently
 // DUPLICATE it on a cross-group move, because posMap stored the literal undefined
 // group, indistinguishable from "untracked". posMap.has() now disambiguates.
-test('group (object) - undefined group key: remove and move are correct', () => {
+spec({ op:'group', guarantee:'Robustness', trigger:'remove/edit', shape:'object', asserts:'an undefined group key removes and moves without crash or duplicate' }, () => {
   const src = $({ a: { cat: 'x', v: 1 }, b: { v: 2 }, c: { cat: 'x', v: 3 } })
   const g = group(src, r => r.cat)            // b → the "undefined" bucket
   same(g[value], { x: { a: { cat: 'x', v: 1 }, c: { cat: 'x', v: 3 } }, undefined: { b: { v: 2 } } })
@@ -275,7 +275,7 @@ test('group (object) - undefined group key: remove and move are correct', () => 
 // the array BR1A tolerates untracked (hole) positions rather than throwing
 // `unexpected group r1` — so the (documented array-positional-limitation) combo
 // degrades to no-crash through churn instead of throwing.
-test('group - over a sparse array source skips excluded slots (no crash)', () => {
+spec({ op:'group', guarantee:'Robustness', trigger:'remove', shape:'array', chain:'between→group', asserts:'a sparse array source skips excluded slots without crashing' }, () => {
   const src = $([{ v: 10, g: 1 }, { v: 50, g: 2 }, { v: 90, g: 1 }])
   const g = group(between(src, 'v', [20, 80]), r => r.g)
   same(g[value], { 2: [ { v: 50, g: 2 } ] })
@@ -289,7 +289,7 @@ test('group - over a sparse array source skips excluded slots (no crash)', () =>
 // intersect leave excluded keys present with value undefined) called
 // fn(undefined) and crashed — at construction (XU0) and on a leave via
 // `src.k = undefined` (BU1). Both now treat undefined as excluded / a leave.
-test('group - sparse object source and assignment-to-undefined do not crash', () => {
+spec({ op:'group', guarantee:'Robustness', trigger:'edit', shape:'object', issue:'G2', chain:'between→group', asserts:'a sparse object source and undefined assignment do not crash' }, () => {
   const src = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 2 } })
   const ext = $([0, 10])
   const ranged = between(src, 'v', ext)
@@ -310,7 +310,7 @@ test('group - sparse object source and assignment-to-undefined do not crash', ()
 // lookup always missed, the "did the group key move?" check was always true,
 // and every non-key in-place edit triggered a full XU0 rebuild (a whole-view
 // update event downstream). Coerced to posMap.get(+name).
-test('group - array non-key edit does not trigger a full rebuild', () => {
+spec({ op:'group', guarantee:'Efficiency', trigger:'edit', shape:'array', via:['BU2'], issue:'G2', asserts:'a non-key array edit re-evaluates one row, not a full rebuild' }, () => {
   const src = $([{ g: 'x', v: 1 }, { g: 'y', v: 2 }, { g: 'x', v: 3 }])
   let fnCalls = 0
   const g = group(src, (r) => { fnCalls++; return r.g })
@@ -328,7 +328,7 @@ test('group - array non-key edit does not trigger a full rebuild', () => {
 // Regression (burndown): group over an ARRAY source crashed on a slot set to
 // undefined (`src[i] = undefined` -> BU1A called fn(undefined)). It's a leave:
 // the row drops from its bucket, no fn call.
-test('group - array slot set to undefined leaves cleanly (no crash)', () => {
+spec({ op:'group', guarantee:'Robustness', trigger:'edit', shape:'array', via:['BU1'], asserts:'an array slot set to undefined leaves cleanly without crashing' }, () => {
   const s = $([{ g: 'a', v: 1 }, { g: 'b', v: 2 }, { g: 'a', v: 3 }])
   const g = group(s, (r) => r.g)
   s[1] = undefined                       // leave — was a crash

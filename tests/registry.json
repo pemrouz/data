@@ -1520,5 +1520,160 @@
     "via": [],
     "title": "filter · Fidelity · remove · array · D3 — deleting an excluded array row emits no phantom remove record",
     "file": "operators/filter/filter.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Selection",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2"
+    ],
+    "issue": "C1",
+    "asserts": "an in-place key edit moves the row to its new bucket",
+    "title": "group · Selection · edit · array · via BU2 · C1 — an in-place key edit moves the row to its new bucket",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Selection",
+    "trigger": "bound-move",
+    "shape": "array",
+    "via": [
+      "BF0"
+    ],
+    "issue": "C1",
+    "chain": "between→group",
+    "asserts": "a row entering the range joins its bucket on a bound move",
+    "title": "between→group · Selection · bound-move · array · via BF0 · C1 — a row entering the range joins its bucket on a bound move",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "asserts": "bucket inserts, edits and removes emit the right change records",
+    "via": [],
+    "title": "group · Fidelity · insert/remove · object — bucket inserts, edits and removes emit the right change records",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Propagation",
+    "trigger": "edit",
+    "shape": "object",
+    "via": [
+      "BU2"
+    ],
+    "chain": "group→sum",
+    "asserts": "a non-key edit reaches bucket aggregates; a key edit rebuckets",
+    "title": "group→sum · Propagation · edit · object · via BU2 — a non-key edit reaches bucket aggregates; a key edit rebuckets",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Fidelity",
+    "trigger": "batch",
+    "shape": "object",
+    "via": [
+      "BU1"
+    ],
+    "asserts": "a batched cross-group move reports the cleared group exactly once",
+    "title": "group · Fidelity · batch · object · via BU1 — a batched cross-group move reports the cleared group exactly once",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Alignment",
+    "trigger": "remove",
+    "shape": "array",
+    "via": [
+      "BR1A"
+    ],
+    "asserts": "array removes splice buckets keyed by per-group local index",
+    "title": "group · Alignment · remove · array · via BR1A — array removes splice buckets keyed by per-group local index",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Alignment",
+    "trigger": "insert",
+    "shape": "array",
+    "via": [
+      "BI0A"
+    ],
+    "asserts": "a mid-array insert lands in its bucket in upstream order",
+    "title": "group · Alignment · insert · array · via BI0A — a mid-array insert lands in its bucket in upstream order",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Alignment",
+    "trigger": "brush",
+    "shape": "array",
+    "chain": "limit→group",
+    "asserts": "limit churn that shifts upstream positions keeps buckets consistent",
+    "via": [],
+    "title": "limit→group · Alignment · brush · array — limit churn that shifts upstream positions keeps buckets consistent",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Robustness",
+    "trigger": "remove/edit",
+    "shape": "object",
+    "asserts": "an undefined group key removes and moves without crash or duplicate",
+    "via": [],
+    "title": "group · Robustness · remove/edit · object — an undefined group key removes and moves without crash or duplicate",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "array",
+    "chain": "between→group",
+    "asserts": "a sparse array source skips excluded slots without crashing",
+    "via": [],
+    "title": "between→group · Robustness · remove · array — a sparse array source skips excluded slots without crashing",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "object",
+    "issue": "G2",
+    "chain": "between→group",
+    "asserts": "a sparse object source and undefined assignment do not crash",
+    "via": [],
+    "title": "between→group · Robustness · edit · object · G2 — a sparse object source and undefined assignment do not crash",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU2"
+    ],
+    "issue": "G2",
+    "asserts": "a non-key array edit re-evaluates one row, not a full rebuild",
+    "title": "group · Efficiency · edit · array · via BU2 · G2 — a non-key array edit re-evaluates one row, not a full rebuild",
+    "file": "operators/group/group.test.ts"
+  },
+  {
+    "op": "group",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BU1"
+    ],
+    "asserts": "an array slot set to undefined leaves cleanly without crashing",
+    "title": "group · Robustness · edit · array · via BU1 — an array slot set to undefined leaves cleanly without crashing",
+    "file": "operators/group/group.test.ts"
   }
 ]

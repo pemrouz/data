@@ -20,6 +20,7 @@ const FILES = [
   'operators/compare/compare.test.ts',
   'operators/distinct/distinct.test.ts',
   'operators/filter/filter.test.ts',
+  'operators/group/group.test.ts',
 ]
 
 for (const f of FILES) {
