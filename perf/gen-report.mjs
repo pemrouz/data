@@ -3,7 +3,7 @@
 // trend store. Mirrors comparisons/bench/operators/_gen-bench-md.mjs's
 // read→derive→write shape, but emits JSON (not re-parsed markdown).
 //
-//   perf/results/<run-id>/*.jsonl  →  examples/perf/perf.json
+//   perf/results/<run-id>/*.jsonl  →  perf/perf.json
 //                                  →  perf/history.jsonl  (last ≈100 runs)
 //
 // Run via `node perf/gen-report.mjs` (PERF_RUN_ID picks the run dir; falls back
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const RESULTS = join(ROOT, 'perf', 'results')
-const OUT = join(ROOT, 'examples', 'perf', 'perf.json')
+const OUT = join(ROOT, 'perf', 'perf.json')
 const HISTORY = join(ROOT, 'perf', 'history.jsonl')
 const HISTORY_CAP = 100
 
@@ -110,5 +110,5 @@ writeFileSync(OUT, JSON.stringify({ schema: 1, run, harnesses, history: embedded
 
 const nRows = Object.values(harnesses).reduce((n, h) => n + h.rows.length, 0)
 console.log(
-  `[gen-report] ${Object.keys(harnesses).length} harness(es), ${nRows} row(s) → examples/perf/perf.json (run ${run.commit}${run.dirty ? '-dirty' : ''})`,
+  `[gen-report] ${Object.keys(harnesses).length} harness(es), ${nRows} row(s) → perf/perf.json (run ${run.commit}${run.dirty ? '-dirty' : ''})`,
 )

@@ -7,7 +7,7 @@
 // files (their medians are computed for ok() and thrown away; re-deriving them
 // here is cheaper and safer than threading a survives-the-fork channel through
 // 18 forked test workers). Emits universal rows via perf/record.ts; the
-// collator perf/gen-report.mjs turns the JSONL into examples/perf/perf.json.
+// collator perf/gen-report.mjs turns the JSONL into perf/perf.json.
 //
 // Shipped so far (the two de-risking spikes):
 //   Spike 1 — H1 filter-insert: a timing row + a DETERMINISTIC op-count

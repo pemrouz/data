@@ -5,7 +5,7 @@
 // different scales (0.16ms vs 144ms vs integer op-counts) compare in one glance,
 // and renders a scannable table where each row expands to its detail (chart /
 // stats / trend). The overview scan row is intentionally minimal —
-//   dot · id · value · ×mult · caret
+//   dot · id · value · %-vs-peak (group rows: range) · caret
 // — with the trend sparkline and min/max band moved into the expanded detail
 // (they restate the same K-window decision the dot already makes categorically,
 // and aren't legible at 30-row density).
@@ -203,6 +203,7 @@ function nodeEl(level, name, title, rows, open) {
     `<span class="ix-dot ${dotClassFromSev(worst)}"></span>` +
     `<span class="ix-nname">${esc(name)}</span>` +
     (title ? `<span class="ix-ntitle">${esc(title)}</span>` : '') +
+    `<span class="ix-nroll">${rollupChip(rows)}</span>` +
     `<span class="ix-ncount">${rows.length}</span>` +
     `</summary>`
   return det
@@ -262,17 +263,52 @@ function miniSpark(r) {
     `<circle class="${r._band === 'fail' ? 'ix-mini-bad' : 'ix-mini-cur'}" cx="${x(last).toFixed(1)}" cy="${y(pts[last]).toFixed(1)}" r="2"/></svg>`
 }
 
+// % vs PEAK — the best of the row's PRIOR runs (the target you're trying to
+// beat). Signed so + = BETTER than your best-so-far (a new record), − = WORSE
+// (off the peak). Excludes the current run so a record can read positive.
+function pctVsPeak(r, v = r.value) {
+  const h = r._h
+  if (!h) return null
+  const prior = h.series.slice(0, -1) // best of the runs BEFORE this one
+  if (!prior.length) return null
+  const lower = goodSign(r) < 0
+  const peak = lower ? Math.min(...prior) : Math.max(...prior)
+  if (!peak) return null
+  const better = lower ? peak / v : v / peak // >1 when current beats the prior peak
+  return (better - 1) * 100
+}
+function fmtPct(p) {
+  if (p == null || !isFinite(p)) return '–'
+  const a = Math.abs(p)
+  if (a < 0.05) return '0%'
+  return `${p < 0 ? '−' : '+'}${a.toFixed(a >= 10 ? 0 : 1)}%`
+}
+// + = better than peak (green) · near peak = flat · off peak = amber · well off = red
+function pctClass(p) {
+  if (p == null || !isFinite(p)) return 'flat'
+  if (p >= 1) return 'good'   // beat the prior best
+  if (p > -10) return 'flat'  // within 10% of best — basically at peak
+  if (p > -25) return 'drift' // off peak
+  return 'bad'                // well off best
+}
 function multChip(r) {
-  if (r.kind === 'bool' || !isFinite(r._mult)) return `<span class="ix-mult flat">—</span>`
+  if (r.kind === 'bool') return `<span class="ix-mult flat">—</span>`
+  const p = pctVsPeak(r)
+  if (p == null) return `<span class="ix-mult flat">—</span>`
   const nb = r._h.baseSamples.length
   const prov = r._conf === 'thin' || r._conf === 'provisional' || r._conf === 'new' || nb < 3
-  const caret = r._mult < 0.97 ? ' ▾' : r._mult > 1.03 ? ' ▴' : ''
-  const cls = prov ? 'prov'
-    : r._band === 'fail' ? 'bad'
-    : r._band === 'warn' ? 'drift'
-    : r._band === 'gain' ? 'good'
-    : 'flat'
-  return `<span class="ix-mult ${cls}" title="vs median of prior ${nb} run${nb === 1 ? '' : 's'}">×${fmt(r._mult)}${caret}${prov ? ' ⌁' : ''}</span>`
+  return `<span class="ix-mult ${pctClass(p)}" title="${fmtPct(p)} vs peak (best of prior ${nb} run${nb === 1 ? '' : 's'}) · + better, − worse">` +
+    `${fmtPct(p)}${prov ? ' ⌁' : ''}</span>`
+}
+// roll-up for a collapsed group/harness node: the RANGE across the subtree's
+// leaves (worst … best vs peak). Every leaf you reveal sits INSIDE this range,
+// so the always-visible "main" rows carry the stat as a range.
+function rollupChip(rows) {
+  const ps = rows.filter(r => r.kind !== 'bool').map(r => pctVsPeak(r)).filter(p => p != null && isFinite(p))
+  if (!ps.length) return ''
+  const lo = Math.min(...ps), hi = Math.max(...ps) // lo = worst, hi = best
+  const label = lo === hi ? fmtPct(lo) : `${fmtPct(lo)}…${fmtPct(hi)}`
+  return `<span class="ix-mult ${pctClass(lo)}" title="${ps.length} case(s): worst ${fmtPct(lo)} … best ${fmtPct(hi)} vs peak">${label}</span>`
 }
 
 // ---- detail dispatch on harness ---------------------------------------------
@@ -373,11 +409,13 @@ function rangeBand(r) {
   // position 0 = best, 1 = worst (fill grows right = worse), direction-aware
   const pos = clamp01(lower ? (r.value - lo) / (hi - lo || 1) : (hi - r.value) / (hi - lo || 1))
   const best = lower ? Math.min(...s) : Math.max(...s)
-  const xbest = best === 0 ? '–' : `×${fmt(lower ? r.value / best : best / r.value)}` // ≥1
+  // signed % vs the best run: − = worse than best, 0% = at best (matches the chip)
+  const r2 = best === 0 ? null : (lower ? best / r.value : r.value / best) // ≤1
+  const vsbest = r2 == null ? '–' : fmtPct((r2 - 1) * 100)
   return `<div class="range-row ${pos > 0.66 ? 'warn' : ''}">
     <span class="range-lab">range</span>
     <span class="tcount-bar"><span class="tcount-fill" style="width:${(pos * 100).toFixed(0)}%"></span></span>
-    <span class="range-num">${xbest} vs best</span></div>`
+    <span class="range-num">${vsbest} vs best</span></div>`
 }
 
 // trend spark ④ — detail only. last K+1 oriented points; current accent, dashed

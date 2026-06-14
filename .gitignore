@@ -15,12 +15,12 @@
 !examples/kanban/**/*.js
 !examples/pivot/**/*.js
 !examples/library/**/*.js
-!examples/perf/**/*.js
+!perf/**/*.js
 !mockups/**/*.js
 
 # perf report: the raw per-run sweep output is transient. The collated
-# examples/perf/perf.json and perf/history.jsonl ARE committed (the page fetches
-# the former; the latter is the trend changelog); only the run dirs are ignored.
+# perf/perf.json and perf/history.jsonl ARE committed (the dashboard at /perf/
+# fetches the former; the latter is the trend changelog); only run dirs ignored.
 /perf/results/
 
 # dist/ is committed so GitHub Pages (branch deploy) can serve the importmap

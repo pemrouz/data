@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>data • perf control room</title>
-  <link rel="stylesheet" href="../../assets/v2.css">
+  <link rel="stylesheet" href="../assets/v2.css">
   <link rel="stylesheet" href="./perf.css">
 </head>
 <body class="perf-app">
   <header class="pbar">
-    <a class="mark" href="../../index.html"><b>$</b> data<span class="pbar-sub">perf control room</span></a>
+    <a class="mark" href="../index.html"><b>$</b> data<span class="pbar-sub">perf control room</span></a>
     <span class="pbar-trust" id="summary"><!-- reactive: metrics + trust --></span>
     <span class="pbar-spacer"></span>
     <input id="search" type="search" placeholder="filter metrics…" aria-label="filter metrics" autocomplete="off">
     <label class="ix-ctl">sort
       <select id="sort" aria-label="sort by">
         <option value="severity">severity</option>
-        <option value="worst">×worst</option>
+        <option value="worst">worst</option>
         <option value="value">value</option>
         <option value="id">id</option>
         <option value="harness">harness</option>
@@ -32,9 +32,10 @@
         <span><span class="ix-dot bad"></span> timing regression</span>
         <span><span class="ix-dot countbad"></span> count moved (deterministic)</span>
         <span><span class="ix-dot gain"></span> improved</span>
-        <span><span class="ix-mult prov">×r ⌁</span> provisional (run-noise, &lt;2 commits)</span>
-        <span><span class="ix-mult bad">×1.4 ▴</span> worse</span>
-        <span><span class="ix-mult good">×0.8 ▾</span> better</span>
+        <span><span class="ix-mult good">+5%</span> better than peak (new best)</span>
+        <span><span class="ix-mult drift">−4%</span> off peak</span>
+        <span><span class="ix-mult bad">−20%</span> well off peak</span>
+        <span><span class="ix-mult prov">±% ⌁</span> provisional (run-noise, &lt;2 commits)</span>
       </div>
     </details>
   </header>
@@ -43,8 +44,8 @@
 
   <script type="importmap">
   { "imports": {
-      "data":      "../../dist/index.js",
-      "data/full": "../../dist/full.js"
+      "data":      "../dist/index.js",
+      "data/full": "../dist/full.js"
   } }
   </script>
   <script type="module" src="./main.js"></script>

@@ -24,4 +24,4 @@ const run = (file, flags = []) =>
 console.log(`[perf:report] run ${runId}`)
 run('run-report.ts', ['--experimental-strip-types', '--no-warnings', '--expose-gc'])
 run('gen-report.mjs')
-console.log('[perf:report] open examples/perf/ (npm run serve, then /examples/perf/)')
+console.log('[perf:report] open the dashboard (npm run serve, then /perf/)')
