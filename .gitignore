@@ -31,3 +31,7 @@
 # Rebuild + recommit dist/ on each release.
 !/dist/**
 /dist/**/*.map
+
+# test report (proto/test-report): commit sources + built explorer.html; ignore the run artifact
+!proto/test-report/**/*.js
+proto/test-report/results.json

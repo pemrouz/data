@@ -96,6 +96,8 @@
     "perf": "node perf/run-gate.mjs",
     "perf:report": "node perf/_run.mjs",
     "test:all": "npm run test && npm run test:render",
+    "report": "node proto/test-report/run.mjs && node proto/test-report/build.mjs",
+    "report:build": "node proto/test-report/build.mjs",
     "prepublishOnly": "npm run build && npm test",
     "bench:compare": "node --experimental-strip-types --no-warnings comparisons/bench/run-all.ts",
     "bench:ops": "node --experimental-strip-types --no-warnings comparisons/bench/operators/run-ops.ts",
