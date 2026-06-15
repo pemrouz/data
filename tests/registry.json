@@ -198,6 +198,19 @@
     "file": "operators/between/between.test.ts"
   },
   {
+    "op": "between",
+    "guarantee": "Efficiency",
+    "trigger": "bound-move",
+    "shape": "object",
+    "via": [
+      "BR1",
+      "BI0"
+    ],
+    "asserts": "a bound move emits records proportional to rows crossed, not source size; a no-op move emits none",
+    "title": "between · Efficiency · bound-move · object · via BR1+BI0 — a bound move emits records proportional to rows crossed, not source size; a no-op move emits none",
+    "file": "operators/between/between.test.ts"
+  },
+  {
     "op": "sort",
     "guarantee": "Propagation",
     "trigger": "insert",
@@ -832,6 +845,45 @@
     "file": "operators/union/union.test.ts"
   },
   {
+    "op": "union",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "asserts": "identical args return a distinct operator view each call (no dedup)",
+    "via": [],
+    "title": "union · Identity · dedup-call · object — identical args return a distinct operator view each call (no dedup)",
+    "file": "operators/union/union.test.ts"
+  },
+  {
+    "op": "union",
+    "guarantee": "Fidelity",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "BU1",
+      "BR1"
+    ],
+    "emits": [
+      "BU1",
+      "BR1"
+    ],
+    "asserts": "a higher-priority drop re-picks the next value; the last-holder drop removes the key",
+    "title": "union · Fidelity · remove · object · via BU1+BR1 — a higher-priority drop re-picks the next value; the last-holder drop removes the key",
+    "file": "operators/union/union.test.ts"
+  },
+  {
+    "op": "union",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "XR0"
+    ],
+    "asserts": "a whole-source drop re-picks survivors from the other source; emptying all collapses to {}",
+    "title": "union · Robustness · remove · object · via XR0 — a whole-source drop re-picks survivors from the other source; emptying all collapses to {}",
+    "file": "operators/union/union.test.ts"
+  },
+  {
     "op": "except",
     "guarantee": "Selection",
     "trigger": "edit",
@@ -922,6 +974,45 @@
     "file": "operators/except/except.test.ts"
   },
   {
+    "op": "except",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "asserts": "identical args return a distinct operator view each call (no dedup)",
+    "via": [],
+    "title": "except · Identity · dedup-call · object — identical args return a distinct operator view each call (no dedup)",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "object",
+    "via": [
+      "BI0",
+      "BR1"
+    ],
+    "emits": [
+      "BI0",
+      "BR1"
+    ],
+    "asserts": "an exclusion remove re-admits as an insert; an exclusion add drops as a remove",
+    "title": "except · Fidelity · insert/remove · object · via BI0+BR1 — an exclusion remove re-admits as an insert; an exclusion add drops as a remove",
+    "file": "operators/except/except.test.ts"
+  },
+  {
+    "op": "except",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "object",
+    "via": [
+      "XR0"
+    ],
+    "asserts": "clearing the exclusion re-admits all rows; clearing the primary collapses to {}",
+    "title": "except · Robustness · remove · object · via XR0 — clearing the exclusion re-admits all rows; clearing the primary collapses to {}",
+    "file": "operators/except/except.test.ts"
+  },
+  {
     "op": "sum",
     "guarantee": "Reduction",
     "trigger": "edit",
@@ -996,6 +1087,19 @@
     ],
     "asserts": "an in-place column edit updates the sum",
     "title": "sum · Reduction · edit · array · via BU2 — an in-place column edit updates the sum",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Efficiency",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "issue": "P7",
+    "asserts": "an object insert threads one delta with no rebuild; an array insert rebuilds",
+    "title": "sum · Efficiency · insert · object · via BI0 · P7 — an object insert threads one delta with no rebuild; an array insert rebuilds",
     "file": "operators/aggregate/aggregate.test.ts"
   },
   {
@@ -1076,6 +1180,16 @@
     "asserts": "an empty set maxes to undefined",
     "via": [],
     "title": "max · Reduction · construct · array — an empty set maxes to undefined",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "min",
+    "guarantee": "Reduction",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "an empty set mins to undefined, not Infinity",
+    "via": [],
+    "title": "min · Reduction · construct · array — an empty set mins to undefined, not Infinity",
     "file": "operators/aggregate/aggregate.test.ts"
   },
   {
@@ -1410,6 +1524,55 @@
     "via": [],
     "title": "distinct · Identity · dedup-call · array — the same projection returns the same view",
     "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Fidelity",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "a duplicate-key insert emits nothing; a fresh-key insert emits one whole-array update",
+    "title": "distinct · Fidelity · insert · object · via BI0 — a duplicate-key insert emits nothing; a fresh-key insert emits one whole-array update",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Robustness",
+    "trigger": "construct",
+    "shape": "array",
+    "asserts": "empty, {} and null sources all yield [] without throwing",
+    "via": [],
+    "title": "distinct · Robustness · construct · array — empty, {} and null sources all yield [] without throwing",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "distinct",
+    "guarantee": "Robustness",
+    "trigger": "edit",
+    "shape": "array",
+    "via": [
+      "BF0"
+    ],
+    "chain": "between→distinct",
+    "asserts": "a hole is never handed to the projection, directly or via a sparse producer",
+    "title": "between→distinct · Robustness · edit · array · via BF0 — a hole is never handed to the projection, directly or via a sparse producer",
+    "file": "operators/distinct/distinct.test.ts"
+  },
+  {
+    "op": "filter",
+    "guarantee": "Selection",
+    "trigger": "construct/edit",
+    "shape": "array",
+    "via": [
+      "BH1",
+      "BF0"
+    ],
+    "issue": "C13",
+    "asserts": "passing rows keep their source index; excluded slots are holes, including a trailing one",
+    "title": "filter · Selection · construct/edit · array · via BH1+BF0 · C13 — passing rows keep their source index; excluded slots are holes, including a trailing one",
+    "file": "operators/filter/filter.test.ts"
   },
   {
     "op": "filter",
@@ -1752,6 +1915,30 @@
     "file": "operators/keys/keys.test.ts"
   },
   {
+    "op": "keys",
+    "guarantee": "Efficiency",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "an append insert reuses the output array in place; a remove rebuilds a fresh one",
+    "title": "keys · Efficiency · insert · object · via BI0 — an append insert reuses the output array in place; a remove rebuilds a fresh one",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
+    "op": "values",
+    "guarantee": "Efficiency",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "an append insert reuses the output array in place; an edit rebuilds a fresh one",
+    "title": "values · Efficiency · insert · object · via BI0 — an append insert reuses the output array in place; an edit rebuilds a fresh one",
+    "file": "operators/keys/keys.test.ts"
+  },
+  {
     "op": "length",
     "guarantee": "Reduction",
     "trigger": "edit",
@@ -1864,6 +2051,19 @@
     "issue": "C2",
     "asserts": "a mid-array positional insert keeps the displaced row",
     "title": "map · Alignment · insert · array · via BI0A · C2 — a mid-array positional insert keeps the displaced row",
+    "file": "operators/map/map.test.ts"
+  },
+  {
+    "op": "map",
+    "guarantee": "Fidelity",
+    "trigger": "insert/remove",
+    "shape": "array",
+    "via": [
+      "BI0A",
+      "BR1"
+    ],
+    "asserts": "positional inserts and an array delete forward as the right records with the right at/key",
+    "title": "map · Fidelity · insert/remove · array · via BI0A+BR1 — positional inserts and an array delete forward as the right records with the right at/key",
     "file": "operators/map/map.test.ts"
   },
   {
@@ -2117,6 +2317,30 @@
     "file": "operators/reverse/reverse.test.ts"
   },
   {
+    "op": "reverse",
+    "guarantee": "Order",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "a new key prepends to the reversed view; a batch keeps back-to-front order",
+    "title": "reverse · Order · insert · object · via BI0 — a new key prepends to the reversed view; a batch keeps back-to-front order",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
+    "op": "reverse",
+    "guarantee": "Efficiency",
+    "trigger": "insert",
+    "shape": "object",
+    "via": [
+      "BI0"
+    ],
+    "asserts": "an object insert prepends without rebuilding; an array insert and an object edit rebuild",
+    "title": "reverse · Efficiency · insert · object · via BI0 — an object insert prepends without rebuilding; an array insert and an object edit rebuild",
+    "file": "operators/reverse/reverse.test.ts"
+  },
+  {
     "op": "tap",
     "guarantee": "Fidelity",
     "trigger": "edit/insert/remove",
@@ -2219,6 +2443,30 @@
     "asserts": "a projection of a sub-view re-derives on edits to that sub-view",
     "via": [],
     "title": "to · Fidelity · edit · object — a projection of a sub-view re-derives on edits to that sub-view",
+    "file": "operators/to/to.test.ts"
+  },
+  {
+    "op": "to",
+    "guarantee": "Efficiency",
+    "trigger": "edit",
+    "shape": "scalar",
+    "via": [
+      "XU0"
+    ],
+    "asserts": "a re-derive equal to the last value emits nothing; only a real change emits",
+    "title": "to · Efficiency · edit · scalar · via XU0 — a re-derive equal to the last value emits nothing; only a real change emits",
+    "file": "operators/to/to.test.ts"
+  },
+  {
+    "op": "to",
+    "guarantee": "Robustness",
+    "trigger": "remove",
+    "shape": "scalar",
+    "via": [
+      "XR0"
+    ],
+    "asserts": "clearing the source re-derives the guarded projection to a defined scalar with one update",
+    "title": "to · Robustness · remove · scalar · via XR0 — clearing the source re-derives the guarded projection to a defined scalar with one update",
     "file": "operators/to/to.test.ts"
   },
   {

@@ -346,3 +346,32 @@ spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'arra
   ext2[value] = [0, 100]
   same(b2[value].filter((x) => x !== undefined).map((r) => r.v), [10, 30])
 })
+
+// between's raison d'être (crossfilter): a bound move walks `sorted` only over
+// the rows it CROSSES, emitting one membership record per crossed row — O(Δ),
+// not O(N). On a large source a small move must emit a number of records
+// proportional to ROWS CROSSED, and a no-op move (identical bounds) must emit
+// nothing. This fails the moment a future change regresses the incremental
+// walk to a whole-set XU0 resnapshot (which would emit ~N records). The N=3
+// Fidelity specs above can't catch that — here N (40) ≫ Δ. Bounds are inclusive.
+spec({ op:'between', guarantee:'Efficiency', trigger:'bound-move', shape:'object', via:['BR1','BI0'], asserts:'a bound move emits records proportional to rows crossed, not source size; a no-op move emits none' }, () => {
+  const N = 40
+  const obj = {}
+  for (let i = 0; i < N; i++) obj['k' + i] = { v: i }     // v: 0..39
+  const src = $(obj)
+  const ext = $([0, 100])                                  // all 40 in range
+  const b = between(src, 'v', ext)
+  const ch = b.connect([])
+
+  let base = ch.length
+  ext[value] = [0, 36]                                     // v > 36 leave: 37, 38, 39 → 3 rows
+  same(ch.length - base, 3)                                // 3 records, NOT ~40
+
+  base = ch.length
+  ext[value] = [0, 36]                                     // identical bounds — nothing crosses
+  same(ch.length - base, 0)
+
+  base = ch.length
+  ext[value] = [0, 38]                                     // widen: 37, 38 re-enter → 2 rows
+  same(ch.length - base, 2)
+})

@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { deepStrictEqual as same } from 'node:assert'
+import { deepStrictEqual as same, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
-import { $, value } from '../../core.ts'
+import { $, value, view } from '../../core.ts'
 import { union } from './index.ts'
 import { filter } from '../filter/index.ts'
 
@@ -78,4 +78,56 @@ spec({ op:'union', guarantee:'Alignment', trigger:'insert/remove', shape:'array'
   // s = [{70},{90},{50},{80},{45}]; push {70} into the dead band.
   s[0].v = 40
   same(denseV(res).sort((a, b) => a - b), [80, 90])
+})
+
+// The deliberate counterpart to intersect's dedup spec: union implements NO
+// matches(), so createOperator never dedups it — each call returns a FRESH
+// operator view. Pinning this keeps the intersect/union asymmetry intentional
+// (an accidental future matches() on union would silently change identity and
+// trip here).
+spec({ op:'union', guarantee:'Identity', trigger:'dedup-call', shape:'object', asserts:'identical args return a distinct operator view each call (no dedup)' }, () => {
+  const a = $({ 1: 'a' })
+  const b = $({ 2: 'b' })
+  const r1 = union(a, b)
+  const r2 = union(a, b)
+  ok(r1[view] !== r2[view])
+})
+
+// Change-stream fidelity for the higher-priority drop: removing a key from the
+// winning source re-picks the displayed value from the next source (an update
+// at that key), and dropping the LAST source holding the key emits a remove.
+spec({ op:'union', guarantee:'Fidelity', trigger:'remove', shape:'object', via:['BU1','BR1'], emits:['BU1','BR1'], asserts:'a higher-priority drop re-picks the next value; the last-holder drop removes the key' }, () => {
+  const a = $({ 1: 'a1', 2: 'a2' })
+  const b = $({ 2: 'b2', 3: 'b3' })
+  const res = union(a, b)
+  const ch = res.connect([])
+  delete a[2]                          // 2 re-picks from b → update key ['2'] → 'b2'
+  same(res[value], { 1: 'a1', 2: 'b2', 3: 'b3' })
+  delete b[2]                          // last holder of 2 gone → remove key ['2']
+  same(res[value], { 1: 'a1', 3: 'b3' })
+  same(ch, [
+    { type: 'update', key: [], value: { 1: 'a1', 2: 'a2', 3: 'b3' } },
+    { type: 'update', key: ['2'], value: 'b2' },
+    { type: 'remove', key: ['2'], value: 'b2' },
+  ])
+})
+
+// Whole-source removal (XR0) over two INDEPENDENT sources sharing a key: the
+// survivors re-pick their value from the remaining source, and emptying every
+// source collapses to {}. Locks both the bit-clear/re-pick and the
+// all-sources-emptied path through the change stream.
+spec({ op:'union', guarantee:'Robustness', trigger:'remove', shape:'object', via:['XR0'], asserts:'a whole-source drop re-picks survivors from the other source; emptying all collapses to {}' }, () => {
+  const a = $({ 1: 'x', 2: 'p' })
+  const b = $({ 1: 'y', 3: 'q' })
+  const res = union(a, b)
+  const ch = res.connect([])
+  delete a[value]                      // a gone → 1 re-picks 'y' from b, 2 drops, 3 stays
+  same(res[value], { 1: 'y', 3: 'q' })
+  delete b[value]                      // every source emptied → {}
+  same(res[value], {})
+  same(ch, [
+    { type: 'update', key: [], value: { 1: 'x', 2: 'p', 3: 'q' } },
+    { type: 'update', key: [], value: { 1: 'y', 3: 'q' } },
+    { type: 'update', key: [], value: {} },
+  ])
 })

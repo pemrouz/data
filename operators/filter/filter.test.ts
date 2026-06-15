@@ -4,6 +4,33 @@ import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { filter } from './index.ts'
 
+// Over an ARRAY source a predicate keeps each passing row at its SOURCE index
+// and leaves an explicit hole (a for-in-skipped empty slot, not undefined) at
+// every excluded slot — including a TRAILING-excluded one, because RowOperator.XU0
+// pads the output to source length (the C13 fix), not to the last-passing index.
+// A predicate flip during an edit fills/holes one slot IN PLACE (BF0/BH1, no
+// splice) so neighbours keep their indices. Nothing else in the filter row pins
+// the hole POSITIONS directly — the differential oracle densifies before
+// comparing, so it would miss a positional regression.
+spec({ op:'filter', guarantee:'Selection', trigger:'construct/edit', shape:'array', via:['BH1','BF0'], issue:'C13', asserts:'passing rows keep their source index; excluded slots are holes, including a trailing one' }, () => {
+  const src = $([{ v: 10 }, { v: 30 }, { v: 40 }, { v: 5 }])
+  const f = filter(src, r => r.v >= 30)
+  same(f[value].length, 4)             // padded to source length
+  same(1 in f[value], true); same(f[value][1].v, 30)
+  same(2 in f[value], true); same(f[value][2].v, 40)
+  same(0 in f[value], false)           // excluded → hole, not undefined
+  same(3 in f[value], false)           // trailing excluded → still a hole within length 4
+
+  src[3].v = 99                        // idx3 now passes → fills the trailing hole in place
+  same(f[value].length, 4)             // no shift
+  same(3 in f[value], true); same(f[value][3].v, 99)
+  same(0 in f[value], false)           // neighbour holes unchanged
+
+  src[1].v = 0                         // idx1 now fails → holes in place
+  same(1 in f[value], false)
+  same(2 in f[value], true); same(f[value][2].v, 40)
+})
+
 function filterTest(tx) {
   const res = $({
     10: { completed: true },

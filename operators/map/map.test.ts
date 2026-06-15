@@ -50,3 +50,26 @@ spec({ op:'map', guarantee:'Alignment', trigger:'insert', shape:'array', via:['B
   ;(src as any).insert({ v: 77 }, 0)        // splice at the front too
   same(m[value], [77, 10, 99, 20, 30])
 })
+
+// Symmetric to the object Fidelity spec above, for an ARRAY source: the
+// projection forwards each positional change through the connect([]) stream —
+// a tail insert and a mid-array splice as {type:'insert', key:[], value, at}
+// (correct `at` index), and an array delete as {type:'remove', key:[idx], value}.
+// The object spec and the array Alignment spec cover value/shape; only this
+// pins map's positional record stream (the array-keyed insert/remove verbs),
+// which the differential oracle never checks (it compares values, not records).
+spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'array', via:['BI0A','BR1'], asserts:'positional inserts and an array delete forward as the right records with the right at/key' }, () => {
+  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const m = map(src, r => r.v)
+  const changes = m.connect([])
+  src.insert({ v: 40 })                // tail insert → at '3'
+  ;(src as any).insert({ v: 99 }, 1)   // mid splice → at '1'
+  delete src[0]                        // array delete → remove key ['0']
+  same(changes, [
+    { type: 'update', key: [], value: [10, 20, 30] },
+    { type: 'insert', key: [], value: 40, at: '3' },
+    { type: 'insert', key: [], value: 99, at: '1' },
+    { type: 'remove', key: ['0'], value: 10 },
+  ])
+  same(m[value], [99, 20, 30, 40])
+})

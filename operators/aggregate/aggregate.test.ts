@@ -2,7 +2,7 @@
 import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
-import { sum, avg, max, min, some, every } from './index.ts'
+import { sum, avg, max, min, some, every, SumValue } from './index.ts'
 import { sort, limit } from '../sort/index.ts'
 import { filter } from '../filter/index.ts'
 
@@ -93,6 +93,38 @@ spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2
   eq(s[value], 12)
 })
 
+// A sum over an OBJECT source threads a single incremental delta per inserted
+// row (BI0 → one _delta, no _afterReset rebuild). An ARRAY source rebuilds
+// instead, because a positional insert shifts the index→value map the running
+// total is keyed by (the documented P7 trade-off). Spy on the rebuild/delta
+// hooks to pin the O(1) object-insert fast path: a silent regression to
+// rebuild-everything keeps every value-correctness test green but trips here.
+spec({ op:'sum', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], issue:'P7', asserts:'an object insert threads one delta with no rebuild; an array insert rebuilds' }, () => {
+  let rebuilds = 0, deltas = 0
+  const origReset = SumValue.prototype._afterReset
+  const origDelta = SumValue.prototype._delta
+  SumValue.prototype._afterReset = function (...a) { rebuilds++; return origReset.apply(this, a) }
+  SumValue.prototype._delta = function (...a) { deltas++; return origDelta.apply(this, a) }
+  try {
+    const obj = $({ a: { p: 1 }, b: { p: 2 } })
+    const s = sum(obj, 'p')
+    rebuilds = 0; deltas = 0                 // ignore construction
+    obj.c = { p: 5 }                          // object insert → BI0 → one delta
+    eq(s[value], 8)
+    eq(rebuilds, 0); eq(deltas, 1)
+
+    const arr = $([{ p: 1 }, { p: 2 }])
+    const sa = sum(arr, 'p')
+    rebuilds = 0; deltas = 0
+    arr.insert({ p: 3 })                      // array insert → positional shift → rebuild
+    eq(sa[value], 6)
+    eq(rebuilds, 1)
+  } finally {
+    SumValue.prototype._afterReset = origReset
+    SumValue.prototype._delta = origDelta
+  }
+})
+
 // AVG ------------------------------------------------------------------
 
 spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'averages the values of the source' }, () => {
@@ -161,6 +193,14 @@ spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asse
 spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set maxes to undefined' }, () => {
   const res = $([])
   eq(max(res)[value], undefined)
+})
+
+// Mirror of the max empty-set spec — closes the asymmetry. MinValue._publish
+// returns undefined (not +Infinity, the fast-path sentinel) when tracked is
+// empty.
+spec({ op:'min', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set mins to undefined, not Infinity' }, () => {
+  const res = $([])
+  eq(min(res)[value], undefined)
 })
 
 // MaxValue/MinValue maintain a parallel Float64Array fast path for numeric

@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { deepStrictEqual as same } from 'node:assert'
+import { deepStrictEqual as same, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
-import { $, value } from '../../core.ts'
+import { $, value, view } from '../../core.ts'
 import { except } from './index.ts'
 import { filter } from '../filter/index.ts'
 import { between } from '../between/index.ts'
@@ -121,4 +121,54 @@ spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'array', issu
   same(dense(e[value]), [10, 30, 20])
   s.insert({ v: 80 })                 // in [60,100] -> must NOT appear
   same(dense(e[value]), [10, 30, 20])
+})
+
+// Like union, except implements NO matches() — each call is a fresh operator
+// view (no dedup). The deliberate counterpart to intersect's dedup spec.
+spec({ op:'except', guarantee:'Identity', trigger:'dedup-call', shape:'object', asserts:'identical args return a distinct operator view each call (no dedup)' }, () => {
+  const a = $({ 1: 'a', 2: 'b' })
+  const b = $({ 1: 'a' })
+  const r1 = except(a, b)
+  const r2 = except(a, b)
+  ok(r1[view] !== r2[view])
+})
+
+// Change-stream fidelity, mirroring intersect's edit-stream spec: removing a row
+// from the exclusion re-admits it as a positional insert, and adding one to the
+// exclusion drops it as a remove. Locks the verb mapping, the `at`/key path, and
+// that an unrelated exclusion-source edit emits nothing for an already-excluded key.
+spec({ op:'except', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', via:['BI0','BR1'], emits:['BI0','BR1'], asserts:'an exclusion remove re-admits as an insert; an exclusion add drops as a remove' }, () => {
+  const a = $({ 1: 'a', 2: 'b' })
+  const b = $({ 1: 'a' })
+  const res = except(a, b)
+  const changes = res.connect([])
+  same(res[value], { 2: 'b' })         // 1 excluded by b
+  delete b[1]                          // 1 leaves the exclusion → re-admitted as an insert
+  b[2] = 'b'                           // 2 enters the exclusion → removed
+  same(changes, [
+    { type: 'update', key: [], value: { 2: 'b' } },
+    { type: 'insert', key: [], value: 'a', at: '1' },
+    { type: 'remove', key: ['2'], value: 'b' },
+  ])
+  same(res[value], { 1: 'a' })
+})
+
+// Whole-source clears (XR0) from each side: emptying the EXCLUSION re-admits
+// every primary row; emptying the PRIMARY collapses the output to {}. Both
+// re-derive wholesale (a single update each) rather than churning per-key.
+spec({ op:'except', guarantee:'Robustness', trigger:'remove', shape:'object', via:['XR0'], asserts:'clearing the exclusion re-admits all rows; clearing the primary collapses to {}' }, () => {
+  const a = $({ 1: 'a', 2: 'b' })
+  const b = $({ 1: 'a' })
+  const res = except(a, b)
+  const ch = res.connect([])
+  same(res[value], { 2: 'b' })
+  b[value] = {}                        // XR0 from the exclusion → re-admit all of a
+  same(res[value], { 1: 'a', 2: 'b' })
+  a[value] = {}                        // XR0 from the primary → collapse
+  same(res[value], {})
+  same(ch, [
+    { type: 'update', key: [], value: { 2: 'b' } },
+    { type: 'update', key: [], value: { 1: 'a', 2: 'b' } },
+    { type: 'update', key: [], value: {} },
+  ])
 })

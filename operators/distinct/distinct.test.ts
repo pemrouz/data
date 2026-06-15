@@ -3,6 +3,7 @@ import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { distinct } from './index.ts'
+import { between } from '../between/index.ts'
 
 spec({ op:'distinct', guarantee:'Selection', trigger:'construct', shape:'array', asserts:'keeps one row per value, in first-seen order' }, () => {
   const res = $([1, 2, 1, 3, 2, 4])
@@ -81,4 +82,51 @@ spec({ op:'distinct', guarantee:'Identity', trigger:'dedup-call', shape:'array',
   const a = distinct(res, fn)
   const b = distinct(res, fn)
   same(a[value], b[value])
+})
+
+// Change-stream fidelity on the O(1) object path: a duplicate-key insert bumps
+// a bucket count only (_insert returns changed=false) so BI0 publishes NOTHING,
+// while a fresh-key insert pushes one row and emits a single whole-array update.
+// Pins the "redundant insert is a no-op event" guarantee the incremental path
+// gives (the array path always rebuilds and re-emits, so this is object-only).
+spec({ op:'distinct', guarantee:'Fidelity', trigger:'insert', shape:'object', via:['BI0'], asserts:'a duplicate-key insert emits nothing; a fresh-key insert emits one whole-array update' }, () => {
+  const res = $({ a: 'x', b: 'y' })
+  const d = distinct(res)
+  const changes = d.connect([])
+  same(changes, [{ type: 'update', key: [], value: ['x', 'y'] }])   // baseline only
+  res.c = 'x'                          // projection duplicates 'x' — no record
+  same(changes.length, 1)
+  res.d = 'z'                          // fresh projection — one whole-array update
+  same(changes, [
+    { type: 'update', key: [], value: ['x', 'y'] },
+    { type: 'update', key: [], value: ['x', 'y', 'z'] },
+  ])
+})
+
+spec({ op:'distinct', guarantee:'Robustness', trigger:'construct', shape:'array', asserts:'empty, {} and null sources all yield [] without throwing' }, () => {
+  same(distinct($([]))[value], [])
+  same(distinct($({}))[value], [])
+  same(distinct($(null), r => r.g)[value], [])   // null source — no crash (cf. sort #18)
+})
+
+// The projection must never be invoked on a hole — neither a directly-cleared
+// slot nor an excluded slot of a sparse producer upstream (between). _rebuild /
+// _insert both guard `row === undefined`, so a throwing projection proves the
+// guard holds through a slot-clear, a re-insert, and a brush-to-empty.
+spec({ op:'distinct', guarantee:'Robustness', trigger:'edit', shape:'array', via:['BF0'], chain:'between→distinct', asserts:'a hole is never handed to the projection, directly or via a sparse producer' }, () => {
+  const throwingProj = (r) => { if (r === undefined) throw new Error('projection saw a hole'); return r.g }
+
+  const src = $([{ g: 'g0' }, { g: 'g1' }, { g: 'g2' }])
+  const d = distinct(src, throwingProj)
+  same(d[value], [{ g: 'g0' }, { g: 'g1' }, { g: 'g2' }])
+  src[1] = undefined                   // slot 1 cleared — must be skipped, not projected
+  src.insert({ g: 'g3' })
+  same(d[value], [{ g: 'g0' }, { g: 'g2' }, { g: 'g3' }])
+
+  const s2 = $([{ v: 30, g: 'a' }, { v: 50, g: 'b' }])
+  const ext = $([20, 70])
+  const d2 = distinct(between(s2, 'v', ext), throwingProj)
+  same(d2[value].map(r => r.g), ['a', 'b'])
+  ext[value] = [200, 300]              // brush excludes every row — holes, never projected
+  same(d2[value].filter(r => r !== undefined), [])
 })

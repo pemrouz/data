@@ -85,3 +85,33 @@ spec({ op:'keys', guarantee:'Fidelity', trigger:'bound-move', shape:'object', is
   same(ks[value], ['a', 'b', 'c'])
   same(vs[value].map((r) => r.v), [1, 5, 9])
 })
+
+// The BI0 fast path mutates this.output IN PLACE (push), keeping the SAME array
+// reference; every other verb (remove/edit/XU0) calls _rebuild, which allocates
+// a FRESH array (`this.output = next`). So reference identity is a deterministic,
+// timing-free probe of the fast path: an append-insert keeps the reference, a
+// remove swaps it. A silent regression to unconditional _rebuild-on-object-insert
+// keeps every value-correctness test green but trips this.
+spec({ op:'keys', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], asserts:'an append insert reuses the output array in place; a remove rebuilds a fresh one' }, () => {
+  const data = $({ a: 1 })
+  const k = keys(data)
+  const before = k[value]
+  data.b = 2                     // append insert → BI0 push, same reference
+  same(k[value] === before, true)
+  same(k[value], ['a', 'b'])
+  delete data.a                  // remove → _rebuild → new reference
+  same(k[value] !== before, true)
+  same(k[value], ['b'])
+})
+
+spec({ op:'values', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], asserts:'an append insert reuses the output array in place; an edit rebuilds a fresh one' }, () => {
+  const src = $({ a: 1, b: 2 })
+  const v = values(src)
+  const before = v[value]
+  src.c = 3                      // append insert → BI0 push, same reference
+  same(v[value] === before, true)
+  same(v[value], [1, 2, 3])
+  src.a = 9                      // value edit (BU1) → _rebuild → new reference
+  same(v[value] !== before, true)
+  same(v[value], [9, 2, 3])
+})
