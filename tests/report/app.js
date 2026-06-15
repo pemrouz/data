@@ -2,7 +2,7 @@ var $=function(s){return document.querySelector(s)};
 var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})};
 function hi(s,q){ if(!q) return esc(s); var i=String(s).toLowerCase().indexOf(q); if(i<0) return esc(s);
   return esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+q.length))+'</mark>'+esc(s.slice(i+q.length)); }
-var G=META.guarantees, AB=META.gabbr;
+var G=META.guarantees;
 function gvar(g){return 'var(--g-'+g+')'}
 function subjOrder(a,b){var O=META.order;var ia=O.indexOf(a),ib=O.indexOf(b);
   if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);
@@ -48,8 +48,8 @@ function renderMatrix(){
   var tmpl='200px repeat('+G.length+', 1fr) 52px';
   var h='<div class="mx" style="grid-template-columns:'+tmpl+'">';
   h+='<div class="corner"></div>';
-  G.forEach(function(g){h+='<div class="h" data-g="'+g+'" title="'+g+'" style="color:'+gvar(g)+'">'+AB[g]+'</div>';});
-  h+='<div class="h" style="cursor:default">Σ</div>';
+  G.forEach(function(g){h+='<div class="h" data-g="'+g+'" title="'+g+'" style="color:'+gvar(g)+'">'+g+'</div>';});
+  h+='<div class="h htot" style="cursor:default">Σ</div>';
   subs.forEach(function(s){
     var rtot=0;G.forEach(function(g){rtot+=C[s][g]||0});
     h+='<div class="rh" data-subj="'+esc(s)+'">'+esc(s)+'<span class="rt">'+rtot+'</span></div>';

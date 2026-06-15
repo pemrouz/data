@@ -68,10 +68,9 @@ records.forEach(r=>{ if(r.type==='e2e') r.subject='e2e'; });
 let RUN=null; try{ RUN=JSON.parse(readFileSync('tests/report/results.json','utf8')); }catch(e){}
 records.forEach(r=>{ const x=RUN&&RUN.results[r.title]; r.status = x?x.status:'unrun'; r.ms = x?x.ms:null; });
 const GUARANTEES=['Selection','Order','Reduction','Identity','Alignment','Propagation','Fidelity','Efficiency','Robustness'];
-const GABBR={Selection:'Sel',Order:'Ord',Reduction:'Red',Identity:'Idn',Alignment:'Aln',Propagation:'Prop',Fidelity:'Fid',Efficiency:'Eff',Robustness:'Rob'};
 const meta={total:records.length,authoritative:records.filter(r=>r.migrated).length,
   byType:{unit:records.filter(r=>r.type==='unit').length,perf:records.filter(r=>r.type==='perf').length,e2e:records.filter(r=>r.type==='e2e').length},
-  guarantees:GUARANTEES,gabbr:GABBR,order:['core','index','differential','entry'],run:RUN?RUN.summary:null};
+  guarantees:GUARANTEES,order:['core','index','differential','entry'],run:RUN?RUN.summary:null};
 
 mkdirSync('report',{recursive:true});
 const html=`<!doctype html>

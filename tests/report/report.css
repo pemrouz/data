@@ -33,8 +33,11 @@ body{margin:0;background:var(--canvas);color:var(--text);font-family:var(--ui);f
 .mxtitle{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
 .mxtitle b{color:var(--text)}
 .mx{display:grid;gap:3px;min-width:760px}
-.mx .h{font-size:10px;letter-spacing:.04em;color:var(--mut);text-align:center;padding:4px 2px;cursor:pointer;
-  border-radius:5px;user-select:none}
+/* Full guarantee names rotated vertical so they fit the narrow columns. */
+.mx .h{font-size:10.5px;letter-spacing:.02em;color:var(--mut);cursor:pointer;border-radius:5px;user-select:none;
+  writing-mode:vertical-rl;transform:rotate(180deg);display:flex;align-items:center;justify-content:center;
+  padding:6px 1px;white-space:nowrap}
+.mx .h.htot{writing-mode:horizontal-tb;transform:none}   /* keep the Σ total header upright */
 .mx .h:hover{background:var(--surface2);color:var(--text)}
 .mx .corner{}
 .mx .rh{font-size:12px;color:var(--text);padding:0 10px;display:flex;align-items:center;cursor:pointer;
