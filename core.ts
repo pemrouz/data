@@ -280,10 +280,13 @@ type DataOps<T = any> = {
   /**
    * Rows matching a predicate. Four shapes: a `(row, key) => boolean` function,
    * a `key, value` pair, a `string[]` path + value, or a partial-shape object.
-   * The predicate is captured once — it re-runs when a row mutates, not when
-   * outside state changes; for a reactive predicate derive a view and chain
-   * `between`/`intersect`.
-   * @example rows.filter(d => d.active)   //  rows.filter('done', false)   //  rows.filter({ done: false })
+   * The predicate FUNCTION is captured once — it re-runs when a row mutates, not
+   * when state it closes over changes (for a reactive function predicate, derive
+   * a view and chain `between`/`intersect`). The VALUE slot, however, may be a
+   * reactive `ViewProxy` — `filter('done', $(flag))` / `filter({k: $(v)})`
+   * re-selects when the bound value changes (the equality counterpart to
+   * `between`/`gt`'s reactive bounds).
+   * @example rows.filter(d => d.active)   //  rows.filter('done', false)   //  rows.filter('done', $(flag))
    */
   // fn overload FIRST: a predicate arrow is also an `object`, so listing the
   // object form first captured it (leaving the arrow's param implicitly `any`).

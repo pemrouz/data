@@ -30,6 +30,10 @@ export const filter = {
     const single = mk()
     const batch = mk()
     let toggle = false
+    // reactive value: oscillate `filter('active', $(bool))` (idempotent pair).
+    // Each flip is a full RowOperator XU0 over n rows re-selecting ~half — the
+    // worst case for a reactive equality value and the gate that catches drift.
+    const aS = $(this.source(n)); const ab = $(true); const aV = aS.filter('active', ab)
     return {
       // setup rebuilds a fresh source+filter each rep — already rep-idempotent
       setup: { gate: 500, run: () => { const s = $(this.source(n)); s.filter(d => d.active) } },
@@ -38,6 +42,7 @@ export const filter = {
       single: { gate: 50, keep: single.f, run: () => single.s.insert({ active: true, val: 99999 }) },
       // toggle `active` on 1000 rows in place (deterministic, rep-stable)
       batch: { gate: 500, batch: 1000, keep: batch.f, run: () => { toggle = !toggle; for (let i = 0; i < 1000; i++) batch.s[i].active = toggle } },
+      'value-move': { gate: 500, keep: { aS, ab, aV }, run: () => { ab[value] = false; ab[value] = true } },
     }
   },
 }

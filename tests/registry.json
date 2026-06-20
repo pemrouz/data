@@ -1736,6 +1736,70 @@
     "file": "operators/filter/filter.test.ts"
   },
   {
+    "op": "filter",
+    "guarantee": "Selection",
+    "trigger": "value-move",
+    "shape": "array",
+    "via": [
+      "reactive-value"
+    ],
+    "asserts": "filter('key', $(x)) re-selects when the bound value changes",
+    "title": "filter · Selection · value-move · array · via reactive-value — filter('key', $(x)) re-selects when the bound value changes",
+    "file": "operators/filter/filter.test.ts"
+  },
+  {
+    "op": "filter",
+    "guarantee": "Selection",
+    "trigger": "value-move",
+    "shape": "object",
+    "via": [
+      "reactive-value"
+    ],
+    "asserts": "filter(['path'], $(x)) tracks a reactive nested-path value",
+    "title": "filter · Selection · value-move · object · via reactive-value — filter(['path'], $(x)) tracks a reactive nested-path value",
+    "file": "operators/filter/filter.test.ts"
+  },
+  {
+    "op": "filter",
+    "guarantee": "Selection",
+    "trigger": "value-move",
+    "shape": "object",
+    "via": [
+      "reactive-value"
+    ],
+    "asserts": "filter({k: $(x), static: v}) tracks the reactive leaf while honouring static leaves",
+    "title": "filter · Selection · value-move · object · via reactive-value — filter({k: $(x), static: v}) tracks the reactive leaf while honouring static leaves",
+    "file": "operators/filter/filter.test.ts"
+  },
+  {
+    "op": "filter",
+    "guarantee": "Fidelity",
+    "trigger": "value-move",
+    "shape": "object",
+    "via": [
+      "reactive-value"
+    ],
+    "emits": [
+      "update"
+    ],
+    "asserts": "construction seeds one snapshot (no double-fire); each value move re-emits the whole view",
+    "title": "filter · Fidelity · value-move · object · via reactive-value — construction seeds one snapshot (no double-fire); each value move re-emits the whole view",
+    "file": "operators/filter/filter.test.ts"
+  },
+  {
+    "op": "filter",
+    "guarantee": "Propagation",
+    "trigger": "value-move",
+    "shape": "object",
+    "via": [
+      "reactive-value"
+    ],
+    "chain": "filter→length",
+    "asserts": "a reactive-value membership change flows to a downstream length",
+    "title": "filter→length · Propagation · value-move · object · via reactive-value — a reactive-value membership change flows to a downstream length",
+    "file": "operators/filter/filter.test.ts"
+  },
+  {
     "op": "group",
     "guarantee": "Selection",
     "trigger": "edit",

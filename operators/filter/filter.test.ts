@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
+import '../../full.ts'      // registers the Operators dispatch (for the filter→length chain test)
 import { $, value } from '../../core.ts'
 import { filter } from './index.ts'
 
@@ -189,4 +190,65 @@ spec({ op:'filter', guarantee:'Fidelity', trigger:'remove', shape:'array', issue
   same(log.slice(1), [])
   delete src[0]                       // {v:30} WAS in the view — real remove
   same(log.slice(1), [{ type: 'remove', key: ['0'], value: { v: 30 } }])
+})
+
+// ─── Reactive value arguments (a ViewProxy in the value slot) ──────────────
+// filter('key', $(x)) / filter(['path'], $(x)) / filter({k: $(x)}) re-select
+// when the bound value changes — the equality counterpart to between/gt's
+// reactive bounds. A reactive value change re-runs a whole-snapshot XU0 (any
+// row can move in/out on an equality flip), so the change stream is coarse
+// `update` records. A plain literal value is captured once, as before.
+spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'array', via:'reactive-value', asserts:"filter('key', $(x)) re-selects when the bound value changes" }, () => {
+  const src = $([{ foo: 5, n: 'a' }, { foo: 7, n: 'b' }, { foo: 5, n: 'c' }])
+  const x = $(5)
+  const f = filter(src, 'foo', x)
+  same(f[value].filter(Boolean), [{ foo: 5, n: 'a' }, { foo: 5, n: 'c' }])
+  x[value] = 7                        // re-select on the new value
+  same(f[value].filter(Boolean), [{ foo: 7, n: 'b' }])
+  x[value] = 5                        // and back
+  same(f[value].filter(Boolean), [{ foo: 5, n: 'a' }, { foo: 5, n: 'c' }])
+})
+
+spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'object', via:'reactive-value', asserts:"filter(['path'], $(x)) tracks a reactive nested-path value" }, () => {
+  const src = $({ a: { m: { g: 'A' } }, b: { m: { g: 'B' } }, c: { m: { g: 'A' } } })
+  const x = $('A')
+  const f = filter(src, ['m', 'g'], x)
+  same(f[value], { a: { m: { g: 'A' } }, c: { m: { g: 'A' } } })
+  x[value] = 'B'
+  same(f[value], { b: { m: { g: 'B' } } })
+})
+
+spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'object', via:'reactive-value', asserts:'filter({k: $(x), static: v}) tracks the reactive leaf while honouring static leaves' }, () => {
+  const src = $({
+    a: { foo: 5, active: true },
+    b: { foo: 7, active: true },
+    c: { foo: 5, active: false },
+  })
+  const x = $(5)
+  const f = filter(src, { foo: x, active: true })
+  same(f[value], { a: { foo: 5, active: true } })   // c excluded by static active:false
+  x[value] = 7
+  same(f[value], { b: { foo: 7, active: true } })
+})
+
+spec({ op:'filter', guarantee:'Fidelity', trigger:'value-move', shape:'object', via:'reactive-value', emits:['update'], asserts:'construction seeds one snapshot (no double-fire); each value move re-emits the whole view' }, () => {
+  const src = $({ a: { foo: 5 }, b: { foo: 7 }, c: { foo: 5 } })
+  const x = $(5)
+  const f = filter(src, 'foo', x)
+  const ch = f.connect([])
+  same(ch, [{ type: 'update', key: [], value: { a: { foo: 5 }, c: { foo: 5 } } }])
+  x[value] = 7
+  same(ch, [
+    { type: 'update', key: [], value: { a: { foo: 5 }, c: { foo: 5 } } },
+    { type: 'update', key: [], value: { b: { foo: 7 } } },
+  ])
+})
+
+spec({ op:'filter', guarantee:'Propagation', trigger:'value-move', shape:'object', via:'reactive-value', chain:'filter→length', asserts:'a reactive-value membership change flows to a downstream length' }, () => {
+  const src = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' }, d: { g: 'x' } })
+  const x = $('x')
+  const n = filter(src, 'g', x).length()
+  same(n[value], 3)
+  x[value] = 'y'
+  same(n[value], 1)
 })
