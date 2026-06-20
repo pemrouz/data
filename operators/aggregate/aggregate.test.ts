@@ -334,3 +334,33 @@ spec({ op:'some', guarantee:'Identity', trigger:'dedup-call', shape:'array', ass
   eq(a[value], true)
   eq(b[value], true)   // shared state
 })
+
+// REACTIVE COLUMN ------------------------------------------------------
+// sum/avg/max/min accept a reactive ViewProxy column name (`sum($(currentCol))`):
+// switching the bound re-projects every row under the new column. A column
+// switch re-runs a full XU0 (every row's projection changes), so this is a
+// convenience for a runtime column pick, not a hot path. some/every take a fn
+// predicate, not a column, so they have no reactive-column surface.
+spec({ op:'sum', guarantee:'Reduction', trigger:'column-move', shape:'array', via:'reactive-column', asserts:'sum/avg/max/min re-aggregate when a reactive column name changes' }, () => {
+  const src = $([{ delay: 10, dist: 100 }, { delay: 20, dist: 200 }, { delay: 30, dist: 300 }])
+  const col = $('delay')
+  const s = sum(src, col), a = avg(src, col), mx = max(src, col), mn = min(src, col)
+  eq(s[value], 60); eq(a[value], 20); eq(mx[value], 30); eq(mn[value], 10)
+  col[value] = 'dist'
+  eq(s[value], 600); eq(a[value], 200); eq(mx[value], 300); eq(mn[value], 100)
+  // a source edit re-projects under the CURRENT (switched) column
+  src[0].dist = 999
+  eq(s[value], 1499); eq(mx[value], 999)
+})
+
+spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', via:'reactive-column', asserts:'two aggregates sharing a reactive column SOURCE share one operator' }, () => {
+  const src = $([{ a: 1, b: 10 }, { a: 2, b: 20 }])
+  const col = $('a')
+  const s1 = sum(src, col)
+  const s2 = sum(src, col)            // same column source → deduped (view-identity match)
+  eq(s1[value], s2[value])
+  col[value] = 'b'
+  eq(s1[value], 30); eq(s2[value], 30)
+  // a plain-string column never matches the reactive op
+  eq(sum(src, 'a')[value], 3)
+})

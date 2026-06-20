@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { iter, isArray } from '../../utils.ts'
-import { Operator, createOperator } from '../../core.ts'
+import { Operator, createOperator, ViewProxy, view } from '../../core.ts'
 
 // Common per-row tracking for scalar aggregates. `tracked.get(name)` returns
 // the projected column value for each row currently included in the source;
@@ -39,12 +39,39 @@ class AggregateValue extends Operator {
     super()
     this.p = p
     this.col = col
-    this.read = read || (typeof col === 'string' ? (r => r?.[col]) : (r => r))
+    if (read) {
+      // some/every pass an explicit projector; `col` is the fn (the dedup key).
+      this.read = read
+    } else if (col instanceof ViewProxy) {
+      // Reactive column NAME (`sum($(currentCol))`): project against the LIVE
+      // column and rebuild when it changes. A column switch re-projects every
+      // row — there's no O(Δ) shortcut — so the recompute is a full XU0. The
+      // `set colName` connect target installs the projector (the construction
+      // seed runs it now; later changes re-run XU0).
+      this._colView = col[view]
+      col.connect(this, 'colName')
+    } else {
+      this.read = typeof col === 'string' ? (r => r?.[col]) : (r => r)
+    }
     this.tracked = new Map()
     this.XU0(p.value)
+    this._live = true
   }
 
-  matches(col) { return this.col === col }
+  // Dedup by the column SOURCE's view identity when reactive (like between), by
+  // value (the string column / fn reference) otherwise.
+  matches(col) {
+    if (col instanceof ViewProxy) return this._colView === col[view]
+    if (this._colView) return false
+    return this.col === col
+  }
+
+  // Connect target for a reactive column name: rebuild the projector, then
+  // (after construction) re-run XU0 to re-project every row under the new column.
+  set colName(c) {
+    this.read = typeof c === 'string' ? (r => r?.[c]) : (r => r)
+    if (this._live) this.XU0(this.p.value)
+  }
 
   _project(v) {
     if (v === undefined) return undefined

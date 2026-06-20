@@ -1373,6 +1373,30 @@
     "file": "operators/aggregate/aggregate.test.ts"
   },
   {
+    "op": "sum",
+    "guarantee": "Reduction",
+    "trigger": "column-move",
+    "shape": "array",
+    "via": [
+      "reactive-column"
+    ],
+    "asserts": "sum/avg/max/min re-aggregate when a reactive column name changes",
+    "title": "sum · Reduction · column-move · array · via reactive-column — sum/avg/max/min re-aggregate when a reactive column name changes",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
+    "op": "sum",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "via": [
+      "reactive-column"
+    ],
+    "asserts": "two aggregates sharing a reactive column SOURCE share one operator",
+    "title": "sum · Identity · dedup-call · array · via reactive-column — two aggregates sharing a reactive column SOURCE share one operator",
+    "file": "operators/aggregate/aggregate.test.ts"
+  },
+  {
     "op": "compare",
     "guarantee": "Selection",
     "trigger": "construct",

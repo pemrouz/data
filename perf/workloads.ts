@@ -337,6 +337,10 @@ export const aggregate = {
     const sumIns = mk(s => s.sum('val')); const maxIns = mk(s => s.max('val'))
     const avgBat = mk(s => s.avg('val')); const minBat = mk(s => s.min('val')); const everyBat = mk(s => s.every(r => r.active))
     let si = n; let mi = n; let ta = false; let tm = false; let te = false
+    // reactive column switch: oscillate `sum($(col))` between two numeric columns
+    // (idempotent pair). Each switch re-projects every row — a full XU0 rebuild.
+    const cO = {}; for (let k = 0; k < n; k++) cO[k] = { a: k, b: k * 2 }
+    const cS = $(cO); const cCol = $('a'); const cV = cS.sum(cCol)
     return {
       'sum-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.sum('val') } },
       'sum-insert': { gate: 10, keep: sumIns, run: () => { sumIns.s.insert({ active: true, val: si++ }) } },
@@ -347,6 +351,7 @@ export const aggregate = {
       'min-batch': { gate: 500, batch: 100, keep: minBat, run: () => { tm = !tm; const b = tm ? 1 : 2; for (let i = 0; i < 100; i++) minBat.s[i].val = i + b } },
       'some-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.some(r => r.active) } },
       'every-batch': { gate: 500, batch: 1000, keep: everyBat, run: () => { te = !te; for (let i = 0; i < 1000; i++) everyBat.s[i].active = te } },
+      'sum-column-move': { gate: 500, keep: { cS, cCol, cV }, run: () => { cCol[value] = 'b'; cCol[value] = 'a' } },
     }
   },
 }

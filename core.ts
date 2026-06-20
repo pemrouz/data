@@ -341,12 +341,14 @@ type DataOps<T = any> = {
   /**
    * Scalar aggregate over a column (or row values if `col` omitted). `sum`/`avg`
    * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined`.
-   * @example orders.sum('amount')   //  orders.avg('amount')
+   * `col` may be a reactive `ViewProxy` (`sum($(currentCol))`) — switching it
+   * re-aggregates under the new column (a full O(N) re-projection).
+   * @example orders.sum('amount')   //  orders.avg('amount')   //  orders.sum($(col))
    */
-  sum(col?: string): Data<number>
-  avg(col?: string): Data<number>
-  max(col?: string): Data<any>
-  min(col?: string): Data<any>
+  sum(col?: Reactive<string>): Data<number>
+  avg(col?: Reactive<string>): Data<number>
+  max(col?: Reactive<string>): Data<any>
+  min(col?: Reactive<string>): Data<any>
   /**
    * Scalar boolean — does any (`some`) / every (`every`) row match the predicate.
    * @example alerts.some(a => a.level >= 3)
