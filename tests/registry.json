@@ -1433,6 +1433,57 @@
   },
   {
     "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "threshold-move",
+    "shape": "object",
+    "via": [
+      "reactive-threshold"
+    ],
+    "asserts": "a reactive gt threshold re-selects when it changes",
+    "title": "compare · Selection · threshold-move · object · via reactive-threshold — a reactive gt threshold re-selects when it changes",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Selection",
+    "trigger": "threshold-move",
+    "shape": "object",
+    "via": [
+      "reactive-threshold"
+    ],
+    "asserts": "reactive lte/gte thresholds track their bound (boundary inclusive)",
+    "title": "compare · Selection · threshold-move · object · via reactive-threshold — reactive lte/gte thresholds track their bound (boundary inclusive)",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Fidelity",
+    "trigger": "threshold-move",
+    "shape": "object",
+    "via": [
+      "reactive-threshold"
+    ],
+    "emits": [
+      "update"
+    ],
+    "asserts": "construction seeds exactly one snapshot, then each threshold move re-emits the whole view (XU0)",
+    "title": "compare · Fidelity · threshold-move · object · via reactive-threshold — construction seeds exactly one snapshot, then each threshold move re-emits the whole view (XU0)",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "object",
+    "via": [
+      "reactive-threshold"
+    ],
+    "asserts": "two calls sharing a reactive threshold SOURCE share one operator; a literal is independent",
+    "title": "compare · Identity · dedup-call · object · via reactive-threshold — two calls sharing a reactive threshold SOURCE share one operator; a literal is independent",
+    "file": "operators/compare/compare.test.ts"
+  },
+  {
+    "op": "compare",
     "guarantee": "Efficiency",
     "trigger": "construct",
     "shape": "object",

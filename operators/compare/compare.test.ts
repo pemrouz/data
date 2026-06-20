@@ -144,6 +144,68 @@ spec({ op:'compare', guarantee:'Alignment', trigger:'remove', shape:'array', via
   same(big[value], [{ v: 5 }, { v: 8 }, { v: 99 }])
 })
 
+// ─── Reactive thresholds (a ViewProxy second arg) ─────────────────────────
+// A reactive threshold subscribes like between's bounds: moving it re-classifies
+// every row. The single-sided counterpart to between('col', [lo, hi]). The
+// recompute is a coarse whole-snapshot XU0 (no sort index to walk), so the
+// change stream is `update` records, not granular insert/remove — for an
+// incremental brush prefer between.
+spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'object', via:'reactive-threshold', asserts:'a reactive gt threshold re-selects when it changes' }, () => {
+  const src = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+  const t = $(18)
+  const adults = gt(src, 'age', t)
+  same(adults[value], { b: { age: 20 }, c: { age: 30 } })
+  t[value] = 25            // raise the bar — b leaves
+  same(adults[value], { c: { age: 30 } })
+  t[value] = 5             // lower it — a and b re-enter
+  same(adults[value], { a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+})
+
+spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'object', via:'reactive-threshold', asserts:'reactive lte/gte thresholds track their bound (boundary inclusive)' }, () => {
+  const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const t = $(2)
+  const le = lte(src, 'n', t)
+  const ge = gte(src, 'n', t)
+  same(le[value], { a: { n: 1 }, b: { n: 2 } })
+  same(ge[value], { b: { n: 2 }, c: { n: 3 } })
+  t[value] = 3
+  same(le[value], { a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  same(ge[value], { c: { n: 3 } })
+})
+
+spec({ op:'compare', guarantee:'Fidelity', trigger:'threshold-move', shape:'object', via:'reactive-threshold', emits:['update'], asserts:'construction seeds exactly one snapshot, then each threshold move re-emits the whole view (XU0)' }, () => {
+  const src = $({ a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
+  const t = $(7)
+  const filt = gt(src, 'v', t)
+  const ch = filt.connect([])
+  // The bindReactive construction-time seed must NOT double-fire: connect sees one snapshot.
+  same(ch, [
+    { type: 'update', key: [], value: { b: { v: 10 }, c: { v: 15 } } },
+  ])
+  t[value] = 12            // b leaves
+  t[value] = 4             // a and b re-enter
+  same(filt[value], { a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
+  same(ch, [
+    { type: 'update', key: [], value: { b: { v: 10 }, c: { v: 15 } } },
+    { type: 'update', key: [], value: { c: { v: 15 } } },
+    { type: 'update', key: [], value: { a: { v: 5 }, b: { v: 10 }, c: { v: 15 } } },
+  ])
+})
+
+spec({ op:'compare', guarantee:'Identity', trigger:'dedup-call', shape:'object', via:'reactive-threshold', asserts:'two calls sharing a reactive threshold SOURCE share one operator; a literal is independent' }, () => {
+  const src = $({ a: { v: 5 }, b: { v: 10 } })
+  const t = $(3)
+  const f1 = gt(src, 'v', t)
+  const f2 = gt(src, 'v', t)        // same bound source → deduped to one op (view-identity match)
+  same(f1[value], f2[value])
+  t[value] = 8
+  same(f1[value], { b: { v: 10 } })
+  same(f2[value], { b: { v: 10 } })
+  // A plain-literal threshold never matches the reactive op (and vice-versa).
+  const f3 = gt(src, 'v', 3)
+  same(f3[value], { a: { v: 5 }, b: { v: 10 } })
+})
+
 // Performance-shaped invariant — gt should *not* maintain a sorted index
 // (that's between's job). We verify behaviour-wise by inspecting the
 // operator instance.

@@ -7,13 +7,13 @@ Use these when you need a single threshold (`spread > 1.0`, `price >= 100`). Use
 ## Signatures
 
 ```ts
-proxy.gt(column: string,  threshold: number | string)
-proxy.lt(column: string,  threshold: number | string)
-proxy.gte(column: string, threshold: number | string)
-proxy.lte(column: string, threshold: number | string)
+proxy.gt(column: string,  threshold: number | string | Data<number>)
+proxy.lt(column: string,  threshold: number | string | Data<number>)
+proxy.gte(column: string, threshold: number | string | Data<number>)
+proxy.lte(column: string, threshold: number | string | Data<number>)
 ```
 
-The threshold can be any value JS's `<` / `>` / `<=` / `>=` operators understand — numbers, strings (lexicographic), Dates (via `valueOf`), and so on.
+The threshold can be any value JS's `<` / `>` / `<=` / `>=` operators understand — numbers, strings (lexicographic), Dates (via `valueOf`), and so on. It can also be a **reactive `ViewProxy`** (`gt('pnl', t)` with `t = $(0)`): the operator subscribes to it and re-selects when it moves — the single-sided counterpart to `between`'s reactive bounds.
 
 ## Examples
 
@@ -31,7 +31,7 @@ const topLiquid = trades.gt('spread', 1.0).za('spread', 10)
 
 ## Behavior
 
-- **Threshold is captured at creation.** Both args are literal — these operators do *not* track a reactive `ViewProxy` threshold. For a moving threshold either rebuild the view (`src.gt('val', t[value])`) or use `between` with reactive bounds.
+- **Reactive threshold.** A plain literal threshold is captured once at creation. A `ViewProxy` threshold (`gt('val', t)` with `t = $(...)`) is subscribed via `bindReactive` — moving it (`t[value] = …`) re-runs the row classification. The recompute is a **whole-snapshot `XU0`** (O(N) per move; compare keeps no sort index to walk), so the change stream is coarse `update` records rather than granular enter/leave deltas. For a fast-moving threshold (a brushed slider) over a large source, prefer `between('col', [lo, hi])`, whose reactive bounds recompute incrementally. Two calls sharing the same threshold SOURCE dedup to one operator (matched by the bound's view identity, like `between`).
 - **Source mutations** — `BU1`/`BU2`/`BI0`/`BI2`/`BR1`/`BR2` all flow through `RowOperator`'s standard loop. Each row is classified per `_cmp(row[col])`: in→in emits `BU1`, in→out emits `BR1`, out→in emits `BI0`. Inserts/removes are handled by the base.
 - **Missing column** — `row[col]` returning `undefined` causes every comparison to be false (JS `undefined > x === false`, etc.). Such rows never pass.
 - **Dedup** — `matches(col, val)` ([index.ts](index.ts)), so repeated calls with identical args return the cached view.

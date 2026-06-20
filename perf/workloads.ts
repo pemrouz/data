@@ -247,11 +247,16 @@ export const compare = {
   workloads(n = this.N) {
     const mkGt = () => { const s = $(this.source(n)); const f = s.gt('val', 5000); return { s, f } }
     const ins = mkGt(); const bat = mkGt(); let bump = 0
+    // reactive threshold: oscillate the bound (idempotent pair) — each move is a
+    // full RowOperator XU0 over n rows (compare keeps no sort index), so this is
+    // the worst case for a reactive threshold and the gate that catches drift.
+    const tS = $(this.source(n)); const tb = $(5000); const tV = tS.gt('val', tb)
     return {
       'gt-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.gt('val', 5000) } },
       'gt-insert': { gate: 50, keep: ins, run: () => { ins.s.insert({ active: true, val: 99999 }) } },
       // shift 1000 rows across the threshold to drive membership flips (bump grows → real work each rep)
       'gt-batch': { gate: 500, batch: 1000, keep: bat, run: () => { bump++; for (let i = 4500; i < 5500; i++) bat.s[i].val = bump * 10000 + i } },
+      'gt-threshold-move': { gate: 500, keep: { tS, tb, tV }, run: () => { tb[value] = 2500; tb[value] = 5000 } },
       'lt-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.lt('val', 5000) } },
       'gte-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.gte('val', 5000) } },
       'lte-setup': { gate: 500, run: () => { const s = $(this.source(n)); s.lte('val', 5000) } },

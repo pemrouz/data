@@ -196,6 +196,30 @@ export function createOperator(source, OperatorClass, ...args) {
   return new ViewProxy(op.view)
 }
 
+/**
+ * Wire a possibly-reactive operator argument, the way `between` wires its
+ * bounds. If `arg` is a ViewProxy, record its underlying view identity on
+ * `host['_' + prop + 'View']` (so `matches()` can dedup by the bound SOURCE's
+ * identity, not the freshly-minted wrapper a proxy access returns) and
+ * `connect` it so `host[prop]` tracks the live value — firing the host's
+ * `set <prop>` setter now (the construction-time seed) and on every later
+ * change. The host must guard that setter (e.g. with a `_live` flag set after
+ * its initial XU0) so the seed doesn't recompute before the view exists, then
+ * recompute on every subsequent change. Returns `true` iff `arg` was reactive;
+ * a plain `arg` is left for the caller to store however it likes.
+ *
+ * This is the value-slot counterpart to a row source's `src.connect(this)`:
+ * intersect/union/except subscribe SOURCES for their granular delta stream,
+ * whereas filter/compare/sort/aggregate use this to subscribe a scalar
+ * VALUE/threshold/window/column and recompute when it moves.
+ */
+export const bindReactive = (arg, host, prop) => {
+  if (!(arg instanceof ViewProxy)) return false
+  host['_' + prop + 'View'] = arg[view]
+  arg.connect(host, prop)
+  return true
+}
+
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
 type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never
 type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
@@ -274,14 +298,18 @@ type DataOps<T = any> = {
    */
   between(key: string, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>
   /**
-   * Single-threshold row filters (RowOperator-based, O(1) per change — prefer
-   * over `between(col, [T, Infinity])` for a moving threshold).
-   * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)
+   * Single-threshold row filters (RowOperator-based, O(1) per row change). The
+   * threshold may be a plain literal (captured once) or a reactive `ViewProxy`
+   * (`gt('pnl', t)` with `t = $(0)`) — a reactive threshold re-selects when it
+   * moves. A threshold MOVE re-runs a whole-snapshot rebuild (O(N), no sort
+   * index); for a fast-moving threshold over a large source prefer `between`,
+   * whose reactive bounds recompute incrementally.
+   * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)   //  trades.gt('pnl', $(0))
    */
-  gt(key: string, value: number): Data<T>
-  lt(key: string, value: number): Data<T>
-  gte(key: string, value: number): Data<T>
-  lte(key: string, value: number): Data<T>
+  gt(key: string, value: Reactive<number>): Data<T>
+  lt(key: string, value: Reactive<number>): Data<T>
+  gte(key: string, value: Reactive<number>): Data<T>
+  lte(key: string, value: Reactive<number>): Data<T>
   /**
    * Apply many child updates as ONE batched cascade (sinks see a single BU1).
    * Pairs are `[name, value, name, value, …]`.
