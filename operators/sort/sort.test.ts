@@ -572,3 +572,67 @@ spec({ op:'limit', guarantee:'Selection', trigger:'remove', shape:'object', via:
   delete o.d
   same(lim[value], [5, 6]) // source exhausted past the window — shrinks
 })
+
+// ─── Reactive window size (a ViewProxy n) ──────────────────────────────────
+// za/az/top/limit accept a reactive window size — `za('col', $(pageSize))`,
+// `limit($(n))` — so a "load more" / page-size slider re-windows in place
+// instead of rebuilding a fresh deduped operator (the kanban/library repage
+// idiom). The rank ORDER is unchanged by an n move; only how much is shown, so
+// za/az re-window via the incremental `_window` reconcile and limit via a
+// tail grow/shrink. A plain numeric n is captured once, as before.
+spec({ op:'sort', guarantee:'Selection', trigger:'window-move', shape:'array', via:'reactive-window', asserts:'a reactive za window size grows and shrinks the visible top-N' }, () => {
+  const src = $([{ v: 10 }, { v: 50 }, { v: 30 }, { v: 20 }, { v: 40 }, { v: 60 }])
+  const n = $(2)
+  const top = sort(src, 'v', n)                  // za('v', n)
+  same(top[value], [{ v: 60 }, { v: 50 }])
+  n[value] = 4                                    // grow — tail BI0A
+  same(top[value], [{ v: 60 }, { v: 50 }, { v: 40 }, { v: 30 }])
+  n[value] = 1                                    // shrink — tail BR1A
+  same(top[value], [{ v: 60 }])
+  n[value] = 3                                    // grow again
+  same(top[value], [{ v: 60 }, { v: 50 }, { v: 40 }])
+})
+
+spec({ op:'sort', guarantee:'Selection', trigger:'window-move', shape:'array', via:'reactive-window', asserts:'a reactive az (ascending) window size re-windows' }, () => {
+  const src = $([{ v: 10 }, { v: 50 }, { v: 30 }])
+  const n = $(1)
+  const bot = createOperator(src, AZColumnValue, 'v', n)
+  same(bot[value], [{ v: 10 }])
+  n[value] = 3
+  same(bot[value], [{ v: 10 }, { v: 30 }, { v: 50 }])
+})
+
+spec({ op:'sort', guarantee:'Identity', trigger:'dedup-call', shape:'array', via:'reactive-window', asserts:'two za calls sharing a reactive window SOURCE share one operator' }, () => {
+  const src = $([{ v: 1 }, { v: 9 }, { v: 5 }])
+  const n = $(2)
+  const a = sort(src, 'v', n)
+  const b = sort(src, 'v', n)                     // same window source → deduped (view-identity match)
+  same(a[value], b[value])
+  n[value] = 1
+  same(a[value], [{ v: 9 }])
+  same(b[value], [{ v: 9 }])
+})
+
+spec({ op:'limit', guarantee:'Selection', trigger:'window-move', shape:'array', via:'reactive-window', issue:'reactive-n', asserts:'limit($(n)) caps at n — a ViewProxy n no longer returns the whole source — and grows/shrinks' }, () => {
+  const src = $([10, 20, 30, 40, 50])
+  const n = $(2)
+  const lim = limit(src, n)
+  // Regression: a ViewProxy n strict-compared against `this.view.value.length`
+  // never fired the cap, so limit($(2)) used to return the WHOLE source.
+  same(lim[value], [10, 20])
+  n[value] = 4                                    // grow — refill from nextAfter
+  same(lim[value], [10, 20, 30, 40])
+  n[value] = 1                                    // shrink — drop tail
+  same(lim[value], [10])
+})
+
+spec({ op:'limit', guarantee:'Selection', trigger:'window-move', shape:'object', via:'reactive-window', asserts:'limit($(n)) over an object source grows/shrinks the window' }, () => {
+  const src = $({ a: 1, b: 2, c: 3, d: 4 })
+  const n = $(2)
+  const lim = limit(src, n)
+  same(lim[value], [1, 2])
+  n[value] = 3                                    // grow — refill from nextObjectKey
+  same(lim[value], [1, 2, 3])
+  n[value] = 1
+  same(lim[value], [1])
+})

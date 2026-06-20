@@ -311,11 +311,15 @@ export const sort = {
     // brush: bounded top-100 over a between, brush the whole window out then in
     const bo = {}; for (let k = 0; k < n; k++) bo['v' + k] = { r: Math.random(), id: k }
     const bS = $(bo); const bB = $([0, 1]); const bV = bS.between('r', bB).za('r', 100)
+    // window-move: reactive page size grown then shrunk (idempotent pair) — the
+    // _window reconcile (tail BI0A to grow / tail BR1A to shrink), NOT a re-sort.
+    const wS = $(this.source(n)); const wn = $(50); const wV = wS.za('score', wn)
     return {
       setup: { gate: 500, run: () => { const s = $(this.source(n)); s.za('score', 100) } },
       insert: { gate: 50, keep: { iS, iV }, run: () => { iS.insert({ score: Math.random() * 1000, id: i++ }) } },
       rotate: { gate: 50, keep: { rS, rV }, run: () => { rS[lastId].score = bump++ } },
       brush: { gate: 200, keep: { bS, bB, bV }, run: () => { bB[value] = [0, 0.5]; bB[value] = [0, 1] } },
+      'window-move': { gate: 100, keep: { wS, wn, wV }, run: () => { wn[value] = 200; wn[value] = 50 } },
     }
   },
 }

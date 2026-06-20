@@ -588,6 +588,67 @@
   },
   {
     "op": "sort",
+    "guarantee": "Selection",
+    "trigger": "window-move",
+    "shape": "array",
+    "via": [
+      "reactive-window"
+    ],
+    "asserts": "a reactive za window size grows and shrinks the visible top-N",
+    "title": "sort · Selection · window-move · array · via reactive-window — a reactive za window size grows and shrinks the visible top-N",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Selection",
+    "trigger": "window-move",
+    "shape": "array",
+    "via": [
+      "reactive-window"
+    ],
+    "asserts": "a reactive az (ascending) window size re-windows",
+    "title": "sort · Selection · window-move · array · via reactive-window — a reactive az (ascending) window size re-windows",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
+    "guarantee": "Identity",
+    "trigger": "dedup-call",
+    "shape": "array",
+    "via": [
+      "reactive-window"
+    ],
+    "asserts": "two za calls sharing a reactive window SOURCE share one operator",
+    "title": "sort · Identity · dedup-call · array · via reactive-window — two za calls sharing a reactive window SOURCE share one operator",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "window-move",
+    "shape": "array",
+    "via": [
+      "reactive-window"
+    ],
+    "issue": "reactive-n",
+    "asserts": "limit($(n)) caps at n — a ViewProxy n no longer returns the whole source — and grows/shrinks",
+    "title": "limit · Selection · window-move · array · via reactive-window · reactive-n — limit($(n)) caps at n — a ViewProxy n no longer returns the whole source — and grows/shrinks",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "limit",
+    "guarantee": "Selection",
+    "trigger": "window-move",
+    "shape": "object",
+    "via": [
+      "reactive-window"
+    ],
+    "asserts": "limit($(n)) over an object source grows/shrinks the window",
+    "title": "limit · Selection · window-move · object · via reactive-window — limit($(n)) over an object source grows/shrinks the window",
+    "file": "operators/sort/sort.test.ts"
+  },
+  {
+    "op": "sort",
     "guarantee": "Order",
     "trigger": "overwrite",
     "shape": "object",

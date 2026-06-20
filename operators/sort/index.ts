@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { isArray, bisect_right, bisect_left } from '../../utils.ts'
-import { Operator, value, createOperator } from '../../core.ts'
+import { Operator, value, view, ViewProxy, createOperator } from '../../core.ts'
 
 // ZAValue is the descending sort + top-n. State:
 //   sorted   — every source key in descending order (kept fully so we can
@@ -19,16 +19,35 @@ export class ZAValue extends Operator {
   // operator. The numeric forms (top(n)/za(n)) take a different arg shape and
   // override this on ZANumberValue/AZNumberValue. (=== not ==: the col_name of
   // the numeric forms is the `value` Symbol, and Symbol == n is always false.)
-  matches(col, n = Infinity) { return this.col_name === col && this.n === n }
+  matches(col, n = Infinity) {
+    if (this.col_name !== col) return false
+    if (n instanceof ViewProxy) return this._nView === n[view]   // dedup a reactive window size by bound-source identity
+    if (this._nView) return false                                // we're reactive; arg is a plain literal
+    return this.n === n
+  }
 
   constructor(p, col, col_name, n) {
     super()
     this.p = p
-    this.n = n
     this.col = col
     this.col_name = col_name
+    // A reactive (ViewProxy) window size subscribes via a write-only `nReactive`
+    // setter, which keeps `this.n` a plain number for the many hot-path reads
+    // (slice / relational / `!== Infinity`). A plain n is the subclass-defaulted
+    // Infinity or a literal. The setter re-windows on every later change.
+    if (n instanceof ViewProxy) { this._nView = n[view]; n.connect(this, 'nReactive') }
+    else this.n = n
     this.XU0(p.value)
+    this._live = true   // subsequent `set nReactive` calls now re-window (the construction seed did not)
   }
+
+  // Connect target for a reactive window size. PropSink writes the live numeric
+  // value here on construction (guarded out by `_live`) and on every change. A
+  // window-size move re-materializes the visible window from `sorted` — the rank
+  // ORDER is unchanged, only how much is shown — so it routes through the
+  // existing incremental `_window` reconcile (tail BI0A to grow / tail BR1A to
+  // shrink / per-slot BU1), never a full XU0. `v == null` → Infinity (unbounded).
+  set nReactive(v) { this.n = v == null ? Infinity : +v; if (this._live) this._window() }
 
   XR0(){
     this.sorted = []
@@ -510,8 +529,13 @@ export class ZAColumnValue extends ZAValue {
 export class ZANumberValue extends ZAValue {
   // Numeric form: the only arg is `n` (top(n) / za(n)); col is implicitly the
   // whole row. Default to Infinity like the constructor so top(2) dedups with
-  // a second top(2) (and with za(2) — the same operation).
-  matches(n = Infinity) { return this.n === n }
+  // a second top(2) (and with za(2) — the same operation). A reactive n dedups
+  // by bound-source identity (see ZAValue.matches).
+  matches(n = Infinity) {
+    if (n instanceof ViewProxy) return this._nView === n[view]
+    if (this._nView) return false
+    return this.n === n
+  }
   constructor(p, n = Infinity){
     super(p, d => d, value, n)
   }
@@ -565,7 +589,11 @@ export class AZColumnValue extends AZValue {
 }
 
 export class AZNumberValue extends AZValue {
-  matches(n = Infinity) { return this.n === n }   // see ZANumberValue
+  matches(n = Infinity) {                          // see ZANumberValue
+    if (n instanceof ViewProxy) return this._nView === n[view]
+    if (this._nView) return false
+    return this.n === n
+  }
   constructor(p, n = Infinity){
     super(p, d => d, value, n)
   }
@@ -590,8 +618,37 @@ export class LimitValue extends Operator {
   constructor(p, n) {
     super()
     this.p = p
-    this.n = n
+    // A reactive (ViewProxy) limit subscribes via the write-only `nReactive`
+    // setter, which coerces to a plain number — this ALSO fixes the latent
+    // `this.view.value.length === this.n` window cap, which strict-compared
+    // against the proxy OBJECT and never fired, so `limit($(n))` used to return
+    // the WHOLE source. A plain n is stored as-is (unchanged). The setter
+    // re-limits (grow/shrink the window) on every later change.
+    if (n instanceof ViewProxy) { this._nView = n[view]; n.connect(this, 'nReactive') }
+    else this.n = n
     this.XU0(this.p.value)
+    this._live = true
+  }
+
+  set nReactive(v) { this.n = v == null ? Infinity : +v; if (this._live) this._relimit() }
+
+  // Re-window after a reactive limit change: shrink by dropping tail rows, grow
+  // by refilling from the next available source key (array: nextAfter; object:
+  // nextObjectKey) — the same refill the BU1/BR1 paths use. Each emits one
+  // positional remove/insert so a downstream sink updates only the changed tail.
+  _relimit() {
+    while (this.view.value.length > this.n) {
+      this.keys.pop()
+      super.BR1A([this.view.value.length - 1])
+    }
+    while (this.view.value.length < this.n) {
+      const next = this.isArr ? this.nextAfter(this.last ?? -1) : this.nextObjectKey()
+      if (next === undefined) break
+      this.keys.push(next)
+      if (this.isArr) this.last = next
+      super.BI0A([this.view.value.length, this.p.value[next]])
+    }
+    if (this.isArr) this.last = this.keys.length ? this.keys[this.keys.length - 1] : undefined
   }
 
   XR0(){ this.XU0(this.p.value) }

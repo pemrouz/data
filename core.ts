@@ -391,15 +391,17 @@ type DataOps<T = any> = {
   /**
    * Descending sort (`za`) by `column`, optionally windowed to the top `max` —
    * a bounded top-K, cheaper than `za(col).limit(n)`. `az` is ascending;
-   * `top`/`limit` window without re-sorting.
-   * @example trades.za('pnl', 50)   //  rows.az('name')
+   * `top`/`limit` window without re-sorting. The window size `max` may be a
+   * reactive `ViewProxy` (`za('rating', $(pageSize))`, `limit($(n))`) — moving
+   * it re-windows in place (grow/shrink), so a page-size slider needs no rebuild.
+   * @example trades.za('pnl', 50)   //  rows.az('name')   //  rows.za('pnl', $(pageSize))
    */
-  za(column: string, max?: number): Data<T>
-  za(max?: number): Data<T>
-  az(column: string, max?: number): Data<T>
-  az(max?: number): Data<T>
-  top(max?: number): Data<T>
-  limit(max: number): Data<T>
+  za(column: string, max?: Reactive<number>): Data<T>
+  za(max?: Reactive<number>): Data<T>
+  az(column: string, max?: Reactive<number>): Data<T>
+  az(max?: Reactive<number>): Data<T>
+  top(max?: Reactive<number>): Data<T>
+  limit(max: Reactive<number>): Data<T>
   /**
    * Rows present in ALL source views — set intersection (one bitmask bit per row,
    * O(1) per membership flip). Tracks reactive sources live.
