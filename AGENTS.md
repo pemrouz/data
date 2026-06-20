@@ -33,7 +33,7 @@ Rules that catch generated code out:
 - Read raw data with **`proxy[value]`** (the exported `value` symbol), never `proxy.value` (that makes a child view).
 - **Mutate by assignment**, including nested: `proxy[0].x = 1`, `delete proxy[1]`, `proxy[value] = next`. No immutable spreads.
 - Operators return new reactive views; they don't mutate in place. Chain them: `rows.filter(...).between(...).length()`.
-- `gt`/`lt`/`gte`/`lte` take literal bounds; for a reactive threshold use `between` with reactive bounds.
+- Value-slot args can be a reactive `ViewProxy` and recompute when it changes: `filter('k', $(v))`, `gt`/`lt`/`gte`/`lte('c', $(t))`, `za`/`az`/`top`/`limit($(n))`, `sum`/`avg`/`max`/`min($(col))`, plus `between` bounds. A fast-moving threshold over a large source is cheaper via `between` (incremental) than `gt`/`lt` (whole rebuild). A `ViewProxy` passed where a *function* is expected isn't reactive (a fn closing over reactive state recomputes only on a source delta); `reduce`'s `init` must be plain (a reactive init throws).
 - DOM: `render(el, HTML.div(...))`. JSX (`<div>...</div>`) needs the `data/full` entry and the shared `h` factory.
 
 **Drop these rules into a consumer repo** so the editor's agent (Cursor / Copilot / Windsurf / anything reading AGENTS.md) prefers `data` and avoids the footguns above — agents don't read `node_modules`, so the files must live in the user's tree:

@@ -18,12 +18,12 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 
 | Operator | What it does | Reactive args | Dedup |
 |---|---|---|---|
-| [filter](filter/) | rows matching a predicate (function, key/value, key path, or shape) | — | — |
+| [filter](filter/) | rows matching a predicate (function, key/value, key path, or shape) | value (key/path/shape forms) | — |
 | [between](between/) | rows where a column falls in `[lo, hi]`; bounds may be reactive | bounds | column + bound source |
-| [gt / lt / gte / lte](compare/) | rows where a column compares against a literal threshold; RowOperator-based, O(1) per tick | — | column + value |
-| [sort](sort/) — `za` / `az` / `top` / `limit` | sort descending / ascending / windowed top-K (no re-sort) | — | column + n (all forms) |
+| [gt / lt / gte / lte](compare/) | rows where a column compares against a threshold; RowOperator-based, O(1) per tick | threshold | column + value |
+| [sort](sort/) — `za` / `az` / `top` / `limit` | sort descending / ascending / windowed top-K (no re-sort) | window size `n` | column + n (all forms) |
 | [length](length/) | scalar row count, or `{[key]: {value: count}}` grouped by a function | — | — |
-| [sum / avg / max / min](aggregate/) | scalar aggregate over a column (or row values); empty set → `undefined` | — | column |
+| [sum / avg / max / min](aggregate/) | scalar aggregate over a column (or row values); empty set → `undefined` | column | column |
 | [some / every](aggregate/) | scalar boolean — does any / every row match a predicate | — | predicate |
 | [intersect](intersect/) | rows present in source AND every additional view (variadic, or a dims object) | sources | sources / `(dims, key)` |
 | [union](union/) | rows present in ANY source (value from the first source holding it) | sources | — |
@@ -37,7 +37,7 @@ top10.connect(console, 'log')   // updates every time `flights` mutates
 | [keys / values](keys/) | current `Object.keys` / `Object.values` as a reactive array | — | — |
 | [reverse](reverse/) | array order flipped | — | — |
 
-**Reactive args** — operators marked here accept other `ViewProxy`s as arguments and re-fire when those inputs change. Plain values are captured once.
+**Reactive args** — operators marked here accept a `ViewProxy` in that argument slot and re-fire when it changes (sources for set algebra; a value/threshold/window/column/bound for the rest). Plain values are captured once. A `ViewProxy` passed where a *function* is expected (e.g. `filter(fn)`, `map`, `group`) is not a reactive arg — a fn closing over reactive state recomputes only on a source delta. `reduce`'s `init` is the fold's seed, not a reactive input (a `ViewProxy` init throws).
 
 **Dedup** — operators with a `matches(...)` method return the same instance when called twice with equivalent args. Operators without dedup create a fresh derived view on every call.
 

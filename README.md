@@ -246,12 +246,12 @@ For internals — the full notification protocol (the View / Sink contract, the 
 
 | Operator | One-liner | Reference |
 |---|---|---|
-| `filter` | rows matching a predicate | [operators/filter/](operators/filter/) |
+| `filter` | rows matching a predicate (the key/path/shape value may be a reactive `ViewProxy`) | [operators/filter/](operators/filter/) |
 | `between` | rows where a column falls in a range (sort-indexed; reactive bounds) | [operators/between/](operators/between/) |
-| `gt` / `lt` / `gte` / `lte` | rows where a column compares against a literal threshold (RowOperator; O(1) per tick) | [operators/compare/](operators/compare/) |
-| `za` / `az` / `top` / `limit` | sort and/or limit | [operators/sort/](operators/sort/) |
+| `gt` / `lt` / `gte` / `lte` | rows where a column compares against a threshold (literal or reactive; RowOperator; O(1) per tick) | [operators/compare/](operators/compare/) |
+| `za` / `az` / `top` / `limit` | sort and/or limit (window size may be a reactive `ViewProxy`) | [operators/sort/](operators/sort/) |
 | `length` | row count, or grouped counts | [operators/length/](operators/length/) |
-| `sum` / `avg` / `max` / `min` | scalar aggregates over a column or row values | [operators/aggregate/](operators/aggregate/) |
+| `sum` / `avg` / `max` / `min` | scalar aggregates over a column (literal or reactive) or row values | [operators/aggregate/](operators/aggregate/) |
 | `some` / `every` | scalar booleans — any/all rows matching a predicate | [operators/aggregate/](operators/aggregate/) |
 | `intersect` | rows present in all source views (or in dims, except a named one) | [operators/intersect/](operators/intersect/) |
 | `union` | rows present in any source (value from the first containing it) | [operators/union/](operators/union/) |
@@ -281,7 +281,7 @@ These are self-reported from this repo's harness (`npm run bench:ops` to reprodu
 If you're an AI coding assistant generating code that imports `data` — or a human pointing one at this repo — start here:
 
 - **[llms.txt](llms.txt)** — a condensed, machine-readable map of the whole API: imports, core concepts, every operator, and the gotchas that trip up generated code. Served at the site root: [pemrouz.github.io/data/llms.txt](https://pemrouz.github.io/data/llms.txt). Both files ship inside the npm package.
-- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate by assignment; `gt`/`lt` take literal bounds).
+- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate by assignment; value-slot args may be reactive `ViewProxy`s — `gt`/`lt`/`filter`/`za`/`sum` etc. recompute when the bound value/threshold/window/column changes).
 
 The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of just assigning (`proxy[0].done = true`). Both are covered in `llms.txt`.
 
