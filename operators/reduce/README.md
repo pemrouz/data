@@ -11,7 +11,7 @@ proxy.reduce(add: (acc, row, key) => acc,
              init: any | (() => any))                            // ReduceIncrementalValue
 ```
 
-Dispatch key is `typeof second-arg === 'function'` (a function in slot two means `(add, remove, init)`). Dispatch lives in [../../register.ts:95](../../register.ts#L95).
+Dispatch key is `typeof second-arg === 'function'` (a function in slot two means `(add, remove, init)`), but a reactive `ViewProxy` — itself callable — is excluded, so `reduce(fn, $(x))` routes to the 2-arg form. Dispatch lives in [../../register.ts:95](../../register.ts#L95).
 
 ## Examples
 
@@ -49,6 +49,7 @@ src.insert({ b: 'x' }); src.insert({ b: 'x' }); src.insert({ b: 'y' })   // { x:
 ## Behavior
 
 - **Two arities, picked by the second arg.** A function in slot two routes to the incremental `ReduceIncrementalValue`; anything else (value or thunk) routes to the general `ReduceValue`.
+- **`init` must be plain, not reactive.** `init` is the fold's identity element (seed), not a reactive input — passing a `ViewProxy` throws a clear error at construction (it used to silently produce `NaN` in the 2-arg form / throw an opaque "cannot invoke a root value" in the 3-arg form). For a reactive base, derive it upstream (`filter`/`between`/`gt`) and fold the derived view, or pass `init[value]` to snapshot it once. (Unlike a `filter` value, a `gt` threshold, or a sort window, a fold seed isn't a slider-driven quantity, so it has no reactive form.)
 - **`reduce(fn, init)` rebuilds on every event.** All upstream verbs (`XU0`/`XR0`/`BU1`/`BR1`/`BI0`/`BU2`/`BR2`/`BI2`) trigger a full re-walk of the source through `fn`. This is the safe default because `fn` is assumed non-commutative (string concat, object merge) with no way to "undo" a contribution.
 - **`reduce(add, remove, init)` threads deltas in O(Δ).** `BI0` runs `add` for each inserted row; `BR1` runs `remove` for each removed row; `BU1` (a whole-slot overwrite, `data[k] = newRow`) runs `remove(old)` + `add(new)` — only the delta rows hit the user functions, not the whole source. `XU0`/`XR0` (the source replaced wholesale) still do a full rebuild from `init`.
 - **`BU1` is incremental via a per-key value cache.** The framework doesn't carry the *old* value in the notification, so the operator keeps a `Map` of each key's last-seen row (seeded on rebuild, maintained on `BI0`/`BR1`/`BU1`). A whole-slot overwrite changes the row reference, so the cached old row ≠ the new one and `remove(old)` subtracts the prior contribution correctly. The cache stores **references** (no clones), so it costs O(1) per insert and nothing for immutable-row workloads. The cache key is normalised to a string because array sources surface numeric keys on rebuild but string keys on `BU1`.

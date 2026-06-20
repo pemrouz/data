@@ -2467,6 +2467,18 @@
     "file": "operators/reduce/reduce.test.ts"
   },
   {
+    "op": "reduce",
+    "guarantee": "Robustness",
+    "trigger": "construct",
+    "shape": "array",
+    "via": [
+      "reactive-init-guard"
+    ],
+    "asserts": "a reactive ViewProxy init throws a clear error (both arities)",
+    "title": "reduce · Robustness · construct · array · via reactive-init-guard — a reactive ViewProxy init throws a clear error (both arities)",
+    "file": "operators/reduce/reduce.test.ts"
+  },
+  {
     "op": "reverse",
     "guarantee": "Order",
     "trigger": "construct",

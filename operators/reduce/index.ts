@@ -1,6 +1,22 @@
 // @ts-nocheck
 import { iter, isArray } from '../../utils.ts'
-import { $, Operator, createOperator } from '../../core.ts'
+import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
+
+// `init` is the fold's SEED — its identity element (0, '', {}), not a reactive
+// input. A reactive ViewProxy seed is meaningless here AND silently misbehaves:
+// the 2-arg fold would `acc + <proxy>` to NaN (binary `+` doesn't unwrap a
+// ViewProxy), and the 3-arg `_seed` would invoke it as a thunk (a ViewProxy is
+// typeof 'function') and throw an opaque "cannot invoke a root value". Fail fast
+// with a pointer at the right pattern instead. (Unlike a filter VALUE or a sort
+// WINDOW, a fold's identity element isn't a slider-driven quantity — for a
+// reactive BASE, derive it upstream and fold the derived view.)
+function assertPlainInit(init) {
+  if (init instanceof ViewProxy)
+    throw new Error(
+      'reduce(): init must be a plain value or a thunk, not a reactive ViewProxy — ' +
+      'a fold seed is its identity element, not a reactive input. For a reactive base, ' +
+      'derive it upstream (filter/between/gt) and fold the derived view, or pass init[value].')
+}
 
 // Order-insensitive, float-tolerant structural compare used ONLY by the
 // `$.debug` symmetry check below — never on a hot path. Numbers compare with a
@@ -42,6 +58,7 @@ const _deepEqual = (a, b) => {
 export class ReduceValue extends Operator {
   constructor(p, fn, init) {
     super()
+    assertPlainInit(init)
     this.p = p
     this.fn = fn
     this.init = init
@@ -122,6 +139,7 @@ export class ReduceValue extends Operator {
 export class ReduceIncrementalValue extends Operator {
   constructor(p, add, remove, init) {
     super()
+    assertPlainInit(init)
     this.p = p
     this.add = add
     this.remove = remove
@@ -252,8 +270,12 @@ export class ReduceIncrementalValue extends Operator {
 }
 
 // Standalone helper. `typeof remove === 'function'` is the dispatch key —
-// mirror it in full.ts so chainable and standalone forms agree.
+// mirror it in register.ts so chainable and standalone forms agree. A ViewProxy
+// is itself callable (typeof 'function'), so it is EXCLUDED here: otherwise
+// `reduce(fn, $(x))` (a 2-arg fold with a reactive init) would misdispatch to
+// the 3-arg incremental form (remove = the proxy, init = undefined) and dodge
+// the assertPlainInit guard — it must route to ReduceValue(fn, $(x)) and throw.
 export const reduce = (source, fnOrAdd, removeOrInit, init) =>
-  typeof removeOrInit === 'function'
+  typeof removeOrInit === 'function' && !(removeOrInit instanceof ViewProxy)
     ? createOperator(source, ReduceIncrementalValue, fnOrAdd, removeOrInit, init)
     : createOperator(source, ReduceValue, fnOrAdd, removeOrInit)

@@ -14,7 +14,7 @@
 //   currently need for chunk-shared registrations.
 
 import { isArray } from './utils.ts'
-import { Operators } from './core.ts'
+import { Operators, ViewProxy } from './core.ts'
 import { FilterValue, FilterObjectValue, FilterStringValue, FilterColumnValue } from './operators/filter/index.ts'
 import { BetweenValue } from './operators/between/index.ts'
 import { GtValue, LtValue, GteValue, LteValue } from './operators/compare/index.ts'
@@ -92,7 +92,10 @@ Operators['distinct']  = () => DistinctValue
 // Dispatch key is `typeof second-arg === 'function'`: a function in the
 // second slot means the caller passed (add, remove, init); a non-function
 // (or undefined) means (fn, init) with init being a value or a thunk.
-Operators['reduce']    = (_, b) => typeof b === 'function' ? ReduceIncrementalValue : ReduceValue
+// A ViewProxy is callable (typeof 'function'); exclude it so `reduce(fn, $(x))`
+// routes to the 2-arg ReduceValue (which throws via assertPlainInit) instead of
+// misdispatching to the 3-arg incremental form. See operators/reduce/index.ts.
+Operators['reduce']    = (_, b) => typeof b === 'function' && !(b instanceof ViewProxy) ? ReduceIncrementalValue : ReduceValue
 // Set algebra companions to intersect:
 //   union(...): rows in any source (value from first source containing it)
 //   except(other): rows in source but not in other

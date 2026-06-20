@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
+import { deepStrictEqual as same, strictEqual as eq, ok, throws } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { reduce } from './index.ts'
@@ -267,4 +267,19 @@ spec({ op:'reduce', guarantee:'Reduction', trigger:'edit', shape:'object', issue
   eq(ev.length > 1, true)               // sinks DO receive updates now
   // primitive immutable fold unaffected
   eq(reduce($({ a: 1, b: 2 }), (a, x) => a + x, 0)[value], 3)
+})
+
+// REACTIVE-INIT GUARD --------------------------------------------------
+// `init` is the fold's identity element, not a reactive input. A ViewProxy init
+// is a misuse that used to silently misbehave (2-arg → NaN; 3-arg → an opaque
+// "cannot invoke a root value" throw). Fail fast with a clear pointer instead.
+spec({ op:'reduce', guarantee:'Robustness', trigger:'construct', shape:'array', via:'reactive-init-guard', asserts:'a reactive ViewProxy init throws a clear error (both arities)' }, () => {
+  const src = $([1, 2, 3])
+  throws(() => reduce(src, (a, x) => a + x, $(5)),
+    /init must be a plain value or a thunk, not a reactive ViewProxy/)
+  throws(() => reduce(src, (a, x) => a + x, (a, x) => a - x, $(5)),
+    /init must be a plain value or a thunk, not a reactive ViewProxy/)
+  // a plain literal / thunk init is unaffected
+  eq(reduce(src, (a, x) => a + x, 5)[value], 11)
+  eq(reduce(src, (a, x) => a + x, (a, x) => a - x, 5)[value], 11)
 })
