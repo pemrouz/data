@@ -3,6 +3,7 @@
 // this with noCheck:false so the Data<T>/HTML/SVG/jsx types are actually
 // validated against how the docs say to use them.
 import { $, value, render, HTML, SVG } from '../full.ts'
+import type { Data, DataOps, ChangeRecord, Reactive, RowOf } from '../full.ts'
 
 // --- operator chains, OBJECT source ---
 const obj = $({ a: { n: 1 }, b: { n: 5 } })
@@ -41,5 +42,17 @@ obj.reduce((acc: number, r) => acc + r.n, (acc: number, r) => acc - r.n, 0)
 // --- builders (#69) ---
 render(document.body, HTML.ul(HTML.li(arr, (li, item) => li.text(item.n))))
 SVG.path['d=M0,0']()
+
+// --- the public type vocabulary is NAMEABLE by consumers (the export gate) ---
+// A consumer annotating their own variables / callbacks must be able to import
+// these by name; if any loses its `export` again, this block fails to compile.
+type Order = { amount: number }
+const typedRows: Data<Order[]> = $([{ amount: 1 }])
+const onChange = (change: ChangeRecord): void => { void change.type; void change.key }
+typedRows.connect(document.body, onChange)
+const _ops: DataOps<Order[]> = typedRows
+const _bound: Reactive<number> = $(3)
+const _row: RowOf<Order[]> = { amount: 2 }
+void _ops; void _bound; void _row
 
 void value

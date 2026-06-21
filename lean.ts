@@ -9,4 +9,9 @@
 // operator code a size-conscious consumer doesn't use.
 export { $, value, reactive, view, Sink, Operators, createOperator } from './core.ts'
 export { default } from './core.ts'
+// Public type vocabulary — so a consumer can NAME the library's own types
+// (`const rows: Data<Order[]>`, `(change: ChangeRecord) => …`) rather than only
+// receive them anonymously from `$`. Propagates to `data` and `data/full` via
+// their `export *` re-export of this entry.
+export type { Data, DataOps, ChangeRecord, Reactive, RowOf } from './core.ts'
 export { render, HTML, SVG } from './render/index.ts'

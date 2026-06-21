@@ -221,10 +221,10 @@ export const bindReactive = (arg, host, prop) => {
 }
 
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
-type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never
-type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
+export type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never
+export type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
 // A bound prop / child value: either a reactive view or its raw value.
-type Reactive<T> = Data<T> | T
+export type Reactive<T> = Data<T> | T
 // `Data<T>` is `DataOps<T>` (the chainable operator surface) plus child access.
 // Split conditionally so an ARRAY source exposes element access via a numeric
 // index signature WITHOUT mapping over `keyof T[]` — the homomorphic
@@ -234,11 +234,11 @@ type Reactive<T> = Data<T> | T
 // mapped, optional (so `delete proxy.k` is legal) and accept the RAW value on
 // assignment (so `proxy.k = 1` / `proxy.k.done = true` — the documented
 // mutate-by-assignment API — type-checks; reads still yield `Data<child>`).
-type Data<T = any> =
+export type Data<T = any> =
   [T] extends [readonly (infer E)[]] ? DataOps<T> & { [index: number]: Data<E> }
 : [T] extends [object] ? DataOps<T> & { [K in keyof T]: Data<T[K]> | T[K] }
 : DataOps<T>
-type DataOps<T = any> = {
+export type DataOps<T = any> = {
   [value]?: T;
   /**
    * Subscribe to this view. Three forms:
