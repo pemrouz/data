@@ -15,6 +15,7 @@
   "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM"] },
   "include": [
     "row.ts",
+    "render/index.ts",
     "jsx/index.ts",
     "jsx/intrinsics.ts",
     "jsx-runtime.ts",

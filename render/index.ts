@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { view } from '../core.ts'
 import type { Data, RowOf } from '../core.ts'
 import { iter, isArray, noop } from '../utils.ts'
@@ -37,14 +36,14 @@ const { keys } = Object
  * // each item becomes an <li> inside document.body:
  * render(document.body, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
  */
-export const render = (p, np) =>
+export const render = (p: any, np: any) =>
   // A top-level Fragment is a plain array of NodeProxy children (it only works
   // nested because an enclosing h() flattens it). Passed straight to render(),
   // `np[NODE]` is undefined and Node.render threw a bare "reading 'children'"
   // TypeError. Treat it like a wrapper whose children render into `p` — the same
   // semantics a single wrapper template gets.
   isArray(np)
-    ? Node.render(p, Node.add(new Node('', null), ...np.filter(c => c != null && c !== false))[NODE])
+    ? Node.render(p, (Node.add(new Node('', null), ...np.filter((c: any) => c != null && c !== false)) as any)[NODE])
     : Node.render(p, np[NODE])
 
 // DOMSink is the bridge between the reactive protocol and live DOM. One
@@ -54,7 +53,11 @@ export const render = (p, np) =>
 // `nodes` as an array so order matches the source; object sources use a
 // keyed object.
 class DOMSink {
-  constructor(parent, node) {
+  parent: any
+  node: any
+  p: any
+  nodes: any
+  constructor(parent: any, node: any) {
     this.parent = parent
     this.node = node
     this.p = node.data[view]
@@ -76,7 +79,7 @@ class DOMSink {
   // already equals the iteration index, so this is identical to the old append
   // for that path; only post-init mid-inserts change.
   // Object branch is positional-agnostic and keyed directly.
-  create_node(k) {
+  create_node(k: any) {
     if (isArray(this.nodes)) {
       const tail = this.nodes.length
       const node = this.node.generate(tail, this.node.data[tail])
@@ -91,7 +94,7 @@ class DOMSink {
   // already shifted the data array, so the live DOM array's last slot is
   // the one that should disappear (the V1 propagation will rewrite the
   // others' content). Object remove just deletes the named node directly.
-  remove_node(k){
+  remove_node(k: any){
     if (isArray(this.nodes)) {
       this.nodes.pop().remove()
     } else {
@@ -109,7 +112,7 @@ class DOMSink {
   // sparse (XU0) or for BH1/BF0 events (which dense arrays never emit).
 
   // A true if any in-bounds slot is a hole (empty or explicit-undefined).
-  _sparse(v) {
+  _sparse(v: any) {
     for (let i = 0; i < v.length; i++) if (v[i] === undefined) return true
     return false
   }
@@ -118,7 +121,7 @@ class DOMSink {
   // smallest present index > k (or appended if none) so DOM order tracks index
   // order. Idempotent: a BF0 for an already-present slot is a no-op (its content
   // was already refreshed by core's V1 pre-fire).
-  _create_at(k) {
+  _create_at(k: any) {
     if (this.nodes[k]) return
     const node = this.node.generate(k, this.node.data[k])
     let next = Infinity
@@ -129,12 +132,12 @@ class DOMSink {
   // Append the node for present index `k` to the tail (no positional scan).
   // Only safe when every later present index is created after this one — i.e.
   // the in-increasing-order build from an empty node set in `_reconcile_sparse`.
-  _append_at(k) {
+  _append_at(k: any) {
     const node = this.node.generate(k, this.node.data[k])
     this.nodes[k] = node.create(this.parent, undefined)
   }
 
-  _remove_at(k) {
+  _remove_at(k: any) {
     this.nodes[k]?.remove()
     delete this.nodes[k]
   }
@@ -144,7 +147,7 @@ class DOMSink {
   // Handles the dense→sparse transition too (a between whose bounds were full
   // domain, then narrowed): the prior dense nodes are already node[i] ↔ data[i],
   // so index-keyed removal/creation composes cleanly.
-  _reconcile_sparse(value) {
+  _reconcile_sparse(value: any) {
     this.nodes ??= []
     const gone = []
     for (const i in this.nodes) if (value[+i] === undefined) gone.push(+i)
@@ -193,7 +196,7 @@ class DOMSink {
     this.nodes = isArray(this.nodes) ? [] : {}
   }
 
-  XU0(value) {
+  XU0(value?: any) {
     if (this._detached()) return
     // undefined or any primitive: tear down all current nodes (incl. a holey
     // array tail and the NODE-symbol scalar slot — both of which the old
@@ -241,7 +244,7 @@ class DOMSink {
       this.remove_node(gone[j])
   }
 
-  BR1(R1){
+  BR1(R1: any){
     if (this._detached()) return
     for (let i = 0; i < R1.length; i++)
       this.remove_node(R1[i++])
@@ -257,19 +260,19 @@ class DOMSink {
   // content-stable BU1s), so it keeps the cheap tail path — identical to the old
   // BR1/BI0 fallback, no regression. Detected by whether the current source
   // value is sparse.
-  BR1A(R1){
+  BR1A(R1: any){
     if (this._detached()) return
     if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
     for (let i = 0; i < R1.length; i++) this.remove_node(R1[i++])
   }
 
-  BI0A(I0){
+  BI0A(I0: any){
     if (this._detached()) return
     if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
     for (let i = 0; i < I0.length; i++) this.create_node(I0[i++])
   }
 
-  BU1(U1){
+  BU1(U1: any){
     if (this._detached()) return
     for (let i = 0; i < U1.length; i++) {
       const name = U1[i++]
@@ -278,7 +281,7 @@ class DOMSink {
     }
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (this._detached()) return
     for (let i = 0; i < I0.length; i++) {
       const name = I0[i++]
@@ -294,17 +297,17 @@ class DOMSink {
   // goes undefined just before its node is dropped) — index-keyed, so no
   // double-apply. Dense arrays never emit these; they only reach a DOMSink
   // bound directly to a between/intersect/union/except view.
-  BH1(R1) {
+  BH1(R1: any) {
     if (this._detached()) return
     for (let i = 0; i < R1.length; i += 2) this._remove_at(+R1[i])
   }
 
-  BF0(I0) {
+  BF0(I0: any) {
     if (this._detached()) return
     for (let i = 0; i < I0.length; i += 2) this._create_at(+I0[i])
   }
 
-  BR2(BR2){}
+  BR2(BR2: any){}
 
   // Move-at-depth-1. Rows here are *index-keyed*: each DOM node is bound to
   // the positional child view `node.data[k]`, and a rank rotation reaches us
@@ -319,7 +322,7 @@ class DOMSink {
   // data-keyed row model, which this index-keyed renderer doesn't have.)
   BMV1(){}
 
-  BU2(U2){
+  BU2(U2: any){
     if (this._detached()) return
     for (let i = 0; i < U2.length; i++) {
       const [name] = U2[i++]
@@ -328,7 +331,7 @@ class DOMSink {
     }
   }
 
-  BI2(I2){
+  BI2(I2: any){
     if (this._detached()) return
     for (let i = 0; i < I2.length; i+=3) {
       const [name] = I2[i]
@@ -351,14 +354,20 @@ class Child {}
 // it becomes a live element. `_` → `-` lets `HTML.foo_bar()` produce the
 // hyphenated `<foo-bar>` custom-element tag without escaping.
 class Node extends Child {
-  constructor(tag, ns, children = []) {
+  ns: any
+  tag: any
+  children: any[]
+  static: any
+  data: any
+  fn: any
+  constructor(tag: any, ns?: any, children: any[] = []) {
     super()
     this.ns = ns;
     this.tag = tag.replaceAll('_', '-');
     this.children = children;
   }
 
-  static render(dom, node) {
+  static render(dom: any, node: any) {
     for (const child of node.children) {
       if (child.data) {
         const sink = new DOMSink(dom, child)
@@ -380,12 +389,12 @@ class Node extends Child {
     return dom
   }
 
-  get new(){ 
+  get new(){
     const node = new Node(this.tag, this.ns, this.children.concat([]))
     node.static = this.static
     node.data = this.data
     node.fn = this.fn
-    return node 
+    return node
   }
 
   get hasdata(){
@@ -400,28 +409,28 @@ class Node extends Child {
   //   reactive (has [view]) → bind data to this node's children
   //   function             → row generator (composes with prior fn)
   //   object               → static attribute bag
-  static add(node, ...args) {
+  static add(node: any, ...args: any[]) {
     for (const arg of args) {
       if (typeof arg === 'string' || typeof arg === 'number' || arg === true) {
         node.static = [arg]
       } else if (arg instanceof NodeProxy) {
-        const child = arg[NODE]
+        const child = (arg as any)[NODE]
         if (child.static) {
-          iter(child.static, (k, v) => 
+          iter(child.static, (k: any, v: any) =>
             node.children.push(child.generate(k, v))
           )
-        } 
+        }
         else if (child.fn && !child.hasdata){
           node.children.push(child.generate())
-        } 
-        else node.children.push(arg[NODE])
+        }
+        else node.children.push((arg as any)[NODE])
       } else if (typeof arg === 'undefined' || arg === false) {
         node.static = []
       } else if (arg[view]) {
         node.data = arg
-      } else if (typeof arg === 'function') { 
+      } else if (typeof arg === 'function') {
         const fn1 = node.fn
-        node.fn = fn1 ? (n, ...args) => arg(fn1(n, ...args), ...args) : arg 
+        node.fn = fn1 ? (n: any, ...args: any[]) => arg(fn1(n, ...args), ...args) : arg
       } else if (typeof arg === 'object') {
         node.static = arg
       } else {
@@ -431,7 +440,7 @@ class Node extends Child {
     return new NodeProxy(node)
   }
 
-  create(parent, before) {
+  create(parent: any, before?: any) {
     const dom = this.ns
       ? document.createElementNS(NS, this.tag)
       : document.createElement(this.tag)
@@ -443,7 +452,7 @@ class Node extends Child {
     return Node.render(dom, this)
   }
 
-  generate(k, v) {
+  generate(k?: any, v?: any) {
     // CLONE each template child, don't share it. `this.children.concat([])` was
     // a shallow copy — every generated row shared the SAME Prop instances, so a
     // reactive prop attached to the row TEMPLATE (outside the row fn, e.g.
@@ -454,49 +463,52 @@ class Node extends Child {
     let node = new Node(
       this.tag,
       this.ns,
-      this.children.map(c =>
+      this.children.map((c: any) =>
         c instanceof Node ? c.new
-      : c instanceof Prop ? new c.constructor(c.name, c.value)
+      : c instanceof Prop ? new (c.constructor as any)(c.name, c.value)
       : c)
     )
-    
-    const content = this.fn 
-      ? this.fn(new NodeProxy(node), v, k) 
+
+    const content = this.fn
+      ? this.fn(new NodeProxy(node), v, k)
       : v
-    
+
     // console.log('generate', {v, k, node, fn: this.fn, content })
 
     if (content instanceof NodeProxy) {
-// console.log('******************************************')      
-    node = content[NODE]
+// console.log('******************************************')
+    node = (content as any)[NODE]
       // node = Node.add(node, content)[NODE]
-// console.log('******************************************')      
+// console.log('******************************************')
 // node = content[NODE]
     }
     else {
       Text.add(node, content)
     }
-    
+
     return node
   }
 }
 
 class Prop extends Child {
-  constructor(name, value) {
+  name: any
+  value: any
+  parent: any
+  constructor(name: any, value?: any) {
     super()
     this.name = name
     this.value = value
   }
 
-  static add(node, n, v) {
+  static add(node: any, n?: any, v?: any) {
     if (arguments.length == 2) v = true
-    typeof n === 'object' 
+    typeof n === 'object'
       ? node.children.push(...keys(n).map(k => new this(k, n[k])))
       : node.children.push(new this(n, v))
     return new NodeProxy(node)
   }
 
-  create(parent){
+  create(parent: any){
     this.parent = parent
     if (this.value?.[view]) {
       parent.nrefs ??= {}
@@ -504,23 +516,24 @@ class Prop extends Child {
     } else if (this.name?.[view]) {
       parent.arefs ??= []
       parent.arefs.push(this.name.connect(this, 'set'))
-    } else 
+    } else
       this.set = this.value
   }
 
-  set set(value) {
+  set set(value: any) {
     value === false || value === undefined
-      ? this.remove()
-      : this.add(value)
+      ? (this as any).remove()
+      : (this as any).add(value)
   }
 }
 
 class Attr extends Prop {
-  add(value) { this.parent.setAttribute(this.name, value) }
+  add(value: any) { this.parent.setAttribute(this.name, value) }
   remove() { this.parent.removeAttribute(this.name) }
 }
 
 class Class extends Prop {
+  _last: any
   // Two reactive shapes reach here:
   //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
   //                           add/remove toggle the fixed class `this.name`.
@@ -529,7 +542,7 @@ class Class extends Prop {
   //                           and we must remove the PREVIOUS class first or they
   //                           accumulate forever (the documented Reactive<string>
   //                           className never dropping the old class).
-  add(value) {
+  add(value: any) {
     const reactiveName = this.name?.[view]
     const cls = reactiveName ? value : this.name
     if (reactiveName && this._last !== undefined && this._last !== cls)
@@ -549,12 +562,13 @@ class ID extends Prop {
 }
 
 class Style extends Prop {
-  add(value) { this.parent.style.setProperty(this.name, value) }
+  add(value: any) { this.parent.style.setProperty(this.name, value) }
   remove() { this.parent.style.removeProperty(this.name) }
 }
 
 class Text extends Prop {
-  create(parent) {
+  dom: any
+  create(parent: any) {
     parent.appendChild(this.dom = document.createTextNode(''))
     super.create(parent)
   }
@@ -563,7 +577,7 @@ class Text extends Prop {
 }
 
 class Event extends Prop {
-  create(parent){
+  create(parent: any){
     parent.addEventListener(this.name.toLowerCase(), this.value)
   }
 }
@@ -573,7 +587,7 @@ class Event extends Prop {
 // hooks (focus, measure, attach a third-party library) where we need the
 // real DOM node, not a reactive binding. `node.ref(fn)` adds it.
 class Ref extends Prop {
-  create(parent) { this.name(parent) }
+  create(parent: any) { this.name(parent) }
 }
 
 const props = {
@@ -598,28 +612,30 @@ const props = {
 // The Proxy wraps `noop` so the result is callable, which is what makes
 // `HTML.div(child1, child2)` work as a method invocation.
 class NodeProxy {
-  constructor(node, prop) {
+  node: any
+  prop: any
+  constructor(node: any, prop?: any) {
     this.node = node;
     this.prop = prop;
-    return new Proxy(noop, this)
+    return new Proxy(noop, this as any) as any
   }
 
   set(){ throw 'cannot set properties' }
 
   deleteProperty(){ throw 'cannot delete properties' }
 
-  get(t, name){
+  get(t: any, name: any){
     const n = this.node
     if (name === NODE) return n
     else if (typeof name === 'symbol') return
     else if (name in props) return new NodeProxy(n, name)
     else if (name.startsWith('#')) return ID.add(n.new, name.slice(1), true)
     else if (name.startsWith('.')) return Class.add(n.new, name.slice(1), true)
-    else if (name.includes('=')) return Attr.add(n.new, ...name.split('='))
+    else if (name.includes('=')) return Attr.add(n.new, ...(name.split('=') as [any, any]))
     else return Class.add(n.new, name.replaceAll('_', '-'), true)
   }
 
-  apply(t, m, args) {
+  apply(t: any, m: any, args: any) {
     // Auto-spread a single array argument so `node(<Fragment>…</Fragment>)`
     // works equivalently to `node(...children)`. JSX Fragment evaluates to
     // an array of children; without this, the whole array would land in
@@ -627,10 +643,10 @@ class NodeProxy {
     // breaking row templates. Passing a bare array as the only positional
     // arg wasn't a documented builder pattern, so this is purely additive.
     if (args.length === 1 && isArray(args[0])) args = args[0]
-    return props[this.prop ?? 'nodes'].add(this.node.new, ...args)
+    return (props as any)[this.prop ?? 'nodes'].add(this.node.new, ...args)
   }
 
-  getPrototypeOf(targer){
+  getPrototypeOf(targer?: any){
     return NodeProxy.prototype
   }
 }
