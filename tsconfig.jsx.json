@@ -1,6 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    // The example JSX projects (examples/*-jsx, examples/chat) are NOT
+    // type-checked — only emitted. This used to be inherited from the root
+    // tsconfig's `noCheck: true`; now that the root no longer suppresses
+    // checking (the implementation is off @ts-nocheck), keep examples
+    // unchecked explicitly here. `tsc -p examples/<x>` still emits the .js.
+    "noCheck": true,
     "jsx": "react",
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment"

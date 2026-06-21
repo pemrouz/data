@@ -1,16 +1,18 @@
 {
-  // IMPLEMENTATION type-check ratchet (Stage 0 of the @ts-nocheck migration).
+  // IMPLEMENTATION type-check gate — the whole shipped library under `strict`.
   //
-  // The library implementation is currently `@ts-nocheck` on 100+ files, so the
-  // root tsconfig's `noCheck:true` means `tsc` checks nothing. This config flips
-  // `noCheck:false` over an ALLOWLIST of source files that are already type-clean
-  // (no `@ts-nocheck` needed). As a file is migrated off `@ts-nocheck` and made
-  // to compile, add it to `include` here. CI runs this NON-BLOCKING
-  // (continue-on-error) for now; once the list covers the whole implementation,
-  // flip it blocking and drop `noCheck` from the root tsconfig.
+  // The @ts-nocheck retirement is COMPLETE: every implementation file (core,
+  // all 16 operators, row, render, the full devtools layer, utils, register,
+  // the entry files) is off `@ts-nocheck` and listed below. This config sets
+  // `noCheck:false` and CI runs it BLOCKING (it was a non-blocking ratchet,
+  // grown one migrated file at a time, during the migration). The root
+  // tsconfig no longer sets `noCheck`, so the implementation is also checked by
+  // default in an editor.
   //
-  // (`*.d.ts` like jsx/jsx.d.ts are pulled in automatically via imports; only
-  // implementation `.ts` files need listing.)
+  // Keep this list in sync when adding an implementation file. (`*.d.ts` like
+  // jsx/jsx.d.ts are pulled in automatically via imports; only implementation
+  // `.ts` files need listing. Test/perf tooling files keep a local @ts-nocheck
+  // and are intentionally excluded.)
   "extends": "./tsconfig.json",
   "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM"] },
   "include": [

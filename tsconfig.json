@@ -23,7 +23,13 @@
     // "noLib": true,                                    /* Disable including any library files, including the default lib.d.ts. */
     // "useDefineForClassFields": true,                  /* Emit ECMAScript-standard-compliant class fields. */
     // "moduleDetection": "auto",                        /* Control what method is used to detect module-format JS files. */
-    "noCheck": true,
+    // noCheck was `true` here for the whole @ts-nocheck era (it made `tsc` a
+    // no-op so the blanket-suppressed implementation never tripped strict).
+    // The implementation is now fully off @ts-nocheck and type-checked via
+    // tsconfig.src.json (blocking in CI), so the root no longer suppresses —
+    // an IDE/editor now type-checks the implementation against `strict` below.
+    // (Examples keep their own noCheck in tsconfig.jsx.json; test/perf tooling
+    // files keep a local @ts-nocheck.)
 
     /* Modules */
     "allowImportingTsExtensions": true,

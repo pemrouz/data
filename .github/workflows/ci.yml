@@ -35,10 +35,12 @@ jobs:
         run: npm test
       - name: Type gate (public surface)
         run: npm run typecheck
-      # Implementation type-check ratchet (Stage 0 of the @ts-nocheck migration).
-      # NON-BLOCKING: surfaces the state of the migrated-file allowlist
-      # (tsconfig.src.json) without failing the build. Flip to blocking once the
-      # allowlist covers the whole implementation.
-      - name: Implementation type-check (ratchet, non-blocking)
+      # Implementation type-check — BLOCKING. The @ts-nocheck retirement is
+      # complete: every shipped-library file (core, all operators, row, render,
+      # the whole devtools layer, utils, register, the entry files) compiles
+      # clean under `strict` via tsconfig.src.json. This gate now fails the
+      # build on any implementation type error (it was a non-blocking ratchet
+      # during the migration). The root tsconfig's `noCheck` was dropped in the
+      # same change; test/perf tooling files keep a local @ts-nocheck.
+      - name: Implementation type-check (strict)
         run: npm run typecheck:src
-        continue-on-error: true
