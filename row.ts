@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray } from './utils.ts'
 import { Operator } from './core.ts'
 
@@ -24,7 +23,7 @@ export class RowOperator extends Operator {
   // the first slot) from flat ones. We classify each row as upsert/insert/
   // remove based on whether `process` returned a value before *and* now, then
   // batch the resulting deltas into a single set of downstream events.
-  loop(C, inc, inner) {
+  loop(C: any, inc: any, inner: any) {
     const NU1 = [], NI0 = [], NR1 = []
     // The source may have just been upgraded from a primitive/undefined (where
     // XU0 left view.value === undefined) to an object by this very write — lazily
@@ -62,10 +61,10 @@ export class RowOperator extends Operator {
   // collapse the operator to undefined since per-row semantics don't apply
   // (e.g. setting the source to a primitive). Array-vs-object shape is
   // mirrored from the source so `for...in` iteration stays consistent.
-  XU0(value){
+  XU0(value?: any){
     if (typeof value !== 'object' || value === null) return this.view.XU0(this.view.value = undefined)
     const arr = isArray(value)
-    const n = arr ? [] : {}
+    const n: any = arr ? [] : {}
     for (const i in value) {
       // Skip explicit-undefined holes: a FRESH between/intersect has true holes
       // (for-in skips them), but after a brush/membership-leave the excluded
@@ -85,11 +84,11 @@ export class RowOperator extends Operator {
     if (arr) n.length = value.length
     this.view.XU0(this.view.value = n)
   }
-  BU1(U1) { this.loop(U1, 2, false) }
-  BU2(U2) { this.loop(U2, 2, true ) }
-  BI0(I0) { this.loop(I0, 2, false) }
-  BI2(I2) { this.loop(I2, 3, true) }
-  BR2(R2) { this.loop(R2, 2, true) }
+  BU1(U1: any) { this.loop(U1, 2, false) }
+  BU2(U2: any) { this.loop(U2, 2, true ) }
+  BI0(I0: any) { this.loop(I0, 2, false) }
+  BI2(I2: any) { this.loop(I2, 3, true) }
+  BR2(R2: any) { this.loop(R2, 2, true) }
   XR0(){ super.XR0() }
   // Removes can't be derived from `process` (the row is already gone
   // upstream), so this branch is a straight propagation: drop from our
@@ -106,7 +105,7 @@ export class RowOperator extends Operator {
   // downstream array-aware operators can apply their own shift bookkeeping.
   // The `value !== undefined` guard is preserved for object sources where
   // there's no shift to track.
-  BR1(R1) {
+  BR1(R1: any) {
     const isArr = isArray(this.view.value)
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
@@ -136,7 +135,7 @@ export class RowOperator extends Operator {
   // convention so for-in skips it), and forward a positional BI0A so our own
   // array-aware sinks shift too. Object upstreams never reach here — core only
   // routes array inserts through BI0A — so the object path is untouched.
-  BI0A(I0) {
+  BI0A(I0: any) {
     const NI0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
@@ -158,7 +157,7 @@ export class RowOperator extends Operator {
   // slot to a hole, keeping length and positions aligned with the upstream — do
   // NOT splice (that would shift survivors the producer never moved). Forward a
   // BH1 so our own positional sinks mirror the hole rather than shifting.
-  BH1(R1) {
+  BH1(R1: any) {
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
       const name = R1[i++]
@@ -172,7 +171,7 @@ export class RowOperator extends Operator {
   // previously-holed position — length unchanged, no shift. Re-run `process`
   // and fill our slot in place if the row passes (otherwise leave it a hole).
   // Forward a BF0 so downstream fills in place too.
-  BF0(I0) {
+  BF0(I0: any) {
     const NF0 = []
     for (let i = 0; i < I0.length; i += 2) {
       const name = I0[i]
