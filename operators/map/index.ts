@@ -1,4 +1,5 @@
 import { createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
 // Map projects each row through `fn`. RowOperator handles all the
@@ -22,4 +23,4 @@ export class MapValue extends RowOperator {
   }
 }
 
-export const map = (source: any, fn: RowFn) => createOperator(source, MapValue, fn)
+export const map = <T>(source: Data<T>, fn: RowFn): Data<Record<string, any>> => createOperator(source, MapValue, fn)

@@ -1,4 +1,5 @@
 import { Operator, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // Does `fn` declare ANY parameter (even a defaulted or destructured one)?
 // `fn.length` excludes parameters with defaults and rest/destructuring, so
@@ -160,5 +161,5 @@ export class TapBareValue extends Operator {
 // 0-arg fn → TapBareValue (no clone, fires per emit), otherwise TapValue.
 // So `tap(src, () => redraw())` is cheap whether you reach for it via the
 // chainable proxy method or the standalone helper.
-export const tap = (source: any, fn: any) =>
+export const tap = <T>(source: Data<T>, fn: any): Data<T> =>
   createOperator(source, tapHasParam(fn) ? TapValue : TapBareValue, fn)

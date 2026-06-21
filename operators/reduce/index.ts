@@ -1,5 +1,6 @@
 import { iter, isArray } from '../../utils.ts'
 import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // `init` is the fold's SEED — its identity element (0, '', {}), not a reactive
 // input. A reactive ViewProxy seed is meaningless here AND silently misbehaves:
@@ -280,7 +281,7 @@ export class ReduceIncrementalValue extends Operator {
 // `reduce(fn, $(x))` (a 2-arg fold with a reactive init) would misdispatch to
 // the 3-arg incremental form (remove = the proxy, init = undefined) and dodge
 // the assertPlainInit guard — it must route to ReduceValue(fn, $(x)) and throw.
-export const reduce = (source: any, fnOrAdd: any, removeOrInit: any, init?: any) =>
+export const reduce = <T>(source: Data<T>, fnOrAdd: any, removeOrInit: any, init?: any): Data<any> =>
   typeof removeOrInit === 'function' && !(removeOrInit instanceof ViewProxy)
     ? createOperator(source, ReduceIncrementalValue, fnOrAdd, removeOrInit, init)
     : createOperator(source, ReduceValue, fnOrAdd, removeOrInit)

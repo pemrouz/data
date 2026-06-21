@@ -19,6 +19,7 @@
 
 import { RowOperator } from '../../row.ts'
 import { createOperator, ViewProxy, view, bindReactive } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 abstract class CompareValue extends RowOperator {
   declare col: any
@@ -63,7 +64,7 @@ export class LtValue  extends CompareValue { _cmp(x: any) { return x <  this._va
 export class GteValue extends CompareValue { _cmp(x: any) { return x >= this._val } }
 export class LteValue extends CompareValue { _cmp(x: any) { return x <= this._val } }
 
-export const gt  = (source: any, col: any, val: any) => createOperator(source, GtValue,  col, val)
-export const lt  = (source: any, col: any, val: any) => createOperator(source, LtValue,  col, val)
-export const gte = (source: any, col: any, val: any) => createOperator(source, GteValue, col, val)
-export const lte = (source: any, col: any, val: any) => createOperator(source, LteValue, col, val)
+export const gt  = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, GtValue,  col, val)
+export const lt  = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, LtValue,  col, val)
+export const gte = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, GteValue, col, val)
+export const lte = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, LteValue, col, val)

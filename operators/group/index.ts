@@ -1,5 +1,6 @@
 import { isArray, iter, isEmpty } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 
 // GroupValue maintains, for each upstream key (object name or array position),
 // a record of which group its row belongs to and where in that group's bucket
@@ -492,4 +493,4 @@ export class GroupValue extends Operator {
   BI2() {}
 }
 
-export const group = (source: any, fn: any) => createOperator(source, GroupValue, fn)
+export const group = <T>(source: Data<T>, fn: any): Data<Record<string, RowOf<T>>> => createOperator(source, GroupValue, fn)

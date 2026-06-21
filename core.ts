@@ -194,7 +194,13 @@ const _rootFinalizer = typeof FinalizationRegistry !== 'undefined'
  * (`src.filter(...)`) instead; reach for this only when authoring a new
  * operator or wiring one that isn't registered. See operators/README.md.
  */
-export function createOperator(source: any, OperatorClass: any, ...args: any[]) {
+// Returns `any` (not the bare `ViewProxy` it constructs): the typed result a
+// consumer wants comes from each function-style factory's own return annotation
+// (`sum(...): Data<number>`, `filter(...): Data<T>`, …), and `any` lets those
+// precise generic `Data<T>` returns flow without a per-factory cast. A direct
+// `createOperator(...)` caller (rare — authoring an unregistered operator) reads
+// `[value]`/chains off it fine, which the old `[value]`-less `ViewProxy` blocked.
+export function createOperator(source: any, OperatorClass: any, ...args: any[]): any {
   const p = source[view]
   // some_sink returns whatever the predicate returns, so the predicate has
   // to yield the sink itself (not a boolean) for the dedup branch to find it.

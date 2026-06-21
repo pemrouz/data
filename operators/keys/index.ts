@@ -1,5 +1,6 @@
 import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 
 // `proxy.keys()` and `proxy.values()` materialize the source's current
 // keys / values as a plain array reactive view. Incremental on inserts
@@ -81,5 +82,5 @@ export class ValuesValue extends CollectionView {
   constructor(p: any) { super(p, false) }
 }
 
-export const keys   = (source: any) => createOperator(source, KeysValue)
-export const values = (source: any) => createOperator(source, ValuesValue)
+export const keys   = <T>(source: Data<T>): Data<string[]> => createOperator(source, KeysValue)
+export const values = <T>(source: Data<T>): Data<RowOf<T>[]> => createOperator(source, ValuesValue)

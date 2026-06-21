@@ -1,5 +1,6 @@
 import { isArray, bisect_right, bisect_left } from '../../utils.ts'
 import { Operator, value, view, ViewProxy, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // ZAValue is the descending sort + top-n. State:
 //   sorted   — every source key in descending order (kept fully so we can
@@ -931,9 +932,9 @@ export class LimitValue extends Operator {
   BI2(){}
 }
 
-export const sort = (source: any, a: any, b?: any) => {
+export const sort = <T>(source: Data<T>, a: any, b?: any): Data<T> => {
   const Class = typeof a === 'string' ? ZAColumnValue : ZANumberValue
   return createOperator(source, Class, a, b)
 }
 
-export const limit = (source: any, n: any) => createOperator(source, LimitValue, n)
+export const limit = <T>(source: Data<T>, n: any): Data<T> => createOperator(source, LimitValue, n)

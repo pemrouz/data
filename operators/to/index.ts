@@ -1,4 +1,5 @@
 import { Operator, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // `.to(fn)` is the whole-value projection: every upstream change collapses
 // to a single XU0 of `fn(source, prev)`. Useful for derived scalars (e.g.
@@ -31,4 +32,4 @@ export class ToValue extends Operator {
   BI2(){ this.XU0(this.p.value) }
 }
 
-export const to = (source: any, fn: (value: any, prev?: any) => any) => createOperator(source, ToValue, fn)
+export const to = <T, R>(source: Data<T>, fn: (value: T, prev?: any) => R): Data<R> => createOperator(source, ToValue, fn)

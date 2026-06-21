@@ -1,5 +1,6 @@
 import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 
 // `proxy.reverse()` materializes the source's array (or object's values)
 // in reverse order. Incremental on inserts: a new key (BI0) prepends to
@@ -66,4 +67,4 @@ export class ReverseValue extends Operator {
   BI2() { this._rebuild() }
 }
 
-export const reverse = (source: any) => createOperator(source, ReverseValue)
+export const reverse = <T>(source: Data<T>): Data<RowOf<T>[]> => createOperator(source, ReverseValue)

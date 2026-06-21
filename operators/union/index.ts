@@ -1,5 +1,6 @@
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // `proxy.union(...sources)` keeps rows present in ANY source — bitmask
 // counterpart to intersect. A row enters the output when at least one
@@ -327,4 +328,4 @@ export class UnionValue extends Operator {
   }
 }
 
-export const union = (source: any, ...others: any[]) => createOperator(source, UnionValue, ...others)
+export const union = <T>(source: Data<T>, ...others: any[]): Data<T> => createOperator(source, UnionValue, ...others)

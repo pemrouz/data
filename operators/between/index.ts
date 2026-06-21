@@ -1,5 +1,6 @@
 import { isArray, iter, left, right } from '../../utils.ts'
 import { $, Operator, ViewProxy, createOperator, view } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // BetweenValue is the range filter. The user calls `data.between('col', [lo,
 // hi])` typically with reactive bounds (a brush rectangle on a chart) — the
@@ -508,4 +509,4 @@ export class BetweenValue extends Operator {
   }
 }
 
-export const between = (source: any, col: any, arg: any) => createOperator(source, BetweenValue, col, arg)
+export const between = <T>(source: Data<T>, col: any, arg: any): Data<T> => createOperator(source, BetweenValue, col, arg)

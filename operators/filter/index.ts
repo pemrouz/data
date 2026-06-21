@@ -1,5 +1,6 @@
 import { isArray } from '../../utils.ts'
 import { createOperator, ViewProxy, value } from '../../core.ts'
+import type { Data } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
 // Walks a key path against a (possibly nested) row. Returns undefined if any
@@ -148,7 +149,7 @@ export class FilterColumnValue extends FilterValue {
   }
 }
 
-export const filter = (source: any, a: any, b?: any) => {
+export const filter = <T>(source: Data<T>, a: any, b?: any): Data<T> => {
   const Class = typeof a === 'function' ? FilterValue
               : typeof a === 'string'   ? FilterStringValue
               : isArray(a)              ? FilterColumnValue

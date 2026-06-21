@@ -1,5 +1,6 @@
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // `proxy.except(other)` is rows in the source but NOT in `other` — set
 // difference. Mirrors intersect's bitmask machinery for the negative
@@ -266,4 +267,4 @@ export class ExceptValue extends Operator {
   }
 }
 
-export const except = (source: any, other: any) => createOperator(source, ExceptValue, other)
+export const except = <T>(source: Data<T>, other: any): Data<T> => createOperator(source, ExceptValue, other)

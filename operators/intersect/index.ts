@@ -1,5 +1,6 @@
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, reactive, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // A dims-style object: plain object (not a ViewProxy, not an array) whose
 // values are the source ViewProxies to intersect. Used by the
@@ -412,4 +413,4 @@ export class IntersectValue extends Operator {
   }
 }
 
-export const intersect = (source: any, ...others: any[]) => createOperator(source, IntersectValue, ...others)
+export const intersect = <T>(source: Data<T>, ...others: any[]): Data<T> => createOperator(source, IntersectValue, ...others)

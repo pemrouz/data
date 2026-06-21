@@ -1,5 +1,6 @@
 import { isArray, iter } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // Two flavours of length: a scalar count of rows (LengthValue) and a
 // histogram-by-fn (LengthFnValue). The scalar form just adds/subtracts
@@ -194,4 +195,4 @@ export class LengthFnValue extends Operator {
   BI2(){}
 }
 
-export const length = (source: any, fn?: any) => createOperator(source, fn ? LengthFnValue : LengthValue, fn)
+export const length = <T>(source: Data<T>, fn?: any): Data<any> => createOperator(source, fn ? LengthFnValue : LengthValue, fn)

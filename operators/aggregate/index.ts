@@ -1,5 +1,6 @@
 import { iter, isArray } from '../../utils.ts'
 import { Operator, createOperator, ViewProxy, view } from '../../core.ts'
+import type { Data } from '../../core.ts'
 
 // Common per-row tracking for scalar aggregates. `tracked.get(name)` returns
 // the projected column value for each row currently included in the source;
@@ -421,9 +422,14 @@ export class EveryValue extends AggregateValue {
   }
 }
 
-export const sum   = (source: any, col?: any) => createOperator(source, SumValue, col)
-export const avg   = (source: any, col?: any) => createOperator(source, AvgValue, col)
-export const max   = (source: any, col?: any) => createOperator(source, MaxValue, col)
-export const min   = (source: any, col?: any) => createOperator(source, MinValue, col)
-export const some  = (source: any, fn: any)  => createOperator(source, SomeValue, fn)
-export const every = (source: any, fn: any)  => createOperator(source, EveryValue, fn)
+// Function-style aggregate factories. Unlike the method-style `proxy.sum(...)`
+// (typed via DataOps), these return `createOperator`'s result — now a typed
+// `Data`, so `sum(src, 'col')[value]` reads as a number. `source: Data<T>` only
+// drives inference for the row-typed return shapes; `col`/`fn` stay loose (the
+// precise column key-check is a method-style nicety, not replicated here).
+export const sum   = <T>(source: Data<T>, col?: any): Data<number>             => createOperator(source, SumValue, col)
+export const avg   = <T>(source: Data<T>, col?: any): Data<number | undefined> => createOperator(source, AvgValue, col)
+export const max   = <T>(source: Data<T>, col?: any): Data<any>                => createOperator(source, MaxValue, col)
+export const min   = <T>(source: Data<T>, col?: any): Data<any>                => createOperator(source, MinValue, col)
+export const some  = <T>(source: Data<T>, fn: any):  Data<boolean>            => createOperator(source, SomeValue, fn)
+export const every = <T>(source: Data<T>, fn: any):  Data<boolean>            => createOperator(source, EveryValue, fn)

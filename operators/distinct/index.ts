@@ -1,5 +1,6 @@
 import { iter, identity, isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 
 // Sentinel returned by `_update` when an in-place edit moves a bucket's
 // *representative* row to a new key while the bucket stays occupied — that
@@ -184,4 +185,4 @@ export class DistinctValue extends Operator {
   BI2() { this._rebuild() }
 }
 
-export const distinct = (source: any, fn?: any) => createOperator(source, DistinctValue, fn)
+export const distinct = <T>(source: Data<T>, fn?: any): Data<RowOf<T>[]> => createOperator(source, DistinctValue, fn)
