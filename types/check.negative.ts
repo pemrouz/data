@@ -74,6 +74,12 @@ const rows = $([{ n: 1 }])
 // @ts-expect-error — `bogus` is not a field of the row { n: number }
 HTML.li(rows, (li, item) => li.text(item.bogus))
 
+// Devtools helpers are typed ONLY when `data/devtools` is imported (this file
+// doesn't). On the base `$`, `inspect` is not a member (B6). `random`/`debug`
+// ARE always present, so those are exercised positively in check.devtools.ts.
+// @ts-expect-error — $.inspect requires importing data/devtools
+$.inspect(rows)
+
 // --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
 // Each of these COMPILES CLEAN today (the surface is loose there), so marking it
 // now would itself fail as an unused directive. The owning B-tier commit both

@@ -146,7 +146,19 @@ function makeDollar() {
   f.random = (o) => crypto.randomUUID()  // overridable for deterministic IDs in tests
   return f
 }
-export const $ = (globalThis[Symbol.for('data.$')] ??= makeDollar()) as <T>(v: T) => Data<T>
+// `$` is callable AND carries a couple of always-present knobs (`random` for
+// deterministic test IDs, the `debug` dev flag). Naming the type lets the opt-in
+// `data/devtools` entry augment it (`declare module './core.ts'`) with its
+// inspection helpers (`$.inspect`/`$.graph`/…) — see devtools/augment.ts — so
+// they're typed when, and only when, devtools is imported.
+export interface Dollar {
+  <T>(v: T): Data<T>
+  /** Override the id generator — set to a deterministic fn in tests. */
+  random: (o?: any) => string
+  /** Dev flag (e.g. an asymmetric 3-arg `reduce` warns on drift when true). */
+  debug?: boolean
+}
+export const $ = (globalThis[Symbol.for('data.$')] ??= makeDollar()) as Dollar
 export default $
 
 // Internal hooks for the optional devtools entrypoint (see devtools/walk.ts).

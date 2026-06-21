@@ -13,5 +13,5 @@ export { default } from './core.ts'
 // (`const rows: Data<Order[]>`, `(change: ChangeRecord) => …`) rather than only
 // receive them anonymously from `$`. Propagates to `data` and `data/full` via
 // their `export *` re-export of this entry.
-export type { Data, DataOps, ChangeRecord, Reactive, RowOf } from './core.ts'
+export type { Data, DataOps, ChangeRecord, Reactive, RowOf, Dollar } from './core.ts'
 export { render, HTML, SVG } from './render/index.ts'

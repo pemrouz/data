@@ -5,6 +5,7 @@
 // machinery (trace/profile and the View.prototype patches that drive them)
 // lives in instrument.ts and gets layered on top.
 import { $, view, _devtoolsRoots, ViewProxy, Operator } from '../core.ts'
+import './augment.ts'  // declare-module merge: types $.inspect/$.graph/… on Dollar
 import { walk, classify, iterRoots, internalRoot } from './walk.ts'
 import { ensureInstrumented, restoreInstrumentation } from './instrument.ts'
 import {

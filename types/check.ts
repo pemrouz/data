@@ -3,7 +3,7 @@
 // this with noCheck:false so the Data<T>/HTML/SVG/jsx types are actually
 // validated against how the docs say to use them.
 import { $, value, render, HTML, SVG } from '../full.ts'
-import type { Data, DataOps, ChangeRecord, Reactive, RowOf } from '../full.ts'
+import type { Data, DataOps, ChangeRecord, Reactive, RowOf, Dollar } from '../full.ts'
 
 // --- operator chains, OBJECT source ---
 const obj = $({ a: { n: 1 }, b: { n: 5 } })
@@ -82,6 +82,7 @@ typedRows.connect(document.body, onChange)
 const _ops: DataOps<Order[]> = typedRows
 const _bound: Reactive<number> = $(3)
 const _row: RowOf<Order[]> = { amount: 2 }
-void _ops; void _bound; void _row
+const _dollar: Dollar = $
+void _ops; void _bound; void _row; void _dollar
 
 void value
