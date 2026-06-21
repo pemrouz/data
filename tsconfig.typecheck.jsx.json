@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.jsx.json",
+  "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true },
+  "include": ["types/check.tsx", "jsx/jsx.d.ts"]
+}
