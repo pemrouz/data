@@ -1,0 +1,37 @@
+name: CI
+
+# Fast, deterministic gates on every push to main and every PR:
+#   - the unit suite (`npm test` — node --test reads the .ts sources directly
+#     via --experimental-strip-types, no build step), and
+#   - the public-type gate (`npm run typecheck` — tsc over the consumer fixtures
+#     types/check.ts + types/check.negative.ts, with noCheck:false).
+#
+# Deliberately NOT gated here (run locally instead):
+#   - `npm run perf` — median-of-5 timing assertions, too noisy on shared runners.
+#   - `npm run test:render` — Playwright e2e; the webServer build races the
+#     timeout and the crossfilter specs flake under parallel browsers (see
+#     CLAUDE.md / e2e notes). Add with care + --workers=1 if ever needed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Type gate (public surface)
+        run: npm run typecheck
