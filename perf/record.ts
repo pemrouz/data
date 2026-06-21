@@ -1,4 +1,3 @@
-// @ts-nocheck
 // perf/record.ts — durable emission side-channel for the perf REPORT.
 //
 // Each record() appends ONE JSON line to perf/results/<run-id>/<harness>.jsonl.
@@ -27,7 +26,7 @@ mkdirSync(resultsDir, { recursive: true })
 // Per-harness specialization lives under `dims`, never a new top-level field.
 //   { id, harness, op, case, kind:'timing'|'count'|'bool'|'ratio'|'attr',
 //     unit, value, dims:{…}, stats?:{…}, instrument?:{…}, frames?:[…] }
-export function record(row) {
+export function record(row: any) {
   const harness = row.harness || 'misc'
   appendFileSync(join(resultsDir, `${harness}.jsonl`), JSON.stringify(row) + '\n')
 }

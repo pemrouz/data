@@ -1,4 +1,3 @@
-// @ts-nocheck
 // perf/run-report.ts — standalone perf-REPORT sweep (NOT the ok() gate).
 //
 // Runs in its own process under
@@ -26,7 +25,7 @@ import { benchMeasure as measure, median } from './measure.ts'
 import * as WL from './workloads.ts'
 import { record, resultsDir } from './record.ts'
 
-const pct = (sorted, p) =>
+const pct = (sorted: any, p: any) =>
   sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]
 
 // ---------------------------------------------------------------------------
@@ -38,8 +37,8 @@ const pct = (sorted, p) =>
 // last operator (reduce) migrated. The report nests rows harness → op → case.
 // ---------------------------------------------------------------------------
 function backfillOperators() {
-  const r4 = x => +x.toFixed(4)
-  const emit = (op, kase, ms, dims) => record({
+  const r4 = (x: any) => +x.toFixed(4)
+  const emit = (op: any, kase: any, ms: any, dims: any) => record({
     id: `${op}/${kase}@N=${dims.N}`, harness: 'ops', group: op, op, case: kase,
     kind: 'timing', dir: 'down', unit: 'ms', value: r4(ms), dims, stats: { median: r4(ms) },
   })
@@ -50,7 +49,7 @@ function backfillOperators() {
         emit(spec.label ?? name, kase, measure(w.run, w.reps), { N: spec.N, ...(w.batch ? { batch: w.batch } : {}) })
         n++
       }
-    } catch (e) {
+    } catch (e: any) {
       console.log(`[backfill] ${spec.label ?? name} (workload) skipped: ${e.message}`)
     }
   }
@@ -62,7 +61,7 @@ function backfillOperators() {
 // ---------------------------------------------------------------------------
 function h4BrushTail() {
   const N = 50_000
-  const data = {}
+  const data: any = {}
   for (let i = 0; i < N; i++) data[i] = { x: (i * 733) % 1000, v: (i * 277) % 1000 }
   const src = $(data)
 
@@ -77,9 +76,9 @@ function h4BrushTail() {
   top.connect([])
   n.connect([])
 
-  const frames = []
-  const phases = []
-  const frame = (phase, fn) => {
+  const frames: any[] = []
+  const phases: any[] = []
+  const frame = (phase: any, fn: any) => {
     const t0 = performance.now()
     fn()
     frames.push(performance.now() - t0)
@@ -114,8 +113,8 @@ function h4BrushTail() {
   const mx = sorted[sorted.length - 1]
   let wi = 0
   for (let i = 1; i < frames.length; i++) if (frames[i] > frames[wi]) wi = i
-  const viol16 = frames.filter(f => f > 16).length
-  const viol33 = frames.filter(f => f > 33).length
+  const viol16 = frames.filter((f: any) => f > 16).length
+  const viol33 = frames.filter((f: any) => f > 33).length
 
   // Attribution by phase — honest for a v1 synthetic tail: the worst frame's
   // phase points at the dominant operator/verb that owned it.
@@ -126,7 +125,7 @@ function h4BrushTail() {
       ? { op: 'between', verb: 'XU0', note: 'window-collapse re-walk' }
       : { op: 'za', verb: 'window', note: 'windowed top-K churn' }
 
-  const r3 = x => +x.toFixed(3)
+  const r3 = (x: any) => +x.toFixed(3)
   record({
     id: 'tail/crossfilter-brush',
     harness: 'H4',
@@ -158,35 +157,35 @@ function h4BrushTail() {
 // ---------------------------------------------------------------------------
 function h1Complexity() {
   const N = 5000
-  const emit = (op, kase, count, note) => record({
+  const emit = (op: any, kase: any, count: any, note: any) => record({
     id: `${op}/${kase}@N=${N}`, harness: 'H1', group: op, op, case: kase,
     kind: 'count', dir: 'down', unit: 'ops', value: count,
     dims: { N }, stats: { count }, instrument: { readsPerInsert: count, 'reads/N': +(count / N).toFixed(4) }, note,
   })
-  const obj = build => { const o = {}; for (let i = 0; i < N; i++) o[i] = build(i); return o }
+  const obj = (build: any) => { const o: any = {}; for (let i = 0; i < N; i++) o[i] = build(i); return o }
   // aggregate: object insert is O(1) (BI0 projects one row); array insert is the
   // O(N) XU0 rebuild (P7 — positions shift, no sound incremental path).
   {
-    let c = 0; const s = $(obj(i => ({ active: true, val: i }))); const a = s.some(r => { c++; return r.active }); a[value]; c = 0
+    let c = 0; const s = $(obj((i: any) => ({ active: true, val: i }))); const a = s.some((r: any) => { c++; return r.active }); a[value]; c = 0
     s.insert({ active: true, val: N }); emit('aggregate', 'object-insert', c, 'O(1) incremental BI0')
   }
   {
     let c = 0; const arr = []; for (let i = 0; i < N; i++) arr.push({ active: true, val: i }); const s = $(arr)
-    const a = s.some(r => { c++; return r.active }); a[value]; c = 0
+    const a = s.some((r: any) => { c++; return r.active }); a[value]; c = 0
     s.insert({ active: true, val: N }); emit('aggregate', 'array-insert', c, 'O(N) XU0 rebuild (P7)')
   }
   // reduce: incremental form add()s once; the general fold re-folds all N.
   {
-    let c = 0; const s = $(obj(i => ({ val: i }))); const a = s.reduce((acc, r) => { c++; return acc + r.val }, (acc, r) => acc - r.val, 0); a[value]; c = 0
+    let c = 0; const s = $(obj((i: any) => ({ val: i }))); const a = s.reduce((acc: any, r: any) => { c++; return acc + r.val }, (acc: any, r: any) => acc - r.val, 0); a[value]; c = 0
     s.insert({ val: N }); emit('reduce', 'inc-insert', c, 'O(1) incremental add()')
   }
   {
-    let c = 0; const s = $(obj(i => ({ val: i }))); const a = s.reduce((acc, r) => { c++; return acc + r.val }, 0); a[value]; c = 0
+    let c = 0; const s = $(obj((i: any) => ({ val: i }))); const a = s.reduce((acc: any, r: any) => { c++; return acc + r.val }, 0); a[value]; c = 0
     s.insert({ val: N }); emit('reduce', 'full-insert', c, 'O(N) general re-fold')
   }
   // length(fn): one rebucket key-fn call per inserted row.
   {
-    let c = 0; const s = $(obj(i => ({ bucket: i % 100 }))); const l = s.length(d => { c++; return d.bucket }); l[value]; c = 0
+    let c = 0; const s = $(obj((i: any) => ({ bucket: i % 100 }))); const l = s.length((d: any) => { c++; return d.bucket }); l[value]; c = 0
     s.insert({ bucket: 7 }); emit('length(fn)', 'rebucket-insert', c, 'O(1) one rebucket')
   }
   console.log('[h1] 5 complexity-count rows')
@@ -208,13 +207,13 @@ function h6SelfRegression() {
   const histPath = join(dirname(dirname(resultsDir)), 'history.jsonl')
   if (!existsSync(histPath)) { console.log('[h6] no history yet — skipping'); return }
   const lines = readFileSync(histPath, 'utf8').split('\n').filter(Boolean).slice(-12)
-  const priors = {}
+  const priors: any = {}
   for (const l of lines) {
     const { points } = JSON.parse(l)
     for (const id in points) (priors[id] ??= []).push(points[id])
   }
   // this run's ops timing rows, just written to the run dir
-  const current = {}
+  const current: any = {}
   const opsFile = join(resultsDir, 'ops.jsonl')
   if (existsSync(opsFile))
     for (const l of readFileSync(opsFile, 'utf8').split('\n').filter(Boolean)) {
@@ -228,7 +227,7 @@ function h6SelfRegression() {
   // a real jump on a tight row (setup at 42±2ms) clears its tiny 3σ and is. FLOOR
   // skips sub-ms rows where any ms of jitter looks like a multiple.
   const THRESH = 1.5, FLOOR_MS = 5, MIN_DELTA = 3
-  const mad = arr => { const m = median(arr); return median(arr.map(x => Math.abs(x - m))) }
+  const mad = (arr: any) => { const m = median(arr); return median(arr.map((x: any) => Math.abs(x - m))) }
   const regressions = []
   for (const id in current) {
     const prior = priors[id]

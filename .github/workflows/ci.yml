@@ -44,3 +44,9 @@ jobs:
       # same change; test/perf tooling files keep a local @ts-nocheck.
       - name: Implementation type-check (strict)
         run: npm run typecheck:src
+      # Tooling type-check — BLOCKING. The test/perf/bench files are migrating
+      # off @ts-nocheck one batch at a time into tsconfig.tooling.json (separate
+      # from tsconfig.src.json so the implementation gate stays library-only).
+      # Files not yet migrated keep their local @ts-nocheck and are excluded.
+      - name: Tooling type-check (strict)
+        run: npm run typecheck:tooling

@@ -1,0 +1,21 @@
+{
+  // TOOLING type-check gate — the test/perf/bench files, migrated off
+  // @ts-nocheck one reviewed batch at a time (mirrors how tsconfig.src.json
+  // grew for the implementation). Kept SEPARATE from tsconfig.src.json so the
+  // IMPLEMENTATION gate stays a clean "shipped library only" surface; this one
+  // covers the perf harness, the per-operator perf drivers, the unit tests, and
+  // the comparison bench as they migrate. Files not yet listed keep their local
+  // @ts-nocheck. `noCheck:false` + CI runs it BLOCKING.
+  //
+  // Tooling is `any`-heavy by nature (workload closures, ad-hoc fixtures); the
+  // value here is catching a genuinely broken import / dead assertion / wrong
+  // workload shape, not internal soundness — same bargain as tsconfig.src.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM"] },
+  "include": [
+    "perf/measure.ts",
+    "perf/record.ts",
+    "perf/workloads.ts",
+    "perf/run-report.ts"
+  ]
+}

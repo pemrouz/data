@@ -1,4 +1,3 @@
-// @ts-nocheck
 // perf/measure.ts — the ONE timing primitive for the whole repo. Two presets,
 // never one global default:
 //
