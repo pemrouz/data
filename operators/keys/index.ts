@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
@@ -15,7 +14,8 @@ import { Operator, createOperator } from '../../core.ts'
 // lists EVER-seen categories, including currently-empty ones; filter on count if
 // you need only the live ones. See CLAUDE.md gotchas.
 class CollectionView extends Operator {
-  constructor(p, isKeys) {
+  declare isKeys: boolean
+  constructor(p: any, isKeys: boolean) {
     super()
     this.p = p
     this.isKeys = isKeys
@@ -40,7 +40,7 @@ class CollectionView extends Operator {
     this.view.XU0(next)
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     // Array upstreams (a sort/limit window, or arr.insert at a position) deliver
     // BI0 with a POSITIONAL `at`, not an append: a row entering a sort window at
@@ -74,12 +74,12 @@ class CollectionView extends Operator {
 }
 
 export class KeysValue extends CollectionView {
-  constructor(p) { super(p, true) }
+  constructor(p: any) { super(p, true) }
 }
 
 export class ValuesValue extends CollectionView {
-  constructor(p) { super(p, false) }
+  constructor(p: any) { super(p, false) }
 }
 
-export const keys   = (source) => createOperator(source, KeysValue)
-export const values = (source) => createOperator(source, ValuesValue)
+export const keys   = (source: any) => createOperator(source, KeysValue)
+export const values = (source: any) => createOperator(source, ValuesValue)

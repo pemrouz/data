@@ -19,6 +19,7 @@
     "jsx-runtime.ts",
     "jsx-dev-runtime.ts",
     "devtools/augment.ts",
-    "operators/map/index.ts"
+    "operators/map/index.ts",
+    "operators/keys/index.ts"
   ]
 }

@@ -528,8 +528,10 @@ export class Value {
 
   // Idempotent: a Value already at undefined emits nothing. Returns false so
   // callers can short-circuit when nothing happened (used by Sink chains that
-  // skip propagation on no-ops).
-  XR0() {
+  // skip propagation on no-ops). Return typed `any`: the `false` is an internal
+  // short-circuit sentinel, while most subclass overrides return void — typing
+  // it `false | undefined` would make every void override a TS2416 mismatch.
+  XR0(): any {
     if (this.view.value === undefined) return false
     const value = this.view.value
     this.view.value = undefined
@@ -915,7 +917,7 @@ export class View {
   // present in the new value gets a refresh (XU0), any name that vanished
   // gets a clear (XR0). The `if (this.p)` re-reads our slice from the parent
   // because XU0 on the parent already mutated `p.value`; we just mirror it.
-  XU0() {
+  XU0(value?: any) {
     if (this.p) this.value = this.p.value?.[this.name]
     this.each((name, child) => {
       if (this.value?.[name] !== undefined)
