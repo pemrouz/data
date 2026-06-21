@@ -11,29 +11,19 @@ export { jsx, jsxs, Fragment } from './jsx/index.ts'
 // The automatic runtime resolves `JSX.IntrinsicElements` from the EXPORTED `JSX`
 // namespace of this module (TS 5.1+). Without it, every JSX element under
 // `jsxImportSource: "data"` errored TS7026 ("no interface
-// JSX.IntrinsicElements exists"), making the published entry unusable. The
-// per-tag precision of the classic-transform jsx/jsx.d.ts isn't repeated here;
-// instead every tag shares one open prop bag (className/class/style/on*/
-// children/key + reactive values + an index signature for data-*/aria-*/custom
-// attrs and tags). Reactive bindings (a ViewProxy, a callable Proxy) type-check
-// via `Reactive<T>`.
+// JSX.IntrinsicElements exists"), making the published entry unusable.
+//
+// It now aliases the SAME per-tag interfaces as the classic transform, from the
+// shared ./jsx/intrinsics.ts — so the automatic runtime gains full per-tag
+// narrowing (a bad `<input type>`, a wrong-typed prop, etc. are caught) instead
+// of the all-`any` prop bag it used to expose, and classic/automatic can't
+// drift. tsup's rollup-dts inlines the shared interfaces into the emitted
+// dist/jsx-runtime.d.ts.
+import type * as I from './jsx/intrinsics.ts'
+
 export namespace JSX {
-  type AnyVP = ((...a: any[]) => any) & { [k: string | symbol]: any }
-  type Reactive<T> = T | AnyVP
-  export type Element = any
-  export interface ElementChildrenAttribute { children: {} }
-  export interface IntrinsicAttributes { key?: string | number }
-  export interface DOMProps {
-    ref?: (el: any) => void
-    key?: string | number
-    children?: any
-    className?: Reactive<string>
-    class?: Reactive<string> | { [name: string]: Reactive<boolean> }
-    style?: { [prop: string]: Reactive<string | number> }
-    id?: Reactive<string>
-    [attr: string]: any   // on*Event handlers, data-*/aria-*, any HTML/SVG attr
-  }
-  export interface IntrinsicElements {
-    [tag: string]: DOMProps
-  }
+  export type Element = I.Element
+  export type IntrinsicElements = I.IntrinsicElements
+  export type ElementChildrenAttribute = I.ElementChildrenAttribute
+  export type IntrinsicAttributes = I.IntrinsicAttributes
 }

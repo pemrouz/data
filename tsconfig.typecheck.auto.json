@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noCheck": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "data",
+    "baseUrl": ".",
+    "paths": { "data/jsx-runtime": ["./jsx-runtime.ts"] }
+  },
+  "include": ["types/check.auto.tsx"]
+}
