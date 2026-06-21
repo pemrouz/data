@@ -28,6 +28,9 @@
     "operators/tap/index.ts",
     "operators/distinct/index.ts",
     "operators/length/index.ts",
-    "operators/aggregate/index.ts"
+    "operators/aggregate/index.ts",
+    "operators/group/index.ts",
+    "operators/union/index.ts",
+    "operators/except/index.ts"
   ]
 }

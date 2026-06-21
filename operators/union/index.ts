@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, createOperator } from '../../core.ts'
 
@@ -8,7 +7,11 @@ import { Operator, view, createOperator } from '../../core.ts'
 // order) that has the row. Rebuild on every change is O(rows × sources);
 // the bitmask form below is O(1) per delta.
 export class UnionValue extends Operator {
-  constructor(p, ...sources) {
+  declare sources: Map<any, any>
+  declare allSources: any[]
+  declare filters: any
+  declare all_off: any
+  constructor(p: any, ...sources: any[]) {
     super()
     this.p = p
     // Source bitmask map (source.view → { one, off }) — same layout as
@@ -24,17 +27,17 @@ export class UnionValue extends Operator {
     }
 
     if (typeof p.value !== 'object') { super.XU0(); return }
-    const new_value = isArray(p.value) ? [] : {}
+    const new_value: any = isArray(p.value) ? [] : {}
     this.filters = isArray(p.value) ? [] : {}
     // Walk every source's value to seed bitmasks; for each row, pick the
     // value from the first source containing it.
     for (const src of this.allSources) {
-      iter(src.value, (i, v) => {
+      iter(src.value, (i: any, v: any) => {
         if (v === undefined) return
         this.filters[i] |= this.sources.get(src).one
       })
     }
-    iter(this.filters, (i, b) => {
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined && b !== 0) {
         new_value[i] = this._pick(i)
       }
@@ -44,7 +47,7 @@ export class UnionValue extends Operator {
 
   // Resolve a row's value: scan sources in argument order, take the first
   // that has the row defined.
-  _pick(name) {
+  _pick(name: any) {
     for (const src of this.allSources) {
       const v = src.value?.[name]
       if (v !== undefined) return v
@@ -52,33 +55,33 @@ export class UnionValue extends Operator {
     return undefined
   }
 
-  XR0(_, v){
+  XR0(_?: any, v?: any){
     const { off } = this.sources.get(v)
     const { all_off } = this
-    iter(this.filters, (i, b) => {
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined) this.filters[i] = b & off
     })
     // Recompute output: rows with bits === 0 leave; rows with bits !== 0 stay
-    const new_value = isArray(this.view.value) ? [] : {}
-    iter(this.filters, (i, b) => {
+    const new_value: any = isArray(this.view.value) ? [] : {}
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined && b !== 0) new_value[i] = this._pick(i)
     })
     this.view.XU0(this.view.value = new_value)
   }
 
-  XU0(value, v) {
+  XU0(value?: any, v?: any) {
     const { one, off } = this.sources.get(v)
     if (typeof value !== 'object') return super.XU0()
     this.filters ??= isArray(this.p.value) ? [] : {}
-    iter(this.filters, (i, b) => {
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined) this.filters[i] = b & off
     })
-    iter(value, (i, val) => {
+    iter(value, (i: any, val: any) => {
       if (val === undefined) return
       this.filters[i] = (this.filters[i] || 0) | one
     })
-    const new_value = isArray(this.p.value) ? [] : {}
-    iter(this.filters, (i, b) => {
+    const new_value: any = isArray(this.p.value) ? [] : {}
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined && b !== 0) new_value[i] = this._pick(i)
     })
     this.view.XU0(this.view.value = new_value)
@@ -102,7 +105,7 @@ export class UnionValue extends Operator {
   // dropped it. (Two genuinely INDEPENDENT array sources — where a secondary
   // remove should re-pick rather than drop — aren't supported for arrays; no
   // such union is shipped. Object sources keep the full _leave re-pick.)
-  BR1A(R1, v) {
+  BR1A(R1: any, v?: any) {
     if (v !== this.p) return
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
@@ -139,7 +142,7 @@ export class UnionValue extends Operator {
   // and no higher-priority one does. A higher-priority source echoing later
   // overwrites to a BU1. (`_pick` stays correct for the OBJECT path, where keys
   // are stable and source reads align.)
-  BI0A(I0, v) {
+  BI0A(I0: any, v?: any) {
     const { one, off } = this.sources.get(v)
     const higher = one - 1
     const me = this.view.value
@@ -177,16 +180,16 @@ export class UnionValue extends Operator {
   // leaves the union. If still nonzero, the row stays — but its value may
   // need re-picking (the source we just lost might have been the source we
   // were getting the value from).
-  BR1(R1, v) { this._leave(R1, v, false) }
+  BR1(R1: any, v?: any) { this._leave(R1, v, false) }
 
   // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
   // holed a row in source v — positional-stable, no shift. Same logic as BR1;
   // emits BH1 for the rows that leave the union so a positional sink (a DOMSink
   // bound straight to this view) mirrors the hole instead of splice-shifting.
   // Mirrors between/intersect's consumer BH1.
-  BH1(R1, v) { this._leave(R1, v, true) }
+  BH1(R1: any, v?: any) { this._leave(R1, v, true) }
 
-  _leave(R1, v, hole) {
+  _leave(R1: any, v: any, hole: any) {
     if (!R1.length) return
     const { off } = this.sources.get(v)
     const NR1 = []
@@ -217,7 +220,7 @@ export class UnionValue extends Operator {
     if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1)
   }
 
-  BU1(U1, v) {
+  BU1(U1: any, v?: any) {
     if (!U1.length) return
     const NU1 = []
     for (let i = 0; i < U1.length; i += 2) {
@@ -250,25 +253,25 @@ export class UnionValue extends Operator {
   // gate on the DISPLAY source: union shows each row from the FIRST source
   // holding it (`_pick`), so only that source's nested edit changes the displayed
   // value — a lower-priority source's edit is invisible and must be dropped.
-  _displaySrc(name) {
+  _displaySrc(name: any) {
     for (const src of this.allSources) if (src.value?.[name] !== undefined) return src
     return undefined
   }
-  BU2(U2, v) {
+  BU2(U2: any, v?: any) {
     if (!U2.length) return
     const N = []
     for (let i = 0; i < U2.length; i += 2)
       if (this._displaySrc(U2[i][0]) === v) N.push(U2[i], U2[i + 1])
     if (N.length) this.view.BU2(N)
   }
-  BR2(R2, v) {
+  BR2(R2: any, v?: any) {
     if (!R2.length) return
     const N = []
     for (let i = 0; i < R2.length; i += 2)
       if (this._displaySrc(R2[i][0]) === v) N.push(R2[i], R2[i + 1])
     if (N.length) this.view.BR2(N)
   }
-  BI2(I2, v) {
+  BI2(I2: any, v?: any) {
     if (!I2.length) return
     const N = []
     for (let i = 0; i < I2.length; i += 3)
@@ -276,14 +279,14 @@ export class UnionValue extends Operator {
     if (N.length) this.view.BI2(N)
   }
 
-  BI0(I0, v){ this._enter(I0, v, false) }
+  BI0(I0: any, v?: any){ this._enter(I0, v, false) }
 
   // BF0 (consumer): an upstream sparse producer filled a hole in source v —
   // positional-stable. Same logic as BI0; emits BF0 for rows that enter the
   // union so a positional sink fills in place rather than tail-appending.
-  BF0(I0, v){ this._enter(I0, v, true) }
+  BF0(I0: any, v?: any){ this._enter(I0, v, true) }
 
-  _enter(I0, v, hole){
+  _enter(I0: any, v: any, hole: any){
     if (!I0.length) return
     const { one } = this.sources.get(v)
     const me = this.view.value ??= isArray(this.p.value) ? [] : {}
@@ -324,4 +327,4 @@ export class UnionValue extends Operator {
   }
 }
 
-export const union = (source, ...others) => createOperator(source, UnionValue, ...others)
+export const union = (source: any, ...others: any[]) => createOperator(source, UnionValue, ...others)

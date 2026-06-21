@@ -531,7 +531,12 @@ export class Value {
   // skip propagation on no-ops). Return typed `any`: the `false` is an internal
   // short-circuit sentinel, while most subclass overrides return void — typing
   // it `false | undefined` would make every void override a TS2416 mismatch.
-  XR0(): any {
+  // The optional 2nd `src` param across these verb methods is the source-identity
+  // a multi-source operator (intersect/union/except) receives when it acts as a
+  // sink for a secondary source (`src.connect(this)` → the secondary's View fans
+  // out `sink.<verb>(payload, this)`). The base single-source path ignores it;
+  // typing it optional lets those overrides stay assignable to the base.
+  XR0(_value?: any, src?: any): any {
     if (this.view.value === undefined) return false
     const value = this.view.value
     this.view.value = undefined
@@ -548,7 +553,7 @@ export class Value {
   // operators like tap, which point view.value at p.value via XU0),
   // upstream has already spliced the array and re-splicing here shifts
   // every survivor one position further than intended.
-  BR1A(R1){
+  BR1A(R1, src?: any){
     const owns = this.view.value !== this.p?.value
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
@@ -565,7 +570,7 @@ export class Value {
   // an array so we get splice semantics and downstream V1 propagation. Skips
   // already-undefined slots so a remove is a true no-op rather than emitting
   // a phantom event.
-  BR1(R1){
+  BR1(R1, src?: any){
     if (isArray(this.view.value)) return this.BR1A(R1)
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
@@ -579,7 +584,7 @@ export class Value {
     this.view.BR1(NR1)
   }
 
-  BR2(R2){
+  BR2(R2, src?: any){
     const NR2 = []
     loop1: for (let i = 0; i < R2.length; i++) {
       const key = R2[i]
@@ -607,7 +612,7 @@ export class Value {
   // already hold, skip the entire dispatch. Operators that mutate in place
   // and re-emit (e.g. between, sort) rely on this — they swap the live
   // reference for a copy first to avoid this guard suppressing real changes.
-  XU0(value) {
+  XU0(value?: any, src?: any) {
     if (this.view.value === value) return
     this.view.value = value
     this.view.XU0()
@@ -628,7 +633,7 @@ export class Value {
   // producers already use. For OBJECT sources a previously-undefined key is
   // always a fresh insert (no positions to shift) — load-bearing for the
   // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
-  BU1(U1) {
+  BU1(U1, src?: any) {
     const NU1 = []
     const NI0 = []
     const NF0 = []
@@ -655,7 +660,7 @@ export class Value {
   // for what's logically one assignment. `key.slice().reverse()` then `pop()`
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
-  BU2(U2){
+  BU2(U2, src?: any){
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     // Build a filtered NU2 of pairs that actually changed something, exactly
     // like BU1 above. The old code skipped the no-op WRITE (continue) but still
@@ -683,7 +688,7 @@ export class Value {
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
-  BI0(I0){
+  BI0(I0, src?: any){
     if (isArray(this.view.value)) return this.BI0A(I0)
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     // Filter and classify like BU1 (just above): a no-op insert (same value at
@@ -715,7 +720,7 @@ export class Value {
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BMV1 — see comment on BR1A).
-  BI0A(I0){
+  BI0A(I0, src?: any){
     const owns = this.view.value !== this.p?.value
     for (let i = 0; i < I0.length; i+=2) {
       const at = I0[i]
@@ -754,7 +759,7 @@ export class Value {
     this.view.BMV1(M1)
   }
 
-  BI2(I2){
+  BI2(I2, src?: any){
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++]

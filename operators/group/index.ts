@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, iter, isEmpty } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
@@ -15,7 +14,10 @@ import { Operator, createOperator } from '../../core.ts'
 // efficiently without DOM teardown.
 
 export class GroupValue extends Operator {
-  constructor(p, fn) {
+  declare fn: (row: any) => any
+  declare posMap: Map<any, any>
+  declare isArr: boolean
+  constructor(p: any, fn: (row: any) => any) {
     super()
     this.p = p
     this.fn = fn
@@ -27,10 +29,10 @@ export class GroupValue extends Operator {
     this.view.XU0(this.view.value = {})
   }
 
-  XU0(value) {
+  XU0(value?: any) {
     this.isArr = isArray(value)
     this.posMap = new Map()
-    const new_value = {}
+    const new_value: any = {}
     if (this.isArr) {
       // array source: posMap stores { group, idx } so we can splice the
       // per-group bucket array on incremental BR1A/BI0A events
@@ -48,7 +50,7 @@ export class GroupValue extends Operator {
     } else {
       // object source: posMap stores the group name directly; the inner
       // bucket is keyed by source name so no idx tracking is needed
-      iter(value, (i, v) => {
+      iter(value, (i: any, v: any) => {
         // Skip explicit-undefined slots: a sparse OBJECT source (between/
         // intersect/union/except leave excluded keys present with value
         // undefined) would otherwise hand fn(undefined) and crash at
@@ -69,7 +71,7 @@ export class GroupValue extends Operator {
   // emptied — group disappears) or BR2 (bucket non-empty — only this row left).
   // Routed to BR1A when the source is an array because position-shift
   // semantics differ.
-  BR1(R1) {
+  BR1(R1: any) {
     if (this.isArr) return this.BR1A(R1)
     const leaving = new Map()
     for (let i = 0; i < R1.length; i++) {
@@ -99,7 +101,7 @@ export class GroupValue extends Operator {
   // insert into new). The latter may also empty the old bucket entirely, in
   // which case we collapse the per-row BR2 events into a single BR1 for the
   // disappearing group — that's why we accumulate `leaving` and post-process.
-  BU1(U1) {
+  BU1(U1: any) {
     if (this.isArr) return this.BU1A(U1)
     const NU2 = []
     const NI2 = []
@@ -166,7 +168,7 @@ export class GroupValue extends Operator {
     if (NI2.length) this.view.BI2(NI2)
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (this.isArr) return this.BI0A(I0)
     const NI2 = []
     for (let i = 0; i < I0.length; i++) {
@@ -180,7 +182,7 @@ export class GroupValue extends Operator {
     if (NI2.length) this.view.BI2(NI2)
   }
 
-  _emitObjectLeavers(leaving) {
+  _emitObjectLeavers(leaving: any) {
     const NR1 = []
     const NR2 = []
     for (const [group, leavers] of leaving) {
@@ -208,7 +210,7 @@ export class GroupValue extends Operator {
   BH1() { this.XU0(this.p.value) }
   BF0() { this.XU0(this.p.value) }
 
-  BR1A(R1) {
+  BR1A(R1: any) {
     const leaving = new Map()           // group → [idx, val, idx, val, ...]
     const removed = []                  // upstream positions removed in this batch
     for (let i = 0; i < R1.length; i++) {
@@ -271,7 +273,7 @@ export class GroupValue extends Operator {
     if (NR2.length) this.view.BR2(NR2)
   }
 
-  BI0A(I0) {
+  BI0A(I0: any) {
     const NI2 = []
     for (let i = 0; i < I0.length; i++) {
       const pos = +I0[i++]
@@ -305,7 +307,7 @@ export class GroupValue extends Operator {
     if (NI2.length) this.view.BI2(NI2)
   }
 
-  BU1A(U1) {
+  BU1A(U1: any) {
     const NU2 = []
     const NI2 = []
     const leaving = new Map()
@@ -391,7 +393,7 @@ export class GroupValue extends Operator {
   // counting siblings in the same group that come before it. O(posMap.size)
   // per insert — fine because group only sees the small upstream batches
   // that LimitValue forwards, never a full source.
-  _insertIdx(group, pos) {
+  _insertIdx(group: any, pos: any) {
     let idx = 0
     for (const [otherPos, other] of this.posMap) {
       if (other.group === group && otherPos < pos) idx++
@@ -415,7 +417,7 @@ export class GroupValue extends Operator {
   //     old as BR2/BR1-if-emptied, insert into new as BI2) — mirrors BU1's
   //     cross-group move. A subsequent path for an already-moved row is skipped
   //     because the relocated row already carries every updated field.
-  BU2(U2) {
+  BU2(U2: any) {
     if (this.isArr) {
       // Array buckets are positional (posMap holds {group, idx}); relocating a
       // row whose GROUP KEY changed would mean splicing two bucket arrays and
@@ -490,4 +492,4 @@ export class GroupValue extends Operator {
   BI2() {}
 }
 
-export const group = (source, fn) => createOperator(source, GroupValue, fn)
+export const group = (source: any, fn: any) => createOperator(source, GroupValue, fn)

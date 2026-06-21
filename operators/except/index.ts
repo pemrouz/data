@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, createOperator } from '../../core.ts'
 
@@ -10,14 +9,15 @@ import { Operator, view, createOperator } from '../../core.ts'
 // Only one secondary source (intersection of "is in p AND is NOT in
 // other"); for chained differences, just chain `.except(b).except(c)`.
 export class ExceptValue extends Operator {
-  constructor(p, other) {
+  declare otherView: any
+  constructor(p: any, other: any) {
     super()
     this.p = p
     this.otherView = other[view]
     this.otherView.connect(this)
     if (typeof p.value !== 'object') { super.XU0(); return }
-    const new_value = isArray(p.value) ? [] : {}
-    iter(p.value, (i, v) => {
+    const new_value: any = isArray(p.value) ? [] : {}
+    iter(p.value, (i: any, v: any) => {
       if (v === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = v
     })
@@ -31,15 +31,15 @@ export class ExceptValue extends Operator {
 
   // Source XU0 (the primary swapped wholesale): rebuild from scratch,
   // filtering out keys that `other` has.
-  XU0(value, v) {
+  XU0(value?: any, v?: any) {
     if (v === this.otherView) {
       // Other source replaced — re-evaluate every primary row.
       return this._rebuild()
     }
     // Primary swapped.
     if (typeof value !== 'object') return super.XU0()
-    const new_value = isArray(value) ? [] : {}
-    iter(value, (i, val) => {
+    const new_value: any = isArray(value) ? [] : {}
+    iter(value, (i: any, val: any) => {
       if (val === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = val
     })
@@ -47,7 +47,7 @@ export class ExceptValue extends Operator {
     this.view.XU0(this.view.value = new_value)
   }
 
-  XR0(_, v) {
+  XR0(_?: any, v?: any) {
     if (v === this.otherView) {
       // Other source emptied — every primary row now passes through.
       return this._rebuild()
@@ -57,8 +57,8 @@ export class ExceptValue extends Operator {
   }
 
   _rebuild() {
-    const new_value = isArray(this.p.value) ? [] : {}
-    iter(this.p.value, (i, v) => {
+    const new_value: any = isArray(this.p.value) ? [] : {}
+    iter(this.p.value, (i: any, v: any) => {
       if (v === undefined) return
       if (this.otherView.value?.[i] === undefined) new_value[i] = v
     })
@@ -69,13 +69,13 @@ export class ExceptValue extends Operator {
   // BR1 from primary: row left p → drop from output if it was there.
   // BR1 from other: row left other → row may now pass through; if p has
   // it, add it to output.
-  BR1(R1, v) { this._removeFrom(R1, v, false) }
+  BR1(R1: any, v?: any) { this._removeFrom(R1, v, false) }
 
   // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
   // holed a row in source v — positional-stable, no shift. Same logic as BR1;
   // emits holes (BF0 admit / BH1 drop) so a positional sink mirrors them in
   // place instead of splice-shifting. Mirrors between/intersect/union.
-  BH1(R1, v) { this._removeFrom(R1, v, true) }
+  BH1(R1: any, v?: any) { this._removeFrom(R1, v, true) }
 
   // ── Array structural remove / insert (C12) ────────────────────────────────
   // Core routes an ARRAY source's positional remove/insert through BR1A/BI0A
@@ -87,7 +87,7 @@ export class ExceptValue extends Operator {
   // "in p AND not in other". Like intersect, except's PRIMARY (`this.p`, the
   // canonical index identity) is the raw source `s` and echoes LAST; `other`
   // (the filter facet) echoes first.
-  BR1A(R1, v) {
+  BR1A(R1: any, v?: any) {
     // Only the primary's removal shifts the index space. A removal echoed by
     // `other` is the SAME underlying delete (the row is gone from `s` too) — a
     // no-op; a row LEAVING `other` while staying in `s` is a membership re-admit
@@ -121,7 +121,7 @@ export class ExceptValue extends Operator {
   // authority — it just keeps `view.value` length-aligned with `s`, so an
   // excluded (holed) insert still extends the array. (Mid-array inserts
   // unsupported, as in intersect/union.)
-  BI0A(I0, v) {
+  BI0A(I0: any, v?: any) {
     // Only the PRIMARY echo (`this.p`, the canonical index identity — it echoes
     // LAST, so `other` has already settled) reconciles an array insert; the
     // `other` echo is a structural no-op (the same underlying source grew, and
@@ -156,7 +156,7 @@ export class ExceptValue extends Operator {
     if (NI0.length) this.view.BI0(NI0)
   }
 
-  _removeFrom(R1, v, hole) {
+  _removeFrom(R1: any, v: any, hole: any) {
     if (!R1.length) return
     const arr = isArray(this.view.value)
     if (v === this.otherView) {
@@ -188,7 +188,7 @@ export class ExceptValue extends Operator {
   // BU1 from primary: value at key changed; if key passes the filter, emit.
   // BU1 from other: row updated in `other`; doesn't change membership in
   // `other`, so nothing changes in our output.
-  BU1(U1, v) {
+  BU1(U1: any, v?: any) {
     if (v === this.otherView) return
     if (!U1.length) return
     const NU1 = []
@@ -214,7 +214,7 @@ export class ExceptValue extends Operator {
   // rows still in the output (not excluded); skip excluded ones so they stay
   // dropped. The row object is shared with the source, so the value is already
   // current — we only propagate the notification.
-  BU2(U2, v) {
+  BU2(U2: any, v?: any) {
     if (v === this.otherView) return
     if (!U2.length) return
     const NU2 = []
@@ -230,13 +230,13 @@ export class ExceptValue extends Operator {
 
   // BI0 from primary: maybe admit. BI0 from other: row appeared in other,
   // so if we were showing it, drop it.
-  BI0(I0, v) { this._insertFrom(I0, v, false) }
+  BI0(I0: any, v?: any) { this._insertFrom(I0, v, false) }
 
   // BF0 (consumer): an upstream sparse producer filled a hole in source v —
   // positional-stable. Same logic as BI0; emits holes (BH1 drop / BF0 admit).
-  BF0(I0, v) { this._insertFrom(I0, v, true) }
+  BF0(I0: any, v?: any) { this._insertFrom(I0, v, true) }
 
-  _insertFrom(I0, v, hole) {
+  _insertFrom(I0: any, v: any, hole: any) {
     if (!I0.length) return
     const arr = isArray(this.view.value)
     if (v === this.otherView) {
@@ -266,4 +266,4 @@ export class ExceptValue extends Operator {
   }
 }
 
-export const except = (source, other) => createOperator(source, ExceptValue, other)
+export const except = (source: any, other: any) => createOperator(source, ExceptValue, other)
