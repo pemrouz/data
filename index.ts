@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Default entry (`data`): the lean core surface re-exported from `./lean.ts`,
 // PLUS every operator registered on the global Operators dispatch table — so
 // chainable methods (`proxy.filter(...)`, `proxy.between(...)`, …) work the

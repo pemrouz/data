@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Side-effect-only module: populates the global `Operators` dispatch table so
 // chainable methods (`proxy.filter(...)`, `proxy.between(...)`, …) work.
 // Imported by every entry that wants operators registered (`data`, `data/full`).

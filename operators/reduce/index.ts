@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { iter, isArray } from '../../utils.ts'
 import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
 
@@ -10,7 +9,7 @@ import { $, Operator, ViewProxy, createOperator } from '../../core.ts'
 // with a pointer at the right pattern instead. (Unlike a filter VALUE or a sort
 // WINDOW, a fold's identity element isn't a slider-driven quantity — for a
 // reactive BASE, derive it upstream and fold the derived view.)
-function assertPlainInit(init) {
+function assertPlainInit(init: any) {
   if (init instanceof ViewProxy)
     throw new Error(
       'reduce(): init must be a plain value or a thunk, not a reactive ViewProxy — ' +
@@ -22,9 +21,9 @@ function assertPlainInit(init) {
 // `$.debug` symmetry check below — never on a hot path. Numbers compare with a
 // relative epsilon so benign floating-point drift between an incremental
 // subtract and a fresh add doesn't false-positive.
-const _approxEqual = (a, b) =>
+const _approxEqual = (a: any, b: any) =>
   a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))
-const _deepEqual = (a, b) => {
+const _deepEqual = (a: any, b: any): boolean => {
   if (a === b) return true
   const ta = typeof a
   if (ta !== typeof b) return false
@@ -56,7 +55,9 @@ const _deepEqual = (a, b) => {
 // 3-arg form `reduce(add, remove, init)` opts into an incremental fold —
 // dispatched to ReduceIncrementalValue below.
 export class ReduceValue extends Operator {
-  constructor(p, fn, init) {
+  declare fn: any
+  declare init: any
+  constructor(p: any, fn: any, init: any) {
     super()
     assertPlainInit(init)
     this.p = p
@@ -65,7 +66,7 @@ export class ReduceValue extends Operator {
     this._rebuild()
   }
 
-  matches(fn, init) { return this.fn === fn && this.init === init }
+  matches(fn: any, init: any) { return this.fn === fn && this.init === init }
 
   _rebuild() {
     // Start each rebuild from a FRESH copy of init. The documented 2-arg use
@@ -80,7 +81,7 @@ export class ReduceValue extends Operator {
     let acc = this.init && typeof this.init === 'object' ? structuredClone(this.init) : this.init
     const v = this.p.value
     if (v && typeof v === 'object') {
-      iter(v, (k, row) => {
+      iter(v, (k: any, row: any) => {
         if (row === undefined) return
         acc = this.fn(acc, row, k)
       })
@@ -137,7 +138,11 @@ export class ReduceValue extends Operator {
 //     to the running accumulator, warning on the first drift (O(N) per delta,
 //     so off by default — a dev aid, not a runtime guard).
 export class ReduceIncrementalValue extends Operator {
-  constructor(p, add, remove, init) {
+  declare add: any
+  declare remove: any
+  declare init: any
+  declare _cache: Map<any, any>
+  constructor(p: any, add: any, remove: any, init: any) {
     super()
     assertPlainInit(init)
     this.p = p
@@ -154,7 +159,7 @@ export class ReduceIncrementalValue extends Operator {
     this._rebuild()
   }
 
-  matches(add, remove, init) {
+  matches(add: any, remove: any, init: any) {
     return this.add === add && this.remove === remove && this.init === init
   }
 
@@ -166,11 +171,11 @@ export class ReduceIncrementalValue extends Operator {
   // compare to the incremental accumulator. A mismatch means `remove` didn't
   // invert `add` for some row. Gated behind `$.debug` because the re-fold is
   // O(N) per delta — it exists to make the silent-desync trap catchable.
-  _verify(where) {
+  _verify(where: any) {
     if (!$.debug) return
     let truth = this._seed()
     const v = this.p.value
-    if (v && typeof v === 'object') iter(v, (k, row) => {
+    if (v && typeof v === 'object') iter(v, (k: any, row: any) => {
       if (row === undefined) return
       truth = this.add(truth, row, k)
     })
@@ -187,7 +192,7 @@ export class ReduceIncrementalValue extends Operator {
     this._cache.clear()
     const v = this.p.value
     if (v && typeof v === 'object') {
-      iter(v, (k, row) => {
+      iter(v, (k: any, row: any) => {
         if (row === undefined) return
         acc = this.add(acc, row, k)
         this._cache.set('' + k, row)
@@ -199,7 +204,7 @@ export class ReduceIncrementalValue extends Operator {
   XR0() { this._rebuild() }
   XU0() { this._rebuild() }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     // Array structural insert: the source splice shifted every later position,
     // so the position-keyed `_cache` is now off-by-one and a later BU1 would
@@ -219,7 +224,7 @@ export class ReduceIncrementalValue extends Operator {
     this._verify('BI0')
   }
 
-  BR1(R1) {
+  BR1(R1: any) {
     if (!R1.length) return
     if (isArray(this.p.value)) return this._rebuild()   // array splice shifts positions — see BI0
     let acc = this.view.value
@@ -245,7 +250,7 @@ export class ReduceIncrementalValue extends Operator {
   // contributed (a fresh fold + every BI0 seeds it). The `!== undefined`
   // guard is against the *cache miss*, so a present-but-falsy row (value `0`)
   // is still correctly subtracted.
-  BU1(U1) {
+  BU1(U1: any) {
     if (!U1.length) return
     let acc = this.view.value
     for (let i = 0; i < U1.length; i += 2) {
@@ -275,7 +280,7 @@ export class ReduceIncrementalValue extends Operator {
 // `reduce(fn, $(x))` (a 2-arg fold with a reactive init) would misdispatch to
 // the 3-arg incremental form (remove = the proxy, init = undefined) and dodge
 // the assertPlainInit guard — it must route to ReduceValue(fn, $(x)) and throw.
-export const reduce = (source, fnOrAdd, removeOrInit, init) =>
+export const reduce = (source: any, fnOrAdd: any, removeOrInit: any, init?: any) =>
   typeof removeOrInit === 'function' && !(removeOrInit instanceof ViewProxy)
     ? createOperator(source, ReduceIncrementalValue, fnOrAdd, removeOrInit, init)
     : createOperator(source, ReduceValue, fnOrAdd, removeOrInit)

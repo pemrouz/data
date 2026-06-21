@@ -1,4 +1,3 @@
-// @ts-nocheck
 // JSX-authoring superset of `data`: re-exports the entire default entry
 // (`./index.ts` = core + render + every operator registered) and adds the JSX
 // layer on top. Import this entry when you author views in JSX.

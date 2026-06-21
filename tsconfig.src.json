@@ -15,6 +15,11 @@
   "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM"] },
   "include": [
     "core.ts",
+    "utils.ts",
+    "register.ts",
+    "index.ts",
+    "lean.ts",
+    "full.ts",
     "row.ts",
     "render/index.ts",
     "jsx/index.ts",
@@ -42,6 +47,7 @@
     "operators/except/index.ts",
     "operators/intersect/index.ts",
     "operators/sort/index.ts",
-    "operators/between/index.ts"
+    "operators/between/index.ts",
+    "operators/reduce/index.ts"
   ]
 }

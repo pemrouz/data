@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Lean entry: core surface only — no operator dispatch is registered here.
 // The default entry (`data`) registers every operator so chainable methods
 // (`proxy.filter(...)`, `proxy.between(...)`, …) work out of the box; import
