@@ -1,4 +1,3 @@
-// @ts-nocheck
 // State + dispatch for devtools trace/profile. Lives separate from the
 // monkey-patcher (instrument.ts) so tests can drive the dispatcher in
 // isolation without touching View.prototype.
@@ -42,7 +41,7 @@ export function nextTraceId() { return nextId++ }
 // always incremented per call regardless of depth.
 let depth = 0
 
-export function dispatchTrace(view, verb, payload) {
+export function dispatchTrace(view: any, verb: any, payload: any) {
   if (!traceTargets.size) return
   for (const t of traceTargets.values()) {
     if (t.root && !ancestorOf(view, t.root)) continue
@@ -61,7 +60,7 @@ export function dispatchTrace(view, verb, payload) {
 }
 
 export function enterProfile() { depth++ }
-export function exitProfile(view, verb, dt) {
+export function exitProfile(view: any, verb: any, dt: any) {
   depth--
   if (!profilers.size) return
   for (const p of profilers.values()) {
@@ -108,7 +107,7 @@ export function isAtTopOfStack() { return depth === 0 }
 // nodes, functions, etc.); fall back to a JSON round-trip and finally to
 // the live ref if both fail. Snapshots are only captured when the recorder
 // was started with { captureState: true } so this cost stays opt-in.
-function snapshotValue(view) {
+function snapshotValue(view: any) {
   const v = view?.value
   if (v === undefined || v === null) return v
   try { return structuredClone(v) } catch {}
@@ -116,7 +115,7 @@ function snapshotValue(view) {
   return v
 }
 
-export function enterCascadeFrame(view, verb) {
+export function enterCascadeFrame(view: any, verb: any) {
   if (!cascadeRecorders.size) return
   const t = performance.now()
   for (const r of cascadeRecorders.values()) {
@@ -165,7 +164,7 @@ export function enterCascadeFrame(view, verb) {
   }
 }
 
-export function exitCascadeFrame(view, verb) {
+export function exitCascadeFrame(view: any, verb: any) {
   if (!cascadeRecorders.size) return
   const t = performance.now()
   for (const r of cascadeRecorders.values()) {
@@ -187,7 +186,7 @@ export function exitCascadeFrame(view, verb) {
   }
 }
 
-export function flushPendingClose(r) {
+export function flushPendingClose(r: any) {
   if (!r.pendingClose || !r.current) return
   r.pendingClose = false
   // Capture the post-cascade state, anchored to the cascade's root view.
@@ -209,10 +208,10 @@ export function newProfileAcc() {
 
 // Materialize a Report for the user. Sorted by totalMs descending so the
 // hottest operator floats to the top of the printed table.
-export function finalize(acc) {
+export function finalize(acc: any) {
   const byOperator = [...acc.byOp.values()]
-    .map(b => ({ ...b, avgMs: b.count ? b.totalMs / b.count : 0 }))
-    .sort((a, b) => b.totalMs - a.totalMs)
+    .map((b: any) => ({ ...b, avgMs: b.count ? b.totalMs / b.count : 0 }))
+    .sort((a: any, b: any) => b.totalMs - a.totalMs)
   return {
     totalEvents: acc.events,
     totalMs: acc.ms,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Devtools public API. Importing this module attaches helpers to the canonical
 // `$` from core, mirroring how `$.random` is exposed (core.ts:32). Read-side
 // only in this file: $.inspect, $.graph, $.fromDOM, $.highlight. Heavyweight
@@ -22,13 +21,13 @@ import {
 // $.inspect(proxy) — print and return a single-view snapshot. Useful in the
 // browser console: `$.inspect(items)` gives you the immediate children + sinks
 // without walking the whole graph.
-$.inspect = function inspect(proxy) {
+$.inspect = function inspect(proxy: any) {
   const v = proxy?.[view]
   if (!v) throw new Error('$.inspect requires a ViewProxy')
-  const children = []
-  v.each?.((name) => children.push({ name }))
-  const sinks = []
-  v.sink?.((s) => sinks.push({
+  const children: any[] = []
+  v.each?.((name: any) => children.push({ name }))
+  const sinks: any[] = []
+  v.sink?.((s: any) => sinks.push({
     kind: classify(s),
     ctor: s.constructor?.name || 'anonymous',
   }))
@@ -56,7 +55,7 @@ $.inspect = function inspect(proxy) {
 // shape that devtools/walk.ts produces, so a panel could ship it over
 // postMessage etc. opts.internal:true includes devtools-internal roots
 // (panel state etc.) when enumerating with no proxy argument.
-$.graph = function graph(proxy, opts) {
+$.graph = function graph(proxy: any, opts: any) {
   if (proxy === undefined) {
     const trees = []
     for (const v of iterRoots(opts)) trees.push(walk(v))
@@ -77,7 +76,7 @@ $.graph = function graph(proxy, opts) {
 // $.fromDOM(el) — given a DOM element from the devtools console (e.g. $0),
 // walk up the parent chain until we find a __ripple_sink (set in
 // render/index.ts Node.render). Return a proxy for that sink's source view.
-$.fromDOM = function fromDOM(el) {
+$.fromDOM = function fromDOM(el: any) {
   let n = el
   while (n) {
     if (n.__ripple_sink) {
@@ -92,11 +91,11 @@ $.fromDOM = function fromDOM(el) {
 // $.highlight(proxy, ms?) — for every live DOMSink whose source view matches
 // `proxy`, briefly outline the bound element. Has no effect in non-DOM
 // environments (parent.classList is required).
-$.highlight = function highlight(proxy, ms = 1000) {
+$.highlight = function highlight(proxy: any, ms = 1000) {
   const v = proxy?.[view]
   if (!v) throw new Error('$.highlight requires a ViewProxy')
-  const targets = []
-  v.sink?.((s) => {
+  const targets: any[] = []
+  v.sink?.((s: any) => {
     if (classify(s) === 'dom' && s.parent?.classList) targets.push(s.parent)
   })
   for (const el of targets) el.classList?.add('__ripple_highlight')
@@ -112,7 +111,7 @@ $.highlight = function highlight(proxy, ms = 1000) {
 // at proxy. Returns a disposer that removes the listener. Auto-enables
 // instrumentation on first call. Default behavior logs each event to the
 // console; pass { log: false, onEvent } to capture programmatically.
-$.trace = function trace(proxy, opts = {}) {
+$.trace = function trace(proxy: any, opts: any = {}) {
   const v = proxy?.[view]
   if (!v) throw new Error('$.trace requires a ViewProxy')
   ensureInstrumented()
@@ -133,13 +132,13 @@ $.trace = function trace(proxy, opts = {}) {
 // timings. Returns { stop, report }. stop() ends the window and returns the
 // final report; report() returns a snapshot without stopping. If
 // opts.durationMs is given, the profile auto-stops after that interval.
-$.profile = function profile(proxy, opts = {}) {
+$.profile = function profile(proxy: any, opts: any = {}) {
   ensureInstrumented()
   const v = proxy?.[view] || null
   const acc = newProfileAcc()
   const id = nextTraceId()
   profilers.set(id, { id, root: v, acc })
-  let timer = null
+  let timer: any = null
   if (opts.durationMs) {
     timer = setTimeout(stop, opts.durationMs)
   }
@@ -163,7 +162,7 @@ $.profile = function profile(proxy, opts = {}) {
 // { stop, report, clear }. With no proxy argument, every cascade in the
 // whole graph is captured. opts.maxCascades caps the ring buffer
 // (default 200) so a long-running session doesn't grow unboundedly.
-$.cascades = function cascades(proxy, opts = {}) {
+$.cascades = function cascades(proxy: any, opts: any = {}) {
   ensureInstrumented()
   const v = proxy?.[view] || null
   const id = nextTraceId()
@@ -216,7 +215,7 @@ $.devtools = {
   // returns the live panel object — `{ host, root, dock, destroy }` — for
   // tests / advanced scripting that need to reach into the closed shadow.
   panel: {
-    open(proxy) { return mountPanel(proxy) },
+    open(proxy: any) { return mountPanel(proxy) },
     close() { return unmountPanel() },
     get shell() { return getPanelShell() },
   },
@@ -233,7 +232,7 @@ let getPanelShell: () => unknown = () => null
 if (typeof document !== 'undefined') {
   const noPanel =
     typeof location !== 'undefined' && /(?:^|[?&])nopanel(?:[=&]|$)/.test(location.search)
-  void import('./panel/index.ts').then((m) => {
+  void import('./panel/index.ts').then((m: any) => {
     mountPanel = m.mount
     unmountPanel = m.unmount
     getPanelShell = m.getShell

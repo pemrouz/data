@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Pure helpers for the devtools layer. No instrumentation, no monkey-patching,
 // no side effects on the runtime — just read-side traversal of the View/Sink
 // graph and value summaries. Other devtools modules (index, instrument, events)
@@ -12,7 +11,7 @@ import {
 // derefing each WeakRef and pruning entries whose target has been GC'd. By
 // default skips internal roots (panel state etc.); pass { internal: true }
 // to include them.
-export function* iterRoots(opts) {
+export function* iterRoots(opts?: any) {
   const includeInternal = opts && opts.internal
   for (const ref of _devtoolsRoots) {
     const v = ref.deref()
@@ -25,7 +24,7 @@ export function* iterRoots(opts) {
 // internalRoot(proxy) — mark `proxy`'s view as devtools-internal so it's
 // hidden from the user-facing graph view by default. The panel uses this to
 // keep its own reactive state out of the inspector.
-export function internalRoot(proxy) {
+export function internalRoot(proxy: any) {
   const target = proxy?.[view]
   if (target) _devtoolsInternalRoots.add(target)
   return proxy
@@ -36,7 +35,7 @@ export function internalRoot(proxy) {
 // connect() sinks. We don't import DOMSink (it lives in render/, optional)
 // or ArrSink/PropSink/FunctionSink (private to core), so we duck-type by
 // constructor name and parent shape.
-export function classify(sink) {
+export function classify(sink: any) {
   if (sink instanceof Operator) return 'operator'
   if (sink && typeof sink === 'object') {
     if ('parent' in sink && sink.constructor?.name === 'DOMSink') return 'dom'
@@ -49,7 +48,7 @@ export function classify(sink) {
 // summarize(value) — short, JSON-safe-ish preview suitable for a console
 // graph dump. Avoids dragging huge objects into the output. Arrays show as
 // `Array(n)`, plain objects as `{ keys: n }`, primitives pass through.
-export function summarize(value) {
+export function summarize(value: any) {
   if (value === null || value === undefined) return value
   const t = typeof value
   if (t === 'string') return value.length > 80 ? value.slice(0, 77) + '...' : value
@@ -64,7 +63,7 @@ export function summarize(value) {
 // parent chain? Used by trace/profile to scope events to a subtree without
 // instrumenting every operator. The depth cap is paranoia: parent chains
 // shouldn't loop, but if anything ever does we don't want an infinite walk.
-export function ancestorOf(child, root, maxDepth = 32) {
+export function ancestorOf(child: any, root: any, maxDepth = 32) {
   if (!child || !root) return false
   if (child === root) return true
   let n = child, d = 0
@@ -87,12 +86,12 @@ export function ancestorOf(child, root, maxDepth = 32) {
 // `picked: true` and bubbles `pickedAncestor: true` up through the chain
 // so callers can auto-expand the path. Used by the panel's Graph tab to
 // spotlight the binding picked via the DOM picker.
-export function walk(view, opts) {
+export function walk(view: any, opts?: any) {
   opts = opts || {}
   return walkImpl(view, opts.seen || new WeakSet(), opts)
 }
 
-function walkImpl(view, seen, opts) {
+function walkImpl(view: any, seen: any, opts: any): any {
   if (seen.has(view)) {
     return { key: [...view.key], kind: 'cycle', children: [], sinks: [] }
   }
@@ -113,7 +112,7 @@ function walkImpl(view, seen, opts) {
     }
   }
 
-  const node = {
+  const node: any = {
     key: [...view.key],
     name: view.name,
     kind: view.p ? 'child' : 'root',
@@ -122,13 +121,13 @@ function walkImpl(view, seen, opts) {
     sinks: [],
   }
 
-  view.each?.((_name, child) => {
+  view.each?.((_name: any, child: any) => {
     const c = walkImpl(child, seen, opts)
     if (c.picked || c.pickedAncestor) node.pickedAncestor = true
     node.children.push(c)
   })
 
-  view.sink?.((s) => {
+  view.sink?.((s: any) => {
     if (s instanceof Operator) {
       const opNode = walkImpl(s.view, seen, opts)
       opNode.kind = 'operator'
@@ -137,7 +136,7 @@ function walkImpl(view, seen, opts) {
       if (opNode.picked || opNode.pickedAncestor) node.pickedAncestor = true
       node.sinks.push(opNode)
     } else {
-      const sinkNode = {
+      const sinkNode: any = {
         key: [...view.key],
         kind: classify(s),
         ctor: s.constructor?.name || 'anonymous',

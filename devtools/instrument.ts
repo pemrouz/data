@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Monkey-patches View.prototype verb methods so trace/profile listeners
 // in events.ts can observe every notification. ensureInstrumented() is
 // idempotent and gated by a fast-out: with no active listeners, the
@@ -26,10 +25,10 @@ function hasActive() {
 export function ensureInstrumented() {
   if (installed) return
   for (const verb of VERBS) {
-    const orig = View.prototype[verb]
+    const orig = (View.prototype as any)[verb]
     if (typeof orig !== 'function') continue
     originals.set(verb, orig)
-    View.prototype[verb] = function patched(...args) {
+    ;(View.prototype as any)[verb] = function patched(this: any, ...args: any[]) {
       if (!hasActive()) return orig.apply(this, args)
       // Trace dispatch first — it's a read-only observation. Then enter
       // the timed paths for profile and/or cascade recorder.
@@ -54,7 +53,7 @@ export function ensureInstrumented() {
 export function restoreInstrumentation() {
   if (!installed) return
   for (const [verb, orig] of originals) {
-    View.prototype[verb] = orig
+    ;(View.prototype as any)[verb] = orig
   }
   originals.clear()
   installed = false
