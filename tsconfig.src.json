@@ -18,6 +18,7 @@
     "jsx/intrinsics.ts",
     "jsx-runtime.ts",
     "jsx-dev-runtime.ts",
-    "devtools/augment.ts"
+    "devtools/augment.ts",
+    "operators/map/index.ts"
   ]
 }

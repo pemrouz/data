@@ -12,7 +12,11 @@ import { Operator } from './core.ts'
 // That single return value drives the in/out classification — RowOperator
 // users never have to emit verbs themselves.
 export class RowOperator extends Operator {
-  process() { throw new Error('not implemented, process:', this.name) }
+  // Base signature widened to the (value, name, old_val) shape every subclass
+  // overrides with — without it a 3-arg `process` override is a TS2416 arity
+  // mismatch against a 0-arg base. Type-only (the body is unchanged); erases at
+  // runtime. All params optional so a subclass may take fewer.
+  process(value?: any, name?: any, old_val?: any): any { throw new Error('not implemented, process:', this.name) }
 
   // Generic loop body shared by every BU1/BU2/BI0/BI2/BR2 entrypoint. `inc`
   // is the stride (2 for flat name/value, 3 for keyed insert with `at`);
