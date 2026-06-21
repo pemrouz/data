@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true },
-  "include": ["types/check.ts"]
+  "include": ["types/check.ts", "types/check.negative.ts"]
 }
