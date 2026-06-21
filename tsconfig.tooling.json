@@ -16,6 +16,25 @@
     "perf/measure.ts",
     "perf/record.ts",
     "perf/workloads.ts",
-    "perf/run-report.ts"
+    "perf/run-report.ts",
+    "operators/aggregate/aggregate.perf.ts",
+    "operators/between/between.perf.ts",
+    "operators/compare/compare.perf.ts",
+    "operators/distinct/distinct.perf.ts",
+    "operators/except/except.perf.ts",
+    "operators/filter/filter.perf.ts",
+    "operators/group/group.perf.ts",
+    "operators/intersect/intersect.perf.ts",
+    "operators/keys/keys.perf.ts",
+    "operators/length/length.perf.ts",
+    "operators/map/map.perf.ts",
+    "operators/reduce/reduce.perf.ts",
+    "operators/reverse/reverse.perf.ts",
+    "operators/sort/sort.perf.ts",
+    "operators/tap/tap.perf.ts",
+    "operators/to/to.perf.ts",
+    "operators/union/union.perf.ts",
+    "index.perf.ts",
+    "devtools/devtools.perf.ts"
   ]
 }

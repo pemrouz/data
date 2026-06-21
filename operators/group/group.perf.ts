@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ok } from 'node:assert'
 import { test } from 'node:test'
 import { gateMeasure as measure } from '../../perf/measure.ts'

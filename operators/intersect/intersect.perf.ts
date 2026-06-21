@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. Per-source
 // delta is O(affected rows) on the seeded bitmask; setup is O(rows × sources).
 import { ok } from 'node:assert'

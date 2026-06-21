@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. except keeps
 // rows in p but not in `other`; setup walks p once, per-event updates from
 // either side are O(affected rows). insert-other drops matching rows (BI0 from

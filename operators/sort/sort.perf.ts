@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. Cases:
 //   setup  — bounded top-100 build
 //   insert — one row into the bounded window

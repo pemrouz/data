@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload (gt/lt/gte/lte cases + thresholds) lives
 // in perf/workloads.ts, which perf/run-report.ts re-measures too.
 //

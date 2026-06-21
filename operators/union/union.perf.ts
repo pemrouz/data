@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. union mirrors
 // intersect's bitmask layout — per-source delta is O(affected rows) once setup
 // has seeded the bitmask map; setup is O(rows × sources).

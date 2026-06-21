@@ -1,14 +1,15 @@
-// @ts-nocheck
 import { ok } from 'node:assert'
 import { $, value } from './full.ts'
 import { test } from 'node:test'
+// @ts-ignore — untyped flight-data .js fixture, no .d.ts
 import { data as flights500 } from './examples/crossfilter/flights500.js'
+// @ts-ignore — untyped flight-data .js fixture, no .d.ts
 import { data as flights50000 } from './examples/crossfilter/flights50000.js'
 import { gateMeasure as measure } from './perf/measure.ts'
 
 const { min, max, floor } = Math
 
-function deterministicRandom(o) {
+function deterministicRandom(o: any) {
   return 1 + Object.keys(o).map(Number).sort((a, b) => a - b).reduce((acc, k) => k > acc ? k : acc, -1)
 }
 
@@ -21,17 +22,17 @@ function parseDate(d: string) {
   )
 }
 
-const byDay = d => floor(+d.date / 86400000) * 86400000
-const byHour = d => floor(d.time)
-const byTenMins = d => floor(d.delay / 10) * 10
-const byFiftyMiles = d => floor(d.distance / 50) * 50
-const formatDate = d => `${d.date.getMonth()}-${d.date.getDate()}-${d.date.getFullYear()}`
+const byDay = (d: any) => floor(+d.date / 86400000) * 86400000
+const byHour = (d: any) => floor(d.time)
+const byTenMins = (d: any) => floor(d.delay / 10) * 10
+const byFiftyMiles = (d: any) => floor(d.distance / 50) * 50
+const formatDate = (d: any) => `${d.date.getMonth()}-${d.date.getDate()}-${d.date.getFullYear()}`
 
-function buildGraph(data) {
-  $.random = deterministicRandom
+function buildGraph(data: any): any {
+  $.random = deterministicRandom as any
 
-  const source = $(data)
-  const flights = source.map(({ destination, origin, ...d }) => {
+  const source: any = $(data)
+  const flights = source.map(({ destination, origin, ...d }: any) => {
     const date = parseDate(d.date)
     const time = date.getHours() + date.getMinutes() / 60
     const delay = max(-60, min(149, +d.delay))
@@ -64,7 +65,7 @@ function buildGraph(data) {
   return { flights, filters, active, charts, list }
 }
 
-function readViews({ active, charts, list }) {
+function readViews({ active, charts, list }: any) {
   void active[value]
   void charts.time[value]
   void charts.delay[value]
@@ -197,9 +198,9 @@ test('crossfilter multi-filter update - 500 flights', () => {
 // the walks: patch([...M]) -> 1, M individual sets -> M.
 test('patch - one dispatch per sink for a batched update', () => {
   const N = 5000, M = 500
-  const seed = {}
+  const seed: any = {}
   for (let i = 0; i < N; i++) seed[i] = { v: i }
-  const src = $(seed)
+  const src: any = $(seed)
   let dispatches = 0
   const tapView = src.tap(() => { dispatches++ }) // bare tap: one fn call per batched emit
   tapView.connect([]) // keep the chain alive (sinks are WeakRef-held)
@@ -221,9 +222,9 @@ test('patch - one dispatch per sink for a batched update', () => {
 
 test('patch - batched throughput, M=500 in N=5000', () => {
   const N = 5000, M = 500
-  const seed = {}
+  const seed: any = {}
   for (let i = 0; i < N; i++) seed[i] = { v: i }
-  const src = $(seed)
+  const src: any = $(seed)
   const keep = src.tap(() => {}) // a real downstream so dispatch cost is exercised
   keep.connect([])
   let k = 1000

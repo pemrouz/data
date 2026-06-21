@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
@@ -24,11 +23,11 @@ for (const spec of [length, lengthFn]) {
 // harness emits the same count as a standing instrument.
 test('length(fn) complexity - insert rebuckets O(1), not O(N)', () => {
   const N = 5000
-  const o = {}
+  const o: any = {}
   for (let i = 0; i < N; i++) o[i] = { bucket: i % 100 }
   const src = $(o)
   let calls = 0
-  const l = src.length(d => { calls++; return d.bucket })
+  const l = src.length((d: any) => { calls++; return d.bucket })
   l[value]   // setup bucketing already ran
   calls = 0
   src.insert({ bucket: 7 })

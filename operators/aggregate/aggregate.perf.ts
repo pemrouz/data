@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ok } from 'node:assert'
 import { test } from 'node:test'
 import { $, value } from '../../core.ts'
@@ -35,12 +34,12 @@ for (const [name, w] of Object.entries(aggregate.workloads())) {
 
 test('aggregate complexity - object source insert projects O(1), not O(N)', () => {
   const N = 5000
-  const obj = {}
+  const obj: any = {}
   for (let i = 0; i < N; i++) obj[i] = { active: true, val: i }
   const src = $(obj)
   let reads = 0
-  const agg = some(src, r => { reads++; return r.active })
-  ok(agg[value] === true)   // setup fold already projected all N rows
+  const agg = some(src, (r: any) => { reads++; return r.active })
+  ok((agg as any)[value] === true)   // setup fold already projected all N rows
   reads = 0                 // discard the construction fold
   src.insert({ active: true, val: N })
   console.log(`  some object insert: ${reads} projector call(s) over ${N} rows`)
@@ -55,8 +54,8 @@ test('aggregate complexity - array source insert rebuilds O(N) (documents P7)', 
   for (let i = 0; i < N; i++) arr.push({ active: true, val: i })
   const src = $(arr)
   let reads = 0
-  const agg = some(src, r => { reads++; return r.active })
-  ok(agg[value] === true)
+  const agg = some(src, (r: any) => { reads++; return r.active })
+  ok((agg as any)[value] === true)
   reads = 0
   src.insert({ active: true, val: N })
   console.log(`  some array insert: ${reads} projector calls over ${N} rows (P7 rebuild)`)

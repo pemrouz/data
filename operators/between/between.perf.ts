@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. The insert/
 // remove churn cases (object source) carry a per-case `reps` because they
 // CONSUME the source (distinct keys per rep) and defer `sorted` maintenance —

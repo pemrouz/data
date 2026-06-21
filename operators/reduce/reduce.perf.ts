@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Thin gate driver (Mode A) — workload lives in perf/workloads.ts. Cases:
 //   setup / insert / batch          — general fold reduce(fn, init), O(n)/event
 //   inc-setup / inc-insert          — incremental reduce(add, remove, init), O(Δ)
@@ -23,13 +22,13 @@ for (const [name, w] of Object.entries(reduce.workloads())) {
 // path from the O(N) general re-fold. Count fold invocations per single insert:
 // an exact, machine-independent measure of how many rows the delta touched. The
 // report's H1 harness emits these same counts as a standing complexity instrument.
-function buildVal(n) { const o = {}; for (let i = 0; i < n; i++) o[i] = { val: i }; return o }
+function buildVal(n: any) { const o: any = {}; for (let i = 0; i < n; i++) o[i] = { val: i }; return o }
 
 test('reduce complexity - incremental insert folds O(1), not O(N)', () => {
   const N = 5000
   const src = $(buildVal(N))
   let calls = 0
-  const r = src.reduce((acc, row) => { calls++; return acc + row.val }, (acc, row) => acc - row.val, 0)
+  const r = src.reduce((acc: any, row: any) => { calls++; return acc + row.val }, (acc: any, row: any) => acc - row.val, 0)
   ok(typeof r[value] === 'number')   // setup fold already ran
   calls = 0
   src.insert({ val: N })
@@ -41,7 +40,7 @@ test('reduce complexity - general fold insert re-folds O(N)', () => {
   const N = 5000
   const src = $(buildVal(N))
   let calls = 0
-  const r = src.reduce((acc, row) => { calls++; return acc + row.val }, 0)
+  const r = src.reduce((acc: any, row: any) => { calls++; return acc + row.val }, 0)
   ok(typeof r[value] === 'number')
   calls = 0
   src.insert({ val: N })

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Perf assertions for the devtools instrumentation. Two checks:
 //   1. off-state: with devtools imported but never enabled, the per-event
 //      cost is unchanged (covered indirectly by the existing perf suite,
@@ -17,7 +16,7 @@ import './index.ts'
 const ITERATIONS = 1000
 
 test('devtools perf - off-state matches baseline (single insert burst)', () => {
-  const data = $({})
+  const data: any = $({})
   const off = timeRun(() => {
     for (let i = 0; i < ITERATIONS; i++) data['k' + i] = { active: i % 2 === 0 }
     for (let i = 0; i < ITERATIONS; i++) delete data['k' + i]
@@ -29,7 +28,7 @@ test('devtools perf - off-state matches baseline (single insert burst)', () => {
 test('devtools perf - on-state with no listeners (fast-out path)', () => {
   $.devtools.enable()
   try {
-    const data = $({})
+    const data: any = $({})
     const on = timeRun(() => {
       for (let i = 0; i < ITERATIONS; i++) data['k' + i] = { active: i % 2 === 0 }
       for (let i = 0; i < ITERATIONS; i++) delete data['k' + i]
@@ -45,7 +44,7 @@ test('devtools perf - on-state with no listeners (fast-out path)', () => {
 })
 
 test('devtools perf - on-state with one trace + one profile attached', () => {
-  const data = $({})
+  const data: any = $({})
   const stop = $.trace(data, { log: false, onEvent: () => {} })
   const p = $.profile(data)
   try {
@@ -69,8 +68,8 @@ test('devtools perf - cascade recorder attached, bounded overhead', () => {
   // a parent index onto a stack. Per-event cost is comparable to the trace
   // listener (object alloc dominates); ceiling matches the trace+profile
   // case so a regression in either path lights up here.
-  const data = $({})
-  const filtered = data.filter(d => d.active)
+  const data: any = $({})
+  const filtered = data.filter((d: any) => d.active)
   const counted = filtered.length()
   const rec = $.cascades(data, { maxCascades: 50 })
   try {
@@ -94,7 +93,7 @@ test('devtools perf - cascade recorder buffer cap holds memory bounded', async (
   // microtask yield between them (cascade-close runs in queueMicrotask
   // and sync mutations within a tick coalesce); 100 yields is plenty to
   // verify the cap of 25 is enforced.
-  const data = $({})
+  const data: any = $({})
   const rec = $.cascades(data, { maxCascades: 25 })
   try {
     for (let i = 0; i < 100; i++) {
@@ -104,7 +103,7 @@ test('devtools perf - cascade recorder buffer cap holds memory bounded', async (
     const out = rec.report()
     ok(out.length === 25, `expected exactly 25 cascades, got ${out.length}`)
     // Newest preserved: last id should be the largest.
-    const ids = out.map(c => c.id)
+    const ids = out.map((c: any) => c.id)
     ok(Math.max(...ids) === ids[ids.length - 1], 'newest cascade should be last')
   } finally {
     rec.stop()
