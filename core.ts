@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { iter, isArray, noop } from './utils.ts'
 
 // `value` and `view` are Symbol keys deliberately not exported as plain
@@ -33,7 +32,7 @@ export const value = Symbol.for('data.value')
 export const reactive = Symbol.for('reactive')
 export const view = Symbol.for('data.view')
 const Symbols = { value, view }
-const isObject = v => v.constructor === Object
+const isObject = (v: any) => v.constructor === Object
 // Sinks emit value snapshots through their callback; cloning here means the
 // consumer can mutate freely without ever leaking back into the live tree.
 // `d[view] ? d[view].value` short-circuits the structuredClone for nested
@@ -41,7 +40,7 @@ const isObject = v => v.constructor === Object
 // `d == null` (not `=== undefined`): null is ordinary data and must pass
 // through — `null[view]` would throw mid-cascade, aborting fan-out after the
 // backing value was already committed.
-const sclone = d =>
+const sclone = (d: any) =>
   d == null ? d
 : d[view] ? d[view].value
 : structuredClone(d)
@@ -62,10 +61,10 @@ const sclone = d =>
 // internal verb methods (XU0/BU1/BU2/BI0/BR1/...) run inline as the fan-out
 // itself, never deferred.
 let _cascading = false
-const _pending = []
-let _errors = null
+const _pending: any[] = []
+let _errors: any = null
 const _DRAIN_CAP = 100_000 // re-entrant writes drained per top-level mutation; far above any legitimate fan-out
-function transact(fn) {
+function transact(fn: any) {
   if (_cascading) { _pending.push(fn); return }
   _cascading = true
   try {
@@ -92,7 +91,7 @@ function transact(fn) {
 // still runs. Errors are stashed and rethrown by the enclosing transact once
 // the cascade settles. Outside a cascade (construction-time fan-out before any
 // sink is attached) there's nothing to collect against, so rethrow inline.
-function _notify(sink, fn){
+function _notify(sink: any, fn: any){
   try { fn(sink) }
   catch (e) { if (_cascading) (_errors ??= []).push(e); else throw e }
 }
@@ -142,8 +141,8 @@ export const Operators: Record<string, (...args: any[]) => any> =
 // evaluate wins; `random` is seeded inside the factory so a later bundle's
 // re-import can't clobber a test/app override on the shared instance.
 function makeDollar() {
-  const f = (v) => new ViewProxy(View.value(v))
-  f.random = (o) => crypto.randomUUID()  // overridable for deterministic IDs in tests
+  const f = (v: any) => new ViewProxy(View.value(v))
+  f.random = (o: any) => crypto.randomUUID()  // overridable for deterministic IDs in tests
   return f
 }
 // `$` is callable AND carries a couple of always-present knobs (`random` for
@@ -158,7 +157,7 @@ export interface Dollar {
   /** Dev flag (e.g. an asymmetric 3-arg `reduce` warns on drift when true). */
   debug?: boolean
 }
-export const $ = (globalThis[Symbol.for('data.$')] ??= makeDollar()) as Dollar
+export const $ = ((globalThis as any)[Symbol.for('data.$')] ??= makeDollar()) as Dollar
 export default $
 
 // Internal hooks for the optional devtools entrypoint (see devtools/walk.ts).
@@ -195,11 +194,11 @@ const _rootFinalizer = typeof FinalizationRegistry !== 'undefined'
  * (`src.filter(...)`) instead; reach for this only when authoring a new
  * operator or wiring one that isn't registered. See operators/README.md.
  */
-export function createOperator(source, OperatorClass, ...args) {
+export function createOperator(source: any, OperatorClass: any, ...args: any[]) {
   const p = source[view]
   // some_sink returns whatever the predicate returns, so the predicate has
   // to yield the sink itself (not a boolean) for the dedup branch to find it.
-  let op = p.some_sink(sink =>
+  let op = p.some_sink((sink: any) =>
     sink instanceof OperatorClass && sink.matches?.(...args) ? sink : undefined)
   if (!op) {
     op = new OperatorClass(p, ...args)
@@ -225,10 +224,10 @@ export function createOperator(source, OperatorClass, ...args) {
  * whereas filter/compare/sort/aggregate use this to subscribe a scalar
  * VALUE/threshold/window/column and recompute when it moves.
  */
-export const bindReactive = (arg, host, prop) => {
+export const bindReactive = (arg: any, host: any, prop: any) => {
   if (!(arg instanceof ViewProxy)) return false
-  host['_' + prop + 'View'] = arg[view]
-  arg.connect(host, prop)
+  host['_' + prop + 'View'] = (arg as any)[view]
+  ;(arg as any).connect(host, prop)
   return true
 }
 
@@ -312,9 +311,9 @@ export type DataOps<T = any> = {
   first(): Data<RowOf<T>>
   last(): Data<RowOf<T>>
   update(value: T): undefined
-  update(value, key: string[]): undefined
+  update(value: any, key: string[]): undefined
   insert(value: RowOf<T>): undefined
-  insert(value, key: string[]): undefined
+  insert(value: any, key: string[]): undefined
   remove(key?: string[]): undefined
   /**
    * Rows matching a predicate. Four shapes: a `(row, key) => boolean` function,
@@ -492,6 +491,7 @@ export class Value {
   // value is assigned in the constructor below; this just teaches subclasses the
   // shape so they don't trip TS2339 once they come off `@ts-nocheck`.
   declare view: View
+  declare p: any
   constructor(){
     this.view = new View(this)
   }
@@ -501,7 +501,7 @@ export class Value {
   // proxy to another proxy is forbidden here because the resulting cycle is
   // ambiguous (copy or link?) — the caller must use a linked value instead
   // (see LinkedView).
-  update(value, key) {
+  update(value: any, key: any) {
     if (value instanceof ViewProxy) throw new Error('cannot set value to another data, use a linked value instead')
     transact(() =>
       key.length === 0 ? this.XU0(value)
@@ -509,7 +509,7 @@ export class Value {
                        : this.BU2([key, value]))
   }
 
-  insert(value, key, at){
+  insert(value: any, key: any, at: any){
     if (value instanceof ViewProxy) throw new Error('cannot set value to another data, use a linked value instead')
     // `at` is normalized to a string so downstream code can use `name in obj`
     // checks uniformly (numeric keys on plain objects coerce to strings anyway).
@@ -519,7 +519,7 @@ export class Value {
                        : this.BI2([key, value, at]))
   }
 
-  remove(key){
+  remove(key: any){
     transact(() =>
       key.length === 0 ? this.XR0()
     : key.length === 1 ? this.BR1([key[0]])
@@ -553,7 +553,7 @@ export class Value {
   // operators like tap, which point view.value at p.value via XU0),
   // upstream has already spliced the array and re-splicing here shifts
   // every survivor one position further than intended.
-  BR1A(R1, src?: any){
+  BR1A(R1: any, src?: any){
     const owns = this.view.value !== this.p?.value
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
@@ -570,7 +570,7 @@ export class Value {
   // an array so we get splice semantics and downstream V1 propagation. Skips
   // already-undefined slots so a remove is a true no-op rather than emitting
   // a phantom event.
-  BR1(R1, src?: any){
+  BR1(R1: any, src?: any){
     if (isArray(this.view.value)) return this.BR1A(R1)
     const NR1 = []
     for (let i = 0; i < R1.length; i++) {
@@ -584,7 +584,7 @@ export class Value {
     this.view.BR1(NR1)
   }
 
-  BR2(R2, src?: any){
+  BR2(R2: any, src?: any){
     const NR2 = []
     loop1: for (let i = 0; i < R2.length; i++) {
       const key = R2[i]
@@ -633,7 +633,7 @@ export class Value {
   // producers already use. For OBJECT sources a previously-undefined key is
   // always a fresh insert (no positions to shift) — load-bearing for the
   // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
-  BU1(U1, src?: any) {
+  BU1(U1: any, src?: any) {
     const NU1 = []
     const NI0 = []
     const NF0 = []
@@ -660,7 +660,7 @@ export class Value {
   // for what's logically one assignment. `key.slice().reverse()` then `pop()`
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
-  BU2(U2, src?: any){
+  BU2(U2: any, src?: any){
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     // Build a filtered NU2 of pairs that actually changed something, exactly
     // like BU1 above. The old code skipped the no-op WRITE (continue) but still
@@ -688,7 +688,7 @@ export class Value {
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
-  BI0(I0, src?: any){
+  BI0(I0: any, src?: any){
     if (isArray(this.view.value)) return this.BI0A(I0)
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     // Filter and classify like BU1 (just above): a no-op insert (same value at
@@ -720,7 +720,7 @@ export class Value {
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BMV1 — see comment on BR1A).
-  BI0A(I0, src?: any){
+  BI0A(I0: any, src?: any){
     const owns = this.view.value !== this.p?.value
     for (let i = 0; i < I0.length; i+=2) {
       const at = I0[i]
@@ -747,7 +747,7 @@ export class Value {
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BI0A — see comment on BR1A).
-  BMV1(M1) {
+  BMV1(M1: any) {
     if (this.view.value !== this.p?.value) {
       for (let i = 0; i < M1.length; i += 2) {
         const from = +M1[i]
@@ -759,7 +759,7 @@ export class Value {
     this.view.BMV1(M1)
   }
 
-  BI2(I2, src?: any){
+  BI2(I2: any, src?: any){
     if (typeof this.view.value !== 'object' || this.view.value === null) this.view.value = {}
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++]
@@ -810,14 +810,14 @@ export class View {
   // initializer (it sets ALL fields deliberately, for a monomorphic hidden
   // class; a real field initializer here would emit `= undefined` ahead of it
   // and perturb that). These just publish the shape to subclasses/consumers.
-  declare res: Value
+  declare res: any
   declare key: string[]
   declare sinks: Set<any>
   declare views: Map<any, any>
   declare p: View | undefined
   declare name: any
   declare value: any
-  constructor(res){
+  constructor(res?: any){
     // Initialise *all* fields here, including ones only used by child views
     // (`p`, `name`) and the data slot (`value`). Without this, root views
     // and child views end up with different V8 hidden classes because the
@@ -837,7 +837,7 @@ export class View {
   // A child stays attached to its parent's key (so writes route correctly) but
   // owns its own value snapshot — kept in sync by the parent's dispatch logic
   // calling child.XU0() / XR0() on every notification that crosses its key.
-  static child(p, name){
+  static child(p: any, name: any){
     const view = new View(p.res)
     view.p = p
     view.key = [...p.key, name]
@@ -850,7 +850,7 @@ export class View {
   // fresh Value-backed View; $(otherProxy) builds a LinkedView that forwards
   // every read/write to the linked source. The branch matters for set/get
   // semantics — see LinkedView below.
-  static value(value) {
+  static value(value: any) {
     if (value instanceof ViewProxy) {
       return new LinkedView(value)
     } else {
@@ -869,13 +869,13 @@ export class View {
   // the corresponding key actually disappeared (the second half of the OR
   // covers the case where a child is currently undefined and stays that way —
   // we still want its sinks to know).
-  XR0(value) {
+  XR0(value: any) {
     if (this.p) this.value = undefined
-    this.each((name, child) => {
+    this.each((name: any, child: any) => {
       if (child.value !== value?.[name] || child.value !== undefined)
         child.XR0(value?.[name])
     })
-    this.sink(sink => sink.XR0(value, this))
+    this.sink((sink: any) => sink.XR0(value, this))
   }
 
   // Splice-aware fan-out for object removes. For object sources we route each
@@ -886,7 +886,7 @@ export class View {
   // BR1A (with shift semantics) or BR1 (treat as named delete) depending on
   // what they implement; the prototype check stops a sink that inherits the
   // default Value.BR1A from masquerading as array-aware.
-  BR1(R1) {
+  BR1(R1: any) {
     if (!R1.length) return
     const arr = isArray(this.value)
     if (!arr) {
@@ -907,7 +907,7 @@ export class View {
     this.fanout(arr ? 'BR1A' : undefined, 'BR1', R1)
   }
 
-  BR2(R2){
+  BR2(R2: any){
     for (let i = 0; i < R2.length; i++) {
       const [name, ...rest] = R2[i++]
       const value = R2[i]
@@ -915,7 +915,7 @@ export class View {
         ? this.get_named(name)?.BR1([rest[0], value])
         : this.get_named(name)?.BR2([rest, value])
     }
-    this.sink(sink => sink.BR2(R2, this))
+    this.sink((sink: any) => sink.BR2(R2, this))
   }
 
   // Whole-value replacement. For child views this means: any name still
@@ -924,7 +924,7 @@ export class View {
   // because XU0 on the parent already mutated `p.value`; we just mirror it.
   XU0(value?: any) {
     if (this.p) this.value = this.p.value?.[this.name]
-    this.each((name, child) => {
+    this.each((name: any, child: any) => {
       if (this.value?.[name] !== undefined)
         child.XU0()
       else {
@@ -932,19 +932,19 @@ export class View {
           child.XR0(child.value)
       }
     })
-    this.sink(sink => sink.XU0(this.value, this))
+    this.sink((sink: any) => sink.XU0(this.value, this))
   }
 
-  BU1(U1) {
+  BU1(U1: any) {
     if (!U1.length) return
     if (this.p) this.value = this.p.value?.[this.name]
     // Each named child whose key got an update needs its own XU0 so its child
     // proxies can refresh transitively. Sinks then receive the batched BU1.
     for (let i = 0; i < U1.length; i++) this.get_named(U1[i++])?.XU0()
-    this.sink(sink => sink.BU1(U1, this))
+    this.sink((sink: any) => sink.BU1(U1, this))
   }
 
-  BU2(U2){
+  BU2(U2: any){
     if (!U2.length) return
     if (this.p) this.value = this.p.value?.[this.name]
     for (let i = 0; i < U2.length; i++) {
@@ -954,22 +954,22 @@ export class View {
         ? this.get_named(name)?.BU1([rest[0], value])
         : this.get_named(name)?.BU2([rest, value])
     }
-    this.sink(sink => sink.BU2(U2, this))
+    this.sink((sink: any) => sink.BU2(U2, this))
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     if (this.p) this.value = this.p.value?.[this.name]
     if (isArray(this.value)) return this.BI0A(I0)
     for (let i = 0; i < I0.length; i++) this.get_named(I0[i++])?.XU0()
-    this.sink(sink => sink.BI0(I0, this))
+    this.sink((sink: any) => sink.BI0(I0, this))
   }
 
   // Array insert: every existing index ≥ the smallest insert position has
   // shifted up, so refresh those children once before fanning out to sinks.
   // The prototype check guards against a sink that only inherits the default
   // BI0A from Value being treated as array-aware.
-  BI0A(I0){
+  BI0A(I0: any){
     if (this.views.size) {
       // Coerce to numbers before the min — see the matching note in BR1.
       let offset = Infinity
@@ -1000,19 +1000,19 @@ export class View {
   // not double-applied (closed ISSUES.md C4). BH1/BF0 live on View only — never
   // on Value — so a plain Value sink never inherits one and always takes the
   // BR1/BI0 fallback.
-  BH1(R1) {
+  BH1(R1: any) {
     if (!R1.length) return
     for (let i = 0; i < R1.length; i += 2) this.get_named(R1[i])?.XU0()
     this.fanout('BH1', 'BR1', R1)
   }
 
-  BF0(I0) {
+  BF0(I0: any) {
     if (!I0.length) return
     for (let i = 0; i < I0.length; i += 2) this.get_named(I0[i])?.XU0()
     this.fanout('BF0', 'BI0', I0)
   }
 
-  BI2(I2){
+  BI2(I2: any){
     if (this.p) this.value = this.p.value?.[this.name]
     for (let i = 0; i < I2.length;) {
       const [name, ...rest] = I2[i++]
@@ -1022,14 +1022,14 @@ export class View {
         ? this.get_named(name)?.BI2([rest, value, at])
         : this.get_named(name)?.BI0([at, value])
     }
-    this.sink(sink => sink.BI2(I2, this))
+    this.sink((sink: any) => sink.BI2(I2, this))
   }
 
   // Apply a batched [from, to] rotation to named children whose key falls
   // inside any affected range, refreshing each from the (already moved)
   // parent value. Sinks that don't implement BMV1 fall back to BU1 over the
   // affected positions so they refresh content reactively.
-  BMV1(M1) {
+  BMV1(M1: any) {
     if (!M1.length) return
     if (this.p) this.value = this.p.value?.[this.name]
     if (this.views.size) {
@@ -1069,7 +1069,7 @@ export class View {
   // different element. Walk all named children in that range and refresh
   // those whose snapshot diverged. Off-by-one (`length+1`) intentional: a
   // child created at the now-empty tail needs an XU0 to clear itself.
-  V1(offset){
+  V1(offset: any){
     for (let i = offset; i < this.value.length+1; i++) {
       const child = this.get_named(`${i}`)
       if (child && child.value !== this.value[i]) child.XU0()
@@ -1080,7 +1080,7 @@ export class View {
   // is removed from the collection on the fly, so dead subscribers don't
   // accumulate. `sink(fn)` is the standard fan-out; `some_sink(fn)` is the
   // operator-dedup helper used by createOperator and ViewProxy.apply.
-  some_sink(fn) {
+  some_sink(fn: any) {
     let n
     for (const x of this.sinks) {
       const sink = x.deref?.()
@@ -1096,7 +1096,7 @@ export class View {
   // delivered the current change twice (duplicating it for fold consumers). The
   // dead-WeakRef sweep still mutates the live set. `sinks.size` fast-path avoids
   // the array alloc when there's nothing (or nothing yet) to notify.
-  sink(fn){
+  sink(fn: any){
     if (!this.sinks.size) return
     for (const x of [...this.sinks]) {
       const sink = x.deref?.()
@@ -1116,9 +1116,9 @@ export class View {
   // `verb = undefined` to force the fallback (object BR1 — no array variant).
   // `verb`/`fallback` are constant string literals at each call site, so V8
   // specializes `sink[verb]` back to a fixed-offset access after inlining.
-  fanout(verb, fallback, payload){
+  fanout(verb: any, fallback: any, payload: any){
     if (!this.sinks.size) return
-    const proto = verb && Value.prototype[verb]
+    const proto = verb && (Value.prototype as any)[verb]
     for (const x of [...this.sinks]) { // snapshot — see sink()
       const sink = x.deref?.()
       if (!sink) { this.sinks.delete(x); continue }
@@ -1133,7 +1133,7 @@ export class View {
     }
   }
 
-  each(fn){
+  each(fn: any){
     for (const [name, ref] of this.views) {
       const res = ref.deref?.()
       if (!res) { this.views.delete(name); continue }
@@ -1141,7 +1141,7 @@ export class View {
     }
   }
 
-  get_or_create_named(name){
+  get_or_create_named(name: any){
     return this.views.get(name)?.deref?.() ?? create(
       this.views,
       name,
@@ -1149,13 +1149,13 @@ export class View {
     )
   }
 
-  get_named(name){
+  get_named(name: any){
     const res = this.views.get(name)?.deref?.()
     if (!res) this.views.delete(name)
     return res
   }
 
-  disconnect(sink){
+  disconnect(sink: any){
     for (const x of this.sinks) {
       const s = x.deref?.()
       if (s === sink) { this.sinks.delete(x); break }
@@ -1163,7 +1163,7 @@ export class View {
     }
   }
 
-  connect(sink){
+  connect(sink: any){
     this.sinks.add(new WeakRef(sink))
   }
 }
@@ -1181,18 +1181,19 @@ export class Sink {}
 // linked tree. Re-connecting on swap ensures we stop receiving events from
 // the old source.
 class LinkedView extends View {
-  constructor(p){
+  declare src: any
+  constructor(p: any){
     super()
-    this.src = p[Symbols.view]
+    this.src = (p as any)[Symbols.view]
     this.update(this.src)
   }
 
-  update(value, key = []){
+  update(value: any, key: any = []){
     if (key.length) {
       return this.src.res.update(value, key)
     }
 
-    if (value instanceof ViewProxy) value = value[Symbols.view]
+    if (value instanceof ViewProxy) value = (value as any)[Symbols.view]
     if (!(value instanceof View))
       throw new Error('cannot set linked value to non-reactive source')
 
@@ -1211,24 +1212,26 @@ class LinkedView extends View {
     this.src.connect(this)
     this.XU0()
   }
-  insert(...args){ return this.src.res.insert(...args) }
-  remove(...args){ return this.src.res.remove(...args) }
+  insert(...args: any[]){ return this.src.res.insert(...args) }
+  remove(...args: any[]){ return this.src.res.remove(...args) }
   // `value` and `res` are read-through to the source — the LinkedView itself
   // never holds data, it's a transparent forwarder.
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get value(){ return this.src.value }
-  set value(v){ /* read-through getter; constructor's init falls here */ }
+  set value(v: any){ /* read-through getter; constructor's init falls here */ }
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get res(){ return this }
-  set res(v){ }
+  set res(v: any){ }
 }
 
 // Pair/triple iterators over flat protocol arrays: most BU1/BR1/BI0 payloads
 // are flat `[name, value, name, value, ...]` for compactness (avoids the
 // allocation overhead of `[[name, value], ...]` on every event), so iter2 /
 // iter3 are the canonical readers.
-function iter2(arr, fn) {
+function iter2(arr: any, fn: any) {
   for (let i = 0; i < arr.length; i++) fn(arr[i++], arr[i])
 }
-function iter3(arr, fn) {
+function iter3(arr: any, fn: any) {
   for (let i = 0; i < arr.length; i++) fn(arr[i++], arr[i++], arr[i])
 }
 
@@ -1236,7 +1239,9 @@ function iter3(arr, fn) {
 // translated into a `{ type, key, value, at? }` record pushed onto the user's
 // array. Used heavily in tests: capture the change stream, then assert it.
 class ArrSink {
-  constructor(p, arr){
+  declare p: any
+  declare arr: any
+  constructor(p: any, arr: any){
     this.p = p
     this.arr = arr
     // Pin to `arr` like PropSink/FunctionSink: the view holds this sink only via
@@ -1249,35 +1254,35 @@ class ArrSink {
     lifetimes.set(arr, refs)
     this.update([], p.value)
   }
-  update = (key, value) => this.arr.push({ type: 'update', key, value: sclone(value) })
-  remove = (key, value) => this.arr.push({ type: 'remove', key, value: sclone(value) })
-  insert = (key, value, at) => this.arr.push({ type: 'insert', key, value: sclone(value), at })
-  XU0(value){ this.update([], value) }
-  BU1(U1){ iter2(U1, (name, value) => this.update([name], value)) }
-  BU2(U2){ iter2(U2, (key, value) => this.update(key, value)) }
-  BI0(I0){ iter2(I0, (at, value) => this.insert([], value, at)) }
-  BI2(I0){ iter3(I0, (key, value, at) => this.insert(key, value, at)) }
-  XR0(value){ this.remove([], value) }
+  update = (key: any, value: any) => this.arr.push({ type: 'update', key, value: sclone(value) })
+  remove = (key: any, value: any) => this.arr.push({ type: 'remove', key, value: sclone(value) })
+  insert = (key: any, value: any, at: any) => this.arr.push({ type: 'insert', key, value: sclone(value), at })
+  XU0(value: any){ this.update([], value) }
+  BU1(U1: any){ iter2(U1, (name: any, value: any) => this.update([name], value)) }
+  BU2(U2: any){ iter2(U2, (key: any, value: any) => this.update(key, value)) }
+  BI0(I0: any){ iter2(I0, (at: any, value: any) => this.insert([], value, at)) }
+  BI2(I0: any){ iter3(I0, (key: any, value: any, at: any) => this.insert(key, value, at)) }
+  XR0(value: any){ this.remove([], value) }
   // Skip undefined-valued removes: a RowOperator over an array forwards
   // `[index, undefined]` when an EXCLUDED slot is spliced out — the positional
   // shift signal that array-aware sinks need, but no logical row left the view.
   // A position-agnostic record sink must not surface a `{type:'remove',
   // value:undefined}` for a row that was never present (a real remove always
   // carries the row value).
-  BR1(R1){ iter2(R1, (name, value) => { if (value !== undefined) this.remove([name], value) }) }
-  BR2(R2){ iter2(R2, (key, value) => this.remove(key, value)) }
-  move = (from, to) => this.arr.push({ type: 'move', from, to })
-  BMV1(M1){ iter2(M1, (from, to) => this.move(+from, +to)) }
+  BR1(R1: any){ iter2(R1, (name: any, value: any) => { if (value !== undefined) this.remove([name], value) }) }
+  BR2(R2: any){ iter2(R2, (key: any, value: any) => this.remove(key, value)) }
+  move = (from: any, to: any) => this.arr.push({ type: 'move', from, to })
+  BMV1(M1: any){ iter2(M1, (from: any, to: any) => this.move(+from, +to)) }
 
-  R0(value){ this.arr.push({ type: 'remove', key: [], value: sclone(value) }) }
-  R1(name, value){ this.arr.push({ type: 'remove', key: [name], value: sclone(value) }) }
-  R2(key, value){ this.arr.push({ type: 'remove', key, value: sclone(value) }) }
-  U0(value){ this.arr.push({ type: 'update', key: [], value: sclone(value) }) }
-  U1(name, value){ this.arr.push({ type: 'update', key: [name], value: sclone(value) }) }
-  U2(key, value){ this.arr.push({ type: 'update', key, value: sclone(value) }) }
-  I0(value, at){ this.arr.push({ type: 'insert', value: sclone(value), at }) }
-  I1(name, value, at){ this.arr.push({ type: 'insert', key: [name], value: sclone(value), at }) }
-  I2(key, value, at){ this.arr.push({ type: 'insert', key, value: sclone(value), at }) }
+  R0(value: any){ this.arr.push({ type: 'remove', key: [], value: sclone(value) }) }
+  R1(name: any, value: any){ this.arr.push({ type: 'remove', key: [name], value: sclone(value) }) }
+  R2(key: any, value: any){ this.arr.push({ type: 'remove', key, value: sclone(value) }) }
+  U0(value: any){ this.arr.push({ type: 'update', key: [], value: sclone(value) }) }
+  U1(name: any, value: any){ this.arr.push({ type: 'update', key: [name], value: sclone(value) }) }
+  U2(key: any, value: any){ this.arr.push({ type: 'update', key, value: sclone(value) }) }
+  I0(value: any, at: any){ this.arr.push({ type: 'insert', value: sclone(value), at }) }
+  I1(name: any, value: any, at: any){ this.arr.push({ type: 'insert', key: [name], value: sclone(value), at }) }
+  I2(key: any, value: any, at: any){ this.arr.push({ type: 'insert', key, value: sclone(value), at }) }
 }
 
 // PropSinks would otherwise be eligible for GC the moment connect() returned
@@ -1293,8 +1298,8 @@ const lifetimes = new WeakMap
 // a UI flag, where granular events would just be more code for the same
 // observable result.
 class PropSink extends Sink {
-  p; obj; prop;
-  constructor(p, obj, prop){
+  p: any; obj: any; prop: any;
+  constructor(p: any, obj: any, prop: any){
     super()
     this.p = p
     this.obj = obj
@@ -1304,7 +1309,7 @@ class PropSink extends Sink {
     refs.add(this)
     lifetimes.set(obj, refs)
   }
-  XU0(value){ this.obj[this.prop] = value }
+  XU0(value: any){ this.obj[this.prop] = value }
   XR0(){ this.XU0(this.p.value) }
   BU1(){ this.XU0(this.p.value) }
   BR1(){ this.XU0(this.p.value) }
@@ -1319,7 +1324,8 @@ class PropSink extends Sink {
 // same record shape as ArrSink so the two are interchangeable for testing
 // and for downstream consumers that want to handle each event explicitly.
 class FunctionSink extends Sink {
-  constructor(p, obj, fn){
+  declare fn: any
+  constructor(p: any, obj: any, fn: any){
     super()
     this.fn = fn
     // Pin to `obj` exactly like PropSink: the view holds this sink only via a
@@ -1331,15 +1337,15 @@ class FunctionSink extends Sink {
     lifetimes.set(obj, refs)
     fn({ type: 'update', key: [], value: sclone(p.value) })
   }
-  XU0(value){ this.fn({ type: 'update', key: [], value: sclone(value) }) }
-  XR0(value){ this.fn({ type: 'remove', key: [], value: sclone(value) }) }
-  BU1(U1){ iter2(U1, (name, value) => this.fn({ type: 'update', key: [name], value: sclone(value) })) }
-  BU2(U2){ iter2(U2, (key, value) => this.fn({ type: 'update', key, value: sclone(value) })) }
-  BI0(I0){ iter2(I0, (at, value) => this.fn({ type: 'insert', key: [], value: sclone(value), at })) }
-  BI2(I2){ iter3(I2, (key, value, at) => this.fn({ type: 'insert', key, value: sclone(value), at })) }
-  BR1(R1){ iter2(R1, (name, value) => { if (value !== undefined) this.fn({ type: 'remove', key: [name], value: sclone(value) }) }) }
-  BR2(R2){ iter2(R2, (key, value) => this.fn({ type: 'remove', key, value: sclone(value) })) }
-  BMV1(M1){ iter2(M1, (from, to) => this.fn({ type: 'move', from: +from, to: +to })) }
+  XU0(value: any){ this.fn({ type: 'update', key: [], value: sclone(value) }) }
+  XR0(value: any){ this.fn({ type: 'remove', key: [], value: sclone(value) }) }
+  BU1(U1: any){ iter2(U1, (name: any, value: any) => this.fn({ type: 'update', key: [name], value: sclone(value) })) }
+  BU2(U2: any){ iter2(U2, (key: any, value: any) => this.fn({ type: 'update', key, value: sclone(value) })) }
+  BI0(I0: any){ iter2(I0, (at: any, value: any) => this.fn({ type: 'insert', key: [], value: sclone(value), at })) }
+  BI2(I2: any){ iter3(I2, (key: any, value: any, at: any) => this.fn({ type: 'insert', key, value: sclone(value), at })) }
+  BR1(R1: any){ iter2(R1, (name: any, value: any) => { if (value !== undefined) this.fn({ type: 'remove', key: [name], value: sclone(value) }) }) }
+  BR2(R2: any){ iter2(R2, (key: any, value: any) => this.fn({ type: 'remove', key, value: sclone(value) })) }
+  BMV1(M1: any){ iter2(M1, (from: any, to: any) => this.fn({ type: 'move', from: +from, to: +to })) }
 }
 
 // ViewProxy is the user-facing handle. Every property access creates (or
@@ -1350,12 +1356,12 @@ class FunctionSink extends Sink {
 // `proxy.filter(fn)` work as a method invocation.
 export class ViewProxy {
   view;
-  constructor(view){
+  constructor(view: any){
     this.view = view
     return new Proxy(noop, this)
   }
 
-  deleteProperty(target, name){
+  deleteProperty(target: any, name: any){
     const { res, key } = this.view
     // `delete proxy[value]` deletes the proxy's own value (key path stays
     // empty); any other delete drills into a child key.
@@ -1364,7 +1370,7 @@ export class ViewProxy {
     return true
   }
 
-  set(t, name, value){
+  set(t: any, name: any, value: any){
     const { res, key } = this.view
     const path = name === Symbols.value ? key : [...key, name]
     res.update(value, path)
@@ -1387,15 +1393,15 @@ export class ViewProxy {
   //   Symbols.value      — the raw snapshot. Reading proxy.value would create
   //                        a child view named "value" instead — that's the
   //                        canonical gotcha noted in CLAUDE.md.
-  get(t, name){
-    if (name === Symbol.toPrimitive) return (hint) => {
+  get(t: any, name: any){
+    if (name === Symbol.toPrimitive) return (hint: any) => {
       const v = this.view.value
       if (hint === 'number') return +v
       if (hint === 'string') return v?.toString()
       return v !== null && typeof v === 'object' ? v.toString() : v   // 'default'
     }
     if (name === Symbol.iterator) return this.iterator
-    if (name === Symbols.reactive) return true
+    if (name === (Symbols as any).reactive) return true
     if (name === Symbols.view) return this.view
     if (name === Symbols.value) return this.view.value
     return new ViewProxy(this.view.get_or_create_named(name))
@@ -1405,7 +1411,7 @@ export class ViewProxy {
   // apply. The child view's `name` tells us which operator to construct.
   // `connect`, `update`, `insert`, `remove` are handled directly without
   // going through the operator dispatch table.
-  apply(t, m, args){
+  apply(t: any, m: any, args: any[]){
     const { p, name: type } = this.view
     if (!p) throw new Error('cannot invoke a root value!')
     // Promise assimilation (`await proxy`, `Promise.resolve(proxy)`,
@@ -1423,7 +1429,7 @@ export class ViewProxy {
       catch (e) { if (typeof onRejected === 'function') onRejected(e) }
       return
     }
-    if (type === 'connect') return connect(p, ...args)
+    if (type === 'connect') return (connect as any)(p, ...(args as any[]))
     if (type === 'raf')     return raf(p)
     // `proxy.patch([name, value, name, value, ...])` applies many child updates
     // as ONE cascade: the backing value is updated for every pair and sinks
@@ -1462,7 +1468,7 @@ export class ViewProxy {
       // Same dedup logic as createOperator, inline because we already have p.
       // The predicate must return the sink itself (not a boolean) for the
       // dedup branch to find it — some_sink yields whatever the predicate yields.
-      let sink = p.some_sink(sink =>
+      let sink = p.some_sink((sink: any) =>
         sink instanceof OperatorClass && sink.matches?.(...args) ? sink : undefined)
       if (!sink) {
         p.sinks.add(new WeakRef(sink = new OperatorClass(p, ...args)))
@@ -1489,7 +1495,7 @@ export class ViewProxy {
         `operators are: ${registered.sort().join(', ')}).`))
   }
 
-  getPrototypeOf(target){
+  getPrototypeOf(target: any){
     return ViewProxy.prototype
   }
 
@@ -1498,12 +1504,12 @@ export class ViewProxy {
   // doesn't know its own length without resolving `value` first.
   *iterator(i = 0) {
     while (true) {
-      yield this[i++]
+      yield (this as any)[i++]
     }
   }
 }
 
-function create(views, name, res) {
+function create(views: any, name: any, res: any) {
   views.set(name, new WeakRef(res))
   return res
 }
@@ -1514,7 +1520,7 @@ function create(views, name, res) {
 //   connect(obj, fn)         → FunctionSink, call fn(change) per event
 //   connect(sink)            → bare attach (sink must implement the verbs)
 // All paths return the first arg so the caller can chain or assert against it.
-function connect(p, a, b) {
+function connect(p: any, a: any, b: any) {
   if (isArray(a)) {
     const sink = new ArrSink(p, a)
     p.sinks.add(new WeakRef(sink))
@@ -1553,13 +1559,13 @@ function connect(p, a, b) {
 // walk enumerable keys in iteration order. Empty sources collapse to '0' so
 // the caller still gets a (degenerate) ViewProxy with undefined value rather
 // than null, keeping the chainable API uniform.
-function firstKey(v) {
+function firstKey(v: any) {
   if (v == null || typeof v !== 'object') return '0'
   if (isArray(v)) return '0'
   for (const k in v) return k
   return '0'
 }
-function lastKey(v) {
+function lastKey(v: any) {
   if (v == null || typeof v !== 'object') return '0'
   if (isArray(v)) return String(Math.max(0, v.length - 1))
   let last = '0'
@@ -1577,13 +1583,13 @@ function lastKey(v) {
 // `globalThis.requestAnimationFrame` is looked up per-call (not captured at
 // module load) so test environments that polyfill rAF after import still
 // work; falls back to `setTimeout(cb, 16)` in plain Node.
-function raf(p) {
-  let pending
+function raf(p: any) {
+  let pending: any
   let scheduled = false
-  const schedule = (cb) => typeof globalThis.requestAnimationFrame === 'function'
+  const schedule = (cb: any) => typeof globalThis.requestAnimationFrame === 'function'
     ? globalThis.requestAnimationFrame(cb)
     : setTimeout(cb, 16)
-  const writer = (v) => {
+  const writer = (v: any) => {
     pending = v
     if (scheduled) return
     scheduled = true
