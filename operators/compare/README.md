@@ -1,8 +1,8 @@
 # gt / lt / gte / lte
 
-One-sided range filters. Each keeps rows whose `row[column]` satisfies the comparison against a literal threshold. RowOperator-based — every BU1/BU2 reclassifies one row in O(1) and emits the appropriate downstream verb.
+One-sided range filters. Each keeps rows whose `row[column]` satisfies the comparison against a threshold (a literal, or a reactive `ViewProxy`). RowOperator-based — every BU1/BU2 reclassifies one row in O(1) and emits the appropriate downstream verb.
 
-Use these when you need a single threshold (`spread > 1.0`, `price >= 100`). Use [between](../between/) when you need a two-sided range or a reactive bound.
+Use these when you need a single threshold (`spread > 1.0`, `price >= 100`). Use [between](../between/) when you need a two-sided range, or for a *fast-moving* reactive threshold (its bounds recompute incrementally, whereas a reactive `gt`/`lt` threshold re-runs a whole-snapshot rebuild).
 
 ## Signatures
 
