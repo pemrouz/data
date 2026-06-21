@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { iter, identity, isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
@@ -29,7 +28,11 @@ const REBUILD = Symbol('distinct.rebuild')
 // Crossfilter-shaped workloads (dimension brushing, attribute rewrites)
 // are dominated by BI0/BU2 and stay on the incremental path.
 export class DistinctValue extends Operator {
-  constructor(p, fn) {
+  declare fn: (row: any) => any
+  declare counts: Map<any, number>
+  declare firstRow: Map<any, any>
+  declare namesProj: Map<any, any>
+  constructor(p: any, fn: (row: any) => any) {
     super()
     this.p = p
     this.fn = fn || identity
@@ -41,7 +44,7 @@ export class DistinctValue extends Operator {
     this._rebuild()
   }
 
-  matches(fn) { return this.fn === (fn || identity) }
+  matches(fn: any) { return this.fn === (fn || identity) }
 
   _reset() {
     this.counts = new Map()
@@ -55,7 +58,7 @@ export class DistinctValue extends Operator {
     const v = this.p.value
     const { fn, counts, firstRow, namesProj, output } = this
     if (v && typeof v === 'object') {
-      iter(v, (name, row) => {
+      iter(v, (name: any, row: any) => {
         if (row === undefined) return
         const k = fn(row)
         const c = counts.get(k)
@@ -75,7 +78,7 @@ export class DistinctValue extends Operator {
 
   // Single-row insert at a fresh name. Either bumps an existing bucket's
   // count or admits a new projection to the output.
-  _insert(name, row) {
+  _insert(name: any, row: any) {
     if (row === undefined) return false
     const k = this.fn(row)
     const c = this.counts.get(k)
@@ -97,14 +100,14 @@ export class DistinctValue extends Operator {
   // bucket's row appeared earlier than a still-present row that now becomes
   // the first instance of some OTHER bucket) doesn't happen for BU2 — the
   // row at `name` stays at `name`, just with a new projection.
-  _update(name, row) {
+  _update(name: any, row: any) {
     if (row === undefined) return false
     const newK = this.fn(row)
     const oldK = this.namesProj.get(name)
     if (oldK === newK) return false
     let changed = false
     if (oldK !== undefined) {
-      const c = this.counts.get(oldK) - 1
+      const c = this.counts.get(oldK)! - 1   // oldK came from namesProj, so counts has it
       if (c === 0) {
         this.counts.delete(oldK)
         const oldFirst = this.firstRow.get(oldK)
@@ -140,7 +143,7 @@ export class DistinctValue extends Operator {
     return changed
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     // Array upstreams (sort/limit windows, mid-array inserts) deliver BI0 with a
     // POSITIONAL `at` that collides with the position-keyed namesProj map — a row
@@ -154,7 +157,7 @@ export class DistinctValue extends Operator {
     if (changed) this.view.XU0(this.view.value = this.output)
   }
 
-  BU2(U2) {
+  BU2(U2: any) {
     if (!U2.length) return
     // U2 is [path, value, path, value, ...] — we need the FULL row at
     // each touched top-level name to recompute its projection, not the
@@ -181,4 +184,4 @@ export class DistinctValue extends Operator {
   BI2() { this._rebuild() }
 }
 
-export const distinct = (source, fn) => createOperator(source, DistinctValue, fn)
+export const distinct = (source: any, fn?: any) => createOperator(source, DistinctValue, fn)

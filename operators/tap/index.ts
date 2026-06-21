@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Operator, createOperator } from '../../core.ts'
 
 // Does `fn` declare ANY parameter (even a defaulted or destructured one)?
@@ -8,7 +7,7 @@ import { Operator, createOperator } from '../../core.ts'
 // the real change record was never delivered. Source inspection catches the
 // defaulted/destructured cases the arity count misses (and is robust against
 // minification: a USED param — defaulted or not — is never dropped).
-export function tapHasParam(fn) {
+export function tapHasParam(fn: any) {
   if (typeof fn !== 'function') return false
   if (fn.length > 0) return true
   const s = Function.prototype.toString.call(fn)
@@ -49,17 +48,18 @@ export function tapHasParam(fn) {
 // on a group→tap relocate.) XU0/XR0 still go through super — they OWN the
 // view.value (re)assignment. Order: fn fires before forward for BR1/BR2 (the
 // record carries the leaving value), after for the others.
-const sclone = d => structuredClone(d)
+const sclone = (d: any) => structuredClone(d)
 
 export class TapValue extends Operator {
-  constructor(p, fn) {
+  declare fn: (change?: any) => any
+  constructor(p: any, fn: (change?: any) => any) {
     super()
     this.p = p
     this.fn = fn
     this.XU0(p.value)
   }
 
-  XU0(value) {
+  XU0(value?: any) {
     super.XU0(value)
     this.fn({ type: 'update', key: [], value: sclone(value) })
   }
@@ -71,37 +71,37 @@ export class TapValue extends Operator {
     this.fn({ type: 'remove', key: [], value: sclone(value) })
   }
 
-  BU1(U1) {
+  BU1(U1: any) {
     this.view.BU1(U1)
     for (let i = 0; i < U1.length; i += 2)
       this.fn({ type: 'update', key: [U1[i]], value: sclone(U1[i + 1]) })
   }
 
-  BR1(R1) {
+  BR1(R1: any) {
     for (let i = 0; i < R1.length; i += 2)
       this.fn({ type: 'remove', key: [R1[i]], value: sclone(R1[i + 1]) })
     this.view.BR1(R1)
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     this.view.BI0(I0)
     for (let i = 0; i < I0.length; i += 2)
       this.fn({ type: 'insert', key: [], value: sclone(I0[i + 1]), at: I0[i] })
   }
 
-  BU2(U2) {
+  BU2(U2: any) {
     this.view.BU2(U2)
     for (let i = 0; i < U2.length; i += 2)
       this.fn({ type: 'update', key: U2[i], value: sclone(U2[i + 1]) })
   }
 
-  BR2(R2) {
+  BR2(R2: any) {
     for (let i = 0; i < R2.length; i += 2)
       this.fn({ type: 'remove', key: R2[i], value: sclone(R2[i + 1]) })
     this.view.BR2(R2)
   }
 
-  BI2(I2) {
+  BI2(I2: any) {
     this.view.BI2(I2)
     for (let i = 0; i < I2.length; i += 3)
       this.fn({ type: 'insert', key: I2[i], value: sclone(I2[i + 1]), at: I2[i + 2] })
@@ -111,7 +111,7 @@ export class TapValue extends Operator {
   // `connect(obj, fn)` sink (FunctionSink) reports these as
   // `{ type: 'move', from, to }`; tap mirrors the convention so consumers
   // see the same vocabulary regardless of which sink they use.
-  BMV1(M1) {
+  BMV1(M1: any) {
     this.view.BMV1(M1)
     for (let i = 0; i < M1.length; i += 2)
       this.fn({ type: 'move', from: +M1[i], to: +M1[i + 1] })
@@ -133,31 +133,32 @@ export class TapValue extends Operator {
 // if your callback inspects which key changed or needs the change record
 // shape — use TapValue (the default) instead.
 export class TapBareValue extends Operator {
-  constructor(p, fn) {
+  declare fn: () => any
+  constructor(p: any, fn: () => any) {
     super()
     this.p = p
     this.fn = fn
     this.XU0(p.value)
   }
 
-  XU0(value) { super.XU0(value); this.fn() }
+  XU0(value?: any) { super.XU0(value); this.fn() }
   XR0() {
     if (this.view.value === undefined) return false
     super.XR0()
     this.fn()
   }
-  BU1(U1) { this.view.BU1(U1); this.fn() }
-  BR1(R1) { this.view.BR1(R1); this.fn() }
-  BI0(I0) { this.view.BI0(I0); this.fn() }
-  BU2(U2) { this.view.BU2(U2); this.fn() }
-  BR2(R2) { this.view.BR2(R2); this.fn() }
-  BI2(I2) { this.view.BI2(I2); this.fn() }
-  BMV1(M1) { this.view.BMV1(M1); this.fn() }
+  BU1(U1: any) { this.view.BU1(U1); this.fn() }
+  BR1(R1: any) { this.view.BR1(R1); this.fn() }
+  BI0(I0: any) { this.view.BI0(I0); this.fn() }
+  BU2(U2: any) { this.view.BU2(U2); this.fn() }
+  BR2(R2: any) { this.view.BR2(R2); this.fn() }
+  BI2(I2: any) { this.view.BI2(I2); this.fn() }
+  BMV1(M1: any) { this.view.BMV1(M1); this.fn() }
 }
 
 // The standalone `tap(source, fn)` form mirrors the dispatch in full.ts:
 // 0-arg fn → TapBareValue (no clone, fires per emit), otherwise TapValue.
 // So `tap(src, () => redraw())` is cheap whether you reach for it via the
 // chainable proxy method or the standalone helper.
-export const tap = (source, fn) =>
+export const tap = (source: any, fn: any) =>
   createOperator(source, tapHasParam(fn) ? TapValue : TapBareValue, fn)

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray } from '../../utils.ts'
 import { createOperator, ViewProxy, value } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
@@ -7,7 +6,7 @@ import { RowOperator } from '../../row.ts'
 // segment is missing. NB: must not be written as `while (p.length) r = r?.[p.shift()]`
 // — once `r` is nullish, optional chaining short-circuits past the `p.shift()`,
 // `p` never drains, and the loop spins forever.
-function get(k, r){
+function get(k: any, r: any){
   for (const seg of k) {
     if (r == null) return undefined
     r = r[seg]
@@ -15,9 +14,9 @@ function get(k, r){
   return r
 }
 
-function otof(k, v, fns) {
+function otof(k: any, v: any, fns: any) {
   if (typeof v !== 'object')
-    fns.push((r, i) => get(k, r) === v)
+    fns.push((r: any, i: any) => get(k, r) === v)
   else
     for (const i in v) {
       otof(k.concat(i), v[i], fns)
@@ -33,9 +32,9 @@ function otof(k, v, fns) {
 // `typeof !== 'object'` branch because a ViewProxy is itself a callable
 // (typeof 'function'), so an un-special-cased leaf would reference-compare the
 // proxy object and never match (the documented filter('foo', $(5)) trap).
-function match(actual, expected) {
+function match(actual: any, expected: any): boolean {
   if (expected instanceof ViewProxy)
-    return actual === expected[value]
+    return actual === (expected as any)[value]
   if (typeof expected !== 'object')
     return actual === expected
   else
@@ -46,7 +45,7 @@ function match(actual, expected) {
 
 // Collect every reactive (ViewProxy) leaf in an object-form filter template, so
 // FilterObjectValue can subscribe to each and rebuild when any changes.
-function reactiveLeaves(obj, out = []) {
+function reactiveLeaves(obj: any, out: any[] = []) {
   for (const k in obj) {
     const v = obj[k]
     if (v instanceof ViewProxy) out.push(v)              // a ViewProxy is typeof 'function', not 'object'
@@ -61,14 +60,16 @@ function reactiveLeaves(obj, out = []) {
 // argument shapes (`filter('key', val)`, `filter({k:v})`, etc.) into the
 // underlying predicate function.
 export class FilterValue extends RowOperator {
-  constructor(p, fn){
+  declare fn: (value: any, name?: any, old_val?: any) => any
+  declare _cell: { v: any } | undefined
+  constructor(p: any, fn: (value: any, name?: any, old_val?: any) => any){
     super()
     this.p = p
     this.fn = fn
     this.XU0(this.p.value)
   }
 
-  process(value, name, old_val) {
+  process(value: any, name?: any, old_val?: any) {
     return this.fn(value, name, old_val) ? value : undefined
   }
 
@@ -80,7 +81,7 @@ export class FilterValue extends RowOperator {
   // initial XU0 already used the snapshot) and skips a redundant rebuild when a
   // bound re-emits the same value. A non-reactive filter has no `_cell`, so this
   // is inert for the fn / truthy forms.
-  set val(v) {
+  set val(v: any) {
     if (this._cell && v !== this._cell.v) { this._cell.v = v; this.XU0(this.p.value) }
   }
 }
@@ -89,13 +90,15 @@ export class FilterValue extends RowOperator {
 // may be a reactive ViewProxy (`filter({region: $(cur)})`): each is subscribed
 // and a change rebuilds the view. `match` reads each reactive leaf's live value.
 export class FilterObjectValue extends FilterValue {
-  constructor(p, obj) {
-    super(p, r => match(r, obj))
+  declare _anchor: any
+  declare _live: boolean
+  constructor(p: any, obj: any) {
+    super(p, (r: any) => match(r, obj))
     const reactives = reactiveLeaves(obj)
     if (reactives.length) {
       this._anchor = {}                                  // lifetime handle for the FunctionSinks
       const rebuild = () => { if (this._live) this.XU0(this.p.value) }
-      for (const vp of reactives) vp.connect(this._anchor, rebuild)
+      for (const vp of reactives) (vp as any).connect(this._anchor, rebuild)
       this._live = true                                  // the connect seeds above ran with _live unset (no-op)
     }
   }
@@ -108,18 +111,18 @@ export class FilterObjectValue extends FilterValue {
 // walk both do — and an unguarded deref threw mid-cascade. The other argument
 // shapes (FilterColumnValue, FilterObjectValue) already guard.
 export class FilterStringValue extends FilterValue {
-  constructor(p, name, arg) {
+  constructor(p: any, name: any, arg: any) {
     if (arg instanceof ViewProxy) {
       // The predicate must read the LIVE value, but `this` isn't available
       // before super(); close over a mutable cell instead, then connect after.
-      const cell = { v: arg[value] }
-      super(p, r => r?.[name] === cell.v)
+      const cell = { v: (arg as any)[value] }
+      super(p, (r: any) => r?.[name] === cell.v)
       this._cell = cell
-      arg.connect(this, 'val')                           // fires `set val` now (no-op) + on every change
+      ;(arg as any).connect(this, 'val')                 // fires `set val` now (no-op) + on every change
     } else {
       super(p, arg === undefined
-        ? r => !!r?.[name]
-        : r => r?.[name] === arg
+        ? (r: any) => !!r?.[name]
+        : (r: any) => r?.[name] === arg
       )
     }
   }
@@ -129,23 +132,23 @@ export class FilterStringValue extends FilterValue {
 // case routes to FilterStringValue above; this one is for arrays of segments.
 // `val` may be a reactive ViewProxy, same as the string form.
 export class FilterColumnValue extends FilterValue {
-  constructor(p, name, arg) {
+  constructor(p: any, name: any, arg: any) {
     const key = [].concat(name)
     if (arg instanceof ViewProxy) {
-      const cell = { v: arg[value] }
-      super(p, r => get(key, r) === cell.v)
+      const cell = { v: (arg as any)[value] }
+      super(p, (r: any) => get(key, r) === cell.v)
       this._cell = cell
-      arg.connect(this, 'val')
+      ;(arg as any).connect(this, 'val')
     } else {
       super(p, arg === undefined
-        ? r => !!get(key, r)
-        : r => get(key, r) === arg
+        ? (r: any) => !!get(key, r)
+        : (r: any) => get(key, r) === arg
       )
     }
   }
 }
 
-export const filter = (source, a, b) => {
+export const filter = (source: any, a: any, b?: any) => {
   const Class = typeof a === 'function' ? FilterValue
               : typeof a === 'string'   ? FilterStringValue
               : isArray(a)              ? FilterColumnValue

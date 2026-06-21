@@ -23,6 +23,9 @@
     "operators/keys/index.ts",
     "operators/reverse/index.ts",
     "operators/to/index.ts",
-    "operators/compare/index.ts"
+    "operators/compare/index.ts",
+    "operators/filter/index.ts",
+    "operators/tap/index.ts",
+    "operators/distinct/index.ts"
   ]
 }
