@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Shim — the timing primitive now lives in perf/measure.ts. The cross-library
 // bench wants the WARM preset (one warmup rep + forced gc between reps) for
 // low-noise peer numbers, so `measure` here binds benchMeasure. Every existing

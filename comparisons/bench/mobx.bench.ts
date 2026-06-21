@@ -1,4 +1,3 @@
-// @ts-nocheck
 // MobX — pipeline split into three chained computeds, mirroring data's view
 // graph. Dashboard adds two parallel computeds (liquidCount, avgBid) reading
 // the same trades — three independent consumers, each with its own O(N) walk
@@ -10,7 +9,7 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function buildSingle() {
   const trades = observable.array(
-    makeTrades().map(t => observable.object(t, {}, { deep: false })),
+    makeTrades().map((t: any) => observable.object(t, {}, { deep: false })),
   )
   const withSpread = computed(() => {
     const out = new Array(trades.length)
@@ -20,10 +19,10 @@ function buildSingle() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.get().filter(t => t.spread > THRESHOLD))
+  const filtered = computed(() => withSpread.get().filter((t: any) => t.spread > THRESHOLD))
   const top = computed(() => {
     const f = filtered.get()
-    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
+    return [...f].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K)
   })
   const dispose = autorun(() => { void top.get() })
   return { trades, top, dispose }
@@ -31,7 +30,7 @@ function buildSingle() {
 
 function buildDashboard() {
   const trades = observable.array(
-    makeTrades().map(t => observable.object(t, {}, { deep: false })),
+    makeTrades().map((t: any) => observable.object(t, {}, { deep: false })),
   )
   const liquidCount = computed(() => {
     let n = 0
@@ -49,10 +48,10 @@ function buildDashboard() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.get().filter(t => t.spread > THRESHOLD))
+  const filtered = computed(() => withSpread.get().filter((t: any) => t.spread > THRESHOLD))
   const top10 = computed(() => {
     const f = filtered.get()
-    return [...f].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)
+    return [...f].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K)
   })
   const avgBid = computed(() => {
     let s = 0
@@ -67,7 +66,7 @@ function buildDashboard() {
   return { trades, liquidCount, top10, avgBid, dispose }
 }
 
-function tick(trades, t) {
+function tick(trades: any, t: any) {
   runInAction(() => { trades[t.idx][t.field] = t.newValue })
 }
 

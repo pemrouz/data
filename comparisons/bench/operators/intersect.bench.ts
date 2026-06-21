@@ -1,4 +1,3 @@
-// @ts-nocheck
 // `intersect` — per-operator comparison.
 //
 // Workload: 10_000 rows; two filters (`active === true`, `val > 50`)
@@ -44,14 +43,14 @@ const data: Variant = {
     }
     const build = () => {
       const src = $(toObj(makeRows()))
-      const a = src.filter(r => r.active)
-      const b = src.filter(r => r.val > THRESHOLD)
-      const c = a.intersect(b)
+      const a = src.filter((r: any) => r.active)
+      const b = src.filter((r: any) => r.val > THRESHOLD)
+      const c = a.intersect(b as any)
       return { src, c }
     }
     const setup = measure(() => { build() })
     const single = (() => {
-      const { src, c } = build(); void c[value]
+      const { src, c }: any = build(); void c[value]
       let i = 0
       return measure(() => {
         const t = TICKS[i++ % TICKS.length]
@@ -60,7 +59,7 @@ const data: Variant = {
       })
     })()
     const batch = (() => {
-      const { src, c } = build(); void c[value]
+      const { src, c }: any = build(); void c[value]
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) {
           const t = TICKS[j]
@@ -82,10 +81,10 @@ const crossfilterV: Variant = {
     const cfMod: any = await import('crossfilter2')
     const crossfilter = cfMod.default ?? cfMod
     const build = () => {
-      const state = makeRows().map(r => ({ ...r }))
+      const state = makeRows().map((r: any) => ({ ...r }))
       const cf = crossfilter(state)
-      const dActive = cf.dimension(d => d.active ? 1 : 0)
-      const dVal = cf.dimension(d => d.val)
+      const dActive = cf.dimension((d: any) => d.active ? 1 : 0)
+      const dVal = cf.dimension((d: any) => d.val)
       dActive.filter(1)
       dVal.filterRange([THRESHOLD + 1e-9, Infinity])
       // Reading the intersection: any dimension's top(Infinity) over the
@@ -94,13 +93,13 @@ const crossfilterV: Variant = {
       return { cf, dActive, dVal, state }
     }
     const setup = measure(() => { build() })
-    const tick = (cf, state, t: Tick) => {
-      cf.remove(d => d.id === t.idx)
+    const tick = (cf: any, state: any, t: Tick) => {
+      cf.remove((d: any) => d.id === t.idx)
       state[t.idx] = { ...state[t.idx], [t.field]: t.value }
       cf.add([state[t.idx]])
     }
     const single = (() => {
-      const { cf, dActive, state } = build(); void dActive.top(Infinity)
+      const { cf, dActive, state }: any = build(); void dActive.top(Infinity)
       let i = 0
       return measure(() => {
         tick(cf, state, TICKS[i++ % TICKS.length])
@@ -108,7 +107,7 @@ const crossfilterV: Variant = {
       })
     })()
     const batch = (() => {
-      const { cf, dActive, state } = build(); void dActive.top(Infinity)
+      const { cf, dActive, state }: any = build(); void dActive.top(Infinity)
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) {
           tick(cf, state, TICKS[j])
@@ -129,23 +128,23 @@ const mobxV: Variant = {
     const { observable, computed, runInAction, autorun } = await import('mobx')
     const build = () => {
       const rows = observable.array(
-        makeRows().map(r => observable.object(r, {}, { deep: false })),
+        makeRows().map((r: any) => observable.object(r, {}, { deep: false })),
       )
       const c = computed(() => intersectFn(rows))
       const dispose = autorun(() => { void c.get() })
       return { rows, c, dispose }
     }
     const setup = measure(() => { const g = build(); g.dispose() })
-    const tickFn = (rows, t: Tick) => {
+    const tickFn = (rows: any, t: Tick) => {
       runInAction(() => { rows[t.idx][t.field] = t.value })
     }
     const single = (() => {
-      const { rows, c } = build()
+      const { rows, c }: any = build()
       let i = 0
       return measure(() => { tickFn(rows, TICKS[i++ % TICKS.length]); void c.get() })
     })()
     const batch = (() => {
-      const { rows, c } = build()
+      const { rows, c }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) { tickFn(rows, TICKS[j]); void c.get() }
       })
@@ -169,18 +168,18 @@ const rxjsV: Variant = {
       return { subj, sub }
     }
     const setup = measure(() => { const g = build(); g.sub.unsubscribe() })
-    const tickFn = (subj, t: Tick) => {
+    const tickFn = (subj: any, t: Tick) => {
       const next = subj.value.slice()
       next[t.idx] = { ...next[t.idx], [t.field]: t.value }
       subj.next(next)
     }
     const single = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       let i = 0
       return measure(() => { tickFn(subj, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(subj, TICKS[j])
       })
@@ -201,7 +200,7 @@ const solidV: Variant = {
       val: () => number, setVal: (v: number) => void
       active: () => boolean, setActive: (v: boolean) => void
     }
-    const makeCells = (): Cell[] => makeRows().map(r => {
+    const makeCells = (): Cell[] => makeRows().map((r: any) => {
       const [val, setVal] = createSignal(r.val)
       const [active, setActive] = createSignal(r.active)
       return { id: r.id, val, setVal, active, setActive } as Cell
@@ -210,7 +209,7 @@ const solidV: Variant = {
     let c: () => any[] = () => []
     let dispose = () => {}
     const build = () => {
-      dispose = createRoot(d => {
+      dispose = createRoot((d: any) => {
         cells = makeCells()
         c = createMemo(() => {
           const out: any[] = []
@@ -250,7 +249,7 @@ const preactV: Variant = {
   run: async () => {
     const { signal, computed, effect } = await import('@preact/signals-core')
     type Cell = { id: number, val: any, active: any }
-    const makeCells = (): Cell[] => makeRows().map(r => ({
+    const makeCells = (): Cell[] => makeRows().map((r: any) => ({
       id: r.id, val: signal(r.val), active: signal(r.active),
     }))
     const build = () => {
@@ -267,17 +266,17 @@ const preactV: Variant = {
       return { cells, c, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
-    const tickFn = (cells, t: Tick) => {
+    const tickFn = (cells: any, t: Tick) => {
       if (t.field === 'val') cells[t.idx].val.value = t.value as number
       else if (t.field === 'active') cells[t.idx].active.value = t.value as boolean
     }
     const single = (() => {
-      const { cells, c } = build()
+      const { cells, c }: any = build()
       let i = 0
       return measure(() => { tickFn(cells, TICKS[i++ % TICKS.length]); void c.value })
     })()
     const batch = (() => {
-      const { cells, c } = build()
+      const { cells, c }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) { tickFn(cells, TICKS[j]); void c.value }
       })
@@ -300,14 +299,14 @@ const vueV: Variant = {
       return { rows, c, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
-    const tickFn = (rows, t: Tick) => { rows[t.idx][t.field] = t.value }
+    const tickFn = (rows: any, t: Tick) => { rows[t.idx][t.field] = t.value }
     const single = (() => {
-      const { rows, c } = build()
+      const { rows, c }: any = build()
       let i = 0
       return measure(() => { tickFn(rows, TICKS[i++ % TICKS.length]); void c.value })
     })()
     const batch = (() => {
-      const { rows, c } = build()
+      const { rows, c }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) { tickFn(rows, TICKS[j]); void c.value }
       })
@@ -330,20 +329,20 @@ const svelteV: Variant = {
       return { store, c, unsub }
     }
     const setup = measure(() => { const g = build(); g.unsub() })
-    const tickFn = (store, t: Tick) => {
-      store.update(rows => {
+    const tickFn = (store: any, t: Tick) => {
+      store.update((rows: any) => {
         const next = rows.slice()
         next[t.idx] = { ...next[t.idx], [t.field]: t.value }
         return next
       })
     }
     const single = (() => {
-      const { store, c } = build()
+      const { store, c }: any = build()
       let i = 0
       return measure(() => { tickFn(store, TICKS[i++ % TICKS.length]); void get(c) })
     })()
     const batch = (() => {
-      const { store, c } = build()
+      const { store, c }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) { tickFn(store, TICKS[j]); void get(c) }
       })

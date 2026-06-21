@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Helper: run a subset of benches by label. Used for re-running a few libraries
 // at a different N without doing the full suite.
 import { type BenchResult } from './measure.ts'

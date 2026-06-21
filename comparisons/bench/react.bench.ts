@@ -1,4 +1,3 @@
-// @ts-nocheck
 // react + react-test-renderer — useState(trades) + chained useMemo, then a
 // dashboard with three parallel useMemos. Idiomatic React reactivity: setState
 // replaces the array reference; useMemo skips work when deps are
@@ -26,15 +25,15 @@ function makeSingle() {
   function App() {
     const [trades, setTrades] = useState(makeTrades)
     const withSpread = useMemo(
-      () => trades.map(t => ({ id: t.id, spread: t.ask - t.bid })),
+      () => trades.map((t: any) => ({ id: t.id, spread: t.ask - t.bid })),
       [trades],
     )
     const filtered = useMemo(
-      () => withSpread.filter(t => t.spread > THRESHOLD),
+      () => withSpread.filter((t: any) => t.spread > THRESHOLD),
       [withSpread],
     )
     const top = useMemo(
-      () => [...filtered].sort((a, b) => b.spread - a.spread).slice(0, TOP_K),
+      () => [...filtered].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K),
       [filtered],
     )
     setTradesRef = setTrades
@@ -62,15 +61,15 @@ function makeDashboard() {
       return n
     }, [trades])
     const withSpread = useMemo(
-      () => trades.map(t => ({ id: t.id, spread: t.ask - t.bid })),
+      () => trades.map((t: any) => ({ id: t.id, spread: t.ask - t.bid })),
       [trades],
     )
     const filtered = useMemo(
-      () => withSpread.filter(t => t.spread > THRESHOLD),
+      () => withSpread.filter((t: any) => t.spread > THRESHOLD),
       [withSpread],
     )
     const top10 = useMemo(
-      () => [...filtered].sort((a, b) => b.spread - a.spread).slice(0, TOP_K),
+      () => [...filtered].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K),
       [filtered],
     )
     const avgBid = useMemo(() => {
@@ -105,7 +104,7 @@ function buildDashboard() {
   return { ...m, renderer }
 }
 
-function tick(setTrades, t) {
+function tick(setTrades: any, t: any) {
   act(() => {
     setTrades((prev: any[]) => {
       const next = prev.slice()

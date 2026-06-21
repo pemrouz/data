@@ -35,6 +35,7 @@
     "operators/to/to.perf.ts",
     "operators/union/union.perf.ts",
     "index.perf.ts",
-    "devtools/devtools.perf.ts"
+    "devtools/devtools.perf.ts",
+    "comparisons/bench/**/*.ts"
   ]
 }

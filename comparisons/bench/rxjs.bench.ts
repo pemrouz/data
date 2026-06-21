@@ -1,4 +1,3 @@
-// @ts-nocheck
 // RxJS — three .pipe stages for the top-K graph. Dashboard adds two parallel
 // pipes off the same subject (liquidCount, avgBid), each subscribed
 // independently. Every .next() emission fans out to all three subscribers.
@@ -11,7 +10,7 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 function buildSingle() {
   const subject = new BehaviorSubject(makeTrades())
   const withSpread$ = subject.pipe(
-    map(rows => {
+    map((rows: any) => {
       const out = new Array(rows.length)
       for (let i = 0; i < rows.length; i++) {
         const t = rows[i]
@@ -20,15 +19,15 @@ function buildSingle() {
       return out
     }),
   )
-  const filtered$ = withSpread$.pipe(map(rows => rows.filter(t => t.spread > THRESHOLD)))
-  const top$ = filtered$.pipe(map(rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)))
+  const filtered$ = withSpread$.pipe(map((rows: any) => rows.filter((t: any) => t.spread > THRESHOLD)))
+  const top$ = filtered$.pipe(map((rows: any) => [...rows].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K)))
   const sub = top$.subscribe(() => {})
   return { subject, sub }
 }
 
 function buildDashboard() {
   const subject = new BehaviorSubject(makeTrades())
-  const liquidCount$ = subject.pipe(map(rows => {
+  const liquidCount$ = subject.pipe(map((rows: any) => {
     let n = 0
     for (let i = 0; i < rows.length; i++) {
       const t = rows[i]
@@ -37,7 +36,7 @@ function buildDashboard() {
     return n
   }))
   const top10$ = subject.pipe(
-    map(rows => {
+    map((rows: any) => {
       const out = new Array(rows.length)
       for (let i = 0; i < rows.length; i++) {
         const t = rows[i]
@@ -45,10 +44,10 @@ function buildDashboard() {
       }
       return out
     }),
-    map(rows => rows.filter(t => t.spread > THRESHOLD)),
-    map(rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K)),
+    map((rows: any) => rows.filter((t: any) => t.spread > THRESHOLD)),
+    map((rows: any) => [...rows].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K)),
   )
-  const avgBid$ = subject.pipe(map(rows => {
+  const avgBid$ = subject.pipe(map((rows: any) => {
     let s = 0
     for (let i = 0; i < rows.length; i++) s += rows[i].bid
     return s / rows.length
@@ -61,7 +60,7 @@ function buildDashboard() {
   return { subject, subs }
 }
 
-function tick(subject, t) {
+function tick(subject: any, t: any) {
   const next = subject.value.slice()
   next[t.idx] = { ...next[t.idx], [t.field]: t.newValue }
   subject.next(next)

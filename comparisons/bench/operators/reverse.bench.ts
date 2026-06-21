@@ -1,4 +1,3 @@
-// @ts-nocheck
 // `reverse` — per-operator comparison.
 //
 // Workload: 10_000 rows; reactive reversed array. Tick inserts one row at
@@ -38,12 +37,12 @@ const data: Variant = {
     }
     const setup = measure(() => { build() })
     const single = (() => {
-      const { src, r } = build(); void r[value]
+      const { src, r }: any = build(); void r[value]
       let next = N
       return measure(() => { src[next] = newRow(next); void r[value]; next++ })
     })()
     const batch = (() => {
-      const { src, r } = build(); void r[value]
+      const { src, r }: any = build(); void r[value]
       let next = N
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) { src[next] = newRow(next); void r[value]; next++ }
@@ -61,14 +60,14 @@ const mobxV: Variant = {
   run: async () => {
     const { observable, computed, runInAction, autorun } = await import('mobx')
     const build = () => {
-      const rows = observable.array(makeRows().map(r => observable.object(r, {}, { deep: false })))
+      const rows = observable.array(makeRows().map((r: any) => observable.object(r, {}, { deep: false })))
       const r = computed(() => reverseArr(rows))
       const dispose = autorun(() => { void r.get() })
       return { rows, r, dispose }
     }
     const setup = measure(() => { const g = build(); g.dispose() })
     const single = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       let next = N
       return measure(() => {
         runInAction(() => { rows.push(observable.object(newRow(next++), {}, { deep: false })) })
@@ -76,7 +75,7 @@ const mobxV: Variant = {
       })
     })()
     const batch = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           runInAction(() => { rows.push(observable.object(newRow(N + j), {}, { deep: false })) })
@@ -104,14 +103,14 @@ const rxjsV: Variant = {
     }
     const setup = measure(() => { const g = build(); g.sub.unsubscribe() })
     const single = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       let next = N
       return measure(() => {
         const a = subj.value.slice(); a.push(newRow(next++)); subj.next(a)
       })
     })()
     const batch = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           const a = subj.value.slice(); a.push(newRow(N + j)); subj.next(a)
@@ -134,7 +133,7 @@ const solidV: Variant = {
     let r: () => Row[] = () => []
     let dispose = () => {}
     const build = () => {
-      dispose = createRoot(d => {
+      dispose = createRoot((d: any) => {
         const [rs, sr] = createSignal(makeRows(), { equals: false })
         getRows = rs; setRows = sr as any
         r = createMemo(() => reverseArr(getRows()))
@@ -147,13 +146,13 @@ const solidV: Variant = {
     const single = (() => {
       let next = N
       return measure(() => {
-        setRows(prev => { const a = prev.slice(); a.push(newRow(next++)); return a })
+        setRows((prev: any) => { const a = prev.slice(); a.push(newRow(next++)); return a })
         void r()
       })
     })()
     const batch = measure(() => {
       for (let j = 0; j < TICK_COUNT; j++) {
-        setRows(prev => { const a = prev.slice(); a.push(newRow(N + j)); return a })
+        setRows((prev: any) => { const a = prev.slice(); a.push(newRow(N + j)); return a })
         void r()
       }
     })
@@ -177,7 +176,7 @@ const preactV: Variant = {
     }
     const setup = measure(() => { const g = build(); g.stop() })
     const single = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       let next = N
       return measure(() => {
         const a = rows.value.slice(); a.push(newRow(next++)); rows.value = a
@@ -185,7 +184,7 @@ const preactV: Variant = {
       })
     })()
     const batch = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           const a = rows.value.slice(); a.push(newRow(N + j)); rows.value = a
@@ -212,12 +211,12 @@ const vueV: Variant = {
     }
     const setup = measure(() => { const g = build(); g.stop() })
     const single = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       let next = N
       return measure(() => { rows.push(newRow(next++)); void r.value })
     })()
     const batch = (() => {
-      const { rows, r } = build()
+      const { rows, r }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) { rows.push(newRow(N + j)); void r.value }
       })
@@ -241,18 +240,18 @@ const svelteV: Variant = {
     }
     const setup = measure(() => { const g = build(); g.unsub() })
     const single = (() => {
-      const { store, r } = build()
+      const { store, r }: any = build()
       let next = N
       return measure(() => {
-        store.update(rows => { const a = rows.slice(); a.push(newRow(next++)); return a })
+        store.update((rows: any) => { const a = rows.slice(); a.push(newRow(next++)); return a })
         void get(r)
       })
     })()
     const batch = (() => {
-      const { store, r } = build()
+      const { store, r }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
-          store.update(rows => { const a = rows.slice(); a.push(newRow(N + j)); return a })
+          store.update((rows: any) => { const a = rows.slice(); a.push(newRow(N + j)); return a })
           void get(r)
         }
       })

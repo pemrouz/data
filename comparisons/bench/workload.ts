@@ -1,8 +1,7 @@
-// @ts-nocheck
 // Trades-with-ticking workload. Pipeline:
 //
-//   src.map(t => ({...t, spread: t.ask - t.bid}))
-//      .filter(t => t.spread > THRESHOLD)
+//   src.map((t: any) => ({...t, spread: t.ask - t.bid}))
+//      .filter((t: any) => t.spread > THRESHOLD)
 //      .length()
 //
 // `map` derives a `spread` column per row. `filter` rejects rows whose spread

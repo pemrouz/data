@@ -1,4 +1,3 @@
-// @ts-nocheck
 // @vue/reactivity — three chained computeds + dashboard adds two parallel
 // computeds.
 
@@ -16,8 +15,8 @@ function buildSingle() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
-  const top = computed(() => [...filtered.value].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const filtered = computed(() => withSpread.value.filter((t: any) => t.spread > THRESHOLD))
+  const top = computed(() => [...filtered.value].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
   const runner = effect(() => { void top.value })
   return { trades, top, runner }
 }
@@ -40,8 +39,8 @@ function buildDashboard() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
-  const top10 = computed(() => [...filtered.value].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const filtered = computed(() => withSpread.value.filter((t: any) => t.spread > THRESHOLD))
+  const top10 = computed(() => [...filtered.value].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
   const avgBid = computed(() => {
     let s = 0
     for (let i = 0; i < trades.length; i++) s += trades[i].bid
@@ -55,7 +54,7 @@ function buildDashboard() {
   return { trades, liquidCount, top10, avgBid, runner }
 }
 
-function tick(trades, t) {
+function tick(trades: any, t: any) {
   trades[t.idx][t.field] = t.newValue
 }
 

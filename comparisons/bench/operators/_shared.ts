@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Shared workload + types for per-operator benchmarks.
 //
 // Each operator file in this directory exports a default `OpBench` describing

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // @preact/signals-core — three chained computeds + dashboard adds two
 // parallel computeds (liquidCount, avgBid).
 
@@ -7,7 +6,7 @@ import { makeTrades, TICKS, THRESHOLD, TOP_K } from './workload.ts'
 import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function makeCells() {
-  return makeTrades().map(t => ({
+  return makeTrades().map((t: any) => ({
     id: t.id,
     bid: signal(t.bid),
     ask: signal(t.ask),
@@ -24,8 +23,8 @@ function buildSingle() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
-  const top = computed(() => [...filtered.value].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const filtered = computed(() => withSpread.value.filter((t: any) => t.spread > THRESHOLD))
+  const top = computed(() => [...filtered.value].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
   const dispose = effect(() => { void top.value })
   return { cells, top, dispose }
 }
@@ -48,8 +47,8 @@ function buildDashboard() {
     }
     return out
   })
-  const filtered = computed(() => withSpread.value.filter(t => t.spread > THRESHOLD))
-  const top10 = computed(() => [...filtered.value].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const filtered = computed(() => withSpread.value.filter((t: any) => t.spread > THRESHOLD))
+  const top10 = computed(() => [...filtered.value].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
   const avgBid = computed(() => {
     let s = 0
     for (let i = 0; i < cells.length; i++) s += cells[i].bid.value
@@ -63,7 +62,7 @@ function buildDashboard() {
   return { cells, liquidCount, top10, avgBid, dispose }
 }
 
-function tick(cells, t) {
+function tick(cells: any, t: any) {
   if (t.field === 'bid') cells[t.idx].bid.value = t.newValue
   else cells[t.idx].ask.value = t.newValue
 }

@@ -1,11 +1,10 @@
-// @ts-nocheck
 // `keys` — per-operator comparison.
 //
 // Workload: 10_000 rows; reactive list of source keys. Tick inserts one
 // row at a fresh key (the key list grows by one). Batch streams TICK_COUNT
 // inserts.
 //
-// data.keys is sugar over `to(d => Object.keys(d))` — rebuilds on every
+// data.keys is sugar over `to((d: any) => Object.keys(d))` — rebuilds on every
 // upstream event (operators/keys/index.ts). Peers do likewise. Useful to
 // document the rebuild-on-every-event class of operators against the peer
 // baseline.
@@ -38,12 +37,12 @@ const data: Variant = {
     }
     const setup = measure(() => { build() })
     const single = (() => {
-      const { src, k } = build(); void k[value]
+      const { src, k }: any = build(); void k[value]
       let next = N
       return measure(() => { src[next] = newRow(next); void k[value]; next++ })
     })()
     const batch = (() => {
-      const { src, k } = build(); void k[value]
+      const { src, k }: any = build(); void k[value]
       let next = N
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) { src[next] = newRow(next); void k[value]; next++ }
@@ -61,14 +60,14 @@ const mobxV: Variant = {
   run: async () => {
     const { observable, computed, runInAction, autorun } = await import('mobx')
     const build = () => {
-      const rows = observable.array(makeRows().map(r => observable.object(r, {}, { deep: false })))
-      const k = computed(() => rows.map(r => r.id))
+      const rows = observable.array(makeRows().map((r: any) => observable.object(r, {}, { deep: false })))
+      const k = computed(() => rows.map((r: any) => r.id))
       const dispose = autorun(() => { void k.get() })
       return { rows, k, dispose }
     }
     const setup = measure(() => { const g = build(); g.dispose() })
     const single = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       let next = N
       return measure(() => {
         runInAction(() => { rows.push(observable.object(newRow(next++), {}, { deep: false })) })
@@ -76,7 +75,7 @@ const mobxV: Variant = {
       })
     })()
     const batch = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           runInAction(() => { rows.push(observable.object(newRow(N + j), {}, { deep: false })) })
@@ -98,20 +97,20 @@ const rxjsV: Variant = {
     const { map } = await import('rxjs/operators')
     const build = () => {
       const subj = new BehaviorSubject(makeRows())
-      const k$ = subj.pipe(map(rows => rows.map(r => r.id)))
+      const k$ = subj.pipe(map((rows: any) => rows.map((r: any) => r.id)))
       const sub = k$.subscribe(() => {})
       return { subj, sub }
     }
     const setup = measure(() => { const g = build(); g.sub.unsubscribe() })
     const single = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       let next = N
       return measure(() => {
         const a = subj.value.slice(); a.push(newRow(next++)); subj.next(a)
       })
     })()
     const batch = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           const a = subj.value.slice(); a.push(newRow(N + j)); subj.next(a)
@@ -134,10 +133,10 @@ const solidV: Variant = {
     let k: () => number[] = () => []
     let dispose = () => {}
     const build = () => {
-      dispose = createRoot(d => {
+      dispose = createRoot((d: any) => {
         const [r, sr] = createSignal(makeRows(), { equals: false })
         getRows = r; setRows = sr as any
-        k = createMemo(() => getRows().map(r => r.id))
+        k = createMemo(() => getRows().map((r: any) => r.id))
         void k()
         return d
       })
@@ -147,13 +146,13 @@ const solidV: Variant = {
     const single = (() => {
       let next = N
       return measure(() => {
-        setRows(prev => { const a = prev.slice(); a.push(newRow(next++)); return a })
+        setRows((prev: any) => { const a = prev.slice(); a.push(newRow(next++)); return a })
         void k()
       })
     })()
     const batch = measure(() => {
       for (let j = 0; j < TICK_COUNT; j++) {
-        setRows(prev => { const a = prev.slice(); a.push(newRow(N + j)); return a })
+        setRows((prev: any) => { const a = prev.slice(); a.push(newRow(N + j)); return a })
         void k()
       }
     })
@@ -171,13 +170,13 @@ const preactV: Variant = {
     const { signal, computed, effect } = await import('@preact/signals-core')
     const build = () => {
       const rows = signal(makeRows())
-      const k = computed(() => rows.value.map(r => r.id))
+      const k = computed(() => rows.value.map((r: any) => r.id))
       const stop = effect(() => { void k.value })
       return { rows, k, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
     const single = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       let next = N
       return measure(() => {
         const a = rows.value.slice(); a.push(newRow(next++)); rows.value = a
@@ -185,7 +184,7 @@ const preactV: Variant = {
       })
     })()
     const batch = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
           const a = rows.value.slice(); a.push(newRow(N + j)); rows.value = a
@@ -206,18 +205,18 @@ const vueV: Variant = {
     const { reactive, computed, effect } = await import('@vue/reactivity')
     const build = () => {
       const rows = reactive(makeRows())
-      const k = computed(() => rows.map(r => r.id))
+      const k = computed(() => rows.map((r: any) => r.id))
       const stop = effect(() => { void k.value })
       return { rows, k, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
     const single = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       let next = N
       return measure(() => { rows.push(newRow(next++)); void k.value })
     })()
     const batch = (() => {
-      const { rows, k } = build()
+      const { rows, k }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) { rows.push(newRow(N + j)); void k.value }
       })
@@ -235,24 +234,24 @@ const svelteV: Variant = {
     const { writable, derived, get } = await import('svelte/store')
     const build = () => {
       const store = writable(makeRows())
-      const k = derived(store, rows => rows.map(r => r.id))
+      const k = derived(store, (rows: any) => rows.map((r: any) => r.id))
       const unsub = k.subscribe(() => {})
       return { store, k, unsub }
     }
     const setup = measure(() => { const g = build(); g.unsub() })
     const single = (() => {
-      const { store, k } = build()
+      const { store, k }: any = build()
       let next = N
       return measure(() => {
-        store.update(rows => { const a = rows.slice(); a.push(newRow(next++)); return a })
+        store.update((rows: any) => { const a = rows.slice(); a.push(newRow(next++)); return a })
         void get(k)
       })
     })()
     const batch = (() => {
-      const { store, k } = build()
+      const { store, k }: any = build()
       return measure(() => {
         for (let j = 0; j < TICK_COUNT; j++) {
-          store.update(rows => { const a = rows.slice(); a.push(newRow(N + j)); return a })
+          store.update((rows: any) => { const a = rows.slice(); a.push(newRow(N + j)); return a })
           void get(k)
         }
       })
@@ -279,7 +278,7 @@ const reactV: Variant = {
     let kRef: any = null
     function App() {
       const [rows, setRows] = useState(makeRows)
-      const k = useMemo(() => rows.map(r => r.id), [rows])
+      const k = useMemo(() => rows.map((r: any) => r.id), [rows])
       setRowsRef = setRows
       kRef = k
       return null

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Per-operator comparison runner.
 //
 // Walks comparisons/bench/operators/*.bench.ts (excluding _shared.ts) and runs
@@ -23,10 +22,10 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const log = (msg: string) => process.stderr.write(msg + '\n')
 const fmt = (n: number) => n < 1 ? n.toFixed(3) : n.toFixed(2)
 
-const wanted = (process.env.BENCH_OPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+const wanted = (process.env.BENCH_OPS ?? '').split(',').map((s: any) => s.trim()).filter(Boolean)
 
 const files = readdirSync(HERE)
-  .filter(f => f.endsWith('.bench.ts') && !f.startsWith('_'))
+  .filter((f: any) => f.endsWith('.bench.ts') && !f.startsWith('_'))
   .sort()
 
 type Row = { lib: string, version: string, setup: number, single: number, batch: number }
@@ -80,7 +79,7 @@ for (const r of results) {
   console.log('')
   console.log('| Library | Version | Setup (ms) | Single (ms) | Batch 1000 (ms) |')
   console.log('|---|---|---:|---:|---:|')
-  const sorted = [...r.rows].sort((a, b) => a.single - b.single)
+  const sorted = [...r.rows].sort((a: any, b: any) => a.single - b.single)
   for (const row of sorted) {
     const marker = row.lib === 'data' ? ' **`data`**' : ''
     console.log(`| ${row.lib}${marker ? '' : ''} | ${row.version} | ${fmt(row.setup)} | ${fmt(row.single)} | ${fmt(row.batch)} |`)
@@ -95,7 +94,7 @@ for (const r of results) {
 // Regression summary: any operator where data isn't fastest on single OR batch.
 const regressions: string[] = []
 for (const r of results) {
-  const dataRow = r.rows.find(x => x.lib === 'data')
+  const dataRow = r.rows.find((x: any) => x.lib === 'data')
   if (!dataRow) continue
   for (const row of r.rows) {
     if (row.lib === 'data') continue

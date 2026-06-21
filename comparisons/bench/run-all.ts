@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Cross-library comparison runner. Dynamic-imports each bench so a missing peer
 // dependency is reported as "skipped" rather than crashing the whole run.
 //

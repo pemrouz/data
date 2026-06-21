@@ -1,4 +1,3 @@
-// @ts-nocheck
 // `tap` — per-operator comparison.
 //
 // Workload: 10_000 rows; passthrough operator with a side-effect callback.
@@ -41,7 +40,7 @@ const dataBare: Variant = {
     }
     const setup = measure(() => { build() })
     const single = (() => {
-      const { src, t } = build(); void t[value]
+      const { src, t }: any = build(); void t[value]
       let i = 0
       return measure(() => {
         const tk = TICKS[i++ % TICKS.length]
@@ -50,7 +49,7 @@ const dataBare: Variant = {
       })
     })()
     const batch = (() => {
-      const { src, t } = build(); void t[value]
+      const { src, t }: any = build(); void t[value]
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) {
           const tk = TICKS[j]
@@ -83,7 +82,7 @@ const dataRecord: Variant = {
     }
     const setup = measure(() => { build() })
     const single = (() => {
-      const { src, t } = build(); void t[value]
+      const { src, t }: any = build(); void t[value]
       let i = 0
       return measure(() => {
         const tk = TICKS[i++ % TICKS.length]
@@ -92,7 +91,7 @@ const dataRecord: Variant = {
       })
     })()
     const batch = (() => {
-      const { src, t } = build(); void t[value]
+      const { src, t }: any = build(); void t[value]
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) {
           const tk = TICKS[j]
@@ -114,7 +113,7 @@ const mobxV: Variant = {
     const { observable, runInAction, autorun } = await import('mobx')
     const build = () => {
       const rows = observable.array(
-        makeRows().map(r => observable.object(r, {}, { deep: false })),
+        makeRows().map((r: any) => observable.object(r, {}, { deep: false })),
       )
       let n = 0
       // autorun on each row's val individually would be 10k autoruns; the
@@ -129,16 +128,16 @@ const mobxV: Variant = {
       return { rows, dispose, get: () => n }
     }
     const setup = measure(() => { const g = build(); g.dispose() })
-    const tickFn = (rows, t: Tick) => {
+    const tickFn = (rows: any, t: Tick) => {
       runInAction(() => { rows[t.idx][t.field] = t.value })
     }
     const single = (() => {
-      const { rows } = build()
+      const { rows }: any = build()
       let i = 0
       return measure(() => { tickFn(rows, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { rows } = build()
+      const { rows }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(rows, TICKS[j])
       })
@@ -162,18 +161,18 @@ const rxjsV: Variant = {
       return { subj, sub, get: () => n }
     }
     const setup = measure(() => { const g = build(); g.sub.unsubscribe() })
-    const tickFn = (subj, t: Tick) => {
+    const tickFn = (subj: any, t: Tick) => {
       const next = subj.value.slice()
       next[t.idx] = { ...next[t.idx], [t.field]: t.value }
       subj.next(next)
     }
     const single = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       let i = 0
       return measure(() => { tickFn(subj, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { subj } = build()
+      const { subj }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(subj, TICKS[j])
       })
@@ -190,7 +189,7 @@ const solidV: Variant = {
   run: async () => {
     const { createSignal, createEffect, createRoot } = await import('solid-js/dist/solid.js')
     type Cell = { id: number, val: () => number, setVal: (v: number) => void }
-    const makeCells = (): Cell[] => makeRows().map(r => {
+    const makeCells = (): Cell[] => makeRows().map((r: any) => {
       const [val, setVal] = createSignal(r.val)
       return { id: r.id, val, setVal } as Cell
     })
@@ -199,7 +198,7 @@ const solidV: Variant = {
     let dispose = () => {}
     const build = () => {
       n = 0
-      dispose = createRoot(d => {
+      dispose = createRoot((d: any) => {
         cells = makeCells()
         createEffect(() => {
           for (let i = 0; i < cells.length; i++) void cells[i].val()
@@ -233,7 +232,7 @@ const preactV: Variant = {
   run: async () => {
     const { signal, effect } = await import('@preact/signals-core')
     type Cell = { id: number, val: any }
-    const makeCells = (): Cell[] => makeRows().map(r => ({
+    const makeCells = (): Cell[] => makeRows().map((r: any) => ({
       id: r.id, val: signal(r.val),
     }))
     const build = () => {
@@ -246,16 +245,16 @@ const preactV: Variant = {
       return { cells, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
-    const tickFn = (cells, t: Tick) => {
+    const tickFn = (cells: any, t: Tick) => {
       if (t.field === 'val') cells[t.idx].val.value = t.value as number
     }
     const single = (() => {
-      const { cells } = build()
+      const { cells }: any = build()
       let i = 0
       return measure(() => { tickFn(cells, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { cells } = build()
+      const { cells }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(cells, TICKS[j])
       })
@@ -281,14 +280,14 @@ const vueV: Variant = {
       return { rows, stop }
     }
     const setup = measure(() => { const g = build(); g.stop() })
-    const tickFn = (rows, t: Tick) => { rows[t.idx][t.field] = t.value }
+    const tickFn = (rows: any, t: Tick) => { rows[t.idx][t.field] = t.value }
     const single = (() => {
-      const { rows } = build()
+      const { rows }: any = build()
       let i = 0
       return measure(() => { tickFn(rows, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { rows } = build()
+      const { rows }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(rows, TICKS[j])
       })
@@ -311,20 +310,20 @@ const svelteV: Variant = {
       return { store, unsub }
     }
     const setup = measure(() => { const g = build(); g.unsub() })
-    const tickFn = (store, t: Tick) => {
-      store.update(rows => {
+    const tickFn = (store: any, t: Tick) => {
+      store.update((rows: any) => {
         const next = rows.slice()
         next[t.idx] = { ...next[t.idx], [t.field]: t.value }
         return next
       })
     }
     const single = (() => {
-      const { store } = build()
+      const { store }: any = build()
       let i = 0
       return measure(() => { tickFn(store, TICKS[i++ % TICKS.length]) })
     })()
     const batch = (() => {
-      const { store } = build()
+      const { store }: any = build()
       return measure(() => {
         for (let j = 0; j < TICKS.length; j++) tickFn(store, TICKS[j])
       })

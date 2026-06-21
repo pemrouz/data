@@ -1,4 +1,3 @@
-// @ts-nocheck
 // svelte/store — three chained `derived`s + dashboard adds two parallel
 // deriveds (liquidCount, avgBid).
 
@@ -8,7 +7,7 @@ import { measure, pkgVersion, type BenchResult } from './measure.ts'
 
 function buildSingle() {
   const store = writable(makeTrades())
-  const withSpread = derived(store, rows => {
+  const withSpread = derived(store, (rows: any) => {
     const out = new Array(rows.length)
     for (let i = 0; i < rows.length; i++) {
       const t = rows[i]
@@ -16,15 +15,15 @@ function buildSingle() {
     }
     return out
   })
-  const filtered = derived(withSpread, rows => rows.filter(t => t.spread > THRESHOLD))
-  const top = derived(filtered, rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
+  const filtered = derived(withSpread, (rows: any) => rows.filter((t: any) => t.spread > THRESHOLD))
+  const top = derived(filtered, (rows: any) => [...rows].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
   const unsub = top.subscribe(() => {})
   return { store, top, unsub }
 }
 
 function buildDashboard() {
   const store = writable(makeTrades())
-  const liquidCount = derived(store, rows => {
+  const liquidCount = derived(store, (rows: any) => {
     let n = 0
     for (let i = 0; i < rows.length; i++) {
       const t = rows[i]
@@ -32,7 +31,7 @@ function buildDashboard() {
     }
     return n
   })
-  const withSpread = derived(store, rows => {
+  const withSpread = derived(store, (rows: any) => {
     const out = new Array(rows.length)
     for (let i = 0; i < rows.length; i++) {
       const t = rows[i]
@@ -40,9 +39,9 @@ function buildDashboard() {
     }
     return out
   })
-  const filtered = derived(withSpread, rows => rows.filter(t => t.spread > THRESHOLD))
-  const top10 = derived(filtered, rows => [...rows].sort((a, b) => b.spread - a.spread).slice(0, TOP_K))
-  const avgBid = derived(store, rows => {
+  const filtered = derived(withSpread, (rows: any) => rows.filter((t: any) => t.spread > THRESHOLD))
+  const top10 = derived(filtered, (rows: any) => [...rows].sort((a: any, b: any) => b.spread - a.spread).slice(0, TOP_K))
+  const avgBid = derived(store, (rows: any) => {
     let s = 0
     for (let i = 0; i < rows.length; i++) s += rows[i].bid
     return s / rows.length
@@ -55,8 +54,8 @@ function buildDashboard() {
   return { store, liquidCount, top10, avgBid, unsubs }
 }
 
-function tick(store, t) {
-  store.update(rows => {
+function tick(store: any, t: any) {
+  store.update((rows: any) => {
     const next = rows.slice()
     next[t.idx] = { ...next[t.idx], [t.field]: t.newValue }
     return next

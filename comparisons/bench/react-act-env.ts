@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Side-effect-only module: declares to React that we're in an act() environment
 // so it doesn't print the warning on every render. Imported FIRST in
 // react.bench.ts so this assignment evaluates before `react` is loaded —
