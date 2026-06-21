@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, iter, left, right } from '../../utils.ts'
 import { $, Operator, ViewProxy, createOperator, view } from '../../core.ts'
 
@@ -9,6 +8,23 @@ import { $, Operator, ViewProxy, createOperator, view } from '../../core.ts'
 // boundary, emitting per-row BI0/BR1 rather than a full XU0. That keeps the
 // crossfilter example responsive at >1M rows even when the user is dragging.
 export class BetweenValue extends Operator {
+  declare col: any
+  declare plo: any
+  declare phi: any
+  declare sorted: any[]
+  declare find: (...args: any[]) => any
+  declare findHi: (...args: any[]) => any
+  declare _extentView: any
+  declare _loSrc: any
+  declare _hiSrc: any
+  declare _loId: any
+  declare _hiId: any
+  declare lo_val: any
+  declare hi_val: any
+  declare lo_index: any
+  declare hi_index: any
+  declare isArr: boolean
+  declare sortedDirty: boolean
   // Dedup helper — two charts brushing the same column with the same bound
   // SOURCE share a single Between sink. The dedup signal is the bound source
   // identity, not its current value: for the reactive single-ViewProxy extent
@@ -18,15 +34,15 @@ export class BetweenValue extends Operator {
   // against a freshly-minted one and NEVER matched, so identical calls piled up
   // live operators. Reactive tuple bounds compare each bound's View; plain
   // numeric bounds compare by value.
-  matches(col, arg) {
+  matches(col: any, arg: any) {
     if (this.col !== col) return false
-    if (arg instanceof ViewProxy) return this._extentView === arg[view]
+    if (arg instanceof ViewProxy) return this._extentView === (arg as any)[view]
     if (this._extentView) return false              // we're single-VP; arg is a tuple
-    const id = (src, vp) => vp instanceof ViewProxy ? src === vp[view] : src === vp
+    const id = (src: any, vp: any) => vp instanceof ViewProxy ? src === (vp as any)[view] : src === vp
     return id(this._loId, arg[0]) && id(this._hiId, arg[1])
   }
 
-  constructor(p, col, arg) {
+  constructor(p: any, col: any, arg: any) {
     super()
     this.p = p
     this.col = col
@@ -37,22 +53,22 @@ export class BetweenValue extends Operator {
     // O(log n) bisect that lets us advance lo_index/hi_index incrementally.
     // `findHi` is the right-bisect variant — see `set extent` for why
     // hi_index needs "first sorted-position past hi_val" rather than "at".
-    this.find = left(d => { return this.p.value[d][col] })
-    this.findHi = right(d => { return this.p.value[d][col] })
+    this.find = left((d: any) => { return this.p.value[d][col] })
+    this.findHi = right((d: any) => { return this.p.value[d][col] })
 
     // Three flavours of arg: a single ViewProxy that yields `[lo, hi]`
     // snapshots, a tuple of two separately-reactive bounds, or a tuple of
     // plain numbers. Plain values are wrapped in $() so the connect machinery
     // is uniform — the wrapped proxy is captured-once and never updated.
     if (arg instanceof ViewProxy) {
-      this._extentView = arg[view]   // stable dedup identity for the single-VP form
-      arg.connect(this, 'extent')
+      this._extentView = (arg as any)[view]   // stable dedup identity for the single-VP form
+      ;(arg as any).connect(this, 'extent')
     } else {
       this._loSrc = arg[0] instanceof ViewProxy ? arg[0] : $(arg[0])
       this._hiSrc = arg[1] instanceof ViewProxy ? arg[1] : $(arg[1])
       // dedup identity: a reactive bound's underlying View, else its plain value
-      this._loId = arg[0] instanceof ViewProxy ? arg[0][view] : arg[0]
-      this._hiId = arg[1] instanceof ViewProxy ? arg[1][view] : arg[1]
+      this._loId = arg[0] instanceof ViewProxy ? (arg[0] as any)[view] : arg[0]
+      this._hiId = arg[1] instanceof ViewProxy ? (arg[1] as any)[view] : arg[1]
       this._loSrc.connect(this, 'lo')
       this._hiSrc.connect(this, 'hi')
     }
@@ -61,13 +77,13 @@ export class BetweenValue extends Operator {
 
   // Single-bound setters auto-sort so lo always ends up ≤ hi. This is what
   // keeps the resize handles working when the user drags one past the other.
-  set lo(v){
+  set lo(v: any){
     this.extent = v > this.hi_val
       ? [this.hi_val, v]
       : [v, this.hi_val]
   }
 
-  set hi(v){
+  set hi(v: any){
     this.extent = v < this.lo_val
       ? [v, this.lo_val]
       : [this.lo_val, v]
@@ -82,19 +98,24 @@ export class BetweenValue extends Operator {
   // The `value === p.value` check is the unfilter fast path: when we
   // previously aliased the source we have to fork it before mutating, or our
   // `value[ti] = undefined` writes would hit the user's data.
-  set extent([a = -Infinity, b = Infinity]){
+  set extent([a = -Infinity, b = Infinity]: any){
     if (this.sortedDirty) this._resort()
     a = +a
     b = +b
     const new_lo = a < b ? a : b
     const new_hi = a < b ? b : a
-    if (!this.view.value)
-      return [this.lo_val, this.hi_val] = [new_lo, new_hi]
+    // A setter can't `return <expr>` (TS2408) and the value is discarded anyway;
+    // run the side effect, then a bare `return` to keep the early exit.
+    if (!this.view.value) {
+      [this.lo_val, this.hi_val] = [new_lo, new_hi]
+      return
+    }
 
     if (new_lo === -Infinity && new_hi === Infinity) {
       this.hi_index = this.lo_index = undefined;
       [this.lo_val, this.hi_val] = [new_lo, new_hi]
-      return this.view.XU0(this.view.value = this.p.value)
+      this.view.XU0(this.view.value = this.p.value)
+      return
     }
 
     // NB: a *point* range (new_lo === new_hi) is NOT special-cased to empty.
@@ -209,15 +230,15 @@ export class BetweenValue extends Operator {
   // rows already inside the bounds. The bound indexes are wiped so the next
   // `extent` setter recomputes them from scratch (cheaper than tracking
   // them through this rebuild).
-  XU0(value) {
+  XU0(value?: any) {
     const { col } = this
     this.lo_index = undefined
     this.hi_index = undefined
     if (typeof value !== 'object') return super.XU0()
     this.isArr = isArray(value)
-    const new_value = this.isArr ? [] : {}
+    const new_value: any = this.isArr ? [] : {}
     this.sorted = []
-    iter(value, (i, v) => {
+    iter(value, (i: any, v: any) => {
       // Skip holes: when between sits DOWNSTREAM of a sparse producer
       // (filter/map/between/…) its upstream array carries `undefined` slots for
       // excluded rows. Treat them as absent — don't index them and don't let
@@ -228,7 +249,7 @@ export class BetweenValue extends Operator {
         new_value[i] = value[i]
     })
 
-    this.sorted.sort((a, b) => {
+    this.sorted.sort((a: any, b: any) => {
       const va = value[a]?.[col]
       const vb = value[b]?.[col]
       return va > vb ? 1
@@ -257,7 +278,7 @@ export class BetweenValue extends Operator {
   // trivially in range, so we don't need to fork or maintain membership —
   // we just relay the upstream verb to our sinks.
 
-  _inRange(v) { return v >= this.lo_val && v <= this.hi_val }
+  _inRange(v: any) { return v >= this.lo_val && v <= this.hi_val }
 
   // Membership transition for a single row whose row-value or col-value
   // changed. `name` may or may not currently be in `sorted`/view; we emit
@@ -266,7 +287,7 @@ export class BetweenValue extends Operator {
   // runs (which is rare relative to BU2 ticks — bounds change on user
   // brush, attribute updates happen on every data tick) so each BU2 stays
   // O(1) instead of paying O(N) splice + indexOf to maintain `sorted`.
-  _replaceRow(name, row, newCol) {
+  _replaceRow(name: any, row: any, newCol: any) {
     const wasIn = this.view.value[name] !== undefined
     const isIn = this._inRange(newCol)
     if (wasIn && isIn) {
@@ -303,9 +324,9 @@ export class BetweenValue extends Operator {
     const v = this.p.value
     if (!v || typeof v !== 'object') return
     this.sorted = []
-    iter(v, (i, row) => { if (row !== undefined) this.sorted.push('' + i) })
+    iter(v, (i: any, row: any) => { if (row !== undefined) this.sorted.push('' + i) })
     const col = this.col
-    this.sorted.sort((a, b) => {
+    this.sorted.sort((a: any, b: any) => {
       const va = v[a]?.[col]
       const vb = v[b]?.[col]
       return va > vb ? 1 : va < vb ? -1 : 0
@@ -313,7 +334,7 @@ export class BetweenValue extends Operator {
     this.sortedDirty = false
   }
 
-  BU1(U1) {
+  BU1(U1: any) {
     // Full-domain alias (view.value === p.value, set by `set extent` when the
     // bounds widen to (-∞, ∞) — the crossfilter reset state). We relay the event
     // straight through, but MUST also mark `sorted` dirty: a row inserted /
@@ -329,7 +350,7 @@ export class BetweenValue extends Operator {
     }
   }
 
-  BU2(U2) {
+  BU2(U2: any) {
     if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BU2(U2) }
     for (let i = 0; i < U2.length; i += 2) {
       const key = U2[i]
@@ -371,7 +392,7 @@ export class BetweenValue extends Operator {
   // heal is no longer needed: insert/remove after an in-place edit emit
   // incremental BI0/BR1 rather than a coarse resnapshot. Guarded by the
   // between→length/sum/avg differential scenarios.)
-  BI0(I0) {
+  BI0(I0: any) {
     if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BI0(I0) }
 
     const NI0 = []
@@ -402,7 +423,7 @@ export class BetweenValue extends Operator {
     if (NI0.length) this.view.BI0(NI0)
   }
 
-  BR1(R1) {
+  BR1(R1: any) {
     if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BR1(R1) }
 
     const NR1 = []
@@ -434,7 +455,7 @@ export class BetweenValue extends Operator {
   // as membership transitions WITHOUT splicing: the position is stable, only
   // its occupancy changed. Mark `sorted` dirty so the next bound move rebuilds
   // it (skipping holes), and forward BH1/BF0 so our own positional sinks mirror.
-  BH1(R1) {
+  BH1(R1: any) {
     if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BH1(R1) }
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
@@ -448,7 +469,7 @@ export class BetweenValue extends Operator {
     if (NR1.length) this.view.BH1(NR1)
   }
 
-  BF0(I0) {
+  BF0(I0: any) {
     if (this.view.value === this.p.value) { this.sortedDirty = true; return this.view.BF0(I0) }
     const NF0 = []
     for (let i = 0; i < I0.length; i += 2) {
@@ -465,7 +486,7 @@ export class BetweenValue extends Operator {
     if (NF0.length) this.view.BF0(NF0)
   }
 
-  BR2(R2) {
+  BR2(R2: any) {
     if (this.view.value === this.p.value) return this.view.BR2(R2)
     for (let i = 0; i < R2.length; i += 2) {
       const key = R2[i]
@@ -475,7 +496,7 @@ export class BetweenValue extends Operator {
     }
   }
 
-  BI2(I2) {
+  BI2(I2: any) {
     if (this.view.value === this.p.value) return this.view.BI2(I2)
     for (let i = 0; i < I2.length; i += 3) {
       const key = I2[i]
@@ -487,4 +508,4 @@ export class BetweenValue extends Operator {
   }
 }
 
-export const between = (source, col, arg) => createOperator(source, BetweenValue, col, arg)
+export const between = (source: any, col: any, arg: any) => createOperator(source, BetweenValue, col, arg)

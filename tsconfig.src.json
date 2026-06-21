@@ -33,6 +33,7 @@
     "operators/union/index.ts",
     "operators/except/index.ts",
     "operators/intersect/index.ts",
-    "operators/sort/index.ts"
+    "operators/sort/index.ts",
+    "operators/between/index.ts"
   ]
 }
