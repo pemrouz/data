@@ -1,11 +1,10 @@
-// @ts-nocheck
 import { isArray, iter } from '../../utils.ts'
 import { Operator, view, reactive, createOperator } from '../../core.ts'
 
 // A dims-style object: plain object (not a ViewProxy, not an array) whose
 // values are the source ViewProxies to intersect. Used by the
 // crossfilter-shaped overloads `intersect(dims)` and `intersect(dims, key)`.
-const isDims = (v) =>
+const isDims = (v: any) =>
   v != null && typeof v === 'object' && !v[reactive] && !isArray(v)
 
 // IntersectValue keeps rows that exist in *all* connected sources. Each
@@ -50,7 +49,12 @@ const isDims = (v) =>
 // re-tried blindly. Implementation lives in git history if someone
 // wants to pick up the popcount-filtered variant.
 export class IntersectValue extends Operator {
-  constructor(p, ...args) {
+  declare _args: any[]
+  declare vp: any
+  declare sources: Map<any, any>
+  declare all: number
+  declare filters: any
+  constructor(p: any, ...args: any[]) {
     super()
     this._args = args
 
@@ -73,7 +77,7 @@ export class IntersectValue extends Operator {
     this.sources = new Map([[p, { one: 1, off: ~ 1 }]])
     this.all = 1
     for (const src of sources) {
-      const v = src[view]
+      const v = (src as any)[view]
       // Skip a duplicate or self source. `a.intersect(b, b)` and `a.intersect(a)`
       // are idempotent (intersecting with the same set twice, or with self),
       // but the old code keyed `sources` by view yet OR'd `all` per argument:
@@ -83,15 +87,15 @@ export class IntersectValue extends Operator {
       // collapse to the intended set.
       if (this.sources.has(v)) continue
       const one = 1 << this.sources.size
-      src.connect(this)
+      ;(src as any).connect(this)
       this.sources.set(v, { one, off: ~one })
       this.all |= one
     }
 
     if (typeof p.value !== 'object') { super.XU0(); return }
-    const new_value = isArray(this.p.value) ? [] : {}
+    const new_value: any = isArray(this.p.value) ? [] : {}
     this.filters = isArray(this.p.value) ? [] : {}
-    iter(p.value, (i, v) => {
+    iter(p.value, (i: any, v: any) => {
       for (const [res, src] of this.sources) {
         // `res.value[i] !== undefined`, NOT `i in res.value`: between/union/
         // except leave EXPLICIT `undefined` at excluded slots (the key is
@@ -131,7 +135,7 @@ export class IntersectValue extends Operator {
   // (oldVal === undefined → no phantom second remove) and the survivor below it
   // slides up. (`union`/`except` have their own primary ordering — handled in
   // their files.)
-  BR1A(R1, v) {
+  BR1A(R1: any, v?: any) {
     if (v !== this.p) return this._leave(R1, v, true)
     const NR1 = []
     for (let i = 0; i < R1.length; i += 2) {
@@ -162,7 +166,7 @@ export class IntersectValue extends Operator {
   // and `view.value` naturally. Mid-array inserts into an array set-algebra
   // source are not supported (not shipped-reachable: the underlying mutation is
   // always a tail append or a delete).
-  BI0A(I0, v) {
+  BI0A(I0: any, v?: any) {
     const { one, off } = this.sources.get(v)
     const NI0 = []
     // A MID-array insert shifts every later source position, so the per-index
@@ -218,30 +222,30 @@ export class IntersectValue extends Operator {
   // at the primary source for row identity here, just iterate the bitmask
   // table. The view itself collapses to empty because at least one source
   // now has nothing — no row can satisfy `bits === all`.
-  XR0(_, v){
+  XR0(_?: any, v?: any){
     const { off } = this.sources.get(v)
-    iter(this.filters, (i, b) => {
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined) this.filters[i] = b & off
     })
     this.view.XU0(this.view.value = isArray(this.view.value) ? [] : {})
   }
 
-  XU0(value, v) {
+  XU0(value?: any, v?: any) {
     const { one, off } = this.sources.get(v)
     this.view.value ??= isArray(this.p.value) ? [] : {}
     if (typeof value !== 'object') return super.XU0()
     this.filters ??= isArray(this.p.value) ? [] : {}
-    const new_value = isArray(this.p.value) ? [] : {}
+    const new_value: any = isArray(this.p.value) ? [] : {}
     // Clear this source's bit for tracked rows; skip unset slots so we
     // don't turn them into NaN
-    iter(this.filters, (i, b) => {
+    iter(this.filters, (i: any, b: any) => {
       if (b !== undefined) this.filters[i] = b & off
     })
     // Set this source's bit for rows in the new value. If a row appears
     // for the first time (we never tracked it), initialise its bitmask by
     // checking every other source — without this, an expanding source
     // would leave bits permanently zero for the rows it newly admits.
-    iter(value, (i, val) => {
+    iter(value, (i: any, val: any) => {
       if (val === undefined) return
       let bits = this.filters[i]
       if (bits === undefined) {
@@ -262,7 +266,7 @@ export class IntersectValue extends Operator {
   // BR1. The `(bits & off) === zero` check tests "after clearing, only this
   // source's bit was set" which is equivalent to "the row was previously at
   // all-bits-set"; `zero` is precomputed once per call.
-  BR1(R1, v) { this._leave(R1, v, false) }
+  BR1(R1: any, v?: any) { this._leave(R1, v, false) }
 
   // BH1 (consumer): an upstream sparse producer (between/filter over an ARRAY)
   // holed a row in source v — positional-stable, no shift. Same membership
@@ -271,9 +275,9 @@ export class IntersectValue extends Operator {
   // popping its tail. Without this, core falls the upstream BH1 back to BR1,
   // which over an array routes to BR1A (splice-shift) and corrupts an
   // index-keyed sink. Mirrors between's consumer BH1.
-  BH1(R1, v) { this._leave(R1, v, true) }
+  BH1(R1: any, v?: any) { this._leave(R1, v, true) }
 
-  _leave(R1, v, hole) {
+  _leave(R1: any, v: any, hole: any) {
     if (!R1.length) return
     const { off } = this.sources.get(v)
     const NR1 = []
@@ -295,7 +299,7 @@ export class IntersectValue extends Operator {
     if (NR1.length) hole && isArray(this.view.value) ? this.view.BH1(NR1) : this.view.BR1(NR1)
   }
 
-  BU1(U1){
+  BU1(U1: any){
     if (!U1.length) return
     const { all, filters } = this
     const NU1 = []
@@ -311,16 +315,16 @@ export class IntersectValue extends Operator {
     if (NU1.length) this.view.BU1(NU1)
   }
 
-  BI0(I0, v){ this._enter(I0, v, false) }
+  BI0(I0: any, v?: any){ this._enter(I0, v, false) }
 
   // BF0 (consumer): an upstream sparse producer filled a hole in source v —
   // positional-stable. Same membership logic as BI0; emits BF0 downstream so a
   // positional sink fills the slot in place rather than tail-appending. Mirrors
   // between's consumer BF0. (The "first time seen" bitmask-init branch is inert
   // here — a hole-fill is for a row that was already tracked.)
-  BF0(I0, v){ this._enter(I0, v, true) }
+  BF0(I0: any, v?: any){ this._enter(I0, v, true) }
 
-  _enter(I0, v, hole){
+  _enter(I0: any, v: any, hole: any){
     if (!I0.length) return
     const { all, sources, filters } = this
     const { one } = sources.get(v)
@@ -368,7 +372,7 @@ export class IntersectValue extends Operator {
   // by the framework (which dispatches `BR2`/`BU2`/`BI2`) — so deep updates
   // on excluded rows fell through to Operator's default forwarder and leaked
   // downstream silently.
-  BR2(R2, v) {
+  BR2(R2: any, v?: any) {
     if (v !== this.p || !R2.length) return
     const NR2 = []
     for (let i = 0; i < R2.length; i += 2) {
@@ -377,7 +381,7 @@ export class IntersectValue extends Operator {
     }
     if (NR2.length) this.view.BR2(NR2)
   }
-  BU2(U2, v) {
+  BU2(U2: any, v?: any) {
     if (v !== this.p || !U2.length) return
     const NU2 = []
     for (let i = 0; i < U2.length; i += 2) {
@@ -386,7 +390,7 @@ export class IntersectValue extends Operator {
     }
     if (NU2.length) this.view.BU2(NU2)
   }
-  BI2(I2, v) {
+  BI2(I2: any, v?: any) {
     if (v !== this.p || !I2.length) return
     const NI2 = []
     for (let i = 0; i < I2.length; i += 3) {
@@ -401,11 +405,11 @@ export class IntersectValue extends Operator {
   // shape is repeated. Crossfilter benefit: each chart in a dashboard calls
   // `flights.intersect(dims, 'thisChart')` on every render and gets the
   // same operator view back, so the bitmask state is shared.
-  matches(...args){
+  matches(...args: any[]){
     if (args.length !== this._args.length) return false
     for (let i = 0; i < args.length; i++) if (args[i] !== this._args[i]) return false
     return true
   }
 }
 
-export const intersect = (source, ...others) => createOperator(source, IntersectValue, ...others)
+export const intersect = (source: any, ...others: any[]) => createOperator(source, IntersectValue, ...others)
