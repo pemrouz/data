@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Scalar-comparison range filters: `.gt(col, v)`, `.lt(col, v)`, `.gte(col, v)`,
 // `.lte(col, v)`. Each keeps rows whose `row[col]` satisfies the comparison
 // against `v`. The threshold may be a plain literal (captured once) OR a
@@ -21,8 +20,15 @@
 import { RowOperator } from '../../row.ts'
 import { createOperator, ViewProxy, view, bindReactive } from '../../core.ts'
 
-class CompareValue extends RowOperator {
-  constructor(p, col, val) {
+abstract class CompareValue extends RowOperator {
+  declare col: any
+  declare _val: any
+  declare _valView: any
+  declare _live: boolean
+  // Implemented by each subclass (Gt/Lt/Gte/Lte). Abstract so the base type
+  // knows `process` can call it; emits nothing (abstract members are erased).
+  abstract _cmp(x: any): boolean
+  constructor(p: any, col: any, val: any) {
     super()
     this.p = p
     this.col = col
@@ -36,28 +42,28 @@ class CompareValue extends RowOperator {
   // Dedup by the threshold SOURCE's view identity when reactive (mirrors between
   // — a freshly-minted wrapper proxy per access would never `===` a stored one),
   // by value for a plain literal. `_valView` is set by bindReactive.
-  matches(col, val) {
+  matches(col: any, val: any) {
     if (this.col !== col) return false
-    if (val instanceof ViewProxy) return this._valView === val[view]
+    if (val instanceof ViewProxy) return this._valView === (val as any)[view]
     if (this._valView) return false      // we're reactive; arg is a plain literal
     return this._val === val
   }
   // `set val` is the connect target: PropSink writes `this.val = <bound value>`
   // on construction (guarded out by `_live` being unset) and on every later
   // change (which recomputes). Subclasses read the live threshold via `this._val`.
-  set val(v) { this._val = v; if (this._live) this.XU0(this.p.value) }
+  set val(v: any) { this._val = v; if (this._live) this.XU0(this.p.value) }
   // Subclasses implement `_cmp(x)`. `value?.[col]` short-circuits on missing
   // rows / non-object rows — any such row fails every comparison (matches
   // JS's `undefined > 5 === false`, `undefined >= 5 === false`, etc.).
-  process(value) { return this._cmp(value?.[this.col]) ? value : undefined }
+  process(value?: any) { return this._cmp(value?.[this.col]) ? value : undefined }
 }
 
-export class GtValue  extends CompareValue { _cmp(x) { return x >  this._val } }
-export class LtValue  extends CompareValue { _cmp(x) { return x <  this._val } }
-export class GteValue extends CompareValue { _cmp(x) { return x >= this._val } }
-export class LteValue extends CompareValue { _cmp(x) { return x <= this._val } }
+export class GtValue  extends CompareValue { _cmp(x: any) { return x >  this._val } }
+export class LtValue  extends CompareValue { _cmp(x: any) { return x <  this._val } }
+export class GteValue extends CompareValue { _cmp(x: any) { return x >= this._val } }
+export class LteValue extends CompareValue { _cmp(x: any) { return x <= this._val } }
 
-export const gt  = (source, col, val) => createOperator(source, GtValue,  col, val)
-export const lt  = (source, col, val) => createOperator(source, LtValue,  col, val)
-export const gte = (source, col, val) => createOperator(source, GteValue, col, val)
-export const lte = (source, col, val) => createOperator(source, LteValue, col, val)
+export const gt  = (source: any, col: any, val: any) => createOperator(source, GtValue,  col, val)
+export const lt  = (source: any, col: any, val: any) => createOperator(source, LtValue,  col, val)
+export const gte = (source: any, col: any, val: any) => createOperator(source, GteValue, col, val)
+export const lte = (source: any, col: any, val: any) => createOperator(source, LteValue, col, val)

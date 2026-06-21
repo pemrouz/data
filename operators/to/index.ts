@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Operator, createOperator } from '../../core.ts'
 
 // `.to(fn)` is the whole-value projection: every upstream change collapses
@@ -10,14 +9,15 @@ import { Operator, createOperator } from '../../core.ts'
 // storm — this is the contract that makes things like
 // `filter.to(d => d?.length ? '' : 'none')` cheap.
 export class ToValue extends Operator {
-  constructor(p, fn) {
+  declare fn: (value: any, prev?: any) => any
+  constructor(p: any, fn: (value: any, prev?: any) => any) {
     super()
     this.p = p
     this.fn = fn
     this.XU0(this.p.value)
   }
 
-  XU0(value) {
+  XU0(value?: any) {
     const new_value = this.fn(value, this.view.value)
     if (new_value === this.view.value) return
     this.view.XU0(this.view.value = new_value)
@@ -31,4 +31,4 @@ export class ToValue extends Operator {
   BI2(){ this.XU0(this.p.value) }
 }
 
-export const to = (source, fn) => createOperator(source, ToValue, fn)
+export const to = (source: any, fn: (value: any, prev?: any) => any) => createOperator(source, ToValue, fn)

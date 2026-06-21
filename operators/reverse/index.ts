@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
@@ -8,7 +7,7 @@ import { Operator, createOperator } from '../../core.ts'
 // because finding the relevant position by value is O(N) and ambiguous
 // for duplicate values.
 export class ReverseValue extends Operator {
-  constructor(p) {
+  constructor(p: any) {
     super()
     this.p = p
     this.output = []
@@ -41,7 +40,7 @@ export class ReverseValue extends Operator {
   // In source iteration order they sit at the END; in the reversed output
   // they sit at the FRONT. Process I0 in reverse so the last-inserted in
   // source becomes output[0].
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     // Array upstreams (sort/limit windows, mid-array inserts) deliver BI0 with a
     // POSITIONAL `at` — a row entering a sort window at rank k is not an append,
@@ -67,4 +66,4 @@ export class ReverseValue extends Operator {
   BI2() { this._rebuild() }
 }
 
-export const reverse = (source) => createOperator(source, ReverseValue)
+export const reverse = (source: any) => createOperator(source, ReverseValue)
