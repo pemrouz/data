@@ -487,6 +487,11 @@ export type DataOps<T = any> = {
 //   0/1/2   — depth of the key path (0=direct, 1=single name, 2=full path)
 //   A suffix (BR1A/BI0A) — array-aware variant carrying suffix-shift semantics
 export class Value {
+  // `declare` = type-only, ZERO runtime emit (no field initializer that would
+  // perturb the carefully-tuned constructor init / hidden-class shape). The
+  // value is assigned in the constructor below; this just teaches subclasses the
+  // shape so they don't trip TS2339 once they come off `@ts-nocheck`.
+  declare view: View
   constructor(){
     this.view = new View(this)
   }
@@ -778,7 +783,15 @@ export class Value {
 // from its source (as a sink) and *emit* events to its own subscribers (via
 // `this.view`). Most operators only override the verbs they care about; the
 // rest fall through to Value's defaults and become pass-through.
-export class Operator extends Value {}
+export class Operator extends Value {
+  // Common operator fields, set in each operator's own constructor (`p` = the
+  // source/parent view it reads via `this.p.value`; `output` = the materialized
+  // snapshot many operators keep). Declared here (runtime-erased) so the dozens
+  // of `Operator` subclasses don't each re-trip TS2339 on the inherited shape.
+  declare p: any
+  declare output: any
+  declare name: any
+}
 
 // View is the read side: it holds the live value, tracks named child views
 // (created lazily when callers access proxy.foo), and broadcasts every verb to
@@ -786,6 +799,17 @@ export class Operator extends Value {}
 // its only strong reference unsubscribes silently — tests must keep
 // `connect([])`'s return alive in a local var to observe events.
 export class View {
+  // `declare` = type-only, zero runtime emit — the constructor below is the sole
+  // initializer (it sets ALL fields deliberately, for a monomorphic hidden
+  // class; a real field initializer here would emit `= undefined` ahead of it
+  // and perturb that). These just publish the shape to subclasses/consumers.
+  declare res: Value
+  declare key: string[]
+  declare sinks: Set<any>
+  declare views: Map<any, any>
+  declare p: View | undefined
+  declare name: any
+  declare value: any
   constructor(res){
     // Initialise *all* fields here, including ones only used by child views
     // (`p`, `name`) and the data slot (`value`). Without this, root views
