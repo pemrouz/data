@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Devtools overlay panel.
 //
 // Graph-first edge-anchored dock + slide-in inspector + Alt-hover badges,
@@ -25,10 +24,10 @@ const TABS = ['inspect', 'events', 'profile']
 // something to tear down. `pollTimer` covers the common case where devtools
 // is imported BEFORE the host app's first $() call (auto-mount fires while
 // iterRoots is still empty) — we poll briefly until the first root appears.
-let current = null
-let pollTimer = null
+let current: any = null
+let pollTimer: any = null
 
-export function mount(rootProxy) {
+export function mount(rootProxy?: any) {
   if (typeof document === 'undefined') return null
   if (current) return current
   if (!rootProxy) {
@@ -66,7 +65,7 @@ export function unmount() {
 
 export function getShell() { return current }
 
-function mountPanel({ rootProxy }) {
+function mountPanel({ rootProxy }: any) {
   const host = document.createElement('div')
   host.className = '__ripple_panel_host'
   document.body.appendChild(host)
@@ -98,20 +97,20 @@ function mountPanel({ rootProxy }) {
   // explicit inline width even after the inspector opens — the
   // `.with-inspector` width rule only applies when no inline width is set
   // (handled via a CSS variable fallback below).
-  let dockResizeDrag = null
-  dockResize.addEventListener('pointerdown', (e) => {
+  let dockResizeDrag: any = null
+  dockResize.addEventListener('pointerdown', (e: any) => {
     dockResizeDrag = { startX: e.clientX, startW: dock.getBoundingClientRect().width }
     try { dockResize.setPointerCapture(e.pointerId) } catch {}
     dockResize.classList.add('dragging')
     e.preventDefault()
   })
-  dockResize.addEventListener('pointermove', (e) => {
+  dockResize.addEventListener('pointermove', (e: any) => {
     if (!dockResizeDrag) return
     const dx = e.clientX - dockResizeDrag.startX
     const w = Math.max(DOCK_MIN, Math.min(dockMax(), dockResizeDrag.startW - dx))
     dock.style.width = w + 'px'
   })
-  const endDockResize = (e) => {
+  const endDockResize = (e: any) => {
     if (!dockResizeDrag) return
     dockResizeDrag = null
     dockResize.classList.remove('dragging')
@@ -159,7 +158,7 @@ function mountPanel({ rootProxy }) {
   // graph-first edge-anchored dock). Tree stays one click away for users who
   // want the indented outline.
   let layout = 'dag'
-  const setLayout = (next) => {
+  const setLayout = (next: any) => {
     layout = next
     treeBtn.classList.toggle('active', next === 'tree')
     dagBtn.classList.toggle('active', next === 'dag')
@@ -179,8 +178,8 @@ function mountPanel({ rootProxy }) {
   dockBody.appendChild(graphPane)
 
   // ─── graph render ────────────────────────────────────────────────────
-  let selectedView = null    // live View ref of the currently selected node — survives rerenders
-  let focusedPath  = null    // DAG focus: slash-joined sink-index path; ancestors+descendants stay bright, others dim
+  let selectedView: any = null    // live View ref of the currently selected node — survives rerenders
+  let focusedPath: any  = null    // DAG focus: slash-joined sink-index path; ancestors+descendants stay bright, others dim
 
   // Density controls — visible in DAG mode. Defaults trade information for
   // legibility: terminal sinks collapsed into a count, sibling children with
@@ -193,20 +192,20 @@ function mountPanel({ rootProxy }) {
   // frequent rerenders caused by trace events / heatmap ticks. Reset to null
   // means "auto-fit on next render"; once the user manually pans or zooms,
   // we capture the actual numbers and stop auto-fitting.
-  let dagView = { scale: null, tx: null, ty: null }
+  let dagView: any = { scale: null, tx: null, ty: null }
 
   // Heat map for activity overlay. Keyed by node _key, value is the last
   // event timestamp (performance.now()). Color decays with age in render.
   // Trace subscription is installed lazily so the cost is only paid when the
   // user turns the heatmap on.
   const heat = new Map()
-  let heatDispose = null
-  let heatTick = null
+  let heatDispose: any = null
+  let heatTick: any = null
   const startHeatmap = () => {
     if (heatDispose) return
-    heatDispose = $.trace(rootProxy, {
+    heatDispose = ($ as any).trace(rootProxy, {
       log: false,
-      onEvent: (e) => {
+      onEvent: (e: any) => {
         const k = (e.key || []).join('.') || '<root>'
         heat.set(k, performance.now())
         // Mark every ancestor as warm too so the path up to the root glows.
@@ -253,7 +252,7 @@ function mountPanel({ rootProxy }) {
   //   ops on `items` all hash to "operator|<root>|FilterValue"). With
   //   `_view` on each snapshot node, no lookup table is needed.
   // ────────────────────────────────────────────────────────────────────
-  const summarizeValue = (v) => {
+  const summarizeValue = (v: any) => {
     if (v === null || v === undefined) return v
     const t = typeof v
     if (t === 'string') return v.length > 80 ? v.slice(0, 77) + '…' : v
@@ -261,18 +260,18 @@ function mountPanel({ rootProxy }) {
     if (t === 'object') return `{ keys: ${Object.keys(v).length} }`
     return String(v)
   }
-  const classifyLocal = (s) => {
+  const classifyLocal = (s: any) => {
     const n = s?.constructor?.name
     if (n === 'DOMSink') return 'dom'
     if (n === 'ArrSink' || n === 'PropSink' || n === 'FunctionSink') return 'connect'
     return 'sink'
   }
 
-  function walkGraph(rootProxy) {
+  function walkGraph(rootProxy: any) {
     const rv = rootProxy?.[view]
     if (!rv) return null
     const seen = new WeakSet()
-    const walk = (v, parent) => {
+    const walk = (v: any, parent: any): any => {
       if (seen.has(v)) {
         return { key: [...v.key], kind: 'cycle', children: [], sinks: [], _view: v, _parent: parent }
       }
@@ -285,14 +284,14 @@ function mountPanel({ rootProxy }) {
           children: [], sinks: [], _view: v, _parent: parent,
         }
       }
-      const node = {
+      const node: any = {
         key: [...v.key], name: v.name,
         kind: v.p ? 'child' : 'root',
         value: summarizeValue(v.value),
         children: [], sinks: [], _view: v, _parent: parent,
       }
-      v.each?.((_n, child) => node.children.push(walk(child, node)))
-      v.sink?.((s) => {
+      v.each?.((_n: any, child: any) => node.children.push(walk(child, node)))
+      v.sink?.((s: any) => {
         if (s && typeof s === 'object' && s.view) {
           // Operator — recurse into its internal view, then re-tag.
           const opNode = walk(s.view, node)
@@ -324,8 +323,8 @@ function mountPanel({ rootProxy }) {
   // chain builder) can route through the same table — otherwise the graph
   // would show ".filterstring()" while the IDENTITY card shows ".filter()".
 
-  function buildChain(node) {
-    const segments = []
+  function buildChain(node: any) {
+    const segments: any[] = []
     let cur = node
     while (cur) { segments.unshift(cur); cur = cur._parent }
     if (segments.length === 0) return '?'
@@ -342,7 +341,7 @@ function mountPanel({ rootProxy }) {
     return s
   }
 
-  function formatLiveValue(v, maxLen = 220) {
+  function formatLiveValue(v: any, maxLen = 220): any {
     if (v === undefined) return 'undefined'
     if (v === null) return 'null'
     const t = typeof v
@@ -364,7 +363,7 @@ function mountPanel({ rootProxy }) {
     }
     return String(v)
   }
-  function valueTypeLabel(v) {
+  function valueTypeLabel(v: any) {
     if (v === undefined) return 'undefined'
     if (v === null)      return 'null'
     if (Array.isArray(v))return `Array(${v.length})`
@@ -383,7 +382,7 @@ function mountPanel({ rootProxy }) {
   // thing the user actually sees update. Same shape for `.attr`, `.class`,
   // `.style`, `.id`. Without unwrapping that, we'd mis-label every text /
   // attr / class binding as a "non-DOM connect" sink.
-  function propSinkDomTarget(s) {
+  function propSinkDomTarget(s: any) {
     if (!s || s.constructor?.name !== 'PropSink') return null
     const obj = s.obj
     if (!obj) return null
@@ -393,7 +392,7 @@ function mountPanel({ rootProxy }) {
       // The Prop's `.name` is the user-supplied identifier (e.g. attribute
       // name); `.dom` for Text is the actual text node. We hand back the
       // host element so the user can flash it.
-      let label
+      let label: any
       switch (ctor) {
         case 'Text':  label = 'textContent';     break
         case 'Attr':  label = `[${obj.name}]`;   break
@@ -412,15 +411,15 @@ function mountPanel({ rootProxy }) {
   // Recursively walk a live view's sinks, collecting every DOM-driving sink
   // (DOMSink iteration host, plus PropSinks whose target is a Prop attached
   // to a DOM element). FunctionSink / ArrSink stay in `others`.
-  function collectBindings(liveView) {
-    const dom = []        // { el, via, kind, label }
-    const others = []     // { kind, ctor, via }
+  function collectBindings(liveView: any) {
+    const dom: any[] = []        // { el, via, kind, label }
+    const others: any[] = []     // { kind, ctor, via }
     if (!liveView) return { dom, others }
     const seen = new WeakSet()
-    const recurse = (v, viaLabel) => {
+    const recurse = (v: any, viaLabel: any) => {
       if (!v || seen.has(v)) return
       seen.add(v)
-      v.sink?.((s) => {
+      v.sink?.((s: any) => {
         if (!s || typeof s !== 'object') return
         // 1) DOMSink — iteration host. The user-visible element is .parent.
         if (s.constructor?.name === 'DOMSink' && s.parent?.classList) {
@@ -460,12 +459,12 @@ function mountPanel({ rootProxy }) {
   }
 
   // Shared helpers used by renderTree and renderDag.
-  const isTerm = (n) => TERMINAL_KINDS.has(n.kind)
+  const isTerm = (n: any) => TERMINAL_KINDS.has(n.kind)
   // Recursively count terminal sinks beneath a graph node so a "→N" chip on
   // the immediate parent reflects the *real* terminal tally (across deeper
   // operators we may also be collapsing). Iterative to avoid stack issues
   // on deep chains.
-  const termCountDeep = (n) => {
+  const termCountDeep = (n: any) => {
     let c = 0
     const stack = [n]
     while (stack.length) {
@@ -478,7 +477,7 @@ function mountPanel({ rootProxy }) {
     return c
   }
 
-  function renderTree(node, depth = 0) {
+  function renderTree(node: any, depth = 0) {
     // Pipeline-only walk: children are intentionally skipped at every level
     // (root.children = items.[*], operator.children = filtered output rows).
     // The user wants Tree to show JUST the reactive pipeline — operators +
@@ -486,7 +485,7 @@ function mountPanel({ rootProxy }) {
     // horizontally. To inspect items.[*] sub-views, switch to Containment,
     // Swimlanes, or Progressive.
     const sinksAll = node.sinks || []
-    const visibleSinks = hideSinks ? sinksAll.filter(s => !TERMINAL_KINDS.has(s.kind)) : sinksAll
+    const visibleSinks = hideSinks ? sinksAll.filter((s: any) => !TERMINAL_KINDS.has(s.kind)) : sinksAll
     let hiddenTerm = 0
     if (hideSinks) {
       for (const s of sinksAll) {
@@ -496,7 +495,7 @@ function mountPanel({ rootProxy }) {
 
     const wrap = el('div', 'tnode' + (depth === 0 ? ' root' : ''))
     const row = el('div', 'tnode-row')
-    row._view = node._view   // expando — used by markSelection to (re)highlight without rerender
+    ;(row as any)._view = node._view   // expando — used by markSelection to (re)highlight without rerender
     if (selectedView && selectedView === node._view) row.classList.add('selected')
     const hasKids = visibleSinks.length > 0
     if (hasKids) row.append(el('span', 'caret', { text: '▾' }))
@@ -509,7 +508,7 @@ function mountPanel({ rootProxy }) {
       chip.title = `${hiddenTerm} DOM/connect sink(s) — click the node, then look at the Bound DOM section in the inspector to see which elements they drive`
       row.append(chip)
     }
-    row.addEventListener('click', (e) => {
+    row.addEventListener('click', (e: any) => {
       e.stopPropagation()
       selectedView = node._view
       openInspector(node)
@@ -540,15 +539,15 @@ function mountPanel({ rootProxy }) {
   // (WeakSet keyed by view identity); we skip those. The first occurrence
   // of any shared operator becomes its visible position.
   // ════════════════════════════════════════════════════════════════════
-  function renderDag(tree) {
+  function renderDag(tree: any) {
     // ── 1. Walk ─────────────────────────────────────────────────────
     // Each node gets a stable _path (slash-joined sink-indices from root)
     // — used for selection + focus that survives rerenders.
-    const nodes = []
-    const edges = []
+    const nodes: any[] = []
+    const edges: any[] = []
     const sinkChips = new Map()
 
-    const visit = (n, depth, path) => {
+    const visit = (n: any, depth: any, path: any): any => {
       if (n.kind === 'cycle') return null
       const id = nodes.length
       nodes.push({ ...n, _depth: depth, _path: path })
@@ -572,12 +571,12 @@ function mountPanel({ rootProxy }) {
     if (nodes.length === 0) return el('div', 'dag-empty', { text: 'no operators on this root' })
 
     // ── 2. Layout (BFS by depth) ────────────────────────────────────
-    const byDepth = []
+    const byDepth: any[] = []
     nodes.forEach((n, i) => { (byDepth[n._depth] ||= []).push(i) })
     const W = 100, H = 30, GX = 22, GY = 32, P = 16
-    const pos = []
+    const pos: any[] = []
     byDepth.forEach((row, d) => {
-      row.forEach((i, c) => { pos[i] = { x: P + c * (W + GX), y: P + d * (H + GY) } })
+      row.forEach((i: any, c: any) => { pos[i] = { x: P + c * (W + GX), y: P + d * (H + GY) } })
     })
     const cols = byDepth.reduce((m, r) => Math.max(m, (r || []).length), 0)
     const numRows = byDepth.length
@@ -585,7 +584,7 @@ function mountPanel({ rootProxy }) {
     const contentH = P * 2 + numRows * H + Math.max(0, numRows - 1) * GY
 
     // ── 3. Focus set (ancestors + self + descendants of focusedPath) ─
-    let focusSet = null
+    let focusSet: any = null
     if (focusedPath != null) {
       focusSet = new Set()
       nodes.forEach((n, i) => {
@@ -604,7 +603,7 @@ function mountPanel({ rootProxy }) {
 
     const NS = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(NS, 'svg')
-    svg.setAttribute('width', contentW); svg.setAttribute('height', contentH)
+    svg.setAttribute('width', contentW as any); svg.setAttribute('height', contentH as any)
     svg.setAttribute('class', 'dag-edges')
     for (const [a, b] of edges) {
       const A = pos[a], B = pos[b]; if (!A || !B) continue
@@ -627,7 +626,7 @@ function mountPanel({ rootProxy }) {
         + (dimmed ? ' dimmed' : '')
         + (isFocus ? ' focus-root' : '')
       const node = el('div', cls)
-      node._view = n._view   // expando — markSelection toggles .selected by identity match
+      ;(node as any)._view = n._view   // expando — markSelection toggles .selected by identity match
       Object.assign(node.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${W}px`, height: `${H}px` })
 
       if (heatmapMode) {
@@ -653,7 +652,7 @@ function mountPanel({ rootProxy }) {
       }
 
       node.title = `${nodeLabel(n)} · ${n.kind}${n.ctor ? ' · ' + n.ctor : ''}\nshift-click to focus`
-      node.addEventListener('click', (e) => {
+      node.addEventListener('click', (e: any) => {
         e.stopPropagation()
         if (e.shiftKey) {
           focusedPath = (focusedPath === n._path) ? null : n._path
@@ -670,23 +669,23 @@ function mountPanel({ rootProxy }) {
 
     // ── 5. Toolbar overlay ──────────────────────────────────────────
     const tools = el('div', 'dag-tools')
-    const mkTool = (txt, title, fn) => {
+    const mkTool = (txt: any, title: any, fn: any) => {
       const b = el('button', '', { text: txt }); b.title = title
-      b.addEventListener('click', (e) => { e.stopPropagation(); fn() })
+      b.addEventListener('click', (e: any) => { e.stopPropagation(); fn() })
       return b
     }
-    const mkCheck = (label, checked, title, fn) => {
+    const mkCheck = (label: any, checked: any, title: any, fn: any) => {
       const w = el('label', 'dag-check'); w.title = title
       const cb = el('input', '', { attrs: { type: 'checkbox' } })
-      cb.checked = checked
-      cb.addEventListener('change', (e) => { e.stopPropagation(); fn(cb.checked) })
+      ;(cb as any).checked = checked
+      cb.addEventListener('change', (e: any) => { e.stopPropagation(); fn((cb as any).checked) })
       w.append(cb, document.createTextNode(' ' + label))
       return w
     }
 
     tools.append(
-      mkCheck('sinks', !hideSinks, 'show terminal sinks as nodes (off = collapsed to →N chip)', (v) => { hideSinks = !v; rerenderGraph() }),
-      mkCheck('🔥', heatmapMode, 'colour nodes by recent activity', (v) => {
+      mkCheck('sinks', !hideSinks, 'show terminal sinks as nodes (off = collapsed to →N chip)', (v: any) => { hideSinks = !v; rerenderGraph() }),
+      mkCheck('🔥', heatmapMode, 'colour nodes by recent activity', (v: any) => {
         heatmapMode = v
         if (heatmapMode) startHeatmap()
         else stopHeatmap()
@@ -738,7 +737,7 @@ function mountPanel({ rootProxy }) {
       ty = (r.height - contentH * scale) / 2
       apply()
     }
-    const zoomAt = (relX, relY, factor) => {
+    const zoomAt = (relX: any, relY: any, factor: any) => {
       const r = outer.getBoundingClientRect()
       const cx = r.width  * relX
       const cy = r.height * relY
@@ -749,21 +748,21 @@ function mountPanel({ rootProxy }) {
       apply()
     }
 
-    let dragging = false, lastX = 0, lastY = 0, downAt = null
-    outer.addEventListener('pointerdown', (e) => {
+    let dragging = false, lastX = 0, lastY = 0, downAt: any = null
+    outer.addEventListener('pointerdown', (e: any) => {
       if (e.target.closest('.dnode') || e.target.closest('.dag-tools')) return
       dragging = true; lastX = e.clientX; lastY = e.clientY
       downAt = { x: e.clientX, y: e.clientY }
       outer.setPointerCapture(e.pointerId)
       outer.classList.add('panning')
     })
-    outer.addEventListener('pointermove', (e) => {
+    outer.addEventListener('pointermove', (e: any) => {
       if (!dragging) return
       tx += e.clientX - lastX; ty += e.clientY - lastY
       lastX = e.clientX; lastY = e.clientY
       apply()
     })
-    const endPan = (e) => {
+    const endPan = (e: any) => {
       if (!dragging) return
       dragging = false
       try { outer.releasePointerCapture(e.pointerId) } catch {}
@@ -771,7 +770,7 @@ function mountPanel({ rootProxy }) {
     }
     outer.addEventListener('pointerup',     endPan)
     outer.addEventListener('pointercancel', endPan)
-    outer.addEventListener('wheel', (e) => {
+    outer.addEventListener('wheel', (e: any) => {
       e.preventDefault()
       const r = outer.getBoundingClientRect()
       const factor = e.deltaY > 0 ? 0.88 : 1.14
@@ -779,7 +778,7 @@ function mountPanel({ rootProxy }) {
     }, { passive: false })
 
     // Click empty canvas → clear focus.
-    outer.addEventListener('click', (e) => {
+    outer.addEventListener('click', (e: any) => {
       if (e.target.closest('.dnode') || e.target.closest('.dag-tools')) return
       const moved = downAt && (Math.abs(e.clientX - downAt.x) + Math.abs(e.clientY - downAt.y)) > 4
       if (moved) return
@@ -796,11 +795,11 @@ function mountPanel({ rootProxy }) {
   // — both views stamp `_view` on each rendered element so we can find the
   // selected one without a key lookup (operators sharing key=[] would clash).
   function markSelection() {
-    for (const r of root.querySelectorAll('.tnode-row')) {
-      r.classList.toggle('selected', selectedView != null && r._view === selectedView)
+    for (const r of Array.from(root.querySelectorAll('.tnode-row'))) {
+      r.classList.toggle('selected', selectedView != null && (r as any)._view === selectedView)
     }
-    for (const r of root.querySelectorAll('.dnode')) {
-      r.classList.toggle('selected', selectedView != null && r._view === selectedView)
+    for (const r of Array.from(root.querySelectorAll('.dnode'))) {
+      r.classList.toggle('selected', selectedView != null && (r as any)._view === selectedView)
     }
   }
 
@@ -809,7 +808,7 @@ function mountPanel({ rootProxy }) {
   // older ones drop off, so memory is bounded and we can compute "X events
   // in the last 60s" without scanning forever.
   const EVENTS_MAX = 500
-  const eventsRing = []                    // { t, verb, key (joined) }
+  const eventsRing: any[] = []                    // { t, verb, key (joined) }
   // `ringOffset` counts how many entries have been shifted off the front of
   // `eventsRing`. Consumers (the Events tab) track an ABSOLUTE index of how
   // many events they've drained; subtracting `ringOffset` gives the relative
@@ -826,9 +825,9 @@ function mountPanel({ rootProxy }) {
   // at the top of renderEventsTab).
   const evSubscribers = new Set()
 
-  const traceDispose = $.trace(rootProxy, {
+  const traceDispose = ($ as any).trace(rootProxy, {
     log: false,
-    onEvent: (e) => {
+    onEvent: (e: any) => {
       const t  = performance.now()
       const k  = (e.key || []).join('.') || '<root>'
       const ev = { t, verb: e.verb, key: k }
@@ -836,13 +835,13 @@ function mountPanel({ rootProxy }) {
       if (eventsRing.length > EVENTS_MAX) { eventsRing.shift(); ringState.offset++ }
       lastEventByKey.set(k, t)
       for (const fn of evSubscribers) {
-        try { fn(ev) } catch {}
+        try { (fn as any)(ev) } catch {}
       }
       scheduleRewalk()
     },
   })
 
-  function eventsForKey(key, windowMs = 60_000) {
+  function eventsForKey(key: any, windowMs = 60_000) {
     const cutoff = performance.now() - windowMs
     const out = []
     for (let i = eventsRing.length - 1; i >= 0; i--) {
@@ -871,21 +870,21 @@ function mountPanel({ rootProxy }) {
   // Pointer-driven splitter drag: clamp inspector width to a usable range
   // (200–700px). The dock's total width stays fixed (840px when inspector
   // is open), so shrinking the inspector grows the graph pane via flex:1.
-  let dragSplitter = null
-  splitter.addEventListener('pointerdown', (e) => {
+  let dragSplitter: any = null
+  splitter.addEventListener('pointerdown', (e: any) => {
     if (insp.hidden) return
     dragSplitter = { startX: e.clientX, startW: insp.getBoundingClientRect().width }
     splitter.setPointerCapture(e.pointerId)
     splitter.classList.add('dragging')
     e.preventDefault()
   })
-  splitter.addEventListener('pointermove', (e) => {
+  splitter.addEventListener('pointermove', (e: any) => {
     if (!dragSplitter) return
     const dx = e.clientX - dragSplitter.startX
     const w = Math.max(200, Math.min(700, dragSplitter.startW - dx))
     insp.style.width = w + 'px'
   })
-  const endDrag = (e) => {
+  const endDrag = (e: any) => {
     if (!dragSplitter) return
     dragSplitter = null
     splitter.classList.remove('dragging')
@@ -915,16 +914,16 @@ function mountPanel({ rootProxy }) {
     inspTabs.append(b)
   }
   function markTabs() {
-    inspTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.textContent === activeTab))
+    inspTabs.querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', b.textContent === activeTab))
   }
 
-  let currentInspectNode = null
-  let traceForInsp = null
-  let profileHandle = null
-  let profileTimer = null
-  let evTickTimer  = null   // 1s tick that refreshes "X seconds ago" labels
+  let currentInspectNode: any = null
+  let traceForInsp: any = null
+  let profileHandle: any = null
+  let profileTimer: any = null
+  let evTickTimer: any  = null   // 1s tick that refreshes "X seconds ago" labels
 
-  function openInspector(node) {
+  function openInspector(node: any) {
     currentInspectNode = node
     insp.hidden = false
     dock.classList.add('with-inspector')
@@ -969,7 +968,7 @@ function mountPanel({ rootProxy }) {
     const liveValue = liveView?.value
     const nodeKey   = nodeKeyOf(n)
 
-    const mkCard = (cls, title, populate) => {
+    const mkCard = (cls: any, title: any, populate: any) => {
       const card = el('div', `insp-card insp-card-${cls}`)
       card.append(el('div', 'card-title', { text: title }))
       const body = el('div', 'card-body')
@@ -979,7 +978,7 @@ function mountPanel({ rootProxy }) {
     }
 
     // ─── IDENTITY ──────────────────────────────────────────────────
-    inspBody.append(mkCard('identity', 'IDENTITY', (body) => {
+    inspBody.append(mkCard('identity', 'IDENTITY', (body: any) => {
       body.append(
         el('div', 'card-headline', { text: buildChain(n) }),
         el('div', 'card-sub', { text: `${n.ctor || n.kind}${n.ctor ? ' · ' + n.kind : ''}` }),
@@ -987,7 +986,7 @@ function mountPanel({ rootProxy }) {
     }))
 
     // ─── CURRENT VALUE ─────────────────────────────────────────────
-    inspBody.append(mkCard('value', 'CURRENT VALUE', (body) => {
+    inspBody.append(mkCard('value', 'CURRENT VALUE', (body: any) => {
       body.append(el('pre', 'card-value', { text: formatLiveValue(liveValue) }))
       const lastT = lastEventByKey.get(nodeKey)
       const ageSec = lastT ? (performance.now() - lastT) / 1000 : null
@@ -1000,7 +999,7 @@ function mountPanel({ rootProxy }) {
     }))
 
     // ─── CONNECTIONS ───────────────────────────────────────────────
-    inspBody.append(mkCard('connections', 'CONNECTIONS', (body) => {
+    inspBody.append(mkCard('connections', 'CONNECTIONS', (body: any) => {
       // Upstream
       const parent = n._parent
       const inRow = el('div', 'conn-row')
@@ -1011,7 +1010,7 @@ function mountPanel({ rootProxy }) {
       body.append(inRow)
       // Downstream
       const bindings = collectBindings(liveView)
-      const opSinks  = (n.sinks || []).filter(s => s.kind === 'operator').length
+      const opSinks  = (n.sinks || []).filter((s: any) => s.kind === 'operator').length
       const outRow = el('div', 'conn-row')
       outRow.append(
         el('span', 'conn-dir', { text: '↓ out' }),
@@ -1025,14 +1024,14 @@ function mountPanel({ rootProxy }) {
     }))
 
     // ─── ACTIVITY ──────────────────────────────────────────────────
-    inspBody.append(mkCard('activity', 'ACTIVITY', (body) => {
+    inspBody.append(mkCard('activity', 'ACTIVITY', (body: any) => {
       const recent = eventsForKey(nodeKey, 60_000)
       body.append(el('div', 'card-stat', { text: `${recent.length} event${recent.length === 1 ? '' : 's'} in last 60s` }))
       if (recent.length > 0) {
-        const verbCounts = {}
+        const verbCounts: any = {}
         for (const e of recent) verbCounts[e.verb] = (verbCounts[e.verb] || 0) + 1
         const verbsLine = el('div', 'card-verbs')
-        for (const [v, c] of Object.entries(verbCounts).sort((a, b) => b[1] - a[1]).slice(0, 6)) {
+        for (const [v, c] of Object.entries(verbCounts).sort((a: any, b: any) => b[1] - a[1]).slice(0, 6)) {
           const klass = (v.startsWith('XU') || v.startsWith('BU')) ? 'update'
                      : (v.startsWith('BI')) ? 'insert'
                      : (v.startsWith('XR') || v.startsWith('BR')) ? 'remove'
@@ -1068,7 +1067,7 @@ function mountPanel({ rootProxy }) {
     )
     if (bindings.dom.length > 0) {
       const allBtn = el('button', 'bound-all', { text: 'flash all' })
-      allBtn.addEventListener('click', () => flashElements(bindings.dom.map(b => b.el), 1500))
+      allBtn.addEventListener('click', () => flashElements(bindings.dom.map((b: any) => b.el), 1500))
       head.append(allBtn)
     }
     section.append(head)
@@ -1099,9 +1098,9 @@ function mountPanel({ rootProxy }) {
         }
         const right = el('div', 'bound-right')
         const flashBtn = el('button', '', { text: 'flash' })
-        flashBtn.addEventListener('click', (e) => { e.stopPropagation(); flashElements([target], 1200) })
+        flashBtn.addEventListener('click', (e: any) => { e.stopPropagation(); flashElements([target], 1200) })
         const scrollBtn = el('button', '', { text: 'scroll' })
-        scrollBtn.addEventListener('click', (e) => {
+        scrollBtn.addEventListener('click', (e: any) => {
           e.stopPropagation()
           try { target.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {}
           flashElements([target], 1500)
@@ -1128,7 +1127,7 @@ function mountPanel({ rootProxy }) {
 
   // Pretty tag + class/id snippet for an element. Mirrors how browser
   // devtools show "div.foo#bar" so the user can mentally locate it.
-  function tagDescriptor(el) {
+  function tagDescriptor(el: any) {
     let s = el.tagName ? el.tagName.toLowerCase() : '?'
     if (el.id) s += '#' + el.id
     const cls = (el.className && typeof el.className === 'string') ? el.className.trim().split(/\s+/) : []
@@ -1136,7 +1135,7 @@ function mountPanel({ rootProxy }) {
     if (cls.length > 2) s += `.+${cls.length - 2}`
     return s
   }
-  function textSnippet(el) {
+  function textSnippet(el: any) {
     let t = el.textContent || ''
     t = t.trim().replace(/\s+/g, ' ')
     if (!t) {
@@ -1161,7 +1160,7 @@ function mountPanel({ rootProxy }) {
   // actually restores. WeakMap keeps state alive only as long as the
   // element is alive.
   const flashStates = new WeakMap()
-  function flashElements(els, ms = 1200) {
+  function flashElements(els: any, ms = 1200) {
     for (const el of els) {
       let state = flashStates.get(el)
       if (!state) {
@@ -1236,7 +1235,7 @@ function mountPanel({ rootProxy }) {
     // a collection view). For empty-key views (root / operators), the
     // descendant rule matches every event in the items subtree.
     const lvk = liveView.key.join('.') || '<root>'
-    const matches = (k) => {
+    const matches = (k: any) => {
       if (k === lvk) return true
       if (lvk === '<root>') return true
       return k.startsWith(lvk + '.')
@@ -1253,8 +1252,8 @@ function mountPanel({ rootProxy }) {
     inspBody.append(body)
 
     let totalSeen = 0
-    const samples   = []   // scalar: { t, v, verb } — newest at end
-    const eventsBuf = []   // collection: { t, verb, key, payload }
+    const samples: any[]   = []   // scalar: { t, v, verb } — newest at end
+    const eventsBuf: any[] = []   // collection: { t, verb, key, payload }
     if (isScalar) samples.push({ t: performance.now(), v: v0, verb: 'init' })
 
     // Show the resolved key+ctor in the badge so we don't have to guess what
@@ -1359,7 +1358,7 @@ function mountPanel({ rootProxy }) {
     traceForInsp = () => { evSubscribers.delete(onEv) }
   }
 
-  function renderScalarTimeline(body, liveView, samples, isNumeric) {
+  function renderScalarTimeline(body: any, liveView: any, samples: any, isNumeric: any) {
     const NS = 'http://www.w3.org/2000/svg'
     const W = 320, H = 84, PL = 36, PR = 8, PT = 10, PB = 18
     const now = performance.now()
@@ -1375,24 +1374,24 @@ function mountPanel({ rootProxy }) {
     c1.append(hdr)
 
     const svg = document.createElementNS(NS, 'svg')
-    svg.setAttribute('width',  W)
-    svg.setAttribute('height', H)
+    svg.setAttribute('width',  W as any)
+    svg.setAttribute('height', H as any)
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
     svg.classList.add('ev-spark')
 
-    const win = samples.filter(s => s.t >= tMin)
+    const win = samples.filter((s: any) => s.t >= tMin)
     if (!isNumeric || win.length < 2) {
       const tx = document.createElementNS(NS, 'text')
-      tx.setAttribute('x', W / 2); tx.setAttribute('y', H / 2 + 4)
+      tx.setAttribute('x', W / 2 as any); tx.setAttribute('y', H / 2 + 4 as any)
       tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('class', 'ev-spark-empty')
       tx.textContent = !isNumeric ? 'non-numeric value — see changes below' : 'watching for changes…'
       svg.appendChild(tx)
     } else {
-      const nums = win.map(s => Number(s.v))
+      const nums = win.map((s: any) => Number(s.v))
       let vMin = Math.min(...nums), vMax = Math.max(...nums)
       if (vMin === vMax) { vMin -= 1; vMax += 1 }
-      const xOf = t => PL + (Math.max(t, tMin) - tMin) / 60_000 * (W - PL - PR)
-      const yOf = v => H - PB - ((Number(v) - vMin) / (vMax - vMin)) * (H - PT - PB)
+      const xOf = (t: any) => PL + (Math.max(t, tMin) - tMin) / 60_000 * (W - PL - PR)
+      const yOf = (v: any) => H - PB - ((Number(v) - vMin) / (vMax - vMin)) * (H - PT - PB)
 
       // Min/max gridlines + axis labels
       for (const { y, label } of [
@@ -1400,12 +1399,12 @@ function mountPanel({ rootProxy }) {
         { y: yOf(vMin), label: formatValue(vMin) },
       ]) {
         const ln = document.createElementNS(NS, 'line')
-        ln.setAttribute('x1', PL); ln.setAttribute('x2', W - PR)
-        ln.setAttribute('y1', y);  ln.setAttribute('y2', y)
+        ln.setAttribute('x1', PL as any); ln.setAttribute('x2', W - PR as any)
+        ln.setAttribute('y1', y as any);  ln.setAttribute('y2', y as any)
         ln.setAttribute('class', 'ev-spark-grid')
         svg.appendChild(ln)
         const tx = document.createElementNS(NS, 'text')
-        tx.setAttribute('x', PL - 4); tx.setAttribute('y', y + 3)
+        tx.setAttribute('x', PL - 4 as any); tx.setAttribute('y', y + 3 as any)
         tx.setAttribute('text-anchor', 'end'); tx.setAttribute('class', 'ev-spark-axis')
         tx.textContent = label
         svg.appendChild(tx)
@@ -1430,8 +1429,8 @@ function mountPanel({ rootProxy }) {
       svg.appendChild(path)
 
       const dot = document.createElementNS(NS, 'circle')
-      dot.setAttribute('cx', xOf(now)); dot.setAttribute('cy', yOf(last.v))
-      dot.setAttribute('r', 3); dot.setAttribute('class', 'ev-spark-dot')
+      dot.setAttribute('cx', xOf(now) as any); dot.setAttribute('cy', yOf(last.v) as any)
+      dot.setAttribute('r', 3 as any); dot.setAttribute('class', 'ev-spark-dot')
       svg.appendChild(dot)
     }
 
@@ -1441,9 +1440,9 @@ function mountPanel({ rootProxy }) {
       [W - PR, 'end',   'now'],
     ]) {
       const tx = document.createElementNS(NS, 'text')
-      tx.setAttribute('x', x); tx.setAttribute('y', H - 4)
-      tx.setAttribute('text-anchor', anchor); tx.setAttribute('class', 'ev-spark-axis')
-      tx.textContent = label
+      tx.setAttribute('x', x as any); tx.setAttribute('y', H - 4 as any)
+      tx.setAttribute('text-anchor', anchor as any); tx.setAttribute('class', 'ev-spark-axis')
+      tx.textContent = label as any
       svg.appendChild(tx)
     }
     c1.append(svg)
@@ -1452,7 +1451,7 @@ function mountPanel({ rootProxy }) {
     // Card 2: last transitions (newest first)
     const c2 = el('div', 'ev-card')
     c2.append(el('div', 'ev-card-title', { text: 'LAST CHANGES' }))
-    const real = samples.filter(s => s.verb !== 'init')
+    const real = samples.filter((s: any) => s.verb !== 'init')
     if (!real.length) {
       const empty = el('p', 'muted ev-empty', { text: "No changes yet — interact with the demo and they'll appear here." })
       c2.append(empty)
@@ -1476,10 +1475,10 @@ function mountPanel({ rootProxy }) {
     body.append(c2)
   }
 
-  function renderCollectionActivity(body, liveView, eventsBuf) {
+  function renderCollectionActivity(body: any, liveView: any, eventsBuf: any) {
     const now = performance.now()
     const cutoff = now - 60_000
-    const win = eventsBuf.filter(e => e.t >= cutoff)
+    const win = eventsBuf.filter((e: any) => e.t >= cutoff)
 
     let nIns = 0, nRem = 0, nUpd = 0, nMov = 0
     const perRow = new Map()
@@ -1516,7 +1515,7 @@ function mountPanel({ rootProxy }) {
     body.append(c1)
 
     // Card 2: per-row heat
-    const rows = [...perRow.values()].sort((a, b) => (b.ins + b.rem + b.upd + b.mov) - (a.ins + a.rem + a.upd + a.mov))
+    const rows = [...perRow.values()].sort((a: any, b: any) => (b.ins + b.rem + b.upd + b.mov) - (a.ins + a.rem + a.upd + a.mov))
     if (rows.length) {
       const c2 = el('div', 'ev-card')
       c2.append(el('div', 'ev-card-title', { text: 'PER-ROW HEAT · TOP 8' }))
@@ -1525,7 +1524,7 @@ function mountPanel({ rootProxy }) {
       for (const r of rows.slice(0, 8)) {
         const total = r.ins + r.rem + r.upd + r.mov
         const bar = el('div', 'ev-heat-bar')
-        const seg = (cls, n) => {
+        const seg = (cls: any, n: any) => {
           if (!n) return
           const s = el('span', `ev-heat-seg ${cls}`)
           s.style.width = `${(n / max) * 100}%`
@@ -1605,7 +1604,7 @@ function mountPanel({ rootProxy }) {
     playBtn.addEventListener('click', () => {
       running = !running
       if (running) {
-        profileHandle = $.profile(rootProxy)
+        profileHandle = ($ as any).profile(rootProxy)
         playBtn.textContent = '⏸ stop'
         status.textContent = 'recording…'
         profileTimer = setInterval(refresh, 500)
@@ -1621,8 +1620,8 @@ function mountPanel({ rootProxy }) {
 
   // ─── Alt-hover badges + popover ──────────────────────────────────────
   const altHover = createAltHover(root, host)
-  const domPicker = createDomPicker(root, (el) => {
-    const proxy = $.fromDOM(el); if (!proxy) return
+  const domPicker = createDomPicker(root, (el: any) => {
+    const proxy = ($ as any).fromDOM(el); if (!proxy) return
     // `proxy[view]` returns the underlying live View instance. `proxy[value]`
     // would return the raw snapshot data, which has no `.key` / `.constructor`
     // and never matches a node._view by identity — so the inspector would
@@ -1655,7 +1654,7 @@ function mountPanel({ rootProxy }) {
   })
 
   // Esc closes inspector / unpins popover
-  const onKey = (e) => { if (e.key === 'Escape') { if (!insp.hidden) closeInspector(); altHover.unpin() } }
+  const onKey = (e: any) => { if (e.key === 'Escape') { if (!insp.hidden) closeInspector(); altHover.unpin() } }
   document.addEventListener('keydown', onKey)
 
   // ─── destroy ─────────────────────────────────────────────────────────
@@ -1676,20 +1675,20 @@ function mountPanel({ rootProxy }) {
 }
 
 // ============== helpers ==============
-function el(tag, cls, opts = {}) {
+function el(tag: any, cls: any, opts: any = {}): any {
   const e = document.createElement(tag)
   if (cls) e.className = cls
   if (opts.text != null) e.textContent = opts.text
   if (opts.hidden) e.hidden = true
-  if (opts.attrs) for (const [k, v] of Object.entries(opts.attrs)) e.setAttribute(k, v)
+  if (opts.attrs) for (const [k, v] of Object.entries(opts.attrs)) e.setAttribute(k, v as any)
   return e
 }
-function mkBtn(text, title) {
+function mkBtn(text: any, title?: any) {
   const b = el('button', '', { text })
   if (title) b.title = title
   return b
 }
-function nodeKeyOf(node) { return (node.key && node.key.length) ? node.key.join('.') : (node.name || '<root>') }
+function nodeKeyOf(node: any) { return (node.key && node.key.length) ? node.key.join('.') : (node.name || '<root>') }
 const METHOD_OF = {
   FilterValue: 'filter', FilterStringValue: 'filter',
   FilterObjectValue: 'filter', FilterColumnValue: 'filter',
@@ -1709,24 +1708,24 @@ const METHOD_OF = {
   KeysValue: 'keys', ValuesValue: 'values',
   ReverseValue: 'reverse',
 }
-const methodOfCtor = (ctor) => METHOD_OF[ctor] || (ctor || '').replace(/Value$/, '').toLowerCase()
-function nodeLabel(n) {
+const methodOfCtor = (ctor: any) => (METHOD_OF as any)[ctor] || (ctor || '').replace(/Value$/, '').toLowerCase()
+function nodeLabel(n: any) {
   if (n.kind === 'operator') return `.${methodOfCtor(n.ctor)}()`
   if (n.kind === 'root')     return '<root>'
   if (n.kind === 'child')    return n.name ?? '?'
   return n.ctor ?? n.kind
 }
-function shortKind(n) { return n.ctor || n.kind || '?' }
+function shortKind(n: any) { return n.ctor || n.kind || '?' }
 // Escape HTML metacharacters before interpolating app/user-controlled strings
 // into an innerHTML template — key paths, constructor names, and formatted
 // values are all derived from the inspected app's data (object property names,
 // row ids, string values), so a value like `<img onerror=…>` would otherwise
 // execute in the panel's (closed-shadow, but still same-origin) context.
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
+function esc(s: any) {
+  return String(s).replace(/[&<>"']/g, (c: any) =>
     c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;')
 }
-function formatValue(v) {
+function formatValue(v: any) {
   if (v === undefined) return 'undefined'
   if (v === null) return 'null'
   if (Array.isArray(v)) return `Array(${v.length})`
@@ -1738,11 +1737,11 @@ function formatValue(v) {
   if (typeof v === 'string') return v.length > 40 ? `"${v.slice(0, 40)}…"` : `"${v}"`
   return String(v)
 }
-function stamp(t) {
+function stamp(t: any) {
   const d = new Date()
   return `${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(d.getMilliseconds()).padStart(3, '0')}`
 }
-function verbClass(v) {
+function verbClass(v: any) {
   if (!v) return ''
   if (v.startsWith('XU') || v.startsWith('BU')) return 'update'
   if (v.startsWith('BI')) return 'insert'
@@ -1752,7 +1751,7 @@ function verbClass(v) {
 }
 // User-facing label for a raw verb. The verb codes (XU0/BU1/BI0…) are an
 // internal protocol detail; the Events tab needs plain English.
-function friendlyVerb(v) {
+function friendlyVerb(v: any) {
   if (!v || v === 'init') return ''
   if (v.startsWith('XU') || v.startsWith('BU')) return 'updated'
   if (v.startsWith('BI')) return 'inserted'
@@ -1760,25 +1759,25 @@ function friendlyVerb(v) {
   if (v.startsWith('BMV')) return 'moved'
   return v
 }
-function timeAgo(t) {
+function timeAgo(t: any) {
   const dt = Math.max(0, (performance.now() - t) / 1000)
   if (dt < 1)    return 'just now'
   if (dt < 60)   return `${Math.floor(dt)}s ago`
   if (dt < 3600) return `${Math.floor(dt / 60)}m ago`
   return `${Math.floor(dt / 3600)}h ago`
 }
-function cssEsc(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_') }
-function findNodeByView(node, liveView) {
+function cssEsc(s: any) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_') }
+function findNodeByView(node: any, liveView: any): any {
   if (!node) return null
   if (node._view === liveView) return node
-  for (const c of node.children || []) { const f = findNodeByView(c, liveView); if (f) return f }
-  for (const s of node.sinks    || []) { const f = findNodeByView(s, liveView); if (f) return f }
+  for (const c of node.children || []) { const f: any = findNodeByView(c, liveView); if (f) return f }
+  for (const s of node.sinks    || []) { const f: any = findNodeByView(s, liveView); if (f) return f }
   return null
 }
 
 // ============== Alt-hover ==============
-function createAltHover(panelRoot, panelHost) {
-  let altHeld = false, armed = false, pinned = false, current = null
+function createAltHover(panelRoot: any, panelHost: any) {
+  let altHeld = false, armed = false, pinned = false, current: any = null
   const layer = document.createElement('div'); layer.className = '__rp_alt_layer'
   document.body.appendChild(layer)
   const popover = document.createElement('div'); popover.className = '__rp_alt_pop'; popover.hidden = true
@@ -1820,7 +1819,7 @@ function createAltHover(panelRoot, panelHost) {
   `
   document.head.appendChild(layerStyle)
 
-  function findReactiveAncestor(el) {
+  function findReactiveAncestor(el: any) {
     while (el) {
       if (el === panelHost) return null
       if (el.__ripple_sink) return el
@@ -1829,8 +1828,8 @@ function createAltHover(panelRoot, panelHost) {
     return null
   }
   function gatherTargets() {
-    const out = []
-    document.querySelectorAll('*').forEach(el => {
+    const out: any[] = []
+    document.querySelectorAll('*').forEach((el: any) => {
       if (el.__ripple_sink && el !== panelHost && !panelHost.contains(el)) out.push(el)
     })
     return out
@@ -1841,7 +1840,7 @@ function createAltHover(panelRoot, panelHost) {
       el.classList.add('__rp_alt_outline')
       const r = el.getBoundingClientRect()
       if (r.width === 0) continue
-      const proxy = $.fromDOM(el); if (!proxy) continue
+      const proxy = ($ as any).fromDOM(el); if (!proxy) continue
       // `proxy[view]` is the live View. `proxy[value]` returns the raw data,
       // which has no `.key`/`.constructor` — so the badge would always show
       // "Object" and key '<root>' for every reactive element.
@@ -1871,9 +1870,9 @@ function createAltHover(panelRoot, panelHost) {
     popover.hidden = true
   }
 
-  function updatePopover(el, x, y) {
+  function updatePopover(el: any, x: any, y: any) {
     if (pinned) return
-    const proxy = $.fromDOM(el); if (!proxy) { popover.hidden = true; return }
+    const proxy = ($ as any).fromDOM(el); if (!proxy) { popover.hidden = true; return }
     // Same `proxy[view]` vs `proxy[value]` distinction as renderBadges above.
     const v = proxy[view]
     const ctor = v?.constructor?.name || 'View'
@@ -1905,8 +1904,8 @@ function createAltHover(panelRoot, panelHost) {
     popover.style.top  = `${Math.max(8, py)}px`
   }
 
-  const isAltKey = (e) => e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight'
-  const onKeydown = (e) => {
+  const isAltKey = (e: any) => e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight'
+  const onKeydown = (e: any) => {
     if (isAltKey(e) && !altHeld) {
       altHeld = true
       if (!pinned) renderBadges()
@@ -1917,14 +1916,14 @@ function createAltHover(panelRoot, panelHost) {
       e.preventDefault()
     }
   }
-  const onKeyup = (e) => {
+  const onKeyup = (e: any) => {
     if (isAltKey(e)) {
       altHeld = false
       if (!armed) clear()
       e.preventDefault()
     }
   }
-  const onMove = (e) => {
+  const onMove = (e: any) => {
     // Defensive sync: trust e.altKey over our tracked altHeld whenever the
     // mouse moves. If a keyup was swallowed (window blur, menu activation,
     // alt-tab), we recover on the very next mousemove instead of staying stuck.
@@ -1948,7 +1947,7 @@ function createAltHover(panelRoot, panelHost) {
   // Recover from window-blur (Alt-Tab, switching apps) so altHeld doesn't get
   // stuck "true" forever.
   const onBlur = () => { altHeld = false; if (!armed) clear() }
-  const onClick = (e) => {
+  const onClick = (e: any) => {
     if (!isActive()) return
     const t = findReactiveAncestor(e.target); if (!t) return
     if (pinned) { pinned = false; popover.classList.remove('pinned'); popover.hidden = true; return }
@@ -1960,7 +1959,7 @@ function createAltHover(panelRoot, panelHost) {
   document.addEventListener('click',   onClick, true)
   window.addEventListener('blur', onBlur)
 
-  let raf = null
+  let raf: any = null
   const refresh = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = null; if (isActive()) renderBadges() }) }
   window.addEventListener('scroll', refresh, true)
   window.addEventListener('resize', refresh)
@@ -1982,9 +1981,9 @@ function createAltHover(panelRoot, panelHost) {
   }
 }
 
-function createDomPicker(panelRoot, onPick) {
+function createDomPicker(panelRoot: any, onPick: any) {
   let armed = false
-  const onClick = (e) => {
+  const onClick = (e: any) => {
     if (!armed) return
     e.preventDefault(); e.stopPropagation()
     armed = false; document.body.style.cursor = ''

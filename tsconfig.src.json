@@ -25,6 +25,7 @@
     "devtools/events.ts",
     "devtools/instrument.ts",
     "devtools/index.ts",
+    "devtools/panel/index.ts",
     "operators/map/index.ts",
     "operators/keys/index.ts",
     "operators/reverse/index.ts",
