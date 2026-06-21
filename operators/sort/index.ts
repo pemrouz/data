@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, bisect_right, bisect_left } from '../../utils.ts'
 import { Operator, value, view, ViewProxy, createOperator } from '../../core.ts'
 
@@ -12,6 +11,14 @@ import { Operator, value, view, ViewProxy, createOperator } from '../../core.ts'
 // `sorted`, then translate the rank shift into BU1/BR1A/BI0A (or BMV1 when
 // both ranks fall inside the window).
 export class ZAValue extends Operator {
+  declare col: (d: any) => any
+  declare col_name: any
+  declare n: any
+  declare sorted: any[]
+  declare isArr: boolean
+  declare _nView: any
+  declare _live: boolean
+  declare find: (...args: any[]) => any   // bisect_right / bisect_left, set on the prototype below
   // Dedup for the COLUMN forms (za/az('col') and za/az('col', n)). matches()
   // receives the RAW call args, so n must default to Infinity exactly like the
   // ZAColumnValue/AZColumnValue constructor — otherwise `za('col')` (raw n
@@ -19,14 +26,14 @@ export class ZAValue extends Operator {
   // operator. The numeric forms (top(n)/za(n)) take a different arg shape and
   // override this on ZANumberValue/AZNumberValue. (=== not ==: the col_name of
   // the numeric forms is the `value` Symbol, and Symbol == n is always false.)
-  matches(col, n = Infinity) {
+  matches(col: any, n: any = Infinity) {
     if (this.col_name !== col) return false
-    if (n instanceof ViewProxy) return this._nView === n[view]   // dedup a reactive window size by bound-source identity
+    if (n instanceof ViewProxy) return this._nView === (n as any)[view]   // dedup a reactive window size by bound-source identity
     if (this._nView) return false                                // we're reactive; arg is a plain literal
     return this.n === n
   }
 
-  constructor(p, col, col_name, n) {
+  constructor(p: any, col: any, col_name: any, n: any) {
     super()
     this.p = p
     this.col = col
@@ -35,7 +42,7 @@ export class ZAValue extends Operator {
     // setter, which keeps `this.n` a plain number for the many hot-path reads
     // (slice / relational / `!== Infinity`). A plain n is the subclass-defaulted
     // Infinity or a literal. The setter re-windows on every later change.
-    if (n instanceof ViewProxy) { this._nView = n[view]; n.connect(this, 'nReactive') }
+    if (n instanceof ViewProxy) { this._nView = (n as any)[view]; (n as any).connect(this, 'nReactive') }
     else this.n = n
     this.XU0(p.value)
     this._live = true   // subsequent `set nReactive` calls now re-window (the construction seed did not)
@@ -47,14 +54,14 @@ export class ZAValue extends Operator {
   // ORDER is unchanged, only how much is shown — so it routes through the
   // existing incremental `_window` reconcile (tail BI0A to grow / tail BR1A to
   // shrink / per-slot BU1), never a full XU0. `v == null` → Infinity (unbounded).
-  set nReactive(v) { this.n = v == null ? Infinity : +v; if (this._live) this._window() }
+  set nReactive(v: any) { this.n = v == null ? Infinity : +v; if (this._live) this._window() }
 
   XR0(){
     this.sorted = []
     this.view.XU0(this.view.value = [])
   }
 
-  XU0(value){
+  XU0(value?: any){
     // `value === null`: typeof null === 'object', so without this guard
     // Object.keys(null) throws — crashing a sort over a null root, or mid-cascade
     // when an upstream value becomes null. (LimitValue.XU0 already guards null.)
@@ -70,8 +77,8 @@ export class ZAValue extends Operator {
     // crash `col` (`undefined[col]`) and leak undefined rows into the output.
     this.sorted = Object
       .keys(value)
-      .filter(k => value[k] !== undefined)
-      .sort((a, b) => {
+      .filter((k: any) => value[k] !== undefined)
+      .sort((a: any, b: any) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
         // NaN keys sort LAST (and consistently): an inconsistent comparator
@@ -87,7 +94,7 @@ export class ZAValue extends Operator {
 
     this.view.XU0(this.view.value = this.sorted
       .slice(0, this.n)
-      .map(i => value[i])
+      .map((i: any) => value[i])
     )
   }
 
@@ -95,7 +102,7 @@ export class ZAValue extends Operator {
   // splice the deleted name out of `sorted` (and refill the visible window
   // from the next-ranked row if the removal was in-window). Array sources
   // require additional shift bookkeeping — see BR1A.
-  BR1(R1){
+  BR1(R1: any){
     if (this.isArr) return this.BR1A(R1)
     // Bounded-window batch fast path. The per-row loop below refills the window
     // from the next-ranked row after every in-window eviction — but on a
@@ -127,7 +134,7 @@ export class ZAValue extends Operator {
   // materialized window against the new order with minimal positional deltas.
   // Removal can only shrink or hold the window (never grow it), so the only
   // verbs are tail BR1A (when survivors no longer fill n) and per-slot BU1.
-  _batchRemove(R1){
+  _batchRemove(R1: any){
     const removed = new Set()
     for (let i = 0; i < R1.length; i += 2) removed.add('' + R1[i])
     const sorted = this.sorted
@@ -151,7 +158,7 @@ export class ZAValue extends Operator {
   // any removed index needs to decrement to match. We also re-emit an
   // in-window evict per removal that fell inside the visible window, then
   // refill the tail from whatever rows now sit at the boundary.
-  BR1A(R1){
+  BR1A(R1: any){
     const inWindow = []
     const removedKeys = []
     for (let i = 0; i < R1.length; i += 2) {
@@ -208,7 +215,7 @@ export class ZAValue extends Operator {
   //                rather than N per-position updates (cheaper for change-
   //                stream consumers; index-keyed DOM sinks refresh content
   //                positionally and treat the move itself as a no-op).
-  BU1(U1){
+  BU1(U1: any){
     // Multi-pair batch (a patch() of whole-row overwrites): the per-pair path
     // below splices ONE key out of `sorted` then bisects against the rest — but
     // p.value already holds the NEW value of EVERY pair, so the other not-yet-
@@ -300,7 +307,7 @@ export class ZAValue extends Operator {
   // Array sources additionally require sliding existing keys >= `at` up by
   // one to match the source's post-splice indexing — `push` (at === length)
   // collapses to a no-op shift since nothing needs moving.
-  BI0(I0){
+  BI0(I0: any){
     // Bounded-window batch fast path — the insert mirror of _batchRemove. A
     // range brush widening past the visible window re-inserts a block of
     // top-of-order rows; the per-row loop evicts and re-inserts the window tail
@@ -342,7 +349,7 @@ export class ZAValue extends Operator {
   // Splice a batch of new keys into `sorted` at their ranks, then reconcile the
   // window. Insertion can only grow or hold the window: grow via tail BI0A when
   // it was underfilled, then per-slot BU1 for the rows the inserts pushed down.
-  _batchInsert(I0){
+  _batchInsert(I0: any){
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
       const nidx = this.find(this.col(this.p.value[at]))
@@ -373,7 +380,7 @@ export class ZAValue extends Operator {
   // (value === undefined -> removed, never re-inserted) uniformly. Array sources
   // need no index shift here: a batch BU1 only ever carries existing-index value
   // changes (core routes new/refilled array slots through BI0A/BF0, not BU1).
-  _batchUpdate(U1){
+  _batchUpdate(U1: any){
     for (let i = 0; i < U1.length; i += 2) {
       const oidx = this.get_index(U1[i])
       if (oidx !== -1) this.sorted.splice(oidx, 1)   // monotonic remainder
@@ -427,7 +434,7 @@ export class ZAValue extends Operator {
   // it's just a deep update on a row that may or may not be visible: only
   // forward the BR2/BU2 if the row is in-window, with the key prefix
   // rewritten from upstream-name to in-window-position.
-  BR2(R2) {
+  BR2(R2: any) {
     for (let i = 0; i < R2.length; i++) {
       const [name, col, ...rest] = R2[i++]
       const value = R2[i]
@@ -447,7 +454,7 @@ export class ZAValue extends Operator {
     }
   }
 
-  BU2(U2) {
+  BU2(U2: any) {
     for (let i = 0; i < U2.length; i++) {
       const [name, col, ...rest] = U2[i++]
       const value = U2[i]
@@ -463,7 +470,7 @@ export class ZAValue extends Operator {
     }
   }
 
-  BI2(I2){
+  BI2(I2: any){
     for (let i = 0; i < I2.length; i++) {
       const [name, ...rest] = I2[i++]
       const value = I2[i++]
@@ -483,7 +490,7 @@ export class ZAValue extends Operator {
   // BI0/BR1, whose shift bookkeeping would slide every `sorted` key on a hole
   // fill — the filter→windowed-sort desync. Bounded windows reconcile via
   // _window; an unbounded sort splices its (dense) materialized output directly.
-  BF0(I0){
+  BF0(I0: any){
     let touched = false
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i]
@@ -495,7 +502,7 @@ export class ZAValue extends Operator {
     if (touched) this._window()
   }
 
-  BH1(R1){
+  BH1(R1: any){
     let touched = false
     for (let i = 0; i < R1.length; i += 2) {
       const oidx = this.get_index(R1[i])
@@ -507,7 +514,7 @@ export class ZAValue extends Operator {
     if (touched) this._window()
   }
 
-  get_index(id){
+  get_index(id: any){
     // `sorted` holds upstream keys as strings (XU0 builds them via Object.keys
     // / `''+i`). A chained windowed sort upstream (za→az) forwards its internal
     // BR1A/BI0 positions as NUMBERS, so coerce before the lookup — otherwise
@@ -516,13 +523,13 @@ export class ZAValue extends Operator {
     return this.sorted.indexOf('' + id)
   }
 
-  has(id){ return !!~this.get_index(id) }
+  has(id: any){ return !!~this.get_index(id) }
 }
 ZAValue.prototype.find = bisect_right
 
 export class ZAColumnValue extends ZAValue {
-  constructor(p, col, n = Infinity){
-    super(p, d => d?.[col], col, n)
+  constructor(p: any, col: any, n: any = Infinity){
+    super(p, (d: any) => d?.[col], col, n)
   }
 }
 
@@ -531,13 +538,13 @@ export class ZANumberValue extends ZAValue {
   // whole row. Default to Infinity like the constructor so top(2) dedups with
   // a second top(2) (and with za(2) — the same operation). A reactive n dedups
   // by bound-source identity (see ZAValue.matches).
-  matches(n = Infinity) {
-    if (n instanceof ViewProxy) return this._nView === n[view]
+  matches(n: any = Infinity) {
+    if (n instanceof ViewProxy) return this._nView === (n as any)[view]
     if (this._nView) return false
     return this.n === n
   }
-  constructor(p, n = Infinity){
-    super(p, d => d, value, n)
+  constructor(p: any, n: any = Infinity){
+    super(p, (d: any) => d, value, n)
   }
 }
 
@@ -552,7 +559,7 @@ export class ZANumberValue extends ZAValue {
 // dedup check, so `proxy.za('col')` and `proxy.az('col')` never collide
 // in the matches() lookup even though they share `col_name` and `n`.
 export class AZValue extends ZAValue {
-  XU0(value) {
+  XU0(value?: any) {
     if (typeof value !== 'object' || value === null) return this.XR0()  // see ZAValue.XU0
     // Capture source shape — ZAValue.XU0 sets this.isArr and the BU1/BI0/BR1A
     // index-shift bookkeeping depends on it. AZValue overrides XU0 entirely, so
@@ -564,8 +571,8 @@ export class AZValue extends ZAValue {
     // Skip explicit-undefined slots (see ZAValue.XU0).
     this.sorted = Object
       .keys(value)
-      .filter(k => value[k] !== undefined)
-      .sort((a, b) => {
+      .filter((k: any) => value[k] !== undefined)
+      .sort((a: any, b: any) => {
         const va = this.col(value[a])
         const vb = this.col(value[b])
         const na = va !== va, nb = vb !== vb   // NaN keys last (see ZAValue.XU0)
@@ -576,26 +583,26 @@ export class AZValue extends ZAValue {
       })
     this.view.XU0(this.view.value = this.sorted
       .slice(0, this.n)
-      .map(i => value[i])
+      .map((i: any) => value[i])
     )
   }
 }
 AZValue.prototype.find = bisect_left
 
 export class AZColumnValue extends AZValue {
-  constructor(p, col, n = Infinity){
-    super(p, d => d?.[col], col, n)
+  constructor(p: any, col: any, n: any = Infinity){
+    super(p, (d: any) => d?.[col], col, n)
   }
 }
 
 export class AZNumberValue extends AZValue {
-  matches(n = Infinity) {                          // see ZANumberValue
-    if (n instanceof ViewProxy) return this._nView === n[view]
+  matches(n: any = Infinity) {                          // see ZANumberValue
+    if (n instanceof ViewProxy) return this._nView === (n as any)[view]
     if (this._nView) return false
     return this.n === n
   }
-  constructor(p, n = Infinity){
-    super(p, d => d, value, n)
+  constructor(p: any, n: any = Infinity){
+    super(p, (d: any) => d, value, n)
   }
 }
 
@@ -615,7 +622,13 @@ export class AZNumberValue extends AZValue {
 //           p.value's iteration order looking for the first key not in
 //           the window.
 export class LimitValue extends Operator {
-  constructor(p, n) {
+  declare n: any
+  declare keys: any[]
+  declare isArr: boolean
+  declare last: any
+  declare _nView: any
+  declare _live: boolean
+  constructor(p: any, n: any) {
     super()
     this.p = p
     // A reactive (ViewProxy) limit subscribes via the write-only `nReactive`
@@ -624,13 +637,13 @@ export class LimitValue extends Operator {
     // against the proxy OBJECT and never fired, so `limit($(n))` used to return
     // the WHOLE source. A plain n is stored as-is (unchanged). The setter
     // re-limits (grow/shrink the window) on every later change.
-    if (n instanceof ViewProxy) { this._nView = n[view]; n.connect(this, 'nReactive') }
+    if (n instanceof ViewProxy) { this._nView = (n as any)[view]; (n as any).connect(this, 'nReactive') }
     else this.n = n
     this.XU0(this.p.value)
     this._live = true
   }
 
-  set nReactive(v) { this.n = v == null ? Infinity : +v; if (this._live) this._relimit() }
+  set nReactive(v: any) { this.n = v == null ? Infinity : +v; if (this._live) this._relimit() }
 
   // Re-window after a reactive limit change: shrink by dropping tail rows, grow
   // by refilling from the next available source key (array: nextAfter; object:
@@ -653,7 +666,7 @@ export class LimitValue extends Operator {
 
   XR0(){ this.XU0(this.p.value) }
 
-  XU0(value) {
+  XU0(value?: any) {
     this.view.value = []
     this.keys = []
     this.isArr = isArray(value)
@@ -680,7 +693,7 @@ export class LimitValue extends Operator {
     this.view.XU0(this.view.value)
   }
 
-  findPos(numKey) {
+  findPos(numKey: any) {
     let lo = 0, hi = this.keys.length
     while (lo < hi) {
       const mid = (lo + hi) >>> 1
@@ -692,7 +705,7 @@ export class LimitValue extends Operator {
     return -1
   }
 
-  insertPos(numKey) {
+  insertPos(numKey: any) {
     let lo = 0, hi = this.keys.length
     while (lo < hi) {
       const mid = (lo + hi) >>> 1
@@ -702,7 +715,7 @@ export class LimitValue extends Operator {
     return lo
   }
 
-  nextAfter(numKey) {
+  nextAfter(numKey: any) {
     const src = this.p.value
     if (!src) return undefined
     for (let i = numKey + 1; i < src.length; i++) {
@@ -726,7 +739,7 @@ export class LimitValue extends Operator {
     return undefined
   }
 
-  BU1(U1) {
+  BU1(U1: any) {
     if (this.isArr) {
       const NU1 = []
       for (let i = 0; i < U1.length; i++) {
@@ -796,7 +809,7 @@ export class LimitValue extends Operator {
     if (NU1.length) this.view.BU1(NU1)
   }
 
-  BR1(R1) {
+  BR1(R1: any) {
     if (this.isArr) {
       // Large batches: each refill may scan far into a sparse source, so a
       // single XU0 walk is cheaper than n × (scan to end). Threshold matches
@@ -851,7 +864,7 @@ export class LimitValue extends Operator {
     }
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (this.isArr) {
       if (I0.length > this.n * 2) { this.XU0(this.p.value); return }
       for (let i = 0; i < I0.length; i += 2) {
@@ -918,9 +931,9 @@ export class LimitValue extends Operator {
   BI2(){}
 }
 
-export const sort = (source, a, b) => {
+export const sort = (source: any, a: any, b?: any) => {
   const Class = typeof a === 'string' ? ZAColumnValue : ZANumberValue
   return createOperator(source, Class, a, b)
 }
 
-export const limit = (source, n) => createOperator(source, LimitValue, n)
+export const limit = (source: any, n: any) => createOperator(source, LimitValue, n)
