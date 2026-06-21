@@ -234,6 +234,21 @@ type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string
 // (scalar rows, dynamic Record, untyped source).
 type ColValue<T, K extends PropertyKey> =
   RowOf<T> extends object ? (K extends keyof RowOf<T> ? RowOf<T>[K] : any) : any
+// "Some reactive view, value type irrelevant". `Data<T>` is INVARIANT in `T`
+// (T sits in `update`/`raf`/`first` param positions), so no `DataOps<X>` is a
+// universal supertype — and `Data<any>` resolves to the array-branch conditional
+// (an index signature a scalar view can't satisfy). The one stable marker is
+// `connect`, whose signature never references `T`: every `Data<T>` has it
+// identically, and a primitive (`number`/`string`) has no such method — so this
+// admits any view and rejects a bare mistyped value.
+type AnyData = Pick<DataOps<any>, 'connect'>
+// The partial-shape argument to `filter({ k: v })`: each field optional, its
+// value the column's type or a reactive view. The reactive arm is `AnyData`, not
+// `Data<ColValue>`, because `Data<T>` is INVARIANT in `T` (T sits in `raf()`'s
+// contravariant position) AND a literal `$(0)` infers `Data<0>` — so
+// `Data<ColValue>` would reject the common `$(literal)` reactive seed. The plain
+// arm still type-checks the value against the column (catches `{ n: 'x' }`).
+type FilterShape<T> = Partial<{ [K in ColOf<T>]: ColValue<T, K> | AnyData }>
 export type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
 // A bound prop / child value: either a reactive view or its raw value.
 export type Reactive<T> = Data<T> | T
@@ -303,8 +318,14 @@ export type DataOps<T = any> = {
   // fn overload FIRST: a predicate arrow is also an `object`, so listing the
   // object form first captured it (leaving the arrow's param implicitly `any`).
   filter(fn: (row: RowOf<T>) => boolean): Data<T>
-  filter(key: string, value: any): Data<T>
-  filter(arg: object): Data<T>
+  // key/value equality: VALUE is the column's type, or a reactive `Data` of it
+  // (`filter('done', $(flag))`) — the equality counterpart to between/gt bounds.
+  // (Reactive arm is `AnyData` — see FilterShape on why not `Data<ColValue>`.)
+  filter<K extends ColOf<T>>(key: K, value: ColValue<T, K> | AnyData): Data<T>
+  // nested key PATH + value (the value at a deep path can't be statically typed).
+  filter(path: string[], value: Reactive<any>): Data<T>
+  // partial-shape object: each field optional, value tied to that column's type.
+  filter(arg: FilterShape<T>): Data<T>
   /**
    * Rows whose `key` column falls within `[lo, hi]` (sort-indexed). Pass
    * ViewProxy bounds for a reactive range (a moving brush); plain numbers are

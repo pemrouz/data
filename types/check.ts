@@ -43,6 +43,12 @@ const total: number = obj.sum('n')[value] ?? 0
 const scalarMax: number | undefined = $([1, 2, 3]).max()[value]
 void maxN; void total; void scalarMax
 
+// --- filter key/value tied to the column type (B3) ---
+obj.filter('n', 3)             // value matches the 'n' column (number)
+obj.filter('n', $(3))          // reactive value (Data<number>) accepted
+obj.filter({ n: 3 })           // partial-shape object form, value tied to column
+obj.filter(['a', 'n'], 3)      // nested key-path form (value is loose)
+
 // --- mutation by assignment (#67) ---
 // Fixed-shape source: assign to known keys / nested paths (the documented
 // mutate-by-assignment API). Reads still yield Data<child> for chaining.

@@ -63,9 +63,14 @@ void _mx
 const _av: number = obj.avg('n')[value]
 void _av
 
+// filter('key', value): the value slot is tied to the column's type (was `any`).
+// @ts-expect-error — a string is not assignable to the number column 'n'
+obj.filter('n', 'not-a-number')
+// @ts-expect-error — the partial-shape object form is column-typed too
+obj.filter({ n: 'not-a-number' })
+
 // --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
 // Each of these COMPILES CLEAN today (the surface is loose there), so marking it
 // now would itself fail as an unused directive. The owning B-tier commit both
 // tightens the type AND moves the case up here under `@ts-expect-error`:
-//   B3 (filter value typing):      obj.filter('n', 'not-a-number') // value slot is `any`
 //   reduce reactive-init guard:    obj.reduce((a, r) => a + r.n, $(0)) // init: R accepts a VP
