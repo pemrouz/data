@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isArray, iter } from '../../utils.ts'
 import { Operator, createOperator } from '../../core.ts'
 
@@ -8,7 +7,7 @@ import { Operator, createOperator } from '../../core.ts'
 // pack [name, value, name, value, ...]. BU1 is a no-op because updating a
 // row's value doesn't change the count.
 export class LengthValue extends Operator {
-  constructor(p) {
+  constructor(p: any) {
     super()
     this.p = p
     this.view.value = 0
@@ -18,15 +17,15 @@ export class LengthValue extends Operator {
   XR0(){
     this.view.XU0(this.view.value = 0)
   }
-  XU0(value){
+  XU0(value?: any){
     this.view.value = 0
     // Holes / undefined slots represent excluded rows in derived sparse arrays
     // (RowOperator builds these in `XU0`), so skip them — otherwise filter →
     // length would return the source's length instead of the kept count.
-    iter(value, (_, v) => { if (v !== undefined) this.view.value++ })
+    iter(value, (_: any, v: any) => { if (v !== undefined) this.view.value++ })
     this.view.XU0(this.view.value)
   }
-  BR1(R1){
+  BR1(R1: any){
     if (!R1.length) return
     // Array-aware upstreams (RowOperator over an array source) emit
     // `[name, undefined]` for shift-only events — the row was already
@@ -42,13 +41,13 @@ export class LengthValue extends Operator {
   // BR1). Decrement once per such pair; a defined new value is a genuine update
   // of a still-counted row (no count change). Was a blanket no-op, so the count
   // went permanently stale on assignment-to-undefined.
-  BU1(U1){
+  BU1(U1: any){
     if (!U1.length) return
     let n = 0
     for (let i = 1; i < U1.length; i += 2) if (U1[i] === undefined) n++
     if (n) this.view.XU0(this.view.value -= n)
   }
-  BI0(I0){
+  BI0(I0: any){
     if (!I0.length) return
     let n = 0
     for (let i = 1; i < I0.length; i += 2) if (I0[i] !== undefined) n++
@@ -66,7 +65,10 @@ export class LengthValue extends Operator {
 // to, so cross-bucket moves are decremented from old / incremented into new
 // without re-iterating the source.
 export class LengthFnValue extends Operator {
-  constructor(p, fn) {
+  declare fn: (row: any) => any
+  declare mapping: any
+  declare isArr: boolean
+  constructor(p: any, fn: (row: any) => any) {
     super()
     this.p = p
     this.fn = fn
@@ -78,18 +80,18 @@ export class LengthFnValue extends Operator {
     this.view.XU0(this.view.value = {})
   }
 
-  XU0(value) {
-    const new_value = {}
+  XU0(value?: any) {
+    const new_value: any = {}
     this.mapping = {}
     this.isArr = isArray(value)
-    iter(value, (i, v) => {
+    iter(value, (i: any, v: any) => {
       if (v === undefined) return
       ;(this.mapping[i] = new_value[this.fn(v)] ??= { value: 0 }).value++
     })
     this.view.XU0(this.view.value = new_value)
   }
 
-  BR1(R1){
+  BR1(R1: any){
     if (!R1.length) return
     // Array source: a remove SPLICES the source, shifting every position past
     // it — but `mapping` is keyed by position, so it goes stale and a later
@@ -111,7 +113,7 @@ export class LengthFnValue extends Operator {
     if (changed) this.view.XU0(this.view.value)
   }
 
-  BU1(U1){
+  BU1(U1: any){
     if (!U1.length) return
     const { mapping, view, fn } = this
     // Publish only when a bucket count actually moved. A BU1 whose row stays in
@@ -142,7 +144,7 @@ export class LengthFnValue extends Operator {
     if (changed) this.view.XU0(this.view.value)
   }
 
-  BI0(I0){
+  BI0(I0: any){
     if (!I0.length) return
     if (this.isArr) return this.XU0(this.p.value)   // see BR1: re-key position map
     const { mapping, view, fn } = this
@@ -166,7 +168,7 @@ export class LengthFnValue extends Operator {
   // on an actual count change. Without this, `length(fn)` was blind to in-place
   // mutations — a histogram over a source that mutates rows (rather than only
   // inserting/removing them) silently froze at its construction-time buckets.
-  BU2(U2){
+  BU2(U2: any){
     if (!U2.length) return
     const { mapping, view, fn, p } = this
     let moved = false
@@ -192,4 +194,4 @@ export class LengthFnValue extends Operator {
   BI2(){}
 }
 
-export const length = (source, fn) => createOperator(source, fn ? LengthFnValue : LengthValue, fn)
+export const length = (source: any, fn?: any) => createOperator(source, fn ? LengthFnValue : LengthValue, fn)

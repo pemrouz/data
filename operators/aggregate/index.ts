@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { iter, isArray } from '../../utils.ts'
 import { Operator, createOperator, ViewProxy, view } from '../../core.ts'
 
@@ -31,11 +30,16 @@ import { Operator, createOperator, ViewProxy, view } from '../../core.ts'
 // re-opens the question), so they maintain a parallel `Float64Array` keyed
 // by `key` and let `_publish` scan it in a tight loop. See MaxValue.
 class AggregateValue extends Operator {
+  declare col: any
+  declare read: (r: any) => any
+  declare _colView: any
+  declare _live: boolean
+  declare tracked: Map<any, any>
   // `col` is the dedup key (string column name, fn reference, etc.). `read`
   // is the per-row projector, defaulting to row[col] when col is a string,
   // identity when col is undefined; subclasses with a custom projection
   // (some/every — `r => !!fn(r)`) pass an explicit read function.
-  constructor(p, col, read) {
+  constructor(p: any, col: any, read?: any) {
     super()
     this.p = p
     this.col = col
@@ -48,8 +52,8 @@ class AggregateValue extends Operator {
       // row — there's no O(Δ) shortcut — so the recompute is a full XU0. The
       // `set colName` connect target installs the projector (the construction
       // seed runs it now; later changes re-run XU0).
-      this._colView = col[view]
-      col.connect(this, 'colName')
+      this._colView = (col as any)[view]
+      ;(col as any).connect(this, 'colName')
     } else {
       this.read = typeof col === 'string' ? (r => r?.[col]) : (r => r)
     }
@@ -60,20 +64,20 @@ class AggregateValue extends Operator {
 
   // Dedup by the column SOURCE's view identity when reactive (like between), by
   // value (the string column / fn reference) otherwise.
-  matches(col) {
-    if (col instanceof ViewProxy) return this._colView === col[view]
+  matches(col: any) {
+    if (col instanceof ViewProxy) return this._colView === (col as any)[view]
     if (this._colView) return false
     return this.col === col
   }
 
   // Connect target for a reactive column name: rebuild the projector, then
   // (after construction) re-run XU0 to re-project every row under the new column.
-  set colName(c) {
+  set colName(c: any) {
     this.read = typeof c === 'string' ? (r => r?.[c]) : (r => r)
     if (this._live) this.XU0(this.p.value)
   }
 
-  _project(v) {
+  _project(v: any) {
     if (v === undefined) return undefined
     const x = this.read(v)
     return x === undefined || x === null ? undefined : x
@@ -84,10 +88,10 @@ class AggregateValue extends Operator {
     this._afterReset()
   }
 
-  XU0(value) {
+  XU0(value?: any) {
     this.tracked.clear()
     if (value && typeof value === 'object') {
-      iter(value, (n, v) => {
+      iter(value, (n: any, v: any) => {
         const x = this._project(v)
         // Coerce keys to strings: notifications (BU1/BR1/BI0) carry stringified
         // names regardless of source shape, so the Map's get/set/delete must
@@ -99,7 +103,7 @@ class AggregateValue extends Operator {
     this._afterReset()
   }
 
-  BU1(U1) {
+  BU1(U1: any) {
     if (!U1.length) return
     let dirty = false
     for (let i = 0; i < U1.length; i += 2) {
@@ -117,7 +121,7 @@ class AggregateValue extends Operator {
     if (dirty) this._publish()
   }
 
-  BR1(R1) {
+  BR1(R1: any) {
     if (!R1.length) return
     // Array-shaped upstreams (sort/limit windows, direct array sources) *shift*
     // their dense array on a structural change — removing position k slides
@@ -140,7 +144,7 @@ class AggregateValue extends Operator {
     if (dirty) this._publish()
   }
 
-  BI0(I0) {
+  BI0(I0: any) {
     if (!I0.length) return
     // See BR1: a non-tail insert into an array upstream shifts later positions.
     if (isArray(this.p.value)) return this.XU0(this.p.value)
@@ -166,11 +170,11 @@ class AggregateValue extends Operator {
 
   // Nested-key changes: re-project the affected row from p.value, then run
   // the same delta/publish pipe. Saves the subclass from caring about depth.
-  BU2(U2) { this._reprojectFromKeys(U2, 2) }
-  BR2(R2) { this._reprojectFromKeys(R2, 2) }
-  BI2(I2) { this._reprojectFromKeys(I2, 3) }
+  BU2(U2: any) { this._reprojectFromKeys(U2, 2) }
+  BR2(R2: any) { this._reprojectFromKeys(R2, 2) }
+  BI2(I2: any) { this._reprojectFromKeys(I2, 3) }
 
-  _reprojectFromKeys(arr, stride) {
+  _reprojectFromKeys(arr: any, stride: any) {
     if (!arr.length) return
     let dirty = false
     for (let i = 0; i < arr.length; i += stride) {
@@ -185,8 +189,11 @@ class AggregateValue extends Operator {
     if (dirty) this._publish()
   }
 
+  // Default no-op stubs; subclasses override. `_delta` declares the full
+  // (old, new, key) arity so the internal call sites and the subclass
+  // overrides both type-check against the base.
   _afterReset() {}
-  _delta() {}
+  _delta(_old?: any, _new?: any, _key?: any) {}
   _publish() {}
 }
 
@@ -194,13 +201,15 @@ class AggregateValue extends Operator {
 export class SumValue extends AggregateValue {
   // Note: `total` is intentionally not a class field — class fields
   // initialize *after* super() returns, which would overwrite the value
-  // computed by _afterReset during construction.
+  // computed by _afterReset during construction. `declare` keeps it type-only
+  // (no initializer emitted), preserving that invariant.
+  declare total: number
   _afterReset() {
     this.total = 0
     for (const v of this.tracked.values()) this.total += +v
     this._publish()
   }
-  _delta(o, n) {
+  _delta(o?: any, n?: any) {
     if (o !== undefined) this.total -= +o
     if (n !== undefined) this.total += +n
   }
@@ -212,12 +221,14 @@ export class SumValue extends AggregateValue {
 // Average: running total + count, O(1) per delta. Empty set → undefined
 // (rather than 0/0 = NaN), matching the "no data" idiom used elsewhere.
 export class AvgValue extends AggregateValue {
+  declare total: number
+  declare count: number
   _afterReset() {
     this.total = 0; this.count = 0
     for (const v of this.tracked.values()) { this.total += +v; this.count++ }
     this._publish()
   }
-  _delta(o, n) {
+  _delta(o?: any, n?: any) {
     if (o !== undefined) { this.total -= +o; this.count-- }
     if (n !== undefined) { this.total += +n; this.count++ }
   }
@@ -245,7 +256,14 @@ export class AvgValue extends AggregateValue {
 // the comparison, so the scan range `[0, nextSlot)` may include freed
 // slots without affecting the answer. Inserts reuse from `freeSlots`
 // before extending `nextSlot`.
-class FastNumericAggregate extends AggregateValue {
+abstract class FastNumericAggregate extends AggregateValue {
+  declare numericMode: boolean
+  declare slotMap: any
+  declare freeSlots: any
+  declare nextSlot: number
+  declare fast: any
+  // Provided by Max/Min: the comparison-losing fill for a freed slot.
+  abstract get _sentinel(): number
   _afterReset() {
     this._buildFast()
     this._publish()
@@ -275,7 +293,7 @@ class FastNumericAggregate extends AggregateValue {
     this.nextSlot = 0
   }
 
-  _delta(_old, x, key) {
+  _delta(_old?: any, x?: any, key?: any) {
     if (!this.numericMode) return
     if (x !== undefined && (typeof x !== 'number' || !Number.isFinite(x))) {
       this._abandonFast(); return
@@ -355,13 +373,14 @@ export class MinValue extends FastNumericAggregate {
 // `data.some(fn)` twice with the same fn returns the same view) and the
 // custom read; AggregateValue's machinery does the rest.
 export class SomeValue extends AggregateValue {
-  constructor(p, fn) { super(p, fn, r => !!fn(r)) }
+  declare trueCount: number
+  constructor(p: any, fn: any) { super(p, fn, (r: any) => !!fn(r)) }
   _afterReset() {
     this.trueCount = 0
     for (const v of this.tracked.values()) if (v) this.trueCount++
     this._publish()
   }
-  _delta(o, n) {
+  _delta(o?: any, n?: any) {
     if (o === true) this.trueCount--
     if (n === true) this.trueCount++
   }
@@ -372,7 +391,9 @@ export class SomeValue extends AggregateValue {
 }
 
 export class EveryValue extends AggregateValue {
-  constructor(p, fn) { super(p, fn, r => !!fn(r)) }
+  declare totalCount: number
+  declare trueCount: number
+  constructor(p: any, fn: any) { super(p, fn, (r: any) => !!fn(r)) }
   _afterReset() {
     // Track total tracked rows and how many are truthy. `every` is true iff
     // all tracked rows are truthy. Empty set → true (matches Array#every).
@@ -384,7 +405,7 @@ export class EveryValue extends AggregateValue {
     }
     this._publish()
   }
-  _delta(o, n) {
+  _delta(o?: any, n?: any) {
     if (o !== undefined) {
       this.totalCount--
       if (o === true) this.trueCount--
@@ -400,9 +421,9 @@ export class EveryValue extends AggregateValue {
   }
 }
 
-export const sum   = (source, col) => createOperator(source, SumValue, col)
-export const avg   = (source, col) => createOperator(source, AvgValue, col)
-export const max   = (source, col) => createOperator(source, MaxValue, col)
-export const min   = (source, col) => createOperator(source, MinValue, col)
-export const some  = (source, fn)  => createOperator(source, SomeValue, fn)
-export const every = (source, fn)  => createOperator(source, EveryValue, fn)
+export const sum   = (source: any, col?: any) => createOperator(source, SumValue, col)
+export const avg   = (source: any, col?: any) => createOperator(source, AvgValue, col)
+export const max   = (source: any, col?: any) => createOperator(source, MaxValue, col)
+export const min   = (source: any, col?: any) => createOperator(source, MinValue, col)
+export const some  = (source: any, fn: any)  => createOperator(source, SomeValue, fn)
+export const every = (source: any, fn: any)  => createOperator(source, EveryValue, fn)
