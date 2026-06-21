@@ -222,6 +222,13 @@ export const bindReactive = (arg, host, prop) => {
 
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
 export type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never
+// A valid COLUMN name for a source. When the rows are a known object shape, the
+// column must be one of its keys (so `sum('amont')` is a typo error); otherwise
+// — scalar rows (`$([1,2,3])`), a dynamic `Record<string, V>` map output, or an
+// untyped source — any string is allowed, since the keyset isn't statically
+// meaningful. `RowOf<any>` distributes to `string`, so untyped sources stay
+// permissive. Used by between/gt/lt/gte/lte/sum/avg/max/min/za/az.
+type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string
 export type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
 // A bound prop / child value: either a reactive view or its raw value.
 export type Reactive<T> = Data<T> | T
@@ -299,7 +306,7 @@ export type DataOps<T = any> = {
    * static. For a single moving threshold prefer `gt`/`lt`/`gte`/`lte`.
    * @example trades.between('pnl', [-1e6, 1e6])
    */
-  between(key: string, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>
+  between(key: ColOf<T>, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>
   /**
    * Single-threshold row filters (RowOperator-based, O(1) per row change). The
    * threshold may be a plain literal (captured once) or a reactive `ViewProxy`
@@ -309,10 +316,10 @@ export type DataOps<T = any> = {
    * whose reactive bounds recompute incrementally.
    * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)   //  trades.gt('pnl', $(0))
    */
-  gt(key: string, value: Reactive<number>): Data<T>
-  lt(key: string, value: Reactive<number>): Data<T>
-  gte(key: string, value: Reactive<number>): Data<T>
-  lte(key: string, value: Reactive<number>): Data<T>
+  gt(key: ColOf<T>, value: Reactive<number>): Data<T>
+  lt(key: ColOf<T>, value: Reactive<number>): Data<T>
+  gte(key: ColOf<T>, value: Reactive<number>): Data<T>
+  lte(key: ColOf<T>, value: Reactive<number>): Data<T>
   /**
    * Apply many child updates as ONE batched cascade (sinks see a single BU1).
    * Pairs are `[name, value, name, value, …]`.
@@ -350,10 +357,14 @@ export type DataOps<T = any> = {
    * re-aggregates under the new column (a full O(N) re-projection).
    * @example orders.sum('amount')   //  orders.avg('amount')   //  orders.sum($(col))
    */
-  sum(col?: Reactive<string>): Data<number>
-  avg(col?: Reactive<string>): Data<number>
-  max(col?: Reactive<string>): Data<any>
-  min(col?: Reactive<string>): Data<any>
+  // `col` is a column name checked against the row shape (`ColOf<T>`), or a
+  // reactive `Data<string>` (`sum($(currentCol))`) whose runtime value names the
+  // column — the reactive form can't be statically key-checked, so it stays a
+  // bare `Data<string>`.
+  sum(col?: ColOf<T> | Data<string>): Data<number>
+  avg(col?: ColOf<T> | Data<string>): Data<number>
+  max(col?: ColOf<T> | Data<string>): Data<any>
+  min(col?: ColOf<T> | Data<string>): Data<any>
   /**
    * Scalar boolean — does any (`some`) / every (`every`) row match the predicate.
    * @example alerts.some(a => a.level >= 3)
@@ -403,9 +414,9 @@ export type DataOps<T = any> = {
    * it re-windows in place (grow/shrink), so a page-size slider needs no rebuild.
    * @example trades.za('pnl', 50)   //  rows.az('name')   //  rows.za('pnl', $(pageSize))
    */
-  za(column: string, max?: Reactive<number>): Data<T>
+  za(column: ColOf<T>, max?: Reactive<number>): Data<T>
   za(max?: Reactive<number>): Data<T>
-  az(column: string, max?: Reactive<number>): Data<T>
+  az(column: ColOf<T>, max?: Reactive<number>): Data<T>
   az(max?: Reactive<number>): Data<T>
   top(max?: Reactive<number>): Data<T>
   limit(max: Reactive<number>): Data<T>

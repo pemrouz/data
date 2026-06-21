@@ -36,10 +36,22 @@ const todos = $({ a: { done: false } })
 // @ts-expect-error — a string is not assignable to a boolean field
 todos.a.done = 'yes'
 
+// Column/key args are checked against the row shape (ColOf<T>): a typo'd column
+// on an object-row source is a hard error across aggregate/sort/between/compare.
+// (A scalar-row or dynamic-`Record<string, scalar>` source still accepts any
+// string — that fallback is exercised positively in types/check.ts.)
+// @ts-expect-error — 'amont' is not a column of the row { n: number }
+obj.sum('amont')
+// @ts-expect-error — 'typo' is not a column
+obj.between('typo', [0, 1])
+// @ts-expect-error — 'typo' is not a column
+obj.az('typo')
+// @ts-expect-error — 'typo' is not a column
+obj.gt('typo', 3)
+
 // --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
 // Each of these COMPILES CLEAN today (the surface is loose there), so marking it
 // now would itself fail as an unused directive. The owning B-tier commit both
 // tightens the type AND moves the case up here under `@ts-expect-error`:
-//   B1 (keyof column constraint):  obj.sum('nonexistent-col')      // unvalidated `string` col
 //   B3 (filter value typing):      obj.filter('n', 'not-a-number') // value slot is `any`
 //   reduce reactive-init guard:    obj.reduce((a, r) => a + r.n, $(0)) // init: R accepts a VP

@@ -24,6 +24,16 @@ arr.filter(d => d.n > 3).between('n', [0, 1])
 arr.some(r => r.n > 0).connect([])
 arr.map(r => r.n)
 
+// --- ColOf<T> column constraint: object rows key-check, scalar/dynamic fall back ---
+// Known object-row source: columns are checked against the row shape (typos are
+// negatives in types/check.negative.ts). Valid columns compile:
+arr.sum('n'); arr.az('n'); arr.gt('n', 0)
+// Scalar rows / dynamic `Record<string, scalar>` rows: keyset isn't statically
+// meaningful, so a bare string column is still accepted (the fallback).
+$([1, 2, 3]).sum()
+const dyn = $<Record<string, number>>({})
+dyn.az('whatever-column')
+
 // --- mutation by assignment (#67) ---
 // Fixed-shape source: assign to known keys / nested paths (the documented
 // mutate-by-assignment API). Reads still yield Data<child> for chaining.
