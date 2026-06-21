@@ -34,6 +34,15 @@ $([1, 2, 3]).sum()
 const dyn = $<Record<string, number>>({})
 dyn.az('whatever-column')
 
+// --- aggregate value types (B2) ---
+// max/min carry the column's element type; avg/max/min may be undefined (empty
+// set); sum is a plain number (0 on empty). Negatives in check.negative.ts pin
+// that these are NOT `any`.
+const maxN: number | undefined = obj.max('n')[value]
+const total: number = obj.sum('n')[value] ?? 0
+const scalarMax: number | undefined = $([1, 2, 3]).max()[value]
+void maxN; void total; void scalarMax
+
 // --- mutation by assignment (#67) ---
 // Fixed-shape source: assign to known keys / nested paths (the documented
 // mutate-by-assignment API). Reads still yield Data<child> for chaining.

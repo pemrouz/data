@@ -49,6 +49,20 @@ obj.az('typo')
 // @ts-expect-error — 'typo' is not a column
 obj.gt('typo', 3)
 
+// max/min carry the COLUMN's element type, not `any` (under the old Data<any>
+// every one of these compiled clean). The aggregate value is also `| undefined`
+// for the empty set on avg/max/min.
+const named = $([{ name: 'x' }])
+// @ts-expect-error — max('name') is string | undefined, not assignable to number
+const _nm: number = named.max('name')[value]
+void _nm
+// @ts-expect-error — max('n') is number | undefined, not assignable to string
+const _mx: string = obj.max('n')[value]
+void _mx
+// @ts-expect-error — avg may be undefined on an empty set, not a bare number
+const _av: number = obj.avg('n')[value]
+void _av
+
 // --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
 // Each of these COMPILES CLEAN today (the surface is loose there), so marking it
 // now would itself fail as an unused directive. The owning B-tier commit both

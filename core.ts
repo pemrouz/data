@@ -229,6 +229,11 @@ export type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any
 // meaningful. `RowOf<any>` distributes to `string`, so untyped sources stay
 // permissive. Used by between/gt/lt/gte/lte/sum/avg/max/min/za/az.
 type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string
+// The VALUE type at column `K` of a source's rows — the element type `max`/`min`
+// over that column yields. Falls back to `any` when the column isn't a known key
+// (scalar rows, dynamic Record, untyped source).
+type ColValue<T, K extends PropertyKey> =
+  RowOf<T> extends object ? (K extends keyof RowOf<T> ? RowOf<T>[K] : any) : any
 export type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[], value: any, at?: any }
 // A bound prop / child value: either a reactive view or its raw value.
 export type Reactive<T> = Data<T> | T
@@ -352,19 +357,23 @@ export type DataOps<T = any> = {
   length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, { value: number }>>
   /**
    * Scalar aggregate over a column (or row values if `col` omitted). `sum`/`avg`
-   * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined`.
-   * `col` may be a reactive `ViewProxy` (`sum($(currentCol))`) — switching it
-   * re-aggregates under the new column (a full O(N) re-projection).
-   * @example orders.sum('amount')   //  orders.avg('amount')   //  orders.sum($(col))
+   * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined` for
+   * `avg`/`max`/`min`; `sum` of an empty set is `0`. `sum`/`avg` are numeric;
+   * `max`/`min` carry the column's element type (number, Date, string, …). `col`
+   * is a column name checked against the row shape (`ColOf<T>`), or a reactive
+   * `Data<string>` (`sum($(currentCol))`) whose runtime value names the column —
+   * the reactive form can't be statically key-checked, so it stays a bare
+   * `Data<string>` and yields `any`.
+   * @example orders.sum('amount')   //  orders.avg('amount')   //  orders.max('ts')   //  orders.sum($(col))
    */
-  // `col` is a column name checked against the row shape (`ColOf<T>`), or a
-  // reactive `Data<string>` (`sum($(currentCol))`) whose runtime value names the
-  // column — the reactive form can't be statically key-checked, so it stays a
-  // bare `Data<string>`.
   sum(col?: ColOf<T> | Data<string>): Data<number>
-  avg(col?: ColOf<T> | Data<string>): Data<number>
-  max(col?: ColOf<T> | Data<string>): Data<any>
-  min(col?: ColOf<T> | Data<string>): Data<any>
+  avg(col?: ColOf<T> | Data<string>): Data<number | undefined>
+  max<K extends ColOf<T>>(col: K): Data<ColValue<T, K> | undefined>
+  max(col: Data<string>): Data<any>
+  max(): Data<RowOf<T> | undefined>
+  min<K extends ColOf<T>>(col: K): Data<ColValue<T, K> | undefined>
+  min(col: Data<string>): Data<any>
+  min(): Data<RowOf<T> | undefined>
   /**
    * Scalar boolean — does any (`some`) / every (`every`) row match the predicate.
    * @example alerts.some(a => a.level >= 3)
