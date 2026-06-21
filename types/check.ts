@@ -12,6 +12,10 @@ obj.between('n', [0, 10]).sum('n')
 obj.gt('n', 3); obj.lt('n', 3); obj.gte('n', 3); obj.lte('n', 3)
 obj.map(r => r.n).az('n').za('n', 5)
 obj.group(r => r.n).keys()
+// length(fn) buckets are `{ value: count }`: the documented read `counts[k].value`
+// must type-check (it's a hard error if the return is typed Record<R, number>).
+const counts = obj.length(r => (r.n > 3 ? 'hi' : 'lo'))
+void counts.hi.value
 
 // --- operator chains, ARRAY source (#66) ---
 const arr = $([{ n: 1 }, { n: 5 }])

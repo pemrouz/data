@@ -337,7 +337,12 @@ export type DataOps<T = any> = {
    * @example rows.length()   //  rows.length(r => r.region) → { east: { value: 4 }, … }
    */
   length(): Data<number>
-  length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, number>>
+  // Each bucket is a `{ value: count }` object (not a bare number) so an
+  // individual count has its own VP identity — read it as `counts[key].value`.
+  // Typing it `Record<R, number>` made the documented read a type error and the
+  // `[object Object]`/`NaN` trap (`counts[key]`) compile clean; this matches the
+  // runtime and the JSDoc above.
+  length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, { value: number }>>
   /**
    * Scalar aggregate over a column (or row values if `col` omitted). `sum`/`avg`
    * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined`.
