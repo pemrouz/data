@@ -5,7 +5,7 @@
 // fails normally. So this file locks in the type surface's REJECTIONS — the half
 // a purely-positive fixture (types/check.ts) can never guard, and the reason a
 // type that silently widens to `any` would otherwise go unnoticed.
-import { $, value } from '../full.ts'
+import { $, value, HTML } from '../full.ts'
 
 const obj = $({ a: { n: 1 }, b: { n: 5 } })
 
@@ -68,6 +68,11 @@ void _av
 obj.filter('n', 'not-a-number')
 // @ts-expect-error — the partial-shape object form is column-typed too
 obj.filter({ n: 'not-a-number' })
+
+// The builder row-fn `item` is typed to the source's row (B4), not `any`.
+const rows = $([{ n: 1 }])
+// @ts-expect-error — `bogus` is not a field of the row { n: number }
+HTML.li(rows, (li, item) => li.text(item.bogus))
 
 // --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
 // Each of these COMPILES CLEAN today (the surface is loose there), so marking it

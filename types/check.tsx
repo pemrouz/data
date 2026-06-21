@@ -22,9 +22,10 @@ const view = (
     <input type="checkbox" checked={true} />
     <button type="submit" disabled={false} onClick={() => {}}>go</button>
     <label htmlFor="name-field">name</label>
-    {/* <For> children arrow: `item` must be annotated until B4 adds generics. */}
+    {/* <For> children arrow: `item` is INFERRED from `each` (B4) — no annotation.
+        If inference regressed, `item` would be implicit-any → TS7006 under strict. */}
     <For each={items}>
-      {(item: { id: number; label: string }) => <li>{item.label}</li>}
+      {item => <li>{item.label}</li>}
     </For>
   </div>
 )

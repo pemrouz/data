@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { view } from '../core.ts'
+import type { Data, RowOf } from '../core.ts'
 import { iter, isArray, noop } from '../utils.ts'
 const NS = 'http://www.w3.org/2000/svg'
 // NODE is a sentinel used as the key for the root-level slot when a sink
@@ -648,8 +649,13 @@ class NodeProxy {
 // (`HTML.div.foo.bar`, `.text(…)`, `.class(…)`, `'#id'`, `'k=v'`). The
 // `(data, rowFn)` overload lists explicit `any` params so a row fn
 // `(node, item) => …` isn't flagged implicit-any under `noImplicitAny`.
+// The `(data, rowFn)` overload is GENERIC over the bound source: passing a
+// `Data<T>` infers `T`, so the row fn's `item` is typed to `RowOf<T>` (the row
+// type) rather than `any` — `HTML.li(rows, (li, item) => li.text(item.field))`
+// now autocompletes and rejects a bogus field. A non-`Data` first arg (string /
+// NodeProxy child) doesn't match this overload and falls through to children.
 export interface NodeBuilder {
-  (data: any, rowFn: (node: any, item: any, key: any) => any): NodeBuilder
+  <T>(data: Data<T>, rowFn: (node: NodeBuilder, item: RowOf<T>, key: string) => any): NodeBuilder
   (...children: any[]): NodeBuilder
   [prop: string]: NodeBuilder
 }

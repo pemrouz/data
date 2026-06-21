@@ -7,6 +7,7 @@
 // it does today. No virtual DOM, no scheduler, no new sink type.
 import { HTML, SVG, NODE } from '../render/index.ts'
 import { view } from '../core.ts'
+import type { Data, RowOf } from '../core.ts'
 
 // SVG-namespaced tags. `h` uses this set to dispatch to SVG instead of HTML;
 // anything not listed is HTML. Capitalized JSX identifiers (function
@@ -176,9 +177,13 @@ export const jsxDEV = _jsx
 // passes the row fn as a positional arg, but JSX type resolution still
 // wants `children` in the props shape) type-checks under the per-tag
 // JSX types in jsx.d.ts.
-export function For(
-  { each, tag = 'div' }: { each: any; tag?: string; children?: any },
-  fn: (item: any, key: any) => any,
+export function For<T>(
+  // `children` is typed as the row fn so the JSX classic transform (which routes
+  // `<For>{arrow}</For>` through the `children` prop) contextually types `item`
+  // to `RowOf<T>`, inferred from `each`. The positional `fn` is the same arrow
+  // for the runtime / builder-style direct call.
+  { each, tag = 'div' }: { each: Data<T>; tag?: string; children?: (item: RowOf<T>, key: string) => any },
+  fn: (item: RowOf<T>, key: any) => any,
 ): any {
   return ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag](each, (node: any, item: any, key: any) => {
     const r = fn(item, key)
