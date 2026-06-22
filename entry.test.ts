@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Regression guard for the entry-point inversion (chore(release) era): the
 // DEFAULT `data` entry (index.ts) must register every operator on import, so a
 // consumer can `import { $ } from 'data'` and immediately chain `.filter(...)`
@@ -17,6 +16,6 @@ spec({ op:'entry', guarantee:'Fidelity', asserts:'importing the default entry re
 })
 
 spec({ op:'entry', guarantee:'Fidelity', chain:'filter→length', asserts:'chaining works from the default entry without importing data/full' }, () => {
-    const res = $([{ a: 1 }, { a: 5 }, { a: 9 }]).filter(d => d.a > 3).length()
+    const res: any = $([{ a: 1 }, { a: 5 }, { a: 9 }]).filter((d: any) => d.a > 3).length()
     same(res[value], 2)
 })

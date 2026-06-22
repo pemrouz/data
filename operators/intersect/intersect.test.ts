@@ -15,24 +15,24 @@ import { map } from '../map/index.ts'
 // composed). The incremental paths already used `!== undefined`. Surfaced
 // building the faceted-library example.
 spec({ op:'intersect', guarantee:'Selection', trigger:'construct', shape:'object', via:['reactive-bound'], chain:'between→intersect', asserts:'construction skips explicit-undefined slots of a sparse source' }, () => {
-  const m = $({ a: { r: 8.3 }, b: { r: 8.6 }, c: { r: 8.5 } })
-  const bounds = $([8.0, 9.0])
-  const hi = between(m, 'r', bounds)           // reactive bounds; members a, b, c
+  const m: any = $({ a: { r: 8.3 }, b: { r: 8.6 }, c: { r: 8.5 } })
+  const bounds: any = $([8.0, 9.0])
+  const hi: any = between(m, 'r', bounds)           // reactive bounds; members a, b, c
   bounds[value] = [8.4, 9.0]                    // a leaves — left behind as undefined
-  const dense = (v) => Object.keys(v).filter(k => v[k] !== undefined).sort()
+  const dense = (v: any) => Object.keys(v).filter((k: any) => v[k] !== undefined).sort()
   // a is `in hi.value` (key present, value undefined) but NOT a member
   same(hi[value].a, undefined)
   same('a' in hi[value], true)
   // build the intersect AFTER the sparse exclusion exists
-  const res = intersect(m, hi)
+  const res: any = intersect(m, hi)
   same(dense(res[value]), ['b', 'c'])
   same(res[value].a, undefined)                // must not be admitted
 })
 
 spec({ op:'intersect', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU1','BI0','BR1','XU0'], asserts:'the intersection over object sources tracks inserts, edits and removes' }, () => {
-  const a = $({ 10: 'a', 20: 'b', 30: 'c' })
-  const b = $({ 10: 'a', 20: 'b' })
-  const res = intersect(a, b)
+  const a: any = $({ 10: 'a', 20: 'b', 30: 'c' })
+  const b: any = $({ 10: 'a', 20: 'b' })
+  const res: any = intersect(a, b)
   const changes = res.connect([])
   b[30] = 'x'
   a[40] = 'y'
@@ -63,10 +63,10 @@ spec({ op:'intersect', guarantee:'Selection', trigger:'edit', shape:'object', vi
 // in the crossfilter example brushing a date range outside the initial
 // filter would silently produce 0 active rows.
 spec({ op:'intersect', guarantee:'Selection', trigger:'insert', shape:'object', via:['XU0'], asserts:'a source expanding past construction admits the newly-shared rows' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })  // narrow primary
-  const b = $({ 1: 'a', 2: 'b', 3: 'c', 4: 'd' })
-  const c = $({ 1: 'a', 2: 'b', 3: 'c', 4: 'd' })
-  const res = intersect(a, b, c)
+  const a: any = $({ 1: 'a', 2: 'b' })  // narrow primary
+  const b: any = $({ 1: 'a', 2: 'b', 3: 'c', 4: 'd' })
+  const c: any = $({ 1: 'a', 2: 'b', 3: 'c', 4: 'd' })
+  const res: any = intersect(a, b, c)
   same(res[value], { 1: 'a', 2: 'b' })
 
   // Expand `a` to cover the full set; intersection should pick up the
@@ -80,9 +80,9 @@ spec({ op:'intersect', guarantee:'Selection', trigger:'insert', shape:'object', 
 })
 
 spec({ op:'intersect', guarantee:'Selection', trigger:'edit', shape:'array', via:['BU1','BI0','BR1','XU0'], asserts:'the intersection over array sources tracks inserts, edits and removes' }, () => {
-  const a = $(['a', 'b', 'c'])
-  const b = $(['a', 'b'])
-  const res = intersect(a, b)
+  const a: any = $(['a', 'b', 'c'])
+  const b: any = $(['a', 'b'])
+  const res: any = intersect(a, b)
   const changes = res.connect([])
   b[2] = 'x'
   a[3] = 'y'
@@ -121,11 +121,11 @@ spec({ op:'intersect', guarantee:'Selection', trigger:'edit', shape:'array', via
 // from-scratch rebuild across a tail insert (admitted + excluded) and a
 // shifting remove. The differential harness covers the same ground across many
 // seeds; this is the focused, readable guard.
-const denseV = (vp) => (vp[value] || []).filter((r) => r !== undefined).map((r) => r.v)
+const denseV = (vp: any) => (vp[value] || []).filter((r: any) => r !== undefined).map((r: any) => r.v)
 spec({ op:'intersect', guarantee:'Alignment', trigger:'insert/remove', shape:'array', via:['BI0A','BR1A'], issue:'C12', chain:'filter→intersect', asserts:'with derived facets, tail insert and shifting remove stay aligned' }, () => {
-  const s = $([{ v: 10 }, { v: 30 }, { v: 50 }, { v: 70 }, { v: 90 }])
+  const s: any = $([{ v: 10 }, { v: 30 }, { v: 50 }, { v: 70 }, { v: 90 }])
   // Two facets derived from s — the crossfilter pattern. 25 < v < 80 ⇒ {30,50,70}.
-  const res = intersect(s, filter(s, (r) => r.v > 25), filter(s, (r) => r.v < 80))
+  const res: any = intersect(s, filter(s, (r: any) => r.v > 25), filter(s, (r: any) => r.v < 80))
   same(denseV(res), [30, 50, 70])
 
   // Tail insert ADMITTED (passes both facets).
@@ -160,7 +160,7 @@ spec({ op:'intersect', guarantee:'Selection', trigger:'construct', shape:'object
   const f1       = $({ 1: 'a', 2: 'b' })
   const f2       = $({ 2: 'b', 3: 'c' })
   const dims     = { f1, f2 }
-  const res = intersect(source, dims)
+  const res: any = intersect(source, dims)
   // Only key 2 is in source, f1, AND f2.
   same(res[value], { 2: 'b' })
 })
@@ -172,28 +172,28 @@ spec({ op:'intersect', guarantee:'Selection', trigger:'construct', shape:'object
   const dims     = { f1, f2 }
   // Excluding 'f1' means we intersect source with f2 only.
   // Keys 2 and 3 are in both; key 1 is only in source.
-  const res = intersect(source, dims, 'f1')
+  const res: any = intersect(source, dims, 'f1')
   same(res[value], { 2: 'b', 3: 'c' })
 })
 
 spec({ op:'intersect', guarantee:'Identity', trigger:'dedup-call', shape:'object', asserts:'calling with identical args returns the same operator view' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({ 1: 'a', 2: 'b' })
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({ 1: 'a', 2: 'b' })
   // The free function intersect() goes through createOperator which dedups
   // by (class, matches()). Two calls with identical args = one operator.
-  const r1 = intersect(a, b)
-  const r2 = intersect(a, b)
+  const r1: any = intersect(a, b)
+  const r2: any = intersect(a, b)
   ok(r1[view] === r2[view])
 })
 
 spec({ op:'intersect', guarantee:'Identity', trigger:'dedup-call', shape:'object', asserts:'dims-form with the same key reuses, a different key creates new' }, () => {
-  const source = $({ 1: 'a', 2: 'b' })
+  const source: any = $({ 1: 'a', 2: 'b' })
   const f1     = $({ 1: 'a', 2: 'b' })
   const f2     = $({ 1: 'a', 2: 'b' })
   const dims   = { f1, f2 }
-  const r1 = intersect(source, dims, 'f1')
-  const r2 = intersect(source, dims, 'f1')
-  const r3 = intersect(source, dims, 'f2')
+  const r1: any = intersect(source, dims, 'f1')
+  const r2: any = intersect(source, dims, 'f1')
+  const r3: any = intersect(source, dims, 'f2')
   ok(r1[view] === r2[view])      // same key → same view
   ok(r1[view] !== r3[view])      // different key → different view
 })
@@ -204,9 +204,9 @@ spec({ op:'intersect', guarantee:'Identity', trigger:'dedup-call', shape:'object
 // intersection (because it wasn't in some secondary source) would still
 // emit a BU2 downstream, leaking events for invisible rows.
 spec({ op:'intersect', guarantee:'Fidelity', trigger:'edit', shape:'object', via:['BU2'], asserts:'a deep update on a row excluded from the intersection does not emit' }, () => {
-  const a = $({ 1: { x: 'a1' }, 2: { x: 'a2' } })
-  const b = $({ 1: { x: 'b1' } })   // row 2 excluded (not in b)
-  const res = intersect(a, b)
+  const a: any = $({ 1: { x: 'a1' }, 2: { x: 'a2' } })
+  const b: any = $({ 1: { x: 'b1' } })   // row 2 excluded (not in b)
+  const res: any = intersect(a, b)
   const changes = res.connect([])
   // Deep update on row 1 — in the intersection, should propagate.
   a[1].x = 'A1'
@@ -223,9 +223,9 @@ spec({ op:'intersect', guarantee:'Fidelity', trigger:'edit', shape:'object', via
 // secondary's data — a deep change in `b` to row[1].x doesn't change what
 // intersect emits.
 spec({ op:'intersect', guarantee:'Fidelity', trigger:'edit', shape:'object', via:['BU2'], asserts:'a secondary source nested update does not emit' }, () => {
-  const a = $({ 1: { x: 'a1' } })
-  const b = $({ 1: { x: 'b1' } })
-  const res = intersect(a, b)
+  const a: any = $({ 1: { x: 'a1' } })
+  const b: any = $({ 1: { x: 'b1' } })
+  const res: any = intersect(a, b)
   const changes = res.connect([])
   b[1].x = 'B1'
   same(changes, [
@@ -239,16 +239,16 @@ spec({ op:'intersect', guarantee:'Fidelity', trigger:'edit', shape:'object', via
 // drifted and a later keyed edit landed on the wrong slot. The splice is now
 // always communicated (record sinks skip the undefined-valued pair).
 spec({ op:'intersect', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BR1A'], issue:'#22', chain:'filter→intersect→map', asserts:'a primary remove of a holed slot keeps downstream positions aligned' }, () => {
-  const s = $([{ v: 10 }, { v: 71 }, { v: 30 }, { v: 55 }, { v: 90 }])
-  const i = intersect(s, filter(s, (r) => r.v >= 30))
-  const m = map(i, (r) => r.v)
-  const dense = (a) => a.filter((x) => x !== undefined)
-  same(dense(i[value]).map((r) => r.v), [71, 30, 55, 90])
+  const s: any = $([{ v: 10 }, { v: 71 }, { v: 30 }, { v: 55 }, { v: 90 }])
+  const i: any = intersect(s, filter(s, (r: any) => r.v >= 30))
+  const m: any = map(i, (r: any) => r.v)
+  const dense = (a: any) => a.filter((x: any) => x !== undefined)
+  same(dense(i[value]).map((r: any) => r.v), [71, 30, 55, 90])
   delete s[0]                       // {v:10} was excluded — a holed-slot primary splice
-  same(dense(i[value]).map((r) => r.v), [71, 30, 55, 90])
+  same(dense(i[value]).map((r: any) => r.v), [71, 30, 55, 90])
   same(dense(m[value]), [71, 30, 55, 90]) // map stays length-aligned (was longer)
   s[2].v = 56                       // edit a survivor by its post-shift index
-  same(dense(i[value]).map((r) => r.v), [71, 30, 56, 90])
+  same(dense(i[value]).map((r: any) => r.v), [71, 30, 56, 90])
   same(dense(m[value]), [71, 30, 56, 90])
 })
 
@@ -259,8 +259,8 @@ spec({ op:'intersect', guarantee:'Alignment', trigger:'remove', shape:'array', v
 // Sources are now deduped by view (idempotent: intersecting a set with itself
 // or a source twice = the set).
 spec({ op:'intersect', guarantee:'Identity', trigger:'construct', shape:'array', issue:'#27', asserts:'a duplicate or self source is idempotent, not empty' }, () => {
-  const a = $([{ x: 1 }, { x: 2 }])
-  const b = $([{ y: 1 }, { y: 2 }])
-  same(intersect(a, b, b)[value].filter((x) => x !== undefined).length, 2) // dup b
-  same(intersect(a, a)[value].filter((x) => x !== undefined).length, 2)    // self
+  const a: any = $([{ x: 1 }, { x: 2 }])
+  const b: any = $([{ y: 1 }, { y: 2 }])
+  same(intersect(a, b, b)[value].filter((x: any) => x !== undefined).length, 2) // dup b
+  same(intersect(a, a)[value].filter((x: any) => x !== undefined).length, 2)    // self
 })

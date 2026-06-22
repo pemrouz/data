@@ -10,7 +10,7 @@ import { $, value } from '../../full.ts'
 // replacement (data[1] = {date: 99}) creates a NEW object reference
 // and the BMV1 path leaves the old reference at the new position.
 spec({ op:'sort', guarantee:'Order', trigger:'overwrite', shape:'object', via:['BMV1','BU1'], chain:'za-window', asserts:'whole-row replacement inside window, new value sits at new rank' }, () => {
-  const data = $({})
+  const data: any = $({})
   data['A'] = { pctChg: 1.0 }
   data['B'] = { pctChg: 2.0 }
   data['C'] = { pctChg: 3.0 }
@@ -34,7 +34,7 @@ spec({ op:'sort', guarantee:'Order', trigger:'overwrite', shape:'object', via:['
 // Operator.BR1A/BI0A/BMV1 gates the splice on `view.value !== p.value`
 // so pass-through operators don't re-mutate the shared array.
 spec({ op:'sort', guarantee:'Propagation', trigger:'overwrite', shape:'object', via:'BMV1', chain:'za-window→tap', asserts:'in-window rotation with tap downstream, observed view stays consistent' }, () => {
-  const data = $({})
+  const data: any = $({})
   for (const s of ['A', 'B', 'C', 'D', 'E']) data[s] = { pctChg: 'ABCDE'.indexOf(s) + 1 }
   const top = data.za('pctChg', 5)
   let observed = null
@@ -54,7 +54,7 @@ spec({ op:'sort', guarantee:'Propagation', trigger:'overwrite', shape:'object', 
 // in-to-out, and out-to-out transitions too. Replays a many-symbol
 // streaming workload where every assignment is a whole-row replacement.
 spec({ op:'sort', guarantee:'Order', trigger:'overwrite', shape:'object', via:['BU1','BR1A','BI0A'], chain:'za-window', asserts:'whole-row replacement crossing window boundary, view stays sorted with no dupes' }, () => {
-  const data = $({})
+  const data: any = $({})
   const symbols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
   for (const s of symbols) data[s] = { pctChg: 0 }
   const top = data.za('pctChg', 3)

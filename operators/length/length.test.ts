@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
@@ -9,9 +8,9 @@ spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'array', via:['
   // `mapping` is keyed by position; an array remove splices and shifts
   // positions, so a later in-place group-key edit would rebucket the wrong row
   // unless the remove re-keys mapping. (counts read as bucket.value.)
-  const src = $([{ g: 'a' }, { g: 'b' }, { g: 'a' }, { g: 'b' }])
-  const counts = length(src, (r) => r.g)
-  const c = (o) => Object.fromEntries(Object.entries(o[value]).map(([k, b]) => [k, b.value]))
+  const src: any = $([{ g: 'a' }, { g: 'b' }, { g: 'a' }, { g: 'b' }])
+  const counts: any = length(src, (r: any) => r.g)
+  const c = (o: any) => Object.fromEntries(Object.entries(o[value]).map(([k, b]: any) => [k, b.value]))
   same(c(counts), { a: 2, b: 2 })
   delete src[0]                 // splice: was [b,a,b]; positions shift
   same(c(counts), { a: 1, b: 2 })
@@ -20,9 +19,9 @@ spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'array', via:['
 })
 
 spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'object', asserts:'the count tracks inserts and removes down to zero' }, () => {
-  const obj = $({ 10: 'a' })
-  const count = length(obj)
-  const changes = count.connect([])
+  const obj: any = $({ 10: 'a' })
+  const count: any = length(obj)
+  const changes: any[] = count.connect([])
   obj.insert('b')
   obj.insert('c')
   delete obj[10]
@@ -31,9 +30,9 @@ spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'objec
 })
 
 spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the count tracks inserts and removes down to zero' }, () => {
-  const arr = $(['a'])
-  const count = length(arr)
-  const changes = count.connect([])
+  const arr: any = $(['a'])
+  const count: any = length(arr)
+  const changes: any[] = count.connect([])
   arr.insert('b')
   arr.insert('c')
   delete arr[0]
@@ -46,14 +45,14 @@ spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'array
 // arrays, which counted holes — so `arr.filter(...).length()` reported the
 // source size instead of the kept count, contradicting the README quickstart.
 spec({ op:'length', guarantee:'Reduction', trigger:'remove', shape:'array', chain:'filter→length', asserts:'over a sparse filtered array, counts kept rows not holes' }, () => {
-  const todos = $([
+  const todos: any = $([
     { task: 'foo', done: false },
     { task: 'bar', done: true  },
     { task: 'baz', done: false },
   ])
-  const remaining = filter(todos, 'done', false)
-  const remainingCount = length(remaining)
-  const events = remainingCount.connect([])
+  const remaining: any = filter(todos, 'done', false)
+  const remainingCount: any = length(remaining)
+  const events: any[] = remainingCount.connect([])
   same(remainingCount[value], 2)
   todos.insert({ task: 'qux', done: false })
   todos[0].done = true
@@ -67,12 +66,12 @@ spec({ op:'length', guarantee:'Reduction', trigger:'remove', shape:'array', chai
 })
 
 spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'object', asserts:'length(fn) bucket counts track inserts, edits and removes' }, () => {
-  const res = $({
+  const res: any = $({
     1: { num: 1.1 }, 2: { num: 2.2 }, 3: { num: 1.9 },
     4: { num: 2.6 }, 5: { num: 1.7 }
   })
-  const lengths = length(res, d => Math.floor(d.num))
-  const changes = lengths.connect([])
+  const lengths: any = length(res, (d: any) => Math.floor(d.num))
+  const changes: any[] = lengths.connect([])
   res.insert({ num: 1.8 })
   res[5] = { num: 1.8 }
   res[5] = { num: 2.1 }
@@ -97,18 +96,18 @@ spec({ op:'length', guarantee:'Reduction', trigger:'insert/remove', shape:'objec
 // not just on insert/remove. A field set arrives as a BU2 carrying the path,
 // and the changed field is the bucket key — so the row has to move buckets,
 // including into a bucket key that did not exist at construction time. This is
-// the swarm example's SIR-by-state histogram (`pop.length(a => a.state)` driven
+// the swarm example's SIR-by-state histogram (`pop.length((a: any) => a.state)` driven
 // by `pop[id].state = …`): before the BU2 handler existed the counts silently
 // froze at their construction values. A field change that does NOT move the
 // bucket must stay silent (no spurious republish).
 spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'object', via:['BU2'], asserts:'an in-place field change moves the row between bucket counts' }, () => {
-  const rows = $({
+  const rows: any = $({
     a: { state: 'S' },
     b: { state: 'S' },
     c: { state: 'I' },
   })
-  const byState = length(rows, d => d.state)
-  const changes = byState.connect([])
+  const byState: any = length(rows, (d: any) => d.state)
+  const changes: any[] = byState.connect([])
   rows.a.state = 'I'          // S→I: moves a from S to I
   rows.c.state = 'R'          // I→R: creates the R bucket (absent at construction)
   rows.b.foo = 'x'            // unrelated field: no bucket move → no emit
@@ -128,16 +127,16 @@ spec({ op:'length', guarantee:'Reduction', trigger:'edit', shape:'object', via:[
 // length() was a blanket BU1 no-op so its count went permanently stale, and
 // length(fn) called fn(undefined) and crashed. Both now treat undefined as a leave.
 spec({ op:'length', guarantee:'Robustness', trigger:'edit', shape:'object', via:['BU1'], issue:'G1', asserts:'assigning a key to undefined decrements the count and rebuckets without crashing' }, () => {
-  const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
-  const len = length(src)
+  const src: any = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const len: any = length(src)
   same(len[value], 3)
   src.a = undefined
   same(len[value], 2)              // was stuck at 3
   src.b = { n: 9 }                 // a real update — count unchanged
   same(len[value], 2)
 
-  const src2 = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' } })
-  const lf = length(src2, (r) => r.g)
+  const src2: any = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' } })
+  const lf: any = length(src2, (r: any) => r.g)
   same(lf[value].x.value, 2)
   src2.a = undefined               // leave — must not crash, decrements x
   same(lf[value].x.value, 1)
@@ -148,9 +147,9 @@ spec({ op:'length', guarantee:'Robustness', trigger:'edit', shape:'object', via:
 // bucket woke every bucket sink for nothing. The publish is now guarded on an
 // actual count change (BU2 already was).
 spec({ op:'length', guarantee:'Efficiency', trigger:'overwrite', shape:'object', via:['BU1'], issue:'#53', asserts:'a same-bucket whole-row update emits no spurious republish' }, () => {
-  const src = $({ a: { g: 'x' }, b: { g: 'y' } })
-  const lf = length(src, (r) => r.g)
-  const changes = lf.connect([])
+  const src: any = $({ a: { g: 'x' }, b: { g: 'y' } })
+  const lf: any = length(src, (r: any) => r.g)
+  const changes: any[] = lf.connect([])
   const base = changes.length
   src.a = { g: 'x' }              // whole-row BU1, stays in bucket x — no count change
   same(changes.length - base, 0) // suppressed

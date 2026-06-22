@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, createOperator } from '../../core.ts'
@@ -9,13 +8,13 @@ import { reverse } from '../reverse/index.ts'
 import { distinct } from '../distinct/index.ts'
 
 spec({ op:'keys', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'lists the source\'s property names' }, () => {
-  const data = $({ a: 1, b: 2, c: 3 })
+  const data: any = $({ a: 1, b: 2, c: 3 })
   same(keys(data)[value], ['a', 'b', 'c'])
 })
 
 spec({ op:'keys', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'an insert appends a key and a remove drops it' }, () => {
-  const data = $({ a: 1 })
-  const k = keys(data)
+  const data: any = $({ a: 1 })
+  const k: any = keys(data)
   same(k[value], ['a'])
   data.b = 2
   same(k[value], ['a', 'b'])
@@ -24,20 +23,20 @@ spec({ op:'keys', guarantee:'Selection', trigger:'insert/remove', shape:'object'
 })
 
 spec({ op:'values', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'lists the source\'s property values' }, () => {
-  const data = $({ a: 1, b: 2, c: 3 })
+  const data: any = $({ a: 1, b: 2, c: 3 })
   same(values(data)[value], [1, 2, 3])
 })
 
 spec({ op:'values', guarantee:'Propagation', trigger:'edit', shape:'object', asserts:'a source value edit flows into the list' }, () => {
-  const data = $({ a: 1, b: 2 })
-  const v = values(data)
+  const data: any = $({ a: 1, b: 2 })
+  const v: any = values(data)
   same(v[value], [1, 2])
   data.a = 99
   same(v[value], [99, 2])
 })
 
 spec({ op:'keys', guarantee:'Fidelity', trigger:'construct', shape:'array', asserts:'over an array, returns string indices' }, () => {
-  const data = $(['x', 'y', 'z'])
+  const data: any = $(['x', 'y', 'z'])
   same(keys(data)[value], ['0', '1', '2'])
 })
 
@@ -49,23 +48,23 @@ spec({ op:'keys', guarantee:'Fidelity', trigger:'construct', shape:'array', asse
 // on a BI0 from an array upstream (positional inserts), keeping the O(1) append
 // only for object (append-at-end) upstreams.
 spec({ op:'keys', guarantee:'Alignment', trigger:'brush', shape:'array', via:['BI0'], chain:'az→keys', asserts:'keys/values/reverse/distinct stay correct over a sort window' }, () => {
-  const src = $({ a: { v: 40, g: 0 }, b: { v: 10, g: 1 }, c: { v: 90, g: 2 }, d: { v: 50, g: 0 }, e: { v: 20, g: 3 } })
+  const src: any = $({ a: { v: 40, g: 0 }, b: { v: 10, g: 1 }, c: { v: 90, g: 2 }, d: { v: 50, g: 0 }, e: { v: 20, g: 3 } })
   const win = createOperator(src, AZColumnValue, 'v', 3)   // az('v', 3): 3 lowest by v
-  const k = keys(win), vv = values(win), rv = reverse(win), dd = distinct(win, r => r.g)
+  const k: any = keys(win), vv = values(win), rv = reverse(win), dd = distinct(win, (r: any) => r.g)
 
   // rotate the window with in-place edits (rows enter/leave at positions)
   src.a.v = 5; src.c.v = 15; src.b.v = 99
   const w = win[value].filter(Boolean)
-  same(k[value], w.map((_, i) => String(i)))                 // exactly ['0','1','2'] — no stray number
-  same(k[value].every(x => typeof x === 'string'), true)
+  same(k[value], w.map((_: any, i: any) => String(i)))                 // exactly ['0','1','2'] — no stray number
+  same(k[value].every((x: any) => typeof x === 'string'), true)
   same(vv[value], w)                                          // values track the window contents/order
   same(rv[value], [...w].reverse())                           // reverse tracks order
-  same(dd[value].length, new Set(w.map(r => r.g)).size)       // distinct group count correct
+  same(dd[value]!.length, new Set(w.map((r: any) => r.g)).size)       // distinct group count correct
 
   // a brand-new row that lands inside the window (BI0 at a front position)
   src.f = { v: 1, g: 7 }
   const w2 = win[value].filter(Boolean)
-  same(k[value], w2.map((_, i) => String(i)))
+  same(k[value], w2.map((_: any, i: any) => String(i)))
   same(vv[value], w2)
 })
 
@@ -75,15 +74,15 @@ spec({ op:'keys', guarantee:'Alignment', trigger:'brush', shape:'array', via:['B
 // re-entering an object-source sparse view showed up TWICE (keys ["a","b","c","c"],
 // values [..,undefined,..]). _rebuild now skips undefined slots like the append path.
 spec({ op:'keys', guarantee:'Fidelity', trigger:'bound-move', shape:'object', issue:'G3', chain:'between→keys', asserts:'a leave-then-re-enter over a sparse source produces no duplicate' }, () => {
-  const src = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 9 } })
-  const ext = $([0, 10])
-  const ranged = between(src, 'v', ext)
-  const ks = keys(ranged)
-  const vs = values(ranged)
+  const src: any = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 9 } })
+  const ext: any = $([0, 10])
+  const ranged: any = between(src, 'v', ext)
+  const ks: any = keys(ranged)
+  const vs: any = values(ranged)
   ext[value] = [0, 6]            // c (v:9) leaves -> explicit-undefined slot
   ext[value] = [0, 10]           // c re-enters
   same(ks[value], ['a', 'b', 'c'])
-  same(vs[value].map((r) => r.v), [1, 5, 9])
+  same(vs[value].map((r: any) => r.v), [1, 5, 9])
 })
 
 // The BI0 fast path mutates this.output IN PLACE (push), keeping the SAME array
@@ -93,8 +92,8 @@ spec({ op:'keys', guarantee:'Fidelity', trigger:'bound-move', shape:'object', is
 // remove swaps it. A silent regression to unconditional _rebuild-on-object-insert
 // keeps every value-correctness test green but trips this.
 spec({ op:'keys', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], asserts:'an append insert reuses the output array in place; a remove rebuilds a fresh one' }, () => {
-  const data = $({ a: 1 })
-  const k = keys(data)
+  const data: any = $({ a: 1 })
+  const k: any = keys(data)
   const before = k[value]
   data.b = 2                     // append insert → BI0 push, same reference
   same(k[value] === before, true)
@@ -105,8 +104,8 @@ spec({ op:'keys', guarantee:'Efficiency', trigger:'insert', shape:'object', via:
 })
 
 spec({ op:'values', guarantee:'Efficiency', trigger:'insert', shape:'object', via:['BI0'], asserts:'an append insert reuses the output array in place; an edit rebuilds a fresh one' }, () => {
-  const src = $({ a: 1, b: 2 })
-  const v = values(src)
+  const src: any = $({ a: 1, b: 2 })
+  const v: any = values(src)
   const before = v[value]
   src.c = 3                      // append insert → BI0 push, same reference
   same(v[value] === before, true)

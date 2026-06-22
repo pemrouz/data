@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, view } from '../../core.ts'
@@ -14,9 +13,9 @@ import { between } from '../between/index.ts'
 // exclusion membership (mirrors except's BU1): skip excluded rows, forward the
 // rest.
 spec({ op:'except', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU2'], issue:'C12', asserts:'an in-place edit pushing a row into the exclusion drops it' }, () => {
-  const src = $({ k0: { v: 0 }, k1: { v: 11 }, k2: { v: 22 }, k3: { v: 77 } })
-  const res = except(src, filter(src, (r) => r.v > 60))
-  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, x]) => x !== undefined).map(([k, x]) => [k, x.v]))
+  const src: any = $({ k0: { v: 0 }, k1: { v: 11 }, k2: { v: 22 }, k3: { v: 77 } })
+  const res: any = except(src, filter(src, (r: any) => r.v > 60))
+  const clean = (o: any) => Object.fromEntries(Object.entries(o).filter(([, x]: any) => x !== undefined).map(([k, x]: any) => [k, x.v]))
   same(clean(res[value]), { k0: 0, k1: 11, k2: 22 })   // k3 excluded (v>60)
   src.k1.v = 200                                         // k1 now matches the exclusion
   same(clean(res[value]), { k0: 0, k2: 22 })            // pre-fix: k1 stuck at 200
@@ -25,42 +24,42 @@ spec({ op:'except', guarantee:'Selection', trigger:'edit', shape:'object', via:[
 })
 
 spec({ op:'except', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'rows in the source but not in the other source remain' }, () => {
-  const a = $({ 1: 'a', 2: 'b', 3: 'c' })
-  const b = $({ 2: 'b' })
+  const a: any = $({ 1: 'a', 2: 'b', 3: 'c' })
+  const b: any = $({ 2: 'b' })
   same(except(a, b)[value], { 1: 'a', 3: 'c' })
 })
 
 spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'object', asserts:'adding a row to the exclusion source drops it from output' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({})
-  const res = except(a, b)
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({})
+  const res: any = except(a, b)
   same(res[value], { 1: 'a', 2: 'b' })
   b[1] = 'a'
   same(res[value], { 2: 'b' })
 })
 
 spec({ op:'except', guarantee:'Selection', trigger:'remove', shape:'object', asserts:'removing a row from the exclusion re-admits it' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({ 1: 'a' })
-  const res = except(a, b)
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({ 1: 'a' })
+  const res: any = except(a, b)
   same(res[value], { 2: 'b' })
   delete b[1]
   same(res[value], { 1: 'a', 2: 'b' })
 })
 
 spec({ op:'except', guarantee:'Selection', trigger:'remove', shape:'object', asserts:'removing a row from the source drops it from output' }, () => {
-  const a = $({ 1: 'a', 2: 'b', 3: 'c' })
-  const b = $({ 1: 'a' })
-  const res = except(a, b)
+  const a: any = $({ 1: 'a', 2: 'b', 3: 'c' })
+  const b: any = $({ 1: 'a' })
+  const res: any = except(a, b)
   same(res[value], { 2: 'b', 3: 'c' })
   delete a[2]
   same(res[value], { 3: 'c' })
 })
 
 spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'object', asserts:'an insert into the source appears unless the exclusion has it' }, () => {
-  const a = $({ 1: 'a' })
-  const b = $({ 9: 'z' })
-  const res = except(a, b)
+  const a: any = $({ 1: 'a' })
+  const b: any = $({ 9: 'z' })
+  const res: any = except(a, b)
   same(res[value], { 1: 'a' })
   a[2] = 'b'
   same(res[value], { 1: 'a', 2: 'b' })
@@ -77,34 +76,34 @@ spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'object', ass
 // splices; an `other` echo of the same underlying delete is a no-op) + BI0A
 // (visibility decided from `other`'s carried membership) fix it. Locks the live
 // view across tail inserts (admitted + excluded) and shifting removes.
-const denseV = (vp) => (vp[value] || []).filter((r) => r !== undefined).map((r) => r.v)
+const denseV = (vp: any) => (vp[value] || []).filter((r: any) => r !== undefined).map((r: any) => r.v)
 spec({ op:'except', guarantee:'Alignment', trigger:'insert/remove', shape:'array', via:['BI0A','BR1A'], issue:'C12', chain:'filter→except', asserts:'with a derived exclusion, tail insert and shifting remove stay aligned' }, () => {
-  const s = $([{ v: 10 }, { v: 70 }, { v: 20 }, { v: 90 }, { v: 50 }])
+  const s: any = $([{ v: 10 }, { v: 70 }, { v: 20 }, { v: 90 }, { v: 50 }])
   // rows NOT in `other` (v > 60) ⇒ v ≤ 60 ⇒ {10,20,50}.
-  const res = except(s, filter(s, (r) => r.v > 60))
-  same(denseV(res).sort((a, b) => a - b), [10, 20, 50])
+  const res: any = except(s, filter(s, (r: any) => r.v > 60))
+  same(denseV(res).sort((a: any, b: any) => a - b), [10, 20, 50])
 
   // Tail insert ADMITTED (≤ 60, not in other).
   s.insert({ v: 40 })
-  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+  same(denseV(res).sort((a: any, b: any) => a - b), [10, 20, 40, 50])
 
   // Tail insert EXCLUDED (> 60, in other) — must NOT appear.
   s.insert({ v: 80 })
-  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+  same(denseV(res).sort((a: any, b: any) => a - b), [10, 20, 40, 50])
 
   // Remove an EXCLUDED middle row (index 3 = {v:90}); later indices shift down —
   // no visible survivor may be lost (the seed-42 desync).
   delete s[3]
-  same(denseV(res).sort((a, b) => a - b), [10, 20, 40, 50])
+  same(denseV(res).sort((a: any, b: any) => a - b), [10, 20, 40, 50])
 
   // Remove a VISIBLE middle row (index 2 = {v:20}); pure shift.
   delete s[2]
-  same(denseV(res).sort((a, b) => a - b), [10, 40, 50])
+  same(denseV(res).sort((a: any, b: any) => a - b), [10, 40, 50])
 
   // In-place edit pushing a survivor INTO the exclusion still works post-shift.
   // s = [{10},{70},{50},{40},{80}]; bump {10} above 60.
   s[0].v = 75
-  same(denseV(res).sort((a, b) => a - b), [40, 50])
+  same(denseV(res).sort((a: any, b: any) => a - b), [40, 50])
 })
 
 // Regression (F / #23): except decided a tail insert's admission SOLELY on
@@ -113,9 +112,9 @@ spec({ op:'except', guarantee:'Alignment', trigger:'insert/remove', shape:'array
 // out-of-range insert, so an admissible row (in p, not in other) was dropped.
 // except now also admits on the PRIMARY echo, reading other.value[at].
 spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'array', issue:'#23', chain:'between→except', asserts:'a tail insert outside a between exclusion is admitted' }, () => {
-  const s = $([{ v: 10 }, { v: 70 }, { v: 30 }])
-  const e = except(s, between(s, 'v', [60, 100]))
-  const dense = (a) => a.filter((x) => x !== undefined).map((r) => r.v)
+  const s: any = $([{ v: 10 }, { v: 70 }, { v: 30 }])
+  const e: any = except(s, between(s, 'v', [60, 100]))
+  const dense = (a: any) => a.filter((x: any) => x !== undefined).map((r: any) => r.v)
   same(dense(e[value]), [10, 30])     // 70 is in [60,100] -> excluded from except
   s.insert({ v: 20 })                 // not in [60,100] -> must appear
   same(dense(e[value]), [10, 30, 20])
@@ -126,10 +125,10 @@ spec({ op:'except', guarantee:'Selection', trigger:'insert', shape:'array', issu
 // Like union, except implements NO matches() — each call is a fresh operator
 // view (no dedup). The deliberate counterpart to intersect's dedup spec.
 spec({ op:'except', guarantee:'Identity', trigger:'dedup-call', shape:'object', asserts:'identical args return a distinct operator view each call (no dedup)' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({ 1: 'a' })
-  const r1 = except(a, b)
-  const r2 = except(a, b)
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({ 1: 'a' })
+  const r1: any = except(a, b)
+  const r2: any = except(a, b)
   ok(r1[view] !== r2[view])
 })
 
@@ -138,10 +137,10 @@ spec({ op:'except', guarantee:'Identity', trigger:'dedup-call', shape:'object', 
 // exclusion drops it as a remove. Locks the verb mapping, the `at`/key path, and
 // that an unrelated exclusion-source edit emits nothing for an already-excluded key.
 spec({ op:'except', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', via:['BI0','BR1'], emits:['BI0','BR1'], asserts:'an exclusion remove re-admits as an insert; an exclusion add drops as a remove' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({ 1: 'a' })
-  const res = except(a, b)
-  const changes = res.connect([])
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({ 1: 'a' })
+  const res: any = except(a, b)
+  const changes: any[] = res.connect([])
   same(res[value], { 2: 'b' })         // 1 excluded by b
   delete b[1]                          // 1 leaves the exclusion → re-admitted as an insert
   b[2] = 'b'                           // 2 enters the exclusion → removed
@@ -157,10 +156,10 @@ spec({ op:'except', guarantee:'Fidelity', trigger:'insert/remove', shape:'object
 // every primary row; emptying the PRIMARY collapses the output to {}. Both
 // re-derive wholesale (a single update each) rather than churning per-key.
 spec({ op:'except', guarantee:'Robustness', trigger:'remove', shape:'object', via:['XR0'], asserts:'clearing the exclusion re-admits all rows; clearing the primary collapses to {}' }, () => {
-  const a = $({ 1: 'a', 2: 'b' })
-  const b = $({ 1: 'a' })
-  const res = except(a, b)
-  const ch = res.connect([])
+  const a: any = $({ 1: 'a', 2: 'b' })
+  const b: any = $({ 1: 'a' })
+  const res: any = except(a, b)
+  const ch: any[] = res.connect([])
   same(res[value], { 2: 'b' })
   b[value] = {}                        // XR0 from the exclusion → re-admit all of a
   same(res[value], { 1: 'a', 2: 'b' })

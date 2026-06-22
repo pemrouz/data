@@ -1,9 +1,8 @@
-// @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { $, value, view } from './full.ts'
 import { spec } from './tests/spec.ts'
-const max = (a, b) => a > b ? a : b
-$.random = o => 1 + Object
+const max = (a: any, b: any) => a > b ? a : b
+$.random = (o: any) => 1 + Object
   .keys(o)
   .map(Number)
   .sort()
@@ -11,7 +10,7 @@ $.random = o => 1 + Object
 
 spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'scalar', asserts:'a scalar root update emits update records through the public API' }, () => {
     const res = $<number>(5)
-    const changes = res.connect([])
+    const changes: any[] = res.connect([])
 
     res[value] = 10
     res.update(20)
@@ -25,8 +24,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'scala
 })
 
 spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'scalar', asserts:'inserting into a scalar root grows it to indexed entries' }, () => {
-    const res = $(5)
-    const changes1 = res.connect([])
+    const res: any = $(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res[0].connect([])
     const changes3 = res[1].connect([])
     res.insert(10)
@@ -50,8 +49,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'scalar',
 })
 
 spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar', asserts:'removing the root value clears it' }, () => {
-    const res = $<any>(5)
-    const changes1 = res.connect([])
+    const res: any = $<any>(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     delete res[value]
     delete res[value]
@@ -66,8 +65,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar',
 })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a scalar-to-object replacement then a keyed edit emit the right records' }, () => {
-    const res = $<any>(5)
-    const changes1 = res.connect([])
+    const res: any = $<any>(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     res[value] = { a: 1 }
     res.a = 2
@@ -86,8 +85,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar',
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'inserting an object row exposes its nested child views' }, () => {
-    const res = $(5)
-    const changes1 = res.connect([])
+    const res: any = $(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res[0].connect([])
     const changes3 = res[0].a.connect([])
     res.insert({ a: 10 })
@@ -109,8 +108,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar',
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'removing an absent key is a no-op' }, () => {
-    const res = $(5)
-    const changes1 = res.connect([])
+    const res: any = $(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     delete res.a
     delete res.a
@@ -124,13 +123,13 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'scalar',
 
 
 spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array+object', asserts:'replacing an object or array diffs added, changed and removed keys' }, () => {
-    const obj = $({ a: 1, b: 2 })
-    const arr = $([1, 2])
-    const changes1 = obj.connect([])
+    const obj: any = $({ a: 1, b: 2 })
+    const arr: any = $([1, 2])
+    const changes1: any[] = obj.connect([])
     const changes2 = obj.a.connect([])
     const changes3 = obj.b.connect([])
     const changes4 = obj.c.connect([])
-    const changes5 = arr.connect([])
+    const changes5: any[] = arr.connect([])
     const changes6 = arr[0].connect([])
     const changes7 = arr[1].connect([])
     const changes8 = arr[2].connect([])
@@ -179,8 +178,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'inserting an object row at the next key exposes nested views' }, () => {
-    const res = $({ 10: 'a' })
-    const changes1 = res.connect([])
+    const res: any = $({ 10: 'a' })
+    const changes1: any[] = res.connect([])
     const changes2 = res[11].connect([])
     const changes3 = res[11].b.connect([])
     res.insert({ b: 10 })
@@ -202,8 +201,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'removing a key emits a keyed remove' }, () => {
-    const res = $({ a: 1, b: 2 })
-    const changes1 = res.connect([])
+    const res: any = $({ a: 1, b: 2 })
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.b.connect([])
     const changes4 = res.C.connect([])
@@ -228,8 +227,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'object', asserts:'collapsing an object to a scalar removes its children' }, () => {
-    const res = $({ a: 1 })
-    const changes1 = res.connect([])
+    const res: any = $({ a: 1 })
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     res[value] = 2
     same(changes1, [
@@ -245,10 +244,10 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'array+object', asserts:'appending a scalar to an object keys by next index and to an array by length' }, () => {
-    const obj = $({ 10: 'a' })
-    const arr = $(['a'])
-    const changes1 = obj.connect([])
-    const changes2 = arr.connect([])
+    const obj: any = $({ 10: 'a' })
+    const arr: any = $(['a'])
+    const changes1: any[] = obj.connect([])
+    const changes2: any[] = arr.connect([])
     const changes3 = obj[11].connect([])
     const changes4 = arr[1].connect([])
     obj.insert('b')
@@ -276,10 +275,10 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'array+object', asserts:'removing the only key or index empties the collection' }, () => {
-    const obj = $({ a: 1 })
-    const arr = $([1])
-    const changes1 = obj.connect([])
-    const changes2 = arr.connect([])
+    const obj: any = $({ a: 1 })
+    const arr: any = $([1])
+    const changes1: any[] = obj.connect([])
+    const changes2: any[] = arr.connect([])
     const changes3 = obj.a.connect([])
     const changes4 = arr[0].connect([])
     delete obj.a
@@ -307,8 +306,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a keyed write on a scalar root vivifies an object' }, () => {
-    const res = $(5)
-    const changes1 = res.connect([])
+    const res: any = $(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     res.a = 10
     same(changes1, [
@@ -324,8 +323,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'an insert through a vivified child key' }, () => {
-    const res = $(5)
-    const changes1 = res.connect([])
+    const res: any = $(5)
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a[0].connect([])
     res.a.insert(10)
@@ -347,8 +346,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a keyed write on an empty object inserts the key' }, () => {
-    const res = $({})
-    const changes1 = res.connect([])
+    const res: any = $({})
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     res.a = 10
     same(changes1, [
@@ -364,8 +363,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'an insert through a child key on an object' }, () => {
-    const res = $({})
-    const changes1 = res.connect([])
+    const res: any = $({})
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a[0].connect([])
     res.a.insert(10)
@@ -387,8 +386,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a deep keyed write vivifies the intermediate path' }, () => {
-    const res = $()
-    const changes1 = res.connect([])
+    const res: any = ($ as any)()
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a.b.connect([])
     res.a.b = 10
@@ -414,8 +413,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', asserts:'a deep insert vivifies the intermediate path' }, () => {
-    const res = $()
-    const changes1 = res.connect([])
+    const res: any = ($ as any)()
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a.b.connect([])
     const changes4 = res.a.b[0].connect([])
@@ -454,8 +453,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Fidelity', trigger:'remove', shape:'object', asserts:'a deep remove leaves the intermediate path intact' }, () => {
-    const res = $({ a: { b: 1 }})
-    const changes1 = res.connect([])
+    const res: any = $({ a: { b: 1 }})
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a.b.connect([])
     delete res.a.c
@@ -482,8 +481,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
     // change and a connect([]) sink on the same child records the value
     // stream. (This test was assertion-free console.log debris — it passed
     // no matter what; it now asserts the behaviour it drives.)
-    const states = []
-    const items = $({
+    const states: any[] = []
+    const items: any = $({
       0: { completed: false, title: 'foo' },
       1: { completed: true, title: 'boo' },
     })
@@ -506,8 +505,8 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Alignment', trigger:'insert/remove', shape:'array', asserts:'array inserts and removes shift child views in lockstep' }, () => {
-    const res = $({ a: [1] })
-    const changes1 = res.connect([])
+    const res: any = $({ a: [1] })
+    const changes1: any[] = res.connect([])
     const changes2 = res.a.connect([])
     const changes3 = res.a[0].connect([])
     const changes4 = res.a[1].connect([])
@@ -551,12 +550,12 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Propagation', trigger:'re-point', shape:'object', asserts:'a linked view re-points and mirrors the new source' }, () => {
-    const c = $({ a: 1 })
-    const d = $({ b: 2 })
-    const e = $(c)
-    const changes1 = c.connect([])
-    const changes2 = d.connect([])
-    const changes3 = e.connect([])
+    const c: any = $({ a: 1 })
+    const d: any = $({ b: 2 })
+    const e: any = $(c)
+    const changes1: any[] = c.connect([])
+    const changes2: any[] = d.connect([])
+    const changes3: any[] = e.connect([])
     same(c[value], { a: 1 })
     same(d[value], { b: 2 })
     same(e[value], { a: 1 })
@@ -604,13 +603,13 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // views
   // --------------------------------------
   spec({ op:'integration', guarantee:'Fidelity', trigger:'edit', shape:'object', chain:'to', asserts:'to() at every depth re-derives on each change' }, async () => {
-    const res = $({ a: { b : 1 }})
-    const to1 = res.to(r => r.a.b * 10)
-    const to2 = res.a.to(a => a.b * 100)
-    const to3 = res.a.b.to(b => b * 1000)
-    const changes1 = to1.connect([])
-    const changes2 = to2.connect([])
-    const changes3 = to3.connect([])
+    const res: any = $({ a: { b : 1 }})
+    const to1 = res.to((r: any) => r.a.b * 10)
+    const to2 = res.a.to((a: any) => a.b * 100)
+    const to3 = res.a.b.to((b: any) => b * 1000)
+    const changes1: any[] = to1.connect([])
+    const changes2: any[] = to2.connect([])
+    const changes3: any[] = to3.connect([])
     res.a.b = 2
     res.a = { b: 3 }
     res[value] = { a: { b: 4 }}
@@ -639,13 +638,13 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
 
   // --------------------------------------
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', chain:'map', asserts:'map projects through the full mutation battery' }, async () => {
-    const res = $({
+    const res: any = $({
       0: { num: 1 },
       1: { num: 2 },
       2: { num: 3 },
     })
-    const mapped = res.map(d => d.num * 10)
-    const changes1 = mapped.connect([])
+    const mapped = res.map((d: any) => d.num * 10)
+    const changes1: any[] = mapped.connect([])
 
     // insert
     res[3] = { num: 4 } // I0
@@ -678,12 +677,12 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // --------------------------------------
 
   spec({ op:'integration', guarantee:'Reduction', trigger:'insert/remove', shape:'array+object', chain:'length', asserts:'length tracks inserts, updates and removes down to zero' }, () => {
-    const obj = $({ 10: 'a' })
-    const arr = $(['a'])
+    const obj: any = $({ 10: 'a' })
+    const arr: any = $(['a'])
     const count1 = obj.length()
     const count2 = arr.length()
-    const changes1 = count1.connect([])
-    const changes2 = count2.connect([])
+    const changes1: any[] = count1.connect([])
+    const changes2: any[] = count2.connect([])
     // insert
     obj.insert('b')
     arr.insert('b')
@@ -723,14 +722,14 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   // --------------------------------------
-  function filter(tx){
-    const res = $({
+  function filter(tx: any){
+    const res: any = $({
       10: { completed: true },
       20: { completed: false },
       30: { completed: true },
     })
     const filtered = tx(res)
-    const changes1 = filtered.connect([])
+    const changes1: any[] = filtered.connect([])
 
     // remove
     delete res[10].foo
@@ -780,35 +779,35 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   }
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the (key, value) filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter('completed', true))
+    filter((res: any) => res.filter('completed', true))
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the key-only filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter('completed'))
+    filter((res: any) => res.filter('completed'))
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the [key] filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter(['completed']))
+    filter((res: any) => res.filter(['completed']))
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the [key], undefined filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter(['completed'], undefined))
+    filter((res: any) => res.filter(['completed'], undefined))
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the function filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter(d => d.completed))
+    filter((res: any) => res.filter((d: any) => d.completed))
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'filter', asserts:'the {key: value} filter form tracks membership through the battery' }, () => {
-    filter(res => res.filter({ completed: true }))
+    filter((res: any) => res.filter({ completed: true }))
   })
 
   // --------------------------------------
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'object', chain:'intersect', asserts:'intersect tracks inserts, edits and removes over objects' }, () => {
-    const a = $({ 10: 'a', 20: 'b', 30: 'c' })
-    const b = $({ 10: 'a', 20: 'b' })
+    const a: any = $({ 10: 'a', 20: 'b', 30: 'c' })
+    const b: any = $({ 10: 'a', 20: 'b' })
     const res = a.intersect(b)
-    const changes1 = res.connect([])
+    const changes1: any[] = res.connect([])
     // insert
     b[30] = 'x'
     a[40] = 'y'
@@ -834,10 +833,10 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Selection', trigger:'insert/remove', shape:'array', chain:'intersect', asserts:'intersect tracks inserts, edits and removes over arrays' }, () => {
-    const a = $(['a', 'b', 'c'])
-    const b = $(['a', 'b'])
+    const a: any = $(['a', 'b', 'c'])
+    const b: any = $(['a', 'b'])
     const res = a.intersect(b)
-    const changes1 = res.connect([])
+    const changes1: any[] = res.connect([])
     // insert
     b[2] = 'x'
     a[3] = 'y'
@@ -864,7 +863,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
 
   // --------------------------------------
   spec({ op:'integration', guarantee:'Order', trigger:'insert/remove', shape:'object', chain:'za', via:['BMV1'], asserts:'za maintains a top-n window through inserts, edits and removes' }, () => {
-    const data = $({
+    const data: any = $({
       10: { fooo: 1, date: 1 },
       40: { fooo: 4, date: 4 },
       30: { fooo: 3, date: 3 },
@@ -872,7 +871,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
       50: { fooo: 5, date: 5 },
     })
     const res = data.za('date', 3)
-    const changes1 = res.connect([])
+    const changes1: any[] = res.connect([])
     const changes2 = res[0].connect([])
     const changes3 = res[1].connect([])
     const changes4 = res[2].connect([])
@@ -1097,7 +1096,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // Regression: `az` was registered to the same ZAColumnValue/ZANumberValue
   // as `za`, so `proxy.az(...)` silently produced descending order.
   spec({ op:'integration', guarantee:'Order', trigger:'construct', shape:'object', chain:'az', asserts:'az sorts ascending, not descending like za' }, () => {
-    const data = $({
+    const data: any = $({
       a: { v: 3 },
       b: { v: 1 },
       c: { v: 2 },
@@ -1111,7 +1110,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Order', trigger:'edit', shape:'object', chain:'az', asserts:'az tracks rank changes incrementally' }, () => {
-    const data = $({ a: 3, b: 1, c: 2, d: 5, e: 4 })
+    const data: any = $({ a: 3, b: 1, c: 2, d: 5, e: 4 })
     const asc = data.az(3)
     same(asc[value], [1, 2, 3])
     data.b = 99    // 1 leaves the window
@@ -1121,7 +1120,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'object', chain:'az/za', asserts:'az and za dedup independently despite the same (col, n)' }, () => {
-    const data = $({ a: { v: 3 }, b: { v: 1 }, c: { v: 2 } })
+    const data: any = $({ a: { v: 3 }, b: { v: 1 }, c: { v: 2 } })
     const asc1 = data.az('v', 2)
     const asc2 = data.az('v', 2)
     const desc = data.za('v', 2)
@@ -1134,14 +1133,14 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // --------------------------------------
   // between
   spec({ op:'integration', guarantee:'Selection', trigger:'bound-move', shape:'object', chain:'between', via:['reactive-bound'], asserts:'between with reactive bounds tracks rows crossing the extent' }, async () => {
-    const all = $({
+    const all: any = $({
       1: { num: 90 }
     , 2: { num: 10 }
     , 3: { num: 50 }
     })
-    const filters = $({ lo: 20, hi: 80 })
+    const filters: any = $({ lo: 20, hi: 80 })
     const filtered = all.between('num', [filters.lo, filters.hi])
-    const changes1 = filtered.connect([])
+    const changes1: any[] = filtered.connect([])
     filters.lo = 5
     filters.hi = 6
     filters.hi = 100
@@ -1173,15 +1172,15 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // --------------------------------------
   // length fn
   spec({ op:'integration', guarantee:'Reduction', trigger:'insert/remove', shape:'object', chain:'length', asserts:'length(fn) bucket counts track the mutation battery' }, () => {
-    const res = $({
+    const res: any = $({
       1: { num: 1.1 }
     , 2: { num: 2.2 }
     , 3: { num: 1.9 }
     , 4: { num: 2.6 }
     , 5: { num: 1.7 }
     })
-    const lengths = res.length(d => Math.floor(d.num))
-    const changes1 = lengths.connect([])
+    const lengths = res.length((d: any) => Math.floor(d.num))
+    const changes1: any[] = lengths.connect([])
 
     res.insert({ num: 1.8 })
     res[5] = { num: 1.8 } // same group
@@ -1206,15 +1205,15 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // --------------------------------------
   // group
   spec({ op:'integration', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', chain:'group', asserts:'group emits the right per-bucket change records through the battery' }, () => {
-    const res = $({
+    const res: any = $({
       1: { num: 1.1 }
     , 2: { num: 2.2 }
     , 3: { num: 1.9 }
     , 4: { num: 2.6 }
     , 5: { num: 1.7 }
     })
-    const grouped = res.group(d => Math.floor(d.num))
-    const changes1 = grouped.connect([])
+    const grouped = res.group((d: any) => Math.floor(d.num))
+    const changes1: any[] = grouped.connect([])
     res.insert({ num: 1.8 }) // insert existing group
     res.insert({ num: 5.9 }) // insert new group
     res[5] = { num: 1.8 }    // move to same group
@@ -1245,15 +1244,15 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   // test('group (arr)', () => {
-  //   const res = $([
+  //   const res: any = $([
   //     { num: 1.1 },
   //     { num: 2.2 },
   //     { num: 1.9 },
   //     { num: 2.6 },
   //     { num: 1.7 },
   //   ])
-  //   const grouped = res.group(d => Math.floor(d.num))
-  //   const changes1 = grouped.connect([])
+  //   const grouped = res.group((d: any) => Math.floor(d.num))
+  //   const changes1: any[] = grouped.connect([])
   //   res.insert({ num: 1.8 }) // insert at end
   //   res.insert({ num: 1.0 }, 2) // insert in middle
   //   // res.insert({ num: 5.9 }) // insert new group
@@ -1294,7 +1293,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // // --------------------------------------
   // // limit
   // test('limit', () => {
-  //   const res = $({
+  //   const res: any = $({
   //     1: 2.1
   //   , 2: 1.1
   //   // , 3: undefined
@@ -1303,7 +1302,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   //   , 6: 0.1
   //   })
   //   const limited = res.limit(3)
-  //   const changes1 = limited.connect([])
+  //   const changes1: any[] = limited.connect([])
 
   //   //// res[2] = undefined // update undefined before n
   //   //// res[5] = undefined // update undefined after n
@@ -1358,11 +1357,11 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   // --------------------------------------
   // iterator
   spec({ op:'integration', guarantee:'Propagation', trigger:'insert/remove', shape:'array', asserts:'destructured child views track index inserts and removes' }, async () => {
-    const res = $([1, 2])
+    const res: any = $([1, 2])
     const [one, two, three] = res
-    const changes1 = one.connect([])
-    const changes2 = two.connect([])
-    const changes3 = three.connect([])
+    const changes1: any[] = one.connect([])
+    const changes2: any[] = two.connect([])
+    const changes3: any[] = three.connect([])
     same(one[value], 1)
     same(two[value], 2)
     same(three[value], undefined)
@@ -1398,15 +1397,15 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
   })
 
   // test('iterator - for const', async () => {
-  //   const arr = $([1, 2])
-  //   const arr_values = []
+  //   const arr: any = $([1, 2])
+  //   const arr_values: any[] = []
   //   for (const value of arr) {
   //     arr_values.push(+value)
   //   }
   //   same(arr_values, [1, 2])
 
-  //   const obj = $({ a: 1, b: 2 })
-  //   const obj_values = []
+  //   const obj: any = $({ a: 1, b: 2 })
+  //   const obj_values: any[] = []
   //   for (const value of obj) {
   //     obj_values.push(+value)
   //   }
@@ -1418,7 +1417,7 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'overwrite', shape:'array
 // (or a data key called as a method) is diagnosable.
 spec({ op:'integration', guarantee:'Robustness', asserts:'an unknown operator on a populated table lists registered names, not an empty-table claim' }, () => {
   let e
-  try { $({}).bogus() } catch (err) { e = err }
+  try { ($({}) as any).bogus() } catch (err: any) { e = err }
   if (!/Unknown operator 'bogus'/.test(e?.message)) throw e ?? new Error('no throw')
   if (/dispatch table is empty/.test(e.message)) throw new Error('wrong diagnosis: ' + e.message)
   if (!/filter/.test(e.message)) throw new Error('expected registered-name list: ' + e.message)
@@ -1429,27 +1428,27 @@ spec({ op:'integration', guarantee:'Robustness', asserts:'an unknown operator on
 // the refill was emitted as an insert (BI0A), growing a phantom row: filter/map
 // one longer than the source, sort with a ghost + corrupted order.
 spec({ op:'integration', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'C1', chain:'filter/map/za', asserts:'an in-bounds array hole-fill keeps downstream filter, map and sort aligned' }, () => {
-  const s = $([1, 2, 3, 4])
-  const f = s.filter((n) => n !== undefined && n > 0)
-  const m = s.map((n) => n)
+  const s: any = $([1, 2, 3, 4])
+  const f = s.filter((n: any) => n !== undefined && n > 0)
+  const m = s.map((n: any) => n)
   s[2] = undefined
   s[2] = 9
-  same(f[value].filter((x) => x !== undefined), [1, 2, 9, 4])
-  same(m[value].filter((x) => x !== undefined), [1, 2, 9, 4])
+  same(f[value].filter((x: any) => x !== undefined), [1, 2, 9, 4])
+  same(m[value].filter((x: any) => x !== undefined), [1, 2, 9, 4])
   same(f[value].length, 4) // no phantom 5th slot
   same(m[value].length, 4)
 
-  const z = $([{ v: 5 }, { v: 1 }, { v: 7 }, { v: 100 }])
+  const z: any = $([{ v: 5 }, { v: 1 }, { v: 7 }, { v: 100 }])
   const za = z.za('v')
   z[2] = undefined
   z[2] = { v: 9 }
-  same(za[value].filter((x) => x !== undefined).map((r) => r.v), [100, 9, 5, 1])
+  same(za[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [100, 9, 5, 1])
 
   // out-of-bounds append still flows to downstream filter as a tail insert
-  const a = $([1, 2])
-  const af = a.filter((n) => n > 0)
+  const a: any = $([1, 2])
+  const af = a.filter((n: any) => n > 0)
   a[2] = 3
-  same(af[value].filter((x) => x !== undefined), [1, 2, 3])
+  same(af[value].filter((x: any) => x !== undefined), [1, 2, 3])
 })
 
 // Regression (C2): Value.BI0's object branch dedup'd the backing write (skip
@@ -1459,10 +1458,10 @@ spec({ op:'integration', guarantee:'Alignment', trigger:'overwrite', shape:'arra
 // trust the delta stream, so length()/sum() drifted permanently. BI0 now
 // filters no-ops and splits existing-key overwrites into BU1, like BU1 does.
 spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object', issue:'C2', chain:'length/sum', asserts:'insert dedup splits an existing-key overwrite into an update so aggregates do not drift' }, () => {
-  const s = $({})
+  const s: any = $({})
   const len = s.length()
   const sum = s.sum()
-  const ev = s.connect([])
+  const ev: any[] = s.connect([])
   s.insert(7, 'k')
   s.insert(7, 'k') // no-op: same value
   s.insert(7, 'k') // no-op
@@ -1486,9 +1485,9 @@ spec({ op:'integration', guarantee:'Fidelity', trigger:'insert', shape:'object',
 // aggregates ended on the stale value and never recovered. Deferral fixes the
 // order: the outer cascade completes, then the queued write runs.
 spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object', chain:'sum', asserts:'a deferred re-entrant write keeps running-total aggregates correct' }, () => {
-  const src = $({ a: { v: 1 }, b: { v: 2 } })
+  const src: any = $({ a: { v: 1 }, b: { v: 2 } })
   let done = false
-  src.connect({}, (c) => {
+  src.connect({}, (c: any) => {
     if (!done && c.key[0] === 'b' && c.value?.v === 5) { done = true; src.b = { v: 100 } }
   })
   const s = src.sum('v')
@@ -1505,13 +1504,13 @@ spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object',
 // Per-sink errors are now isolated (every sink still sees the event) and the
 // first is rethrown to the mutator once the cascade settles.
 spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object', chain:'sum/avg', asserts:'a throwing sink does not desync aggregates registered after it' }, () => {
-  const src = $({ a: { v: 1 }, b: { v: 2 } })
+  const src: any = $({ a: { v: 1 }, b: { v: 2 } })
   const s1 = src.sum('v')      // before the thrower
   let arm = true
-  src.connect({}, (c) => { if (arm && c.key[0] === 'b') throw new Error('boom') })
+  src.connect({}, (c: any) => { if (arm && c.key[0] === 'b') throw new Error('boom') })
   const s2 = src.avg('v')      // after the thrower
   let threw
-  try { src.b = { v: 10 } } catch (e) { threw = e }
+  try { src.b = { v: 10 } } catch (e: any) { threw = e }
   ok(threw && /boom/.test(threw.message), threw?.message) // error reached the mutator
   same(s1[value], 11)          // 1 + 10
   same(s2[value], 5.5)         // (1 + 10) / 2 — was stuck at 1.5
@@ -1528,23 +1527,23 @@ spec({ op:'integration', guarantee:'Robustness', trigger:'edit', shape:'object',
 // object.
 spec({ op:'integration', guarantee:'Robustness', trigger:'insert', shape:'array', issue:'D1', chain:'filter→filter', asserts:'row operators survive excluded inserts and a primitive-to-object upgrade' }, () => {
   // [9] chained filters, insert of a row both exclude — no crash, lengths agree
-  const src = $([{ v: 30 }, { v: 40 }])
-  const chain = src.filter((r) => r.v > 10).filter((r) => r.v > 20)
+  const src: any = $([{ v: 30 }, { v: 40 }])
+  const chain = src.filter((r: any) => r.v > 10).filter((r: any) => r.v > 20)
   const lenBefore = src.length()
   src.insert({ v: 5 })
-  same(chain[value].filter((x) => x !== undefined).map((r) => r.v), [30, 40])
+  same(chain[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [30, 40])
   same(lenBefore[value], 3) // a length() sees all 3 rows; the chain didn't abort it
 
   // filter().map(), excluded insert — map's process is unguarded but never sees undefined
-  const s2 = $([{ v: 30 }])
-  const m = s2.filter((r) => r.v > 20).map((r) => r.v)
+  const s2: any = $([{ v: 30 }])
+  const m = s2.filter((r: any) => r.v > 20).map((r: any) => r.v)
   s2.insert({ v: 5 })
-  same(m[value].filter((x) => x !== undefined), [30])
+  same(m[value].filter((x: any) => x !== undefined), [30])
 
   // [12] operator over a primitive source, then upgraded to an object by a write
-  const p = $(5)
-  const f = p.filter((v) => v > 0)
-  const log = p.connect([])
+  const p: any = $(5)
+  const f = p.filter((v: any) => v > 0)
+  const log: any[] = p.connect([])
   p.foo = 1
   same(p[value], { foo: 1 })
   same(f[value], { foo: 1 })
@@ -1560,25 +1559,25 @@ spec({ op:'integration', guarantee:'Robustness', trigger:'insert', shape:'array'
 // of a brushed sparse producer (late construction).
 spec({ op:'integration', guarantee:'Alignment', trigger:'insert', shape:'array', issue:'C13', chain:'filter→map/az', asserts:'a row operator mirrors source length so tail-insert chains stay aligned' }, () => {
   // filter->map with trailing-excluded rows + tail insert (was a crash)
-  const s = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
-  const m = s.filter((r) => r.v >= 50).map((r) => r.v)
+  const s: any = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
+  const m = s.filter((r: any) => r.v >= 50).map((r: any) => r.v)
   s.insert({ v: 80 })
-  same(m[value].filter((x) => x !== undefined), [60, 70, 80])
+  same(m[value].filter((x: any) => x !== undefined), [60, 70, 80])
 
   // filter->az with the same shape (was [80,60,70])
-  const s2 = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
-  const az = s2.filter((r) => r.v >= 50).az('v')
+  const s2: any = $([{ v: 60 }, { v: 70 }, { v: 10 }, { v: 20 }])
+  const az = s2.filter((r: any) => r.v >= 50).az('v')
   s2.insert({ v: 80 })
-  same(az[value].filter((x) => x !== undefined).map((r) => r.v), [60, 70, 80])
+  same(az[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [60, 70, 80])
 
   // late filter constructed over an ALREADY-brushed between (explicit-undefined
   // holes) — was a construction-time crash
-  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }, { v: 40 }, { v: 50 }])
-  const lo = $(0), hi = $(100)
+  const src: any = $([{ v: 10 }, { v: 20 }, { v: 30 }, { v: 40 }, { v: 50 }])
+  const lo: any = $(0), hi = $(100)
   const ranged = src.between('v', [lo, hi])
   lo[value] = 25; hi[value] = 45
-  const late = ranged.filter((r) => r.v > 25)
-  same(late[value].filter((x) => x !== undefined).map((r) => r.v), [30, 40])
+  const late = ranged.filter((r: any) => r.v > 25)
+  same(late[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [30, 40])
 })
 
 // Regression (E4 / #17): matches() compared raw call args against
@@ -1588,8 +1587,8 @@ spec({ op:'integration', guarantee:'Alignment', trigger:'insert', shape:'array',
 // is always false) never deduped — every call piled up a fresh operator. View
 // identity (the `view` symbol) is the dedup signal.
 spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'array', issue:'E4', chain:'za/az/top', asserts:'all za/az/top forms reuse the cached view, distinct ones stay separate' }, () => {
-  const src = $([{ v: 1 }, { v: 2 }])
-  const v = (p) => p[view]
+  const src: any = $([{ v: 1 }, { v: 2 }])
+  const v = (p: any) => p[view]
   ok(v(src.za('v')) === v(src.za('v')), "za('col')")
   ok(v(src.za('v', 2)) === v(src.za('v', 2)), "za('col', n)")
   ok(v(src.top(2)) === v(src.top(2)), 'top(n)')
@@ -1608,12 +1607,12 @@ spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'arra
 // and identical calls piled up live operators. matches() now compares the
 // underlying View identity.
 spec({ op:'integration', guarantee:'Identity', trigger:'dedup-call', shape:'array', issue:'F', chain:'between', via:['reactive-bound'], asserts:'between dedups a reactive single-VP extent by underlying view identity' }, () => {
-  const s = $([{ v: 10 }, { v: 20 }])
-  const ext = $([0, 100])
+  const s: any = $([{ v: 10 }, { v: 20 }])
+  const ext: any = $([0, 100])
   ok(s.between('v', ext)[view] === s.between('v', ext)[view], 'single-VP extent')
   ok(s.between('v', [0, 50])[view] === s.between('v', [0, 50])[view], 'plain tuple')
   // distinct bound sources / values must not collapse
-  const ext2 = $([0, 100])
+  const ext2: any = $([0, 100])
   ok(s.between('v', ext)[view] !== s.between('v', ext2)[view], 'different extent proxies')
   ok(s.between('v', [0, 50])[view] !== s.between('v', [0, 60])[view], 'different plain bounds')
 })

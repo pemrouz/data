@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import '../../full.ts'      // registers the Operators dispatch (for the filter→length chain test)
@@ -14,8 +13,8 @@ import { filter } from './index.ts'
 // the hole POSITIONS directly — the differential oracle densifies before
 // comparing, so it would miss a positional regression.
 spec({ op:'filter', guarantee:'Selection', trigger:'construct/edit', shape:'array', via:['BH1','BF0'], issue:'C13', asserts:'passing rows keep their source index; excluded slots are holes, including a trailing one' }, () => {
-  const src = $([{ v: 10 }, { v: 30 }, { v: 40 }, { v: 5 }])
-  const f = filter(src, r => r.v >= 30)
+  const src: any = $([{ v: 10 }, { v: 30 }, { v: 40 }, { v: 5 }])
+  const f: any = filter(src, (r: any) => r.v >= 30)
   same(f[value].length, 4)             // padded to source length
   same(1 in f[value], true); same(f[value][1].v, 30)
   same(2 in f[value], true); same(f[value][2].v, 40)
@@ -32,8 +31,8 @@ spec({ op:'filter', guarantee:'Selection', trigger:'construct/edit', shape:'arra
   same(2 in f[value], true); same(f[value][2].v, 40)
 })
 
-function filterTest(tx) {
-  const res = $({
+function filterTest(tx: any) {
+  const res: any = $({
     10: { completed: true },
     20: { completed: false },
     30: { completed: true },
@@ -73,23 +72,23 @@ function filterTest(tx) {
 }
 
 spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the function predicate form tracks inserts, edits and removes' }, () => {
-  filterTest(res => filter(res, d => d.completed))
+  filterTest((res: any) => filter(res, (d: any) => d.completed))
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the (key, value) form tracks inserts, edits and removes' }, () => {
-  filterTest(res => filter(res, 'completed', true))
+  filterTest((res: any) => filter(res, 'completed', true))
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the key-only truthy form tracks inserts, edits and removes' }, () => {
-  filterTest(res => filter(res, 'completed'))
+  filterTest((res: any) => filter(res, 'completed'))
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the [key] array form tracks inserts, edits and removes' }, () => {
-  filterTest(res => filter(res, ['completed']))
+  filterTest((res: any) => filter(res, ['completed']))
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'the {key: value} object form tracks inserts, edits and removes' }, () => {
-  filterTest(res => filter(res, { completed: true }))
+  filterTest((res: any) => filter(res, { completed: true }))
 })
 
 // Regression: array-source delete must splice the filter's view (not just
@@ -97,13 +96,13 @@ spec({ op:'filter', guarantee:'Selection', trigger:'insert/remove', shape:'objec
 // the source. Subsequent BU2 events on a post-shift row would then read a
 // hole, classify as a fresh insert, and double-count downstream.
 spec({ op:'filter', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BR1'], asserts:'an array delete splices the view so post-shift edits hit the right slot' }, () => {
-  const data = $([
+  const data: any = $([
     { keep: true, n: 1 },
     { keep: false, n: 2 },
     { keep: true, n: 3 },
     { keep: true, n: 4 },
   ])
-  const kept = filter(data, 'keep', true)
+  const kept: any = filter(data, 'keep', true)
   same(kept[value], [
     { keep: true, n: 1 }, , { keep: true, n: 3 }, { keep: true, n: 4 },
   ])
@@ -127,13 +126,13 @@ spec({ op:'filter', guarantee:'Alignment', trigger:'remove', shape:'array', via:
 // insert-at-position through BI0A; without the splice-aware override the
 // displaced surviving row is misclassified as an update and lost.
 spec({ op:'filter', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], issue:'C2', asserts:'a mid-array positional insert keeps the displaced row' }, () => {
-  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
-  const f = filter(src, (r) => r.v >= 15)
-  same(f[value].filter((x) => x !== undefined), [{ v: 20 }, { v: 30 }])
+  const src: any = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const f: any = filter(src, (r: any) => r.v >= 15)
+  same(f[value].filter((x: any) => x !== undefined), [{ v: 20 }, { v: 30 }])
   ;(src as any).insert({ v: 99 }, 1)        // passes the predicate, splices at 1
-  same(f[value].filter((x) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
+  same(f[value].filter((x: any) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
   ;(src as any).insert({ v: 5 }, 0)         // fails the predicate, splices at 0
-  same(f[value].filter((x) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
+  same(f[value].filter((x: any) => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
 })
 
 // Regression: filter(['path','seg'], v) used to INFINITE-LOOP on any row whose
@@ -142,13 +141,13 @@ spec({ op:'filter', guarantee:'Alignment', trigger:'insert', shape:'array', via:
 // missing an intermediate segment (ordinary data) froze the process at 100% cpu
 // with no error, at construction or inside any later cascade.
 spec({ op:'filter', guarantee:'Robustness', trigger:'construct', shape:'object', via:['nested-path'], asserts:'the nested-path form terminates on a null intermediate segment' }, () => {
-  const res = $({
+  const res: any = $({
     a: { x: { y: 1 } },   // full path present — kept
     b: { g: 2 },          // x missing — must classify as excluded, not hang
     c: { x: null },       // null intermediate — same
     d: null,              // null row — same
   })
-  const filtered = filter(res, ['x', 'y'], 1)
+  const filtered: any = filter(res, ['x', 'y'], 1)
   same(filtered[value], { a: { x: { y: 1 } } })
   res.e = { x: { y: 1 } }                  // mutation cascade walks the path too
   same(filtered[value], { a: { x: { y: 1 } }, e: { x: { y: 1 } } })
@@ -164,9 +163,9 @@ spec({ op:'filter', guarantee:'Robustness', trigger:'construct', shape:'object',
 // hands undefined slots through — so both forms threw TypeError mid-cascade
 // while the function / object / nested-path forms (all guarded) survived.
 spec({ op:'filter', guarantee:'Robustness', trigger:'edit', shape:'object', via:['BU1'], asserts:'an undefined row is a leave, not a crash, for the string forms' }, () => {
-  const src = $({ a: { on: 1 }, b: { on: 0 } })
-  const truthy = filter(src, 'on')
-  const eq = filter(src, 'on', 1)
+  const src: any = $({ a: { on: 1 }, b: { on: 0 } })
+  const truthy: any = filter(src, 'on')
+  const eq: any = filter(src, 'on', 1)
   same(truthy[value], { a: { on: 1 } })
   same(eq[value], { a: { on: 1 } })
   src.a = undefined                 // BU1 [a, undefined] — a leave
@@ -183,8 +182,8 @@ spec({ op:'filter', guarantee:'Robustness', trigger:'edit', shape:'object', via:
 // array-aware sinks' positions aligned, but a record sink must not report a
 // remove for a row that was never in the view. A genuine remove still fires.
 spec({ op:'filter', guarantee:'Fidelity', trigger:'remove', shape:'array', issue:'D3', asserts:'deleting an excluded array row emits no phantom remove record' }, () => {
-  const src = $([{ v: 30 }, { v: 5 }, { v: 40 }])
-  const f = filter(src, (r) => r.v > 10)
+  const src: any = $([{ v: 30 }, { v: 5 }, { v: 40 }])
+  const f: any = filter(src, (r: any) => r.v > 10)
   const log = f.connect([])
   delete src[1]                       // {v:5} was excluded — no record
   same(log.slice(1), [])
@@ -199,9 +198,9 @@ spec({ op:'filter', guarantee:'Fidelity', trigger:'remove', shape:'array', issue
 // row can move in/out on an equality flip), so the change stream is coarse
 // `update` records. A plain literal value is captured once, as before.
 spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'array', via:'reactive-value', asserts:"filter('key', $(x)) re-selects when the bound value changes" }, () => {
-  const src = $([{ foo: 5, n: 'a' }, { foo: 7, n: 'b' }, { foo: 5, n: 'c' }])
-  const x = $(5)
-  const f = filter(src, 'foo', x)
+  const src: any = $([{ foo: 5, n: 'a' }, { foo: 7, n: 'b' }, { foo: 5, n: 'c' }])
+  const x: any = $(5)
+  const f: any = filter(src, 'foo', x)
   same(f[value].filter(Boolean), [{ foo: 5, n: 'a' }, { foo: 5, n: 'c' }])
   x[value] = 7                        // re-select on the new value
   same(f[value].filter(Boolean), [{ foo: 7, n: 'b' }])
@@ -210,31 +209,31 @@ spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'array', 
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'object', via:'reactive-value', asserts:"filter(['path'], $(x)) tracks a reactive nested-path value" }, () => {
-  const src = $({ a: { m: { g: 'A' } }, b: { m: { g: 'B' } }, c: { m: { g: 'A' } } })
-  const x = $('A')
-  const f = filter(src, ['m', 'g'], x)
+  const src: any = $({ a: { m: { g: 'A' } }, b: { m: { g: 'B' } }, c: { m: { g: 'A' } } })
+  const x: any = $('A')
+  const f: any = filter(src, ['m', 'g'], x)
   same(f[value], { a: { m: { g: 'A' } }, c: { m: { g: 'A' } } })
   x[value] = 'B'
   same(f[value], { b: { m: { g: 'B' } } })
 })
 
 spec({ op:'filter', guarantee:'Selection', trigger:'value-move', shape:'object', via:'reactive-value', asserts:'filter({k: $(x), static: v}) tracks the reactive leaf while honouring static leaves' }, () => {
-  const src = $({
+  const src: any = $({
     a: { foo: 5, active: true },
     b: { foo: 7, active: true },
     c: { foo: 5, active: false },
   })
-  const x = $(5)
-  const f = filter(src, { foo: x, active: true })
+  const x: any = $(5)
+  const f: any = filter(src, { foo: x, active: true })
   same(f[value], { a: { foo: 5, active: true } })   // c excluded by static active:false
   x[value] = 7
   same(f[value], { b: { foo: 7, active: true } })
 })
 
 spec({ op:'filter', guarantee:'Fidelity', trigger:'value-move', shape:'object', via:'reactive-value', emits:['update'], asserts:'construction seeds one snapshot (no double-fire); each value move re-emits the whole view' }, () => {
-  const src = $({ a: { foo: 5 }, b: { foo: 7 }, c: { foo: 5 } })
-  const x = $(5)
-  const f = filter(src, 'foo', x)
+  const src: any = $({ a: { foo: 5 }, b: { foo: 7 }, c: { foo: 5 } })
+  const x: any = $(5)
+  const f: any = filter(src, 'foo', x)
   const ch = f.connect([])
   same(ch, [{ type: 'update', key: [], value: { a: { foo: 5 }, c: { foo: 5 } } }])
   x[value] = 7
@@ -245,9 +244,9 @@ spec({ op:'filter', guarantee:'Fidelity', trigger:'value-move', shape:'object', 
 })
 
 spec({ op:'filter', guarantee:'Propagation', trigger:'value-move', shape:'object', via:'reactive-value', chain:'filter→length', asserts:'a reactive-value membership change flows to a downstream length' }, () => {
-  const src = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' }, d: { g: 'x' } })
-  const x = $('x')
-  const n = filter(src, 'g', x).length()
+  const src: any = $({ a: { g: 'x' }, b: { g: 'y' }, c: { g: 'x' }, d: { g: 'x' } })
+  const x: any = $('x')
+  const n: any = filter(src, 'g', x).length()
   same(n[value], 3)
   x[value] = 'y'
   same(n[value], 1)

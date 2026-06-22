@@ -7,18 +7,18 @@ import { filter } from '../filter/index.ts'
 import { length } from '../length/index.ts'
 import { sum } from '../aggregate/index.ts'
 import { AZColumnValue } from '../sort/index.ts'
-const az = (src, col, n) => createOperator(src, AZColumnValue, col, n)
+const az = (src: any, col: any, n: any) => createOperator(src, AZColumnValue, col, n)
 
-const dense = (a) => (Array.isArray(a) ? a.filter((x) => x !== undefined) : a)
+const dense = (a: any) => (Array.isArray(a) ? a.filter((x: any) => x !== undefined) : a)
 
 spec({ op:'between', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BH1','BR1'], issue:'C1', chain:'between→filter',
   asserts:'removing an out-of-range row keeps a downstream filter aligned' }, () => {
   // A row OUT of between's range is a hole in between's array. Removing it
   // splices between's array; between must emit that splice (BH1/BR1 path) so
   // the downstream filter shifts in lockstep — otherwise filter keeps a ghost.
-  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
-  const b = between(src, 'v', [40, 70])   // in range: {v:50},{v:55}; holes: 10, 90
-  const f = filter(b, (r) => r.v > 45)
+  const src: any = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
+  const b: any = between(src, 'v', [40, 70])   // in range: {v:50},{v:55}; holes: 10, 90
+  const f: any = filter(b, (r: any) => r.v > 45)
   same(dense(b[value]), [{ v: 50 }, { v: 55 }])
   same(dense(f[value]), [{ v: 50 }, { v: 55 }])
   delete src[0]                            // remove the holed {v:10} (out of range)
@@ -35,9 +35,9 @@ spec({ op:'between', guarantee:'Alignment', trigger:'edit', shape:'array', via:[
   // rows. between must skip them (no crash deref-ing `.v` on a hole) and treat
   // an upstream hole-fill/hole-remove (BF0/BH1) as a membership change without
   // splicing.
-  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 30 }])
-  const f = filter(src, (r) => r.v >= 25)   // holes out {v:10}; keeps 50,90,30
-  const b = between(f, 'v', [40, 100])      // of those, 50 & 90 in range
+  const src: any = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 30 }])
+  const f: any = filter(src, (r: any) => r.v >= 25)   // holes out {v:10}; keeps 50,90,30
+  const b: any = between(f, 'v', [40, 100])      // of those, 50 & 90 in range
   same(dense(b[value]), [{ v: 50 }, { v: 90 }])
   src[3].v = 70                             // {v:30}→70: enters filter? already in; now in between range
   same(dense(b[value]), [{ v: 50 }, { v: 90 }, { v: 70 }])
@@ -49,10 +49,10 @@ spec({ op:'between', guarantee:'Alignment', trigger:'edit', shape:'array', via:[
 
 spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'array', via:'reactive-bound', issue:'C1', chain:'between→filter',
   asserts:'a bound move re-points membership downstream without a ghost' }, () => {
-  const src = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
-  const bound = $([40, 70])
-  const b = between(src, 'v', bound)
-  const f = filter(b, (r) => r.v > 20)
+  const src: any = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }])
+  const bound: any = $([40, 70])
+  const b: any = between(src, 'v', bound)
+  const f: any = filter(b, (r: any) => r.v > 20)
   same(dense(f[value]), [{ v: 50 }, { v: 55 }])
   bound[value] = [0, 60]                    // 10 and 50,55 in; 90 out
   same(dense(b[value]), [{ v: 10 }, { v: 50 }, { v: 55 }])
@@ -65,16 +65,16 @@ spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'array
 // as valid ("captured once"), so this is a doc/code contract gap.
 spec({ op:'between', guarantee:'Selection', trigger:'construct', shape:'object',
   asserts:'plain numeric bounds select the in-range rows' }, () => {
-  const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
-  const filtered = between(all, 'num', [20, 80])
+  const all: any = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
+  const filtered: any = between(all, 'num', [20, 80])
   same(filtered[value], { 3: { num: 50 } })
 })
 
 spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'object', via:'reactive-bound',
   asserts:'a reactive bound end re-selects when it changes' }, () => {
-  const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
-  const lo = $(20)
-  const filtered = between(all, 'num', [lo, 80])
+  const all: any = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
+  const lo: any = $(20)
+  const filtered: any = between(all, 'num', [lo, 80])
   same(filtered[value], { 3: { num: 50 } })
   lo[value] = 5
   same(filtered[value], { 2: { num: 10 }, 3: { num: 50 } })
@@ -87,12 +87,12 @@ spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'object'
 // this because it brushes a static dataset.
 spec({ op:'between', guarantee:'Selection', trigger:'edit', shape:'object', via:'BU2',
   asserts:'a row whose value crosses the bound enters or leaves' }, () => {
-  const data = $({
+  const data: any = $({
     a: { price: 10 },
     b: { price: 50 },
     c: { price: 90 },
   })
-  const inRange = between(data, 'price', [40, 60])
+  const inRange: any = between(data, 'price', [40, 60])
   same(inRange[value], { b: { price: 50 } })
   data.b.price = 100  // b leaves the range
   same(inRange[value], {})
@@ -104,8 +104,8 @@ spec({ op:'between', guarantee:'Selection', trigger:'edit', shape:'object', via:
 
 spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'object', via:['BI0','BR1'],
   asserts:'in-range inserts and removes change membership; out-of-range ones do not' }, () => {
-  const data = $({ a: { price: 50 } })
-  const inRange = between(data, 'price', [40, 60])
+  const data: any = $({ a: { price: 50 } })
+  const inRange: any = between(data, 'price', [40, 60])
   same(inRange[value], { a: { price: 50 } })
   // insert in-range
   ;(data as any).insert({ price: 55 }, 'b')
@@ -130,7 +130,7 @@ spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'obje
 // the bound moved out to a value that equaled another row.
 spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array', via:'reactive-bound',
   asserts:'widening onto a boundary value re-includes that row (high)' }, () => {
-  const flights = $([
+  const flights: any = $([
     { dest: 'A', ts: 10 },
     { dest: 'B', ts: 11 },
     { dest: 'C', ts: 12 },
@@ -138,16 +138,16 @@ spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array',
     { dest: 'E', ts: 14 },
     { dest: 'F', ts: 15 },
   ])
-  const brush = $([10, 13])
-  const win = between(flights, 'ts', brush)
-  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D'])
+  const brush: any = $([10, 13])
+  const win: any = between(flights, 'ts', brush)
+  same(win[value].filter(Boolean).map((r: any) => r.dest), ['A','B','C','D'])
   brush[value] = [10, 15]
-  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
+  same(win[value].filter(Boolean).map((r: any) => r.dest), ['A','B','C','D','E','F'])
 })
 
 spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array', via:'reactive-bound',
   asserts:'widening onto a boundary value re-includes that row (low)' }, () => {
-  const flights = $([
+  const flights: any = $([
     { dest: 'A', ts: 10 },
     { dest: 'B', ts: 11 },
     { dest: 'C', ts: 12 },
@@ -155,18 +155,18 @@ spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array',
     { dest: 'E', ts: 14 },
     { dest: 'F', ts: 15 },
   ])
-  const brush = $([11, 15])
-  const win = between(flights, 'ts', brush)
-  same(win[value].filter(Boolean).map(r => r.dest), ['B','C','D','E','F'])
+  const brush: any = $([11, 15])
+  const win: any = between(flights, 'ts', brush)
+  same(win[value].filter(Boolean).map((r: any) => r.dest), ['B','C','D','E','F'])
   brush[value] = [10, 15]
-  same(win[value].filter(Boolean).map(r => r.dest), ['A','B','C','D','E','F'])
+  same(win[value].filter(Boolean).map((r: any) => r.dest), ['A','B','C','D','E','F'])
 })
 
 spec({ op:'between', guarantee:'Fidelity', trigger:'bound-move', shape:'object', via:'reactive-bound', emits:['insert','remove','update'],
   asserts:'bound moves emit the exact insert/remove/update stream; a point range emits nothing' }, async () => {
-  const all = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
-  const filters = $({ lo: 20, hi: 80 })
-  const filtered = between(all, 'num', [filters.lo, filters.hi])
+  const all: any = $({ 1: { num: 90 }, 2: { num: 10 }, 3: { num: 50 } })
+  const filters: any = $({ lo: 20, hi: 80 })
+  const filtered: any = between(all, 'num', [filters.lo, filters.hi])
   const changes = filtered.connect([])
   filters.lo = 5
   filters.hi = 6
@@ -202,8 +202,8 @@ spec({ op:'between', guarantee:'Fidelity', trigger:'bound-move', shape:'object',
 spec({ op:'between', guarantee:'Robustness', trigger:'insert', shape:'array+object', via:['BU2','BI0'],
   asserts:'an insert after an in-place edit neither crashes nor duplicates' }, () => {
   // array
-  const arr = $([{ v: 50, g: 0 }])
-  const wa = between(arr, 'v', [20, 80])
+  const arr: any = $([{ v: 50, g: 0 }])
+  const wa: any = between(arr, 'v', [20, 80])
   arr[0].v = 60                       // in-place col edit -> sortedDirty
   arr.insert({ v: 40, g: 1 })         // used to throw
   same(wa[value].filter(Boolean), [{ v: 60, g: 0 }, { v: 40, g: 1 }])
@@ -215,8 +215,8 @@ spec({ op:'between', guarantee:'Robustness', trigger:'insert', shape:'array+obje
   same(wa[value].filter(Boolean), [{ v: 70, g: 1 }, { v: 30, g: 2 }, { v: 25, g: 3 }])
 
   // object (was a silent `sorted` duplicate rather than a crash)
-  const obj = $({ a: { v: 50 }, b: { v: 90 } })
-  const wo = between(obj, 'v', [20, 80])
+  const obj: any = $({ a: { v: 50 }, b: { v: 90 } })
+  const wo: any = between(obj, 'v', [20, 80])
   obj.a.v = 60
   ;(obj as any).insert({ v: 40 }, 'c')
   same(wo[value], { a: { v: 60 }, c: { v: 40 } })
@@ -230,27 +230,27 @@ spec({ op:'between', guarantee:'Robustness', trigger:'insert', shape:'array+obje
 // dropped the boundary rows (the swarm gx/gy cohort-brush path).
 spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array+object', via:'reactive-bound',
   asserts:'narrowing to a point range keeps rows equal to the bound' }, () => {
-  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
+  const clean = (o: any) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
 
   // object source — narrow the high bound down onto the low bound
-  const src = $({ a: { gx: 1 }, b: { gx: 2 }, c: { gx: 3 } })
-  const lo = $(1), hi = $(3)
-  const b = between(src, 'gx', [lo, hi])
+  const src: any = $({ a: { gx: 1 }, b: { gx: 2 }, c: { gx: 3 } })
+  const lo: any = $(1), hi = $(3)
+  const b: any = between(src, 'gx', [lo, hi])
   same(clean(b[value]), { a: { gx: 1 }, b: { gx: 2 }, c: { gx: 3 } })
   hi[value] = 1                                                     // [1,3] -> [1,1]
   same(clean(b[value]), { a: { gx: 1 } })                          // pre-fix: {} (row a dropped)
   same(clean(b[value]), clean(between(src, 'gx', [$(1), $(1)])[value]))  // identical to a fresh [1,1]
 
   // narrow the low bound up onto the high bound, to a different interior point
-  const lo2 = $(1), hi2 = $(2)
-  const b2 = between(src, 'gx', [lo2, hi2])
+  const lo2: any = $(1), hi2 = $(2)
+  const b2: any = between(src, 'gx', [lo2, hi2])
   lo2[value] = 2                                                    // [1,2] -> [2,2]
   same(clean(b2[value]), { b: { gx: 2 } })                         // pre-fix: {} (row b dropped)
 
   // array source — both bounds converge to a point
-  const arr = $([{ gx: 1 }, { gx: 2 }, { gx: 3 }])
-  const lo3 = $(1), hi3 = $(3)
-  const ba = between(arr, 'gx', [lo3, hi3])
+  const arr: any = $([{ gx: 1 }, { gx: 2 }, { gx: 3 }])
+  const lo3: any = $(1), hi3 = $(3)
+  const ba: any = between(arr, 'gx', [lo3, hi3])
   hi3[value] = 2; lo3[value] = 2                                    // -> [2,2]
   same(dense(ba[value]), [{ gx: 2 }])                              // pre-fix: [] (boundary row dropped)
 })
@@ -267,12 +267,12 @@ spec({ op:'between', guarantee:'Selection', trigger:'bound-move', shape:'array+o
 spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'object', via:'reactive-bound', issue:'C8', chain:'between→length/sum',
   asserts:'sweeping a bound past the other emits no phantom removes to a downstream count or sum' }, () => {
   // k0..k8 with v = 0,11,…,88; window [20,70] holds k2..k6 (v 22,33,44,55,66).
-  const mk = () => $(Object.fromEntries(Array.from({ length: 9 }, (_, i) => ['k' + i, { v: i * 11 }])))
+  const mk = () => $(Object.fromEntries(Array.from({ length: 9 }, (_: any, i: any) => ['k' + i, { v: i * 11 }])))
 
   // (a) sweep the LOW bound UP, past the high boundary -> empty window.
   const sA = mk(), bA = $([20, 70])
-  const wA = between(sA, 'v', bA)
-  const cA = length(wA), tA = sum(wA, 'v')
+  const wA: any = between(sA, 'v', bA)
+  const cA: any = length(wA), tA = sum(wA, 'v')
   same(cA[value], 5)
   same(tA[value], 220)
   bA[value] = [90, 100]
@@ -284,8 +284,8 @@ spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'objec
 
   // (b) sweep the HIGH bound DOWN, past the low boundary -> just k0(0).
   const sB = mk(), bB = $([20, 70])
-  const wB = between(sB, 'v', bB)
-  const cB = length(wB), tB = sum(wB, 'v')
+  const wB: any = between(sB, 'v', bB)
+  const cB: any = length(wB), tB = sum(wB, 'v')
   same(cB[value], 5)
   bB[value] = [0, 10]
   // narrow-high walks past k1(11) — already excluded (< lo_val 20) — before
@@ -308,11 +308,11 @@ spec({ op:'between', guarantee:'Propagation', trigger:'bound-move', shape:'objec
 spec({ op:'between', guarantee:'Propagation', trigger:'brush', shape:'array', via:['BH1','BF0'], chain:'between→az',
   asserts:'a sideways brush keeps a downstream sort correctly ordered' }, () => {
   // rows v = 0,11,…,88 at indices 0..8.
-  const src = $(Array.from({ length: 9 }, (_, i) => ({ id: i, v: i * 11 })))
-  const bound = $([33, 66])
-  const view = between(src, 'v', bound)
-  const sorted = az(view, 'v')
-  const vals = () => sorted[value].filter((r) => r !== undefined).map((r) => r.v)
+  const src: any = $(Array.from({ length: 9 }, (_: any, i: any) => ({ id: i, v: i * 11 })))
+  const bound: any = $([33, 66])
+  const view: any = between(src, 'v', bound)
+  const sorted: any = az(view, 'v')
+  const vals = () => sorted[value].filter((r: any) => r !== undefined).map((r: any) => r.v)
   same(vals(), [33, 44, 55, 66])
 
   bound[value] = [22, 55]            // narrow-high drops 66, widen-low admits 22
@@ -330,21 +330,21 @@ spec({ op:'between', guarantee:'Propagation', trigger:'brush', shape:'array', vi
 // sortedDirty. (Crossfilter's reset state is exactly full-domain bounds.)
 spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'array', via:'reactive-bound', issue:'#21',
   asserts:'a mutation made while unfiltered shows on the next narrow' }, () => {
-  const ext = $([0, 100])
-  const s = $([{ v: 10 }, { v: 20 }, { v: 30 }])
-  const b = between(s, 'v', ext)
+  const ext: any = $([0, 100])
+  const s: any = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const b: any = between(s, 'v', ext)
   ext[value] = [-Infinity, Infinity]      // unfilter (alias)
   s.insert({ v: 999 })                    // out-of-range insert while unfiltered
   ext[value] = [0, 100]                   // narrow back
-  same(b[value].filter((x) => x !== undefined).map((r) => r.v), [10, 20, 30]) // 999 excluded, no ghost
+  same(b[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [10, 20, 30]) // 999 excluded, no ghost
 
-  const ext2 = $([0, 100])
-  const s2 = $([{ v: 10 }, { v: 20 }, { v: 30 }])
-  const b2 = between(s2, 'v', ext2)
+  const ext2: any = $([0, 100])
+  const s2: any = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const b2: any = between(s2, 'v', ext2)
   ext2[value] = [-Infinity, Infinity]
   delete s2[1]                            // remove while unfiltered
   ext2[value] = [0, 100]
-  same(b2[value].filter((x) => x !== undefined).map((r) => r.v), [10, 30])
+  same(b2[value].filter((x: any) => x !== undefined).map((r: any) => r.v), [10, 30])
 })
 
 // between's raison d'être (crossfilter): a bound move walks `sorted` only over
@@ -358,9 +358,9 @@ spec({ op:'between', guarantee:'Efficiency', trigger:'bound-move', shape:'object
   const N = 40
   const obj = {}
   for (let i = 0; i < N; i++) obj['k' + i] = { v: i }     // v: 0..39
-  const src = $(obj)
-  const ext = $([0, 100])                                  // all 40 in range
-  const b = between(src, 'v', ext)
+  const src: any = $(obj)
+  const ext: any = $([0, 100])                                  // all 40 in range
+  const b: any = between(src, 'v', ext)
   const ch = b.connect([])
 
   let base = ch.length

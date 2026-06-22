@@ -36,6 +36,12 @@
     "operators/union/union.perf.ts",
     "index.perf.ts",
     "devtools/devtools.perf.ts",
-    "comparisons/bench/**/*.ts"
+    "comparisons/bench/**/*.ts",
+    "operators/*/*.test.ts",
+    "core.test.ts",
+    "differential.test.ts",
+    "entry.test.ts",
+    "index.test.ts",
+    "devtools/devtools.test.ts"
   ]
 }

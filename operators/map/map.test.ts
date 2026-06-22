@@ -1,12 +1,11 @@
-// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
 import { map } from './index.ts'
 
 spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', asserts:'the projection tracks inserts, edits and removes through the change stream' }, async () => {
-  const res = $({ 0: { num: 1 }, 1: { num: 2 }, 2: { num: 3 } })
-  const mapped = map(res, d => d.num * 10)
+  const res: any = $({ 0: { num: 1 }, 1: { num: 2 }, 2: { num: 3 } })
+  const mapped: any = map(res, (d: any) => d.num * 10)
   const changes = mapped.connect([])
 
   res[3] = { num: 4 }
@@ -42,8 +41,8 @@ spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', 
 // insert as an update of that slot, overwrites the occupant, and never shifts
 // it down — so the displaced row vanishes (map would give [10,99,30]).
 spec({ op:'map', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], issue:'C2', asserts:'a mid-array positional insert keeps the displaced row' }, () => {
-  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
-  const m = map(src, (r) => r.v)
+  const src: any = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const m: any = map(src, (r: any) => r.v)
   same(m[value], [10, 20, 30])
   ;(src as any).insert({ v: 99 }, 1)        // splice in at index 1
   same(m[value], [10, 99, 20, 30])          // pre-BI0A: [10,99,30] (20 dropped)
@@ -59,8 +58,8 @@ spec({ op:'map', guarantee:'Alignment', trigger:'insert', shape:'array', via:['B
 // pins map's positional record stream (the array-keyed insert/remove verbs),
 // which the differential oracle never checks (it compares values, not records).
 spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'array', via:['BI0A','BR1'], asserts:'positional inserts and an array delete forward as the right records with the right at/key' }, () => {
-  const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
-  const m = map(src, r => r.v)
+  const src: any = $([{ v: 10 }, { v: 20 }, { v: 30 }])
+  const m: any = map(src, (r: any) => r.v)
   const changes = m.connect([])
   src.insert({ v: 40 })                // tail insert → at '3'
   ;(src as any).insert({ v: 99 }, 1)   // mid splice → at '1'

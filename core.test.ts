@@ -1,14 +1,13 @@
-// @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { spec } from './tests/spec.ts'
 import { $, value, view, _devtoolsRoots } from './core.ts'
 
-const max = (a, b) => a > b ? a : b
-$.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
+const max = (a: any, b: any) => a > b ? a : b
+$.random = (o: any) => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
 spec({ op:'core', guarantee:'Fidelity', trigger:'overwrite', shape:'scalar', asserts:'a root value update emits an update record' }, () => {
-  const res = $(5)
-  const changes = res.connect([])
+  const res: any = $(5)
+  const changes: any[] = res.connect([])
   res[value] = 10
   res.update(20)
   same(changes, [
@@ -23,21 +22,21 @@ spec({ op:'core', guarantee:'Robustness', asserts:'connect(fn) throws a helpful 
   // A bare function is not a valid sink; the single-arg form must fail fast
   // at connect() time (not defer a cryptic "fn.BI0 is not a function" to the
   // first event). The two-arg connect(anchor, fn) is the supported form.
-  const res = $([1, 2, 3])
+  const res: any = $([1, 2, 3])
   let threw
-  try { res.connect(c => c) } catch (e) { threw = e }
+  try { res.connect((c: any) => c) } catch (e: any) { threw = e }
   ok(threw, 'connect(fn) should throw')
   ok(/connect\(fn\) isn't supported/.test(threw.message), threw?.message)
   // The supported two-arg form still works and receives change records.
-  const seen = []
-  res.connect({}, c => seen.push(c.type))
+  const seen: any[] = []
+  res.connect({}, (c: any) => seen.push(c.type))
   res.insert(4)
   ok(seen.includes('insert'), 'connect(anchor, fn) still delivers events')
 })
 
 spec({ op:'core', guarantee:'Fidelity', trigger:'insert', shape:'scalar', asserts:'inserting into a root grows it to an indexed collection and child views track each slot' }, () => {
-  const res = $(5)
-  const changes1 = res.connect([])
+  const res: any = $(5)
+  const changes1: any[] = res.connect([])
   const changes2 = res[0].connect([])
   const changes3 = res[1].connect([])
   res.insert(10)
@@ -61,8 +60,8 @@ spec({ op:'core', guarantee:'Fidelity', trigger:'insert', shape:'scalar', assert
 })
 
 spec({ op:'core', guarantee:'Fidelity', trigger:'remove', shape:'scalar', asserts:'removing the root value emits a remove and clears it' }, () => {
-  const res = $(5)
-  const changes1 = res.connect([])
+  const res: any = $(5)
+  const changes1: any[] = res.connect([])
   const changes2 = res.a.connect([])
   delete res[value]
   delete res[value]
@@ -77,8 +76,8 @@ spec({ op:'core', guarantee:'Fidelity', trigger:'remove', shape:'scalar', assert
 })
 
 spec({ op:'core', guarantee:'Propagation', trigger:'edit', shape:'object', asserts:'a root replacement then a keyed edit propagate to a child view' }, () => {
-  const res = $(5)
-  const changes1 = res.connect([])
+  const res: any = $(5)
+  const changes1: any[] = res.connect([])
   const changes2 = res.a.connect([])
   res[value] = { a: 1 }
   res.a = 2
@@ -97,12 +96,12 @@ spec({ op:'core', guarantee:'Propagation', trigger:'edit', shape:'object', asser
 })
 
 spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', asserts:'a linked view re-points to a new source and mirrors its changes' }, () => {
-  const c = $({ a: 1 })
-  const d = $({ b: 2 })
-  const e = $(c)
-  const changes1 = c.connect([])
-  const changes2 = d.connect([])
-  const changes3 = e.connect([])
+  const c: any = $({ a: 1 })
+  const d: any = $({ b: 2 })
+  const e: any = $(c)
+  const changes1: any[] = c.connect([])
+  const changes2: any[] = d.connect([])
+  const changes3: any[] = e.connect([])
   same(c[value], { a: 1 })
   same(d[value], { b: 2 })
   same(e[value], { a: 1 })
@@ -148,8 +147,8 @@ spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', a
 })
 
 spec({ op:'core', guarantee:'Alignment', trigger:'insert/remove', shape:'array', asserts:'array inserts and removes shift child views in lockstep' }, () => {
-  const res = $({ a: [1] })
-  const changes1 = res.connect([])
+  const res: any = $({ a: [1] })
+  const changes1: any[] = res.connect([])
   const changes2 = res.a.connect([])
   const changes3 = res.a[0].connect([])
   const changes4 = res.a[1].connect([])
@@ -194,9 +193,9 @@ spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', a
   // child-traversal step. Path-keyed updates on the source therefore never
   // reached descendants of the LinkedView. Each assertion below is a path
   // that was silently broken before the fix.
-  const src = $({ a: { x: 1 }, b: 2 })
-  const linked = $(src)
-  const cLinkedRoot = linked.connect([])
+  const src: any = $({ a: { x: 1 }, b: 2 })
+  const linked: any = $(src)
+  const cLinkedRoot: any[] = linked.connect([])
   const cLinkedA = linked.a.connect([])
   const cLinkedAX = linked.a.x.connect([])
   const cLinkedB = linked.b.connect([])
@@ -220,7 +219,7 @@ spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', a
   // Switching the source: children that exist in the new src get an
   // update, ones that don't get an XR0 (and skip if their value was
   // already undefined).
-  const other = $({ a: { x: 9 } })
+  const other: any = $({ a: { x: 9 } })
   linked[value] = other
   same(linked.a.x[value], 9)
   same(linked.c[value], undefined)
@@ -256,11 +255,11 @@ spec({ op:'core', guarantee:'Propagation', trigger:'re-point', shape:'object', a
 })
 
 spec({ op:'core', guarantee:'Propagation', trigger:'insert/remove', shape:'array', asserts:'destructured child views track index inserts and removes' }, async () => {
-  const res = $([1, 2])
+  const res: any = $([1, 2])
   const [one, two, three] = res
-  const changes1 = one.connect([])
-  const changes2 = two.connect([])
-  const changes3 = three.connect([])
+  const changes1: any[] = one.connect([])
+  const changes2: any[] = two.connect([])
+  const changes3: any[] = three.connect([])
   same(one[value], 1)
   same(two[value], 2)
   same(three[value], undefined)
@@ -305,7 +304,7 @@ spec({ op:'core', guarantee:'Fidelity', asserts:'awaiting a proxy resolves to th
   same(await $([1, 2, 3]), [1, 2, 3])
   same(await $({ a: 1 }), { a: 1 })
   // assimilation reads the live snapshot at await time
-  const res = $([1])
+  const res: any = $([1])
   res.insert(2)
   same(await res, [1, 2])
   // survives Promise.all and async-return assimilation
@@ -317,7 +316,7 @@ spec({ op:'core', guarantee:'Fidelity', asserts:'a key named then stays data acc
   // Reading `.then` must keep working as data access — it only becomes a
   // promise probe when *called* with a function. A key literally named "then"
   // round-trips through await untouched.
-  const res = $({ a: 1, then: 99 })
+  const res: any = $({ a: 1, then: 99 })
   same(res.then[value], 99)
   res.then = 100
   same(res.then[value], 100)
@@ -328,13 +327,13 @@ spec({ op:'core', guarantee:'Fidelity', asserts:'a key named then stays data acc
 // same child-view machinery, just discoverable as methods. Snapshot
 // semantics: `last()` reads the source's current last key at call time.
 spec({ op:'core', guarantee:'Fidelity', shape:'array', asserts:'first() and last() resolve the boundary child views' }, () => {
-  const res = $(['a', 'b', 'c'])
+  const res: any = $(['a', 'b', 'c'])
   same(res.first()[value], 'a')
   same(res.last()[value], 'c')
 })
 
 spec({ op:'core', guarantee:'Identity', shape:'array', asserts:'first() and proxy[0] resolve to the same child view' }, () => {
-  const res = $(['a', 'b', 'c'])
+  const res: any = $(['a', 'b', 'c'])
   // first() and proxy[0] resolve to the same child view, so subscribing
   // through one and mutating through the other is observed.
   const changes = res.first().connect([])
@@ -346,13 +345,13 @@ spec({ op:'core', guarantee:'Identity', shape:'array', asserts:'first() and prox
 })
 
 spec({ op:'core', guarantee:'Robustness', shape:'array', asserts:'first() and last() on an empty array return undefined at key 0' }, () => {
-  const res = $([])
+  const res: any = $([])
   same(res.first()[value], undefined)
   same(res.last()[value], undefined)
 })
 
 spec({ op:'core', guarantee:'Fidelity', shape:'object', asserts:'first() and last() use object iteration order' }, () => {
-  const res = $({ a: 1, b: 2, c: 3 })
+  const res: any = $({ a: 1, b: 2, c: 3 })
   same(res.first()[value], 1)
   same(res.last()[value], 3)
 })
@@ -361,11 +360,11 @@ spec({ op:'core', guarantee:'Fidelity', shape:'object', asserts:'first() and las
 // examples/crossfilter/index.html. Tests run in node where there's no native
 // requestAnimationFrame; the operator falls back to setTimeout(16), so these
 // tests just await > 16ms before asserting.
-const tick = () => new Promise(r => setTimeout(r, 30))
+const tick = () => new Promise((r: any) => setTimeout(r, 30))
 
 spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf coalesces a burst into one commit per frame, keeping the latest value' }, async () => {
-  const res = $([0, 0])
-  const changes = res.connect([])
+  const res: any = $([0, 0])
+  const changes: any[] = res.connect([])
   const write = res.raf()
   write([1, 1])
   write([2, 2])
@@ -382,8 +381,8 @@ spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf coalesce
 })
 
 spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf flush commits immediately and cancels the pending frame' }, async () => {
-  const res = $(0)
-  const changes = res.connect([])
+  const res: any = $(0)
+  const changes: any[] = res.connect([])
   const write = res.raf()
   write(1)
   write(2)
@@ -400,15 +399,15 @@ spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf flush co
 })
 
 spec({ op:'core', guarantee:'Robustness', asserts:'raf flush is a no-op when nothing is pending' }, () => {
-  const res = $(0)
+  const res: any = $(0)
   const write = res.raf()
   write.flush()    // nothing pending — must not throw or commit
   same(res[value], 0)
 })
 
 spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf separate bursts commit independently' }, async () => {
-  const res = $(0)
-  const changes = res.connect([])
+  const res: any = $(0)
+  const changes: any[] = res.connect([])
   const write = res.raf()
   write(1)
   await tick()
@@ -422,7 +421,7 @@ spec({ op:'core', guarantee:'Efficiency', trigger:'batch', asserts:'raf separate
 })
 
 spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts:'raf works on a child view, committing to the parent' }, async () => {
-  const res = $({ a: 1, b: 2 })
+  const res: any = $({ a: 1, b: 2 })
   const write = res.a.raf()
   write(10)
   await tick()
@@ -431,19 +430,19 @@ spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts
 
 // Helper: walk the WeakRef Set and check whether `target` is currently
 // registered. Mirrors the logic devtools/walk.ts:iterRoots() will use.
-function rootsHas(target) {
+function rootsHas(target: any) {
   for (const ref of _devtoolsRoots) if (ref.deref() === target) return true
   return false
 }
 
 spec({ op:'core', guarantee:'Robustness', asserts:'a root view is registered for devtools discovery' }, () => {
-  const res = $({ a: 1 })
+  const res: any = $({ a: 1 })
   ok(rootsHas(res[view]))
 })
 
 spec({ op:'core', guarantee:'Robustness', asserts:'a linked view is not registered, only its source' }, () => {
-  const src = $({ a: 1 })
-  const linked = $(src)
+  const src: any = $({ a: 1 })
+  const linked: any = $(src)
   ok(rootsHas(src[view]))
   ok(!rootsHas(linked[view]))
 })
@@ -462,9 +461,9 @@ spec({ op:'core', guarantee:'Robustness', asserts:'the roots registry holds Weak
 spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a FunctionSink pinned to its host object survives GC' }, () => {
   // Like PropSink, a FunctionSink lives only as a WeakRef on the view; pinning it
   // to `obj` via lifetimes means holding connect()'s return value keeps it firing.
-  const res = $({ a: 1 })
-  const seen = []
-  const host = res.connect({}, c => seen.push(c)) // FunctionSink branch
+  const res: any = $({ a: 1 })
+  const seen: any[] = []
+  const host = res.connect({}, (c: any) => seen.push(c)) // FunctionSink branch
   ok(host && typeof host === 'object', 'connect returns the host object')
   same(seen.length, 1)                            // initial snapshot
   res.b = 2
@@ -483,8 +482,8 @@ spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a FunctionSin
 spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'an ArrSink pinned to its array survives GC' }, () => {
   // The array references the sink only one way (sink.arr), so holding it must be
   // made to keep the sink alive — same pin as FunctionSink/PropSink.
-  const res = $({ a: 1 })
-  const changes = res.connect([]) // ArrSink branch; returns the array
+  const res: any = $({ a: 1 })
+  const changes: any[] = res.connect([]) // ArrSink branch; returns the array
   same(changes.length, 1)         // initial snapshot pushed
   res.b = 2
   same(changes.length, 2)         // subsequent change pushed
@@ -502,8 +501,8 @@ spec({ op:'core', guarantee:'Efficiency', trigger:'batch', shape:'object', asser
   // updates the backing value for every pair and emits a single batched BU1
   // (new keys split out as BI0), instead of one dispatch per assignment. This
   // is the high-throughput producer path the swarm example uses.
-  const data = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
-  const changes = data.connect([])
+  const data: any = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const changes: any[] = data.connect([])
   const aChanges = data.a.connect([]) // touched row sees its update…
   const bChanges = data.b.connect([]) // …untouched row stays silent (per-path routing)
 
@@ -526,9 +525,9 @@ spec({ op:'core', guarantee:'Efficiency', trigger:'batch', shape:'object', asser
 spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts:'patch routes new keys as inserts and existing keys per-path' }, () => {
   // a second cascade on the same proxy: new key 'e' inserts; the
   // previously-inserted 'c' updates; a derived child sees only its own path.
-  const data = $({ a: { n: 1 } })
+  const data: any = $({ a: { n: 1 } })
   data.patch(['b', { n: 2 }, 'c', { n: 3 }]) // two inserts
-  const changes = data.connect([])
+  const changes: any[] = data.connect([])
   const cChanges = data.c.n.connect([])
   data.patch(['c', { n: 30 }, 'e', { n: 5 }]) // c updates, e inserts
   same(data[value], { a: { n: 1 }, b: { n: 2 }, c: { n: 30 }, e: { n: 5 } })
@@ -549,10 +548,10 @@ spec({ op:'core', guarantee:'Fidelity', trigger:'batch', shape:'object', asserts
 // attached. The backing value was already committed by then, so every sink
 // missed the event and the exception escaped to the innocent mutator.
 spec({ op:'core', guarantee:'Robustness', trigger:'insert/edit', shape:'object', asserts:'null delta values flow through record sinks without crashing' }, () => {
-  const res = $({ a: 1 })
-  const changes = res.connect([])
-  const seen = []
-  res.connect({}, c => seen.push(c.value))
+  const res: any = $({ a: 1 })
+  const changes: any[] = res.connect([])
+  const seen: any[] = []
+  res.connect({}, (c: any) => seen.push(c.value))
 
   res.b = null            // insert of null
   res.a = null            // update to null
@@ -569,8 +568,8 @@ spec({ op:'core', guarantee:'Robustness', trigger:'insert/edit', shape:'object',
   same(seen, [{ a: 1 }, null, null, { d: 1 }, null]) // first entry = connect-time snapshot
 
   // array inserts of null take the BI0 path
-  const arr = $([1, 2])
-  const arrChanges = arr.connect([])
+  const arr: any = $([1, 2])
+  const arrChanges: any[] = arr.connect([])
   arr[2] = null
   same(arr[value], [1, 2, null])
   same(arrChanges, [
@@ -579,8 +578,8 @@ spec({ op:'core', guarantee:'Robustness', trigger:'insert/edit', shape:'object',
   ])
 
   // root replacement to null
-  const root = $({ x: 1 })
-  const rootChanges = root.connect([])
+  const root: any = $({ x: 1 })
+  const rootChanges: any[] = root.connect([])
   root[value] = null
   same(root[value], null)
   same(rootChanges, [
@@ -595,24 +594,24 @@ spec({ op:'core', guarantee:'Robustness', trigger:'insert/edit', shape:'object',
 // the transparent-mutation contract. Same gap after a root BECOMES null at
 // runtime (s[value] = null; s.b = 2).
 spec({ op:'core', guarantee:'Robustness', trigger:'edit', shape:'object', asserts:'a null root vivifies like every other primitive' }, () => {
-  const a = $(null)
+  const a: any = $(null)
   a.x = 1
   same(a[value], { x: 1 })
 
-  const b = $({ k: 1 })
+  const b: any = $({ k: 1 })
   b[value] = null
   b.k = 2                      // BU1 upsert path on a null backing value
   same(b[value], { k: 2 })
 
-  const c = $(null)
+  const c: any = $(null)
   c.patch(['m', 1, 'n', 2])    // batched BU1 on a null root
   same(c[value], { m: 1, n: 2 })
 
-  const d = $(null)
+  const d: any = $(null)
   d.insert(5, 'p')             // BI0 path
   same(d[value], { p: 5 })
 
-  const e = $({ q: 1 })
+  const e: any = $({ q: 1 })
   e[value] = null
   e.r = { s: 1 }
   e.r.s = 2                    // BU2 deep path after re-vivify
@@ -627,7 +626,7 @@ spec({ op:'core', guarantee:'Fidelity', asserts:'JSON.stringify(proxy) serialize
   same(JSON.stringify($({ a: 1, b: [1, null] })), '{"a":1,"b":[1,null]}')
   same(JSON.stringify($(5)), '5')
   same(JSON.stringify({ nested: $({ x: 1 }) }), '{"nested":{"x":1}}')
-  const t = $({ toJSON: 1 })       // a key literally named toJSON stays data
+  const t: any = $({ toJSON: 1 })       // a key literally named toJSON stays data
   same(t.toJSON[value], 1)
 })
 
@@ -638,7 +637,7 @@ spec({ op:'core', guarantee:'Fidelity', asserts:'JSON.stringify(proxy) serialize
 // the populated-table variant is asserted in index.test.ts.
 spec({ op:'core', guarantee:'Robustness', asserts:'an unknown operator on an empty dispatch table points at data/lean' }, () => {
   let e
-  try { $({}).bogus() } catch (err) { e = err }
+  try { ($({}) as any).bogus() } catch (err: any) { e = err }
   ok(/Unknown operator 'bogus'/.test(e?.message), e?.message)
   ok(/dispatch table is empty/.test(e?.message), e?.message)
 })
@@ -654,20 +653,20 @@ spec({ op:'core', guarantee:'Robustness', asserts:'an unknown operator on an emp
 // aren't registered against the bare core); here we pin the raw value and the
 // position-agnostic change-record stream.
 spec({ op:'core', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'C1', asserts:'an in-bounds array hole-fill stays length-stable, not a shifting insert' }, () => {
-  const s = $([1, 2, 3, 4])
+  const s: any = $([1, 2, 3, 4])
   s[2] = undefined            // length-stable hole
   s[2] = 9                    // refill — must NOT shift
   same(s[value], [1, 2, 9, 4])
   same(s[value].length, 4)
 
   // out-of-bounds write IS a genuine append (extends the array)
-  const a = $([1, 2])
+  const a: any = $([1, 2])
   a[2] = 3
   same(a[value], [1, 2, 3])
 
   // OBJECT source: a previously-undefined key stays a real insert (BI0)
-  const o = $({ a: 1 })
-  const oc = o.connect([])
+  const o: any = $({ a: 1 })
+  const oc: any[] = o.connect([])
   o.b = undefined
   o.b = 2
   same(o[value], { a: 1, b: 2 })
@@ -681,14 +680,14 @@ spec({ op:'core', guarantee:'Alignment', trigger:'overwrite', shape:'array', iss
 // '10', V1 started past 9, and a held child view at index 9 kept a stale
 // snapshot while the backing array had the new value. Coerced with unary + now.
 spec({ op:'core', guarantee:'Alignment', trigger:'batch', shape:'array', issue:'C3', asserts:'array child-view refresh handles a digit-width index boundary' }, () => {
-  const s = $([0, 1, 2, 3, 4, 5, 6, 7, 8])
+  const s: any = $([0, 1, 2, 3, 4, 5, 6, 7, 8])
   const child9 = s[9] // held child past the boundary
   s.patch(['10', 'x', '9', 'y']) // two new indices, 10 before 9 in payload order
   same(s[value][9], 'y')
   same(child9[value], 'y') // was undefined (V1 started at lexicographic '10')
 
   // remove crossing the boundary: indices >= 9 shift down by one
-  const r = $(Array.from({ length: 12 }, (_, i) => i))
+  const r: any = $(Array.from({ length: 12 }, (_: any, i: any) => i))
   const c10 = r[10]
   delete r[9]
   same(c10[value], r[value][10]) // 11 — was stale at 10
@@ -701,15 +700,15 @@ spec({ op:'core', guarantee:'Alignment', trigger:'batch', shape:'array', issue:'
 // operator re-ran. BU2 now builds a filtered NU2 like BU1 (whose sibling no-op
 // already emits nothing).
 spec({ op:'core', guarantee:'Efficiency', trigger:'edit', shape:'object', issue:'C4', via:['BU2'], asserts:'a deep no-op write emits no phantom update' }, () => {
-  const s = $({ a: { b: 1 }, c: 2 })
-  const ev = s.connect([])
+  const s: any = $({ a: { b: 1 }, c: 2 })
+  const ev: any[] = s.connect([])
   s.c = 2     // BU1 no-op (already filtered)
   s.a.b = 1   // BU2 no-op — must emit nothing
   s.a.b = 9   // real change
   same(ev.slice(1), [{ type: 'update', key: ['a', 'b'], value: 9 }])
 
   // sub-proxy patch with all-unchanged values emits nothing
-  const s2 = $({ o: { a: 1, b: 2 } })
+  const s2: any = $({ o: { a: 1, b: 2 } })
   const ev2 = s2.o.connect([])
   s2.o.patch(['a', 1, 'b', 2])
   same(ev2.slice(1), [])
@@ -724,10 +723,10 @@ spec({ op:'core', guarantee:'Robustness', trigger:'remove', shape:'array', asser
   // structural re-entrancy: inserting during a remove-cascade must not splice
   // mid-flight (which desynced downstream positional consumers). The insert
   // lands after the remove completes.
-  const arr = $([10, 20, 30])
-  const order = []
+  const arr: any = $([10, 20, 30])
+  const order: any[] = []
   let armed = true
-  arr.connect({}, (c) => {
+  arr.connect({}, (c: any) => {
     order.push(c.type)
     if (armed && c.type === 'remove') { armed = false; arr.insert(99) }
   })
@@ -738,10 +737,10 @@ spec({ op:'core', guarantee:'Robustness', trigger:'remove', shape:'array', asser
 })
 
 spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a non-converging re-entrant cycle throws instead of overflowing' }, () => {
-  const c = $({ x: 0 })
-  c.connect({}, (ch) => { if (ch.key[0] === 'x') c.x = (ch.value || 0) + 1 })
+  const c: any = $({ x: 0 })
+  c.connect({}, (ch: any) => { if (ch.key[0] === 'x') c.x = (ch.value || 0) + 1 })
   let err
-  try { c.x = 1 } catch (e) { err = e }
+  try { c.x = 1 } catch (e: any) { err = e }
   ok(err && /reactive cycle/.test(err.message), err?.message)
 })
 
@@ -752,16 +751,16 @@ spec({ op:'core', guarantee:'Robustness', trigger:'edit', asserts:'a non-converg
 // snapshots the sink set, so a mid-emit subscriber gets only its seed snapshot
 // and sees subsequent events normally.
 spec({ op:'core', guarantee:'Robustness', trigger:'edit', issue:'C7', asserts:'subscribing during fan-out gets only its seed, not the in-flight event twice' }, () => {
-  const src = $({ a: 1 })
+  const src: any = $({ a: 1 })
   let added = false
   let late
-  src.connect({}, (c) => {
+  src.connect({}, (c: any) => {
     if (!added && c.key[0] === 'a') { added = true; late = src.connect([]) }
   })
   src.a = 2
   same(late, [{ type: 'update', key: [], value: { a: 2 } }]) // seed only, no echoed delta
   src.a = 3 // a later event is delivered normally
-  same(late.at(-1), { type: 'update', key: ['a'], value: 3 })
+  same((late as any).at(-1), { type: 'update', key: ['a'], value: 3 })
 })
 
 // Regression (C8): LinkedView.update re-pointed the source with no cycle check
@@ -770,11 +769,11 @@ spec({ op:'core', guarantee:'Robustness', trigger:'edit', issue:'C7', asserts:'s
 // already committed, EVERY later read/write on b or c threw forever. A cycle is
 // now rejected up front, leaving both proxies fully usable.
 spec({ op:'core', guarantee:'Robustness', trigger:'re-point', issue:'C8', asserts:'a linked cycle is rejected without poisoning the proxies' }, () => {
-  const a = $({ x: 1 })
-  const b = $(a)
-  const c = $(b)
+  const a: any = $({ x: 1 })
+  const b: any = $(a)
+  const c: any = $(b)
   let err
-  try { b[value] = c } catch (e) { err = e }
+  try { b[value] = c } catch (e: any) { err = e }
   ok(err && /cyclic/.test(err.message), err?.message)
   // both still usable — the rejected link was a clean no-op
   same(b[value], { x: 1 })
@@ -783,12 +782,12 @@ spec({ op:'core', guarantee:'Robustness', trigger:'re-point', issue:'C8', assert
   same(a[value], { x: 2 }) // b still forwards to a
   same(c[value], { x: 2 }) // c still mirrors b
   // a legitimate re-point still works
-  const other = $({ y: 9 })
+  const other: any = $({ y: 9 })
   b[value] = other
   same(b[value], { y: 9 })
 })
 
-// Regression (#56): Symbol.toPrimitive was `(hint) => hint ? toString : +value`,
+// Regression (#56): Symbol.toPrimitive was `(hint: any) => hint ? toString : +value`,
 // but hint is always one of 'string'|'number'|'default' (all truthy), so the
 // numeric branch was dead — every coercion round-tripped through toString and
 // `+$(aDate)` was NaN. Only 'string' should take the string form.
@@ -796,7 +795,7 @@ spec({ op:'core', guarantee:'Fidelity', issue:'#56', asserts:'numeric coercion i
   const d = new Date('2024-01-01')
   same(+$(d), d.getTime())       // number hint — was NaN
   same(+$(5), 5)
-  same($(3) + 4, 7)              // default hint, numeric value -> numeric
+  same(($(3) as any) + 4, 7)              // default hint, numeric value -> numeric
   same(`${$(7)}`, '7')          // string hint -> string
   same('row:' + $('A'), 'row:A') // default hint, STRING value -> string (not NaN)
   same(`${$('A')}`, 'A')        // string hint, string value
@@ -808,8 +807,8 @@ spec({ op:'core', guarantee:'Fidelity', issue:'#56', asserts:'numeric coercion i
 // FinalizationRegistry now removes each wrapper when its root is GC'd, keeping
 // the registry bounded to live roots. (Run under --expose-gc.)
 spec({ op:'core', guarantee:'Efficiency', trigger:'scale', issue:'#50', skip: typeof global.gc !== 'function' ? 'needs --expose-gc' : false, asserts:'the roots registry stays bounded as transient roots are collected' }, async () => {
-  for (let i = 0; i < 20000; i++) { const r = $({ n: i }); void r.n }
-  global.gc(); await new Promise((r) => setTimeout(r, 10)); global.gc()
-  await new Promise((r) => setTimeout(r, 30))
+  for (let i = 0; i < 20000; i++) { const r: any = $({ n: i }); void r.n }
+  (global as any).gc(); await new Promise((r: any) => setTimeout(r, 10)); (global as any).gc()
+  await new Promise((r: any) => setTimeout(r, 30))
   ok(_devtoolsRoots.size < 1000, `expected the registry to shrink after GC, got ${_devtoolsRoots.size}`)
 })

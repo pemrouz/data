@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same, strictEqual as eq, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value } from '../../core.ts'
@@ -9,8 +8,8 @@ import { filter } from '../filter/index.ts'
 // SUM ------------------------------------------------------------------
 
 spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', asserts:'the running sum tracks edits, inserts and removes' }, () => {
-  const res = $([1, 2, 3, 4])
-  const s = sum(res)
+  const res: any = $([1, 2, 3, 4])
+  const s: any = sum(res)
   eq(s[value], 10)
   res[1] = 20
   eq(s[value], 28)        // 1 + 20 + 3 + 4
@@ -29,9 +28,9 @@ spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', asserts:'
 // (length) correct because it's key-agnostic. Surfaced building the Kanban
 // example (per-column `filter(status).sort(order).sum(points)`).
 spec({ op:'sum', guarantee:'Reduction', trigger:'remove/insert', shape:'array', via:['numeric-key'], chain:'sort→sum', asserts:'sum/avg/max/min stay correct downstream of a numeric-keyed sort' }, () => {
-  const res = $({ x: { p: 3, o: 0 }, y: { p: 5, o: 1 }, z: { p: 9, o: 2 } })
-  const s = sort(res, 'o')              // descending by o → array-shaped output
-  const sm = sum(s, 'p'), av = avg(s, 'p'), mx = max(s, 'p'), mn = min(s, 'p')
+  const res: any = $({ x: { p: 3, o: 0 }, y: { p: 5, o: 1 }, z: { p: 9, o: 2 } })
+  const s: any = sort(res, 'o')              // descending by o → array-shaped output
+  const sm: any = sum(s, 'p'), av = avg(s, 'p'), mx = max(s, 'p'), mn = min(s, 'p')
   eq(sm[value], 17); eq(av[value], 17 / 3); eq(mx[value], 9); eq(mn[value], 3)
 
   delete res.z                          // remove the max via an array shift
@@ -50,13 +49,13 @@ spec({ op:'sum', guarantee:'Reduction', trigger:'remove/insert', shape:'array', 
 // BR1/BI0 with the sort's positional (numeric) key — the exact Kanban "move
 // card between columns" path. The column's point total must follow.
 spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'object', chain:'filter→sort→sum', asserts:'a membership flip upstream moves the column total' }, () => {
-  const board = $({
+  const board: any = $({
     a: { s: 'todo', p: 3, o: 0 },
     b: { s: 'todo', p: 5, o: 1 },
     c: { s: 'done', p: 2, o: 0 },
   })
-  const col = sort(filter(board, 's', 'todo'), 'o')
-  const pts = sum(col, 'p')
+  const col: any = sort(filter(board, 's', 'todo'), 'o')
+  const pts: any = sum(col, 'p')
   eq(pts[value], 8)
   board.a.s = 'done'                    // move a out of the todo column
   eq(pts[value], 5)                     // was stuck at 8 before the fix
@@ -66,28 +65,28 @@ spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'object', chain:'f
 
 // limit shares the same array-index notification shape as sort.
 spec({ op:'sum', guarantee:'Reduction', trigger:'remove', shape:'array', chain:'limit→sum', asserts:'a source remove decrements the sum through limit' }, () => {
-  const res = $([{ p: 10 }, { p: 20 }, { p: 30 }])
-  const lim = limit(res, 3)
-  const sm = sum(lim, 'p')
+  const res: any = $([{ p: 10 }, { p: 20 }, { p: 30 }])
+  const lim: any = limit(res, 3)
+  const sm: any = sum(lim, 'p')
   eq(sm[value], 60)
   delete res[0]
   eq(sm[value], 50)                     // 20 + 30
 })
 
 spec({ op:'sum', guarantee:'Reduction', trigger:'construct', shape:'object', asserts:'sums the values of an object source' }, () => {
-  const res = $({ a: 1, b: 2, c: 3 })
+  const res: any = $({ a: 1, b: 2, c: 3 })
   eq(sum(res)[value], 6)
 })
 
 spec({ op:'sum', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column accessor sums row[col]' }, () => {
-  const res = $([{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }])
+  const res: any = $([{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }])
   eq(sum(res, 'x')[value], 6)
   eq(sum(res, 'y')[value], 60)
 })
 
 spec({ op:'sum', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2'], asserts:'an in-place column edit updates the sum' }, () => {
-  const res = $([{ x: 1 }, { x: 2 }])
-  const s = sum(res, 'x')
+  const res: any = $([{ x: 1 }, { x: 2 }])
+  const s: any = sum(res, 'x')
   eq(s[value], 3)
   res[0].x = 10
   eq(s[value], 12)
@@ -103,18 +102,18 @@ spec({ op:'sum', guarantee:'Efficiency', trigger:'insert', shape:'object', via:[
   let rebuilds = 0, deltas = 0
   const origReset = SumValue.prototype._afterReset
   const origDelta = SumValue.prototype._delta
-  SumValue.prototype._afterReset = function (...a) { rebuilds++; return origReset.apply(this, a) }
-  SumValue.prototype._delta = function (...a) { deltas++; return origDelta.apply(this, a) }
+  SumValue.prototype._afterReset = function (...a: any[]) { rebuilds++; return (origReset as any).apply(this, a) }
+  SumValue.prototype._delta = function (...a: any[]) { deltas++; return (origDelta as any).apply(this, a) }
   try {
-    const obj = $({ a: { p: 1 }, b: { p: 2 } })
-    const s = sum(obj, 'p')
+    const obj: any = $({ a: { p: 1 }, b: { p: 2 } })
+    const s: any = sum(obj, 'p')
     rebuilds = 0; deltas = 0                 // ignore construction
     obj.c = { p: 5 }                          // object insert → BI0 → one delta
     eq(s[value], 8)
     eq(rebuilds, 0); eq(deltas, 1)
 
-    const arr = $([{ p: 1 }, { p: 2 }])
-    const sa = sum(arr, 'p')
+    const arr: any = $([{ p: 1 }, { p: 2 }])
+    const sa: any = sum(arr, 'p')
     rebuilds = 0; deltas = 0
     arr.insert({ p: 3 })                      // array insert → positional shift → rebuild
     eq(sa[value], 6)
@@ -128,23 +127,23 @@ spec({ op:'sum', guarantee:'Efficiency', trigger:'insert', shape:'object', via:[
 // AVG ------------------------------------------------------------------
 
 spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'averages the values of the source' }, () => {
-  const res = $([2, 4, 6])
+  const res: any = $([2, 4, 6])
   eq(avg(res)[value], 4)
 })
 
 spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set averages to undefined, not NaN' }, () => {
-  const res = $([])
+  const res: any = $([])
   eq(avg(res)[value], undefined)
 })
 
 spec({ op:'avg', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column accessor averages row[col]' }, () => {
-  const res = $([{ d: 10 }, { d: 20 }, { d: 30 }])
+  const res: any = $([{ d: 10 }, { d: 20 }, { d: 30 }])
   eq(avg(res, 'd')[value], 20)
 })
 
 spec({ op:'avg', guarantee:'Reduction', trigger:'remove', shape:'array', asserts:'removing a row updates the mean incrementally' }, () => {
-  const res = $([10, 20, 30])
-  const a = avg(res)
+  const res: any = $([10, 20, 30])
+  const a: any = avg(res)
   eq(a[value], 20)
   delete res[1]
   eq(a[value], 20)        // (10 + 30) / 2
@@ -155,8 +154,8 @@ spec({ op:'avg', guarantee:'Reduction', trigger:'remove', shape:'array', asserts
 // MAX / MIN ------------------------------------------------------------
 
 spec({ op:'max', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the maximum tracks inserts, edits and removes' }, () => {
-  const res = $([3, 1, 4, 1, 5, 9, 2, 6])
-  const m = max(res)
+  const res: any = $([3, 1, 4, 1, 5, 9, 2, 6])
+  const m: any = max(res)
   eq(m[value], 9)
   res.insert(100)
   eq(m[value], 100)
@@ -167,8 +166,8 @@ spec({ op:'max', guarantee:'Reduction', trigger:'insert/remove', shape:'array', 
 })
 
 spec({ op:'min', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'the minimum tracks inserts, edits and removes' }, () => {
-  const res = $([3, 1, 4, 1, 5, 9, 2, 6])
-  const m = min(res)
+  const res: any = $([3, 1, 4, 1, 5, 9, 2, 6])
+  const m: any = min(res)
   eq(m[value], 1)
   res.insert(-5)
   eq(m[value], -5)
@@ -181,17 +180,17 @@ spec({ op:'min', guarantee:'Reduction', trigger:'insert/remove', shape:'array', 
 })
 
 spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'a column of Date values compares correctly' }, () => {
-  const res = $([
+  const res: any = $([
     { date: new Date(2001, 0, 1) },
     { date: new Date(2001, 5, 1) },
     { date: new Date(2001, 2, 1) },
   ])
-  const m = max(res, 'date')
+  const m: any = max(res, 'date')
   eq(+m[value], +new Date(2001, 5, 1))
 })
 
 spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set maxes to undefined' }, () => {
-  const res = $([])
+  const res: any = $([])
   eq(max(res)[value], undefined)
 })
 
@@ -199,7 +198,7 @@ spec({ op:'max', guarantee:'Reduction', trigger:'construct', shape:'array', asse
 // returns undefined (not +Infinity, the fast-path sentinel) when tracked is
 // empty.
 spec({ op:'min', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set mins to undefined, not Infinity' }, () => {
-  const res = $([])
+  const res: any = $([])
   eq(min(res)[value], undefined)
 })
 
@@ -211,8 +210,8 @@ spec({ op:'min', guarantee:'Reduction', trigger:'construct', shape:'array', asse
 // old slow path would.
 
 spec({ op:'max', guarantee:'Robustness', trigger:'insert', shape:'array', via:['fallback'], asserts:'a non-numeric value flips off the numeric fast path and still answers' }, () => {
-  const res = $([1, 2, 3])
-  const m = max(res)
+  const res: any = $([1, 2, 3])
+  const m: any = max(res)
   eq(m[value], 3)        // initial all-numeric: fast path
   res.insert(new Date(2001, 5, 1))
   // After inserting a Date, max should still be the latest greater value.
@@ -225,8 +224,8 @@ spec({ op:'max', guarantee:'Robustness', trigger:'insert', shape:'array', via:['
 })
 
 spec({ op:'max', guarantee:'Robustness', trigger:'overwrite', shape:'array', via:['XU0','fallback'], asserts:'a whole-data swap re-enters the numeric fast path' }, () => {
-  const res = $([1, 2, 3])
-  const m = max(res)
+  const res: any = $([1, 2, 3])
+  const m: any = max(res)
   res[0] = 'oops'           // poisons the fast path → fallback
   // Sanity: still works in fallback. 'oops' > 2 > 3 is false (string compare),
   // but for our purposes we just want max to not crash.
@@ -238,8 +237,8 @@ spec({ op:'max', guarantee:'Robustness', trigger:'overwrite', shape:'array', via
 })
 
 spec({ op:'min', guarantee:'Robustness', trigger:'insert', shape:'array', via:['fallback'], asserts:'a non-numeric value flips off the numeric fast path and still answers' }, () => {
-  const res = $([10, 20, 30])
-  const m = min(res)
+  const res: any = $([10, 20, 30])
+  const m: any = min(res)
   eq(m[value], 10)
   res.insert(new Date(1999, 0, 1))   // very small ms, smaller than 10? no, way bigger
   // The Date's epoch ms (~915k+ million) is huge; 10 is still smaller.
@@ -248,15 +247,15 @@ spec({ op:'min', guarantee:'Robustness', trigger:'insert', shape:'array', via:['
   res[0] = new Date(1970, 0, 1)      // epoch 0 in local TZ ≈ small but positive
   // Result depends on TZ but it's definitely smaller than any of {20, 30, Date(1999)}.
   // Just check it changed and is a Date.
-  ok(m[value] instanceof Date)
+  ok((m[value] as any) instanceof Date)
 })
 
 // Dedup -----------------------------------------------------------------
 
 spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'calling with identical args returns the same operator view' }, () => {
-  const res = $([1, 2, 3])
-  const s1 = sum(res)
-  const s2 = sum(res)
+  const res: any = $([1, 2, 3])
+  const s1: any = sum(res)
+  const s2: any = sum(res)
   // Both should be the same operator view (matches() checks col).
   eq(s1[value], s2[value])
   // And mutating the source advances both — proving they share state.
@@ -266,9 +265,9 @@ spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asse
 })
 
 spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'a different column accessor creates a distinct view' }, () => {
-  const res = $([{ x: 1, y: 10 }, { x: 2, y: 20 }])
-  const sx = sum(res, 'x')
-  const sy = sum(res, 'y')
+  const res: any = $([{ x: 1, y: 10 }, { x: 2, y: 20 }])
+  const sx: any = sum(res, 'x')
+  const sy: any = sum(res, 'y')
   eq(sx[value], 3)
   eq(sy[value], 30)
   // independent — mutating x doesn't change y's sum
@@ -280,8 +279,8 @@ spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', asse
 // SOME / EVERY ---------------------------------------------------------
 
 spec({ op:'some', guarantee:'Reduction', trigger:'insert/remove', shape:'array', asserts:'true when any row matches the predicate' }, () => {
-  const res = $([1, 2, 3])
-  const s = some(res, d => d > 5)
+  const res: any = $([1, 2, 3])
+  const s: any = some(res, (d: any) => d > 5)
   eq(s[value], false)
   res.insert(10)
   eq(s[value], true)
@@ -290,13 +289,13 @@ spec({ op:'some', guarantee:'Reduction', trigger:'insert/remove', shape:'array',
 })
 
 spec({ op:'some', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set is false (matches Array#some)' }, () => {
-  const res = $([])
-  eq(some(res, d => d > 0)[value], false)
+  const res: any = $([])
+  eq(some(res, (d: any) => d > 0)[value], false)
 })
 
 spec({ op:'every', guarantee:'Reduction', trigger:'insert/edit', shape:'array', asserts:'true only when every row matches the predicate' }, () => {
-  const res = $([2, 4, 6])
-  const e = every(res, d => d % 2 === 0)
+  const res: any = $([2, 4, 6])
+  const e: any = every(res, (d: any) => d % 2 === 0)
   eq(e[value], true)
   res.insert(3)
   eq(e[value], false)
@@ -305,14 +304,14 @@ spec({ op:'every', guarantee:'Reduction', trigger:'insert/edit', shape:'array', 
 })
 
 spec({ op:'every', guarantee:'Reduction', trigger:'construct', shape:'array', asserts:'an empty set is true (vacuous truth, matches Array#every)' }, () => {
-  const res = $([])
-  eq(every(res, d => d > 0)[value], true)
+  const res: any = $([])
+  eq(every(res, (d: any) => d > 0)[value], true)
 })
 
 spec({ op:'some', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU2'], asserts:'an in-place edit flipping a predicate moves some and every' }, () => {
-  const res = $([{ done: false }, { done: false }, { done: true }])
-  const allDone = every(res, r => r.done)
-  const anyDone = some(res, r => r.done)
+  const res: any = $([{ done: false }, { done: false }, { done: true }])
+  const allDone: any = every(res, (r: any) => r.done)
+  const anyDone: any = some(res, (r: any) => r.done)
   eq(allDone[value], false)
   eq(anyDone[value], true)
   res[0].done = true
@@ -325,10 +324,10 @@ spec({ op:'some', guarantee:'Reduction', trigger:'edit', shape:'array', via:['BU
 })
 
 spec({ op:'some', guarantee:'Identity', trigger:'dedup-call', shape:'array', asserts:'the same predicate returns the same view' }, () => {
-  const res = $([1, 2, 3])
-  const fn = d => d > 0
-  const a = some(res, fn)
-  const b = some(res, fn)
+  const res: any = $([1, 2, 3])
+  const fn = (d: any) => d > 0
+  const a: any = some(res, fn)
+  const b: any = some(res, fn)
   eq(a[value], b[value])
   res.insert(-1)
   eq(a[value], true)
@@ -342,9 +341,9 @@ spec({ op:'some', guarantee:'Identity', trigger:'dedup-call', shape:'array', ass
 // convenience for a runtime column pick, not a hot path. some/every take a fn
 // predicate, not a column, so they have no reactive-column surface.
 spec({ op:'sum', guarantee:'Reduction', trigger:'column-move', shape:'array', via:'reactive-column', asserts:'sum/avg/max/min re-aggregate when a reactive column name changes' }, () => {
-  const src = $([{ delay: 10, dist: 100 }, { delay: 20, dist: 200 }, { delay: 30, dist: 300 }])
-  const col = $('delay')
-  const s = sum(src, col), a = avg(src, col), mx = max(src, col), mn = min(src, col)
+  const src: any = $([{ delay: 10, dist: 100 }, { delay: 20, dist: 200 }, { delay: 30, dist: 300 }])
+  const col: any = $('delay')
+  const s: any = sum(src, col), a = avg(src, col), mx = max(src, col), mn = min(src, col)
   eq(s[value], 60); eq(a[value], 20); eq(mx[value], 30); eq(mn[value], 10)
   col[value] = 'dist'
   eq(s[value], 600); eq(a[value], 200); eq(mx[value], 300); eq(mn[value], 100)
@@ -354,10 +353,10 @@ spec({ op:'sum', guarantee:'Reduction', trigger:'column-move', shape:'array', vi
 })
 
 spec({ op:'sum', guarantee:'Identity', trigger:'dedup-call', shape:'array', via:'reactive-column', asserts:'two aggregates sharing a reactive column SOURCE share one operator' }, () => {
-  const src = $([{ a: 1, b: 10 }, { a: 2, b: 20 }])
-  const col = $('a')
-  const s1 = sum(src, col)
-  const s2 = sum(src, col)            // same column source → deduped (view-identity match)
+  const src: any = $([{ a: 1, b: 10 }, { a: 2, b: 20 }])
+  const col: any = $('a')
+  const s1: any = sum(src, col)
+  const s2: any = sum(src, col)            // same column source → deduped (view-identity match)
   eq(s1[value], s2[value])
   col[value] = 'b'
   eq(s1[value], 30); eq(s2[value], 30)

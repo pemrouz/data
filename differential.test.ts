@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Differential correctness harness.
 //
 // For every (source-shape × operator-chain × mutation) it asserts the LIVE
@@ -22,28 +21,28 @@ import { $, value } from './index.ts'
 // ---- deterministic RNG ----
 let _seed = 0
 const rnd = () => (_seed = (_seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
-const pick = (arr) => arr[Math.floor(rnd() * arr.length)]
+const pick = (arr: any) => arr[Math.floor(rnd() * arr.length)]
 
 // ---- logical comparator ----
-const isObj = (v) => v != null && typeof v === 'object'
-const num = (v) => typeof v === 'number'
-const approx = (a, b) => a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))
-function logicalEqual(a, b) {
+const isObj = (v: any) => v != null && typeof v === 'object'
+const num = (v: any) => typeof v === 'number'
+const approx = (a: any, b: any) => a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))
+function logicalEqual(a: any, b: any) {
   if (a === b) return true
   if (num(a) && num(b)) return approx(a, b) || (Number.isNaN(a) && Number.isNaN(b))
   if (a === undefined || b === undefined) return a === b
   const aArr = Array.isArray(a), bArr = Array.isArray(b)
   if (aArr || bArr) {
     // densify both, compare in order
-    const da = (aArr ? a : Object.values(a)).filter((x) => x !== undefined)
-    const db = (bArr ? b : Object.values(b)).filter((x) => x !== undefined)
+    const da = (aArr ? a : Object.values(a)).filter((x: any) => x !== undefined)
+    const db = (bArr ? b : Object.values(b)).filter((x: any) => x !== undefined)
     if (da.length !== db.length) return false
     for (let i = 0; i < da.length; i++) if (!logicalEqual(da[i], db[i])) return false
     return true
   }
   if (isObj(a) && isObj(b)) {
-    const ka = Object.keys(a).filter((k) => a[k] !== undefined)
-    const kb = Object.keys(b).filter((k) => b[k] !== undefined)
+    const ka = Object.keys(a).filter((k: any) => a[k] !== undefined)
+    const kb = Object.keys(b).filter((k: any) => b[k] !== undefined)
     if (ka.length !== kb.length) return false
     for (const k of ka) if (!logicalEqual(a[k], b[k])) return false
     return true
@@ -58,16 +57,16 @@ function logicalEqual(a, b) {
 // `g` stays in {g0,g1,g2} so group/distinct/length(fn) see real collisions.
 let _vCounter = 200
 const nextV = () => _vCounter++
-const rows = (n) => Array.from({ length: n }, (_, i) => ({ id: i, g: 'g' + (i % 3), v: i * 11 }))
-const asObject = (arr) => Object.fromEntries(arr.map((r) => ['k' + r.id, { ...r }]))
-const clone = (v) => structuredClone(v)
+const rows = (n: any) => Array.from({ length: n }, (_: any, i: any) => ({ id: i, g: 'g' + (i % 3), v: i * 11 }))
+const asObject = (arr: any) => Object.fromEntries(arr.map((r: any) => ['k' + r.id, { ...r }]))
+const clone = (v: any) => structuredClone(v)
 
 // length(fn) keeps emptied buckets as {value:0} (documented fixed-keyspace
 // persistence); a fresh rebuild never has them. Drop zero-buckets from both
 // sides so that intentional contract isn't flagged as a desync.
-const dropZeroBuckets = (o) => {
+const dropZeroBuckets = (o: any) => {
   if (!isObj(o) || Array.isArray(o)) return o
-  const out = {}
+  const out: any = {}
   for (const k of Object.keys(o)) {
     const b = o[k]
     if (isObj(b) && 'value' in b && b.value === 0) continue
@@ -80,10 +79,10 @@ const dropZeroBuckets = (o) => {
 // (first-seen-historically vs a fresh build's first-seen-in-current-iteration).
 // The unambiguous correctness property is the SET of distinct keys present, so
 // project the output rows to their `g` keyset before comparing.
-const gKeyset = (o) => {
+const gKeyset = (o: any) => {
   if (!isObj(o)) return o
-  const vals = (Array.isArray(o) ? o : Object.values(o)).filter((x) => x !== undefined)
-  return [...new Set(vals.map((r) => (r && typeof r === 'object' ? r.g : r)))].sort()
+  const vals = (Array.isArray(o) ? o : Object.values(o)).filter((x: any) => x !== undefined)
+  return [...new Set(vals.map((r: any) => (r && typeof r === 'object' ? r.g : r)))].sort()
 }
 
 // keys()/values()/reverse() over an OBJECT are iteration-order-loose under
@@ -94,7 +93,7 @@ const gKeyset = (o) => {
 // as distinct's keyset). Compare order-insensitively for these. (Documented in
 // ISSUES.md; the array forms keep a stable positional order and are NOT
 // normalized.)
-const multiset = (o) => {
+const multiset = (o: any) => {
   if (!isObj(o)) return o
   // Order-insensitive: keys()/values()/reverse() output order follows source
   // ITERATION order, which is loose under leave-then-re-enter (a re-valued key
@@ -103,7 +102,7 @@ const multiset = (o) => {
   // is the invariant; reversal/positional order is covered by the per-operator
   // unit tests, not here.
   return (Array.isArray(o) ? o : Object.values(o))
-    .filter((x) => x !== undefined).map((r) => JSON.stringify(r)).sort()
+    .filter((x: any) => x !== undefined).map((r: any) => JSON.stringify(r)).sort()
 }
 
 // A "scenario" describes a chain + how to drive it. `project(src, ctx)` builds
@@ -112,89 +111,89 @@ const multiset = (o) => {
 // bound ignore ctx.
 const SCENARIOS = [
   // ---- single ops ----
-  { tag: 'filter', project: (s) => s.filter((r) => r.v > 25) },
-  { tag: 'map', project: (s) => s.map((r) => r.v) },
-  { tag: 'gt', project: (s) => s.gt('v', 25) },
-  { tag: 'lt', project: (s) => s.lt('v', 25) },
-  { tag: 'between', bound: true, project: (s, c) => s.between('v', c.bound) },
-  { tag: 'az', project: (s) => s.az('v') },
-  { tag: 'za', project: (s) => s.za('v') },
-  { tag: 'za-window', project: (s) => s.za('v', 3) },
-  { tag: 'length', scalar: true, project: (s) => s.length() },
-  { tag: 'length-fn', normalize: dropZeroBuckets, project: (s) => s.length((r) => r.g) },
-  { tag: 'sum', scalar: true, project: (s) => s.sum('v') },
-  { tag: 'avg', scalar: true, project: (s) => s.avg('v') },
-  { tag: 'max', scalar: true, project: (s) => s.max('v') },
-  { tag: 'min', scalar: true, project: (s) => s.min('v') },
-  { tag: 'some', scalar: true, project: (s) => s.some((r) => r.v > 80) },
-  { tag: 'every', scalar: true, project: (s) => s.every((r) => r.v >= 0) },
-  { tag: 'distinct', normalize: gKeyset, project: (s) => s.distinct((r) => r.g) },
-  { tag: 'keys', normalize: multiset, project: (s) => s.keys() },
-  { tag: 'values', normalize: multiset, project: (s) => s.values() },
-  { tag: 'reverse', normalize: multiset, project: (s) => s.reverse() },
-  { tag: 'to', scalar: true, project: (s) => s.to((a) => (a ? Object.values(a).filter(Boolean).length : 0)) },
-  { tag: 'group', project: (s) => s.group((r) => r.g) },
+  { tag: 'filter', project: (s: any) => s.filter((r: any) => r.v > 25) },
+  { tag: 'map', project: (s: any) => s.map((r: any) => r.v) },
+  { tag: 'gt', project: (s: any) => s.gt('v', 25) },
+  { tag: 'lt', project: (s: any) => s.lt('v', 25) },
+  { tag: 'between', bound: true, project: (s: any, c: any) => s.between('v', c.bound) },
+  { tag: 'az', project: (s: any) => s.az('v') },
+  { tag: 'za', project: (s: any) => s.za('v') },
+  { tag: 'za-window', project: (s: any) => s.za('v', 3) },
+  { tag: 'length', scalar: true, project: (s: any) => s.length() },
+  { tag: 'length-fn', normalize: dropZeroBuckets, project: (s: any) => s.length((r: any) => r.g) },
+  { tag: 'sum', scalar: true, project: (s: any) => s.sum('v') },
+  { tag: 'avg', scalar: true, project: (s: any) => s.avg('v') },
+  { tag: 'max', scalar: true, project: (s: any) => s.max('v') },
+  { tag: 'min', scalar: true, project: (s: any) => s.min('v') },
+  { tag: 'some', scalar: true, project: (s: any) => s.some((r: any) => r.v > 80) },
+  { tag: 'every', scalar: true, project: (s: any) => s.every((r: any) => r.v >= 0) },
+  { tag: 'distinct', normalize: gKeyset, project: (s: any) => s.distinct((r: any) => r.g) },
+  { tag: 'keys', normalize: multiset, project: (s: any) => s.keys() },
+  { tag: 'values', normalize: multiset, project: (s: any) => s.values() },
+  { tag: 'reverse', normalize: multiset, project: (s: any) => s.reverse() },
+  { tag: 'to', scalar: true, project: (s: any) => s.to((a: any) => (a ? Object.values(a).filter(Boolean).length : 0)) },
+  { tag: 'group', project: (s: any) => s.group((r: any) => r.g) },
   // ---- set-algebra producers (C12: the harness had NO intersect/union/except
   // head-operator coverage, which is why their array-source remove-churn desync
   // went unseen). Facets derive from the same source so membership correlates
   // by key/index.
-  { tag: 'intersect', project: (s) => s.intersect(s.filter((r) => r.v > 25)) },
-  { tag: 'intersect2', project: (s) => s.intersect(s.filter((r) => r.v > 25), s.filter((r) => r.v < 80)) },
-  { tag: 'intersect-between', bound: true, project: (s, c) => s.intersect(s.between('v', c.bound)) },
-  { tag: 'union', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)) },
-  { tag: 'except', project: (s) => s.except(s.filter((r) => r.v > 60)) },
-  { tag: 'reduce2', scalar: true, project: (s) => s.reduce((a, r) => a + (r ? r.v : 0), 0) },
+  { tag: 'intersect', project: (s: any) => s.intersect(s.filter((r: any) => r.v > 25)) },
+  { tag: 'intersect2', project: (s: any) => s.intersect(s.filter((r: any) => r.v > 25), s.filter((r: any) => r.v < 80)) },
+  { tag: 'intersect-between', bound: true, project: (s: any, c: any) => s.intersect(s.between('v', c.bound)) },
+  { tag: 'union', project: (s: any) => s.filter((r: any) => r.v > 60).union(s.filter((r: any) => r.v < 30)) },
+  { tag: 'except', project: (s: any) => s.except(s.filter((r: any) => r.v > 60)) },
+  { tag: 'reduce2', scalar: true, project: (s: any) => s.reduce((a: any, r: any) => a + (r ? r.v : 0), 0) },
   {
     tag: 'reduce3', scalar: true,
-    project: (s) => s.reduce((a, r) => a + r.v, (a, r) => a - r.v, 0),
+    project: (s: any) => s.reduce((a: any, r: any) => a + r.v, (a: any, r: any) => a - r.v, 0),
   },
   // ---- critical chains ----
-  { tag: 'between→filter', bound: true, project: (s, c) => s.between('v', c.bound).filter((r) => r.v > 25) },
-  { tag: 'between→map', bound: true, project: (s, c) => s.between('v', c.bound).map((r) => r.v) },
-  { tag: 'za-window→map', project: (s) => s.za('v', 3).map((r) => r.v) },
-  { tag: 'za-window→filter', project: (s) => s.za('v', 3).filter((r) => r.v > 25) },
-  { tag: 'za-window→distinct', normalize: gKeyset, project: (s) => s.za('v', 3).distinct((r) => r.g) },
+  { tag: 'between→filter', bound: true, project: (s: any, c: any) => s.between('v', c.bound).filter((r: any) => r.v > 25) },
+  { tag: 'between→map', bound: true, project: (s: any, c: any) => s.between('v', c.bound).map((r: any) => r.v) },
+  { tag: 'za-window→map', project: (s: any) => s.za('v', 3).map((r: any) => r.v) },
+  { tag: 'za-window→filter', project: (s: any) => s.za('v', 3).filter((r: any) => r.v > 25) },
+  { tag: 'za-window→distinct', normalize: gKeyset, project: (s: any) => s.za('v', 3).distinct((r: any) => r.g) },
   // Chained sorts — the inner sort's output feeds another sort, whose state is
   // keyed by the inner's POSITIONS. A bounded inner window reconciles rotations
   // as content-stable BU1s (not mid-window splices), and an ascending sort tracks
   // array index-shifts (AZValue.isArr), so these stay consistent (C3).
-  { tag: 'za-window→az-window', project: (s) => s.za('v', 3).az('v', 3) },
-  { tag: 'az-window→za-window', project: (s) => s.az('v', 3).za('v', 3) },
-  { tag: 'za-window→za-window', project: (s) => s.za('v', 3).za('v', 3) },
-  { tag: 'za→az (unbounded chain)', project: (s) => s.za('v').az('v') },
-  { tag: 'za-window→az-window→map', project: (s) => s.za('v', 3).az('v', 3).map((r) => r.v) },
+  { tag: 'za-window→az-window', project: (s: any) => s.za('v', 3).az('v', 3) },
+  { tag: 'az-window→za-window', project: (s: any) => s.az('v', 3).za('v', 3) },
+  { tag: 'za-window→za-window', project: (s: any) => s.za('v', 3).za('v', 3) },
+  { tag: 'za→az (unbounded chain)', project: (s: any) => s.za('v').az('v') },
+  { tag: 'za-window→az-window→map', project: (s: any) => s.za('v', 3).az('v', 3).map((r: any) => r.v) },
   // filter (sparse array via predicate-flip holes) → chained windowed sort: the
   // filter emits BF0/BH1 on a flip so the sort mirrors the hole instead of
   // shift-splicing every later row (C1 family extended to filter→sort).
-  { tag: 'filter→za-window→az-window', project: (s) => s.filter((r) => r.v > 5).za('v', 3).az('v', 3) },
-  { tag: 'between→group', bound: true, project: (s, c) => s.between('v', c.bound).group((r) => r.g) },
-  { tag: 'between→distinct', bound: true, normalize: gKeyset, project: (s, c) => s.between('v', c.bound).distinct((r) => r.g) },
-  { tag: 'between→az', bound: true, project: (s, c) => s.between('v', c.bound).az('v') },
-  { tag: 'between→za', bound: true, project: (s, c) => s.between('v', c.bound).za('v') },
-  { tag: 'filter→az', project: (s) => s.filter((r) => r.v > 10).az('v') },
+  { tag: 'filter→za-window→az-window', project: (s: any) => s.filter((r: any) => r.v > 5).za('v', 3).az('v', 3) },
+  { tag: 'between→group', bound: true, project: (s: any, c: any) => s.between('v', c.bound).group((r: any) => r.g) },
+  { tag: 'between→distinct', bound: true, normalize: gKeyset, project: (s: any, c: any) => s.between('v', c.bound).distinct((r: any) => r.g) },
+  { tag: 'between→az', bound: true, project: (s: any, c: any) => s.between('v', c.bound).az('v') },
+  { tag: 'between→za', bound: true, project: (s: any, c: any) => s.between('v', c.bound).za('v') },
+  { tag: 'filter→az', project: (s: any) => s.filter((r: any) => r.v > 10).az('v') },
   // TRAILING-excluded predicate (v < 60 drops the highest-v rows, and every
   // fresh insert draws v ≥ 200 so the tail stays excluded) — the C13 shape:
   // a RowOperator over an array whose own output is SHORTER than the source
   // (XU0 never assigns trailing excluded indices), chained into a positional
   // consumer. Leading-excluded predicates (v > N) never catch this.
-  { tag: 'lt→map (trailing-excluded)', project: (s) => s.lt('v', 60).map((r) => r.v) },
-  { tag: 'lt→az (trailing-excluded)', project: (s) => s.lt('v', 60).az('v') },
-  { tag: 'filter→between', bound: true, project: (s, c) => s.filter((r) => r.v > 10).between('v', c.bound) },
-  { tag: 'filter→sum', scalar: true, project: (s) => s.filter((r) => r.v > 25).sum('v') },
-  { tag: 'za-window→length', scalar: true, project: (s) => s.za('v', 3).length() },
+  { tag: 'lt→map (trailing-excluded)', project: (s: any) => s.lt('v', 60).map((r: any) => r.v) },
+  { tag: 'lt→az (trailing-excluded)', project: (s: any) => s.lt('v', 60).az('v') },
+  { tag: 'filter→between', bound: true, project: (s: any, c: any) => s.filter((r: any) => r.v > 10).between('v', c.bound) },
+  { tag: 'filter→sum', scalar: true, project: (s: any) => s.filter((r: any) => r.v > 25).sum('v') },
+  { tag: 'za-window→length', scalar: true, project: (s: any) => s.za('v', 3).length() },
   // limit downstream of a SORT: a sort re-orders its output, reaching limit as
   // the array-positional BR1A/BI0A/BMV1 verbs. limit recomputes its window on
   // those (it can't follow a re-ranking parent incrementally) — without that,
   // `az('v').limit(k)` dropped/duped rows on a removal or rank crossing.
-  { tag: 'az→limit', project: (s) => s.az('v').limit(4) },
-  { tag: 'za→limit', project: (s) => s.za('v').limit(4) },
+  { tag: 'az→limit', project: (s: any) => s.az('v').limit(4) },
+  { tag: 'za→limit', project: (s: any) => s.za('v').limit(4) },
   // Aggregates downstream of `between` (C8): a counting/summing sink decrements
   // on every BR1/BH1 `between` emits, so a spurious remove (re-emitting a row
   // that already left the view) drifts the count to 0 / negative. The brush+edit
   // mutation mix exercises the `set extent` narrow loop that was the culprit.
-  { tag: 'between→length', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).length() },
-  { tag: 'between→sum', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).sum('v') },
-  { tag: 'between→avg', bound: true, scalar: true, project: (s, c) => s.between('v', c.bound).avg('v') },
+  { tag: 'between→length', bound: true, scalar: true, project: (s: any, c: any) => s.between('v', c.bound).length() },
+  { tag: 'between→sum', bound: true, scalar: true, project: (s: any, c: any) => s.between('v', c.bound).sum('v') },
+  { tag: 'between→avg', bound: true, scalar: true, project: (s: any, c: any) => s.between('v', c.bound).avg('v') },
   // ---- set-algebra COMPOSITIONS the original harness omitted (surfaced by the
   // 2026-06-13 adversarial probe). The originals all used a RAW-$ primary and
   // read producer VALUE; these chain a SORT / AGGREGATE downstream so a
@@ -206,23 +205,23 @@ const SCENARIOS = [
   // supports the C14 independent-array case) drops a survivor when the primary
   // is itself a sparse-array producer. Object-keyed sources are correct; the
   // shipped crossfilter intersects a RAW source with facets, which IS covered.
-  { tag: 'intersect→za', project: (s) => s.intersect(s.filter((r) => r.v > 25)).za('v') },
-  { tag: 'intersect→length', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).length() },
-  { tag: 'intersect→sum', scalar: true, project: (s) => s.intersect(s.filter((r) => r.v > 25)).sum('v') },
-  { tag: 'union→za', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).za('v') },
-  { tag: 'union→sum', scalar: true, project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).sum('v') },
-  { tag: 'union→group', project: (s) => s.filter((r) => r.v > 60).union(s.filter((r) => r.v < 30)).group((r) => r.g) },
-  { tag: 'except→sum', scalar: true, project: (s) => s.except(s.filter((r) => r.v > 60)).sum('v') },
-  { tag: 'except→za', project: (s) => s.except(s.filter((r) => r.v > 60)).za('v') },
+  { tag: 'intersect→za', project: (s: any) => s.intersect(s.filter((r: any) => r.v > 25)).za('v') },
+  { tag: 'intersect→length', scalar: true, project: (s: any) => s.intersect(s.filter((r: any) => r.v > 25)).length() },
+  { tag: 'intersect→sum', scalar: true, project: (s: any) => s.intersect(s.filter((r: any) => r.v > 25)).sum('v') },
+  { tag: 'union→za', project: (s: any) => s.filter((r: any) => r.v > 60).union(s.filter((r: any) => r.v < 30)).za('v') },
+  { tag: 'union→sum', scalar: true, project: (s: any) => s.filter((r: any) => r.v > 60).union(s.filter((r: any) => r.v < 30)).sum('v') },
+  { tag: 'union→group', project: (s: any) => s.filter((r: any) => r.v > 60).union(s.filter((r: any) => r.v < 30)).group((r: any) => r.g) },
+  { tag: 'except→sum', scalar: true, project: (s: any) => s.except(s.filter((r: any) => r.v > 60)).sum('v') },
+  { tag: 'except→za', project: (s: any) => s.except(s.filter((r: any) => r.v > 60)).za('v') },
 ]
 
 // mutation kinds
 const freshRow = () => ({ id: 1000 + Math.floor(rnd() * 100000), g: 'g' + Math.floor(rnd() * 3), v: nextV() })
-function mutate(kind, S, isArr, ctx) {
+function mutate(kind: any, S: any, isArr: any, ctx: any) {
   const v = S[value]
   const keysNow = isArr
-    ? v.map((_, i) => i).filter((i) => v[i] !== undefined)
-    : Object.keys(v).filter((k) => v[k] !== undefined)
+    ? v.map((_: any, i: any) => i).filter((i: any) => v[i] !== undefined)
+    : Object.keys(v).filter((k: any) => v[k] !== undefined)
   if (kind === 'insert') {
     const row = freshRow()
     if (isArr) S.insert(row)
@@ -248,8 +247,8 @@ function mutate(kind, S, isArr, ctx) {
     // write a fresh row back into a previously-cleared slot. For arrays this
     // is a HOLE FILL (nothing shifted) and must not be emitted as a splice.
     const holes = isArr
-      ? v.map((_, i) => i).filter((i) => i in v && v[i] === undefined)
-      : Object.keys(v).filter((k) => v[k] === undefined)
+      ? v.map((_: any, i: any) => i).filter((i: any) => i in v && v[i] === undefined)
+      : Object.keys(v).filter((k: any) => v[k] === undefined)
     if (holes.length) S[pick(holes)] = freshRow()
   } else if (kind === 'row-overwrite' && keysNow.length) {
     // whole-slot BU1 (data[k] = newRow) — not a nested field edit
@@ -273,17 +272,17 @@ function mutate(kind, S, isArr, ctx) {
 const MUT_KINDS = ['insert', 'remove', 'update-v', 'update-g', 'bound',
   'slot-undef', 'refill', 'row-overwrite', 'patch-batch', 'mid-insert']
 
-function runScenario(scn, shape, seed) {
+function runScenario(scn: any, shape: any, seed: any) {
   _seed = seed
   const init = shape === 'array' ? rows(9) : asObject(rows(9))
   const isArr = shape === 'array'
-  const S = $(clone(init))
+  const S: any = $(clone(init))
   const liveCtx = { bound: scn.bound ? $([20, 70]) : null }
   const live = scn.project(S, liveCtx)
 
-  const norm = scn.normalize || ((x) => x)
+  const norm = scn.normalize || ((x: any) => x)
   const oracle = () => {
-    const fresh = $(clone(S[value]))
+    const fresh: any = $(clone(S[value]))
     const bnd = liveCtx.bound ? liveCtx.bound[value] : null
     return norm(scn.project(fresh, { bound: bnd })[value])
   }
@@ -333,20 +332,20 @@ function runScenario(scn, shape, seed) {
 // insert; intersect/union/except never spliced a fresh cell on a mid-array
 // insert. Fixed by padding to source length and splicing in lockstep. Keep
 // this set EMPTY — a regression re-adds itself here as a hard failure.
-const KNOWN_FAILURES = new Set([])
+const KNOWN_FAILURES = new Set<any>([])
 
 for (const scn of SCENARIOS) {
   for (const shape of ['array', 'object']) {
     const key = `${scn.tag} [${shape}]`
     spec({ op:'differential', guarantee:'Robustness', shape, asserts:`${scn.tag} stays equal to a from-scratch rebuild through random churn` }, () => {
-      let firstFail = null
+      let firstFail: any = null
       // a few seeds so a single lucky/unlucky sequence doesn't hide a bug
       for (const seed of [1, 7, 42, 99]) {
         // A throw (e.g. an accessor reading a hole) is a failure too — catch it
         // so it can be xfail'd rather than escaping the registry check.
         let r
         try { r = runScenario(scn, shape, seed) }
-        catch (e) { r = { ok: false, step: 'threw', live: String(e?.message || e), want: '(no throw)' } }
+        catch (e: any) { r = { ok: false, step: 'threw', live: String(e?.message || e), want: '(no throw)' } }
         if (!r.ok && !firstFail) firstFail = r
       }
       if (KNOWN_FAILURES.has(key)) {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, view } from '../../core.ts'
@@ -7,17 +6,17 @@ import { sort, limit } from '../sort/index.ts'
 import { sum } from '../aggregate/index.ts'
 import { between } from '../between/index.ts'
 
-const max = (a, b) => a > b ? a : b
-$.random = o => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
+const max = (a: any, b: any) => a > b ? a : b
+$.random = (o: any) => 1 + Object.keys(o).map(Number).sort().reduce(max, -1)
 
-const groups = (g) => Object.fromEntries(
-  Object.entries(g[value]).map(([k, b]) => [k, Object.values(b).map((r) => r.id)]))
+const groups = (g: any) => Object.fromEntries(
+  Object.entries(g[value]).map(([k, b]: any) => [k, Object.values(b).map((r: any) => r.id)]))
 
 spec({ op:'group', guarantee:'Selection', trigger:'edit', shape:'array', via:['BU2'], issue:'C1', asserts:'an in-place key edit moves the row to its new bucket' }, () => {
   // Array-source group's BU2 used to be a no-op, so changing a row's group key
   // in place left it stranded in its old bucket. It now rebuilds on a key move.
-  const src = $([{ id: 0, g: 'a' }, { id: 1, g: 'b' }, { id: 2, g: 'a' }])
-  const g = group(src, (r) => r.g)
+  const src: any = $([{ id: 0, g: 'a' }, { id: 1, g: 'b' }, { id: 2, g: 'a' }])
+  const g: any = group(src, (r: any) => r.g)
   same(groups(g), { a: [0, 2], b: [1] })
   src[2].g = 'b'                            // id:2 moves a → b
   same(groups(g), { a: [0], b: [1, 2] })
@@ -26,20 +25,20 @@ spec({ op:'group', guarantee:'Selection', trigger:'edit', shape:'array', via:['B
 })
 
 spec({ op:'group', guarantee:'Selection', trigger:'bound-move', shape:'array', via:['BF0'], issue:'C1', chain:'between→group', asserts:'a row entering the range joins its bucket on a bound move' }, () => {
-  const src = $([{ id: 0, g: 'a', v: 10 }, { id: 1, g: 'b', v: 50 }, { id: 2, g: 'a', v: 90 }])
-  const g = group(between(src, 'v', [40, 100]), (r) => r.g)
+  const src: any = $([{ id: 0, g: 'a', v: 10 }, { id: 1, g: 'b', v: 50 }, { id: 2, g: 'a', v: 90 }])
+  const g: any = group(between(src, 'v', [40, 100]), (r: any) => r.g)
   same(groups(g), { b: [1], a: [2] })       // v in [40,100]: id1(b), id2(a)
   src[0].v = 45                             // id0 enters range (BF0) → bucket a
   same(groups(g), { a: [0, 2], b: [1] })
 })
 
 spec({ op:'group', guarantee:'Fidelity', trigger:'insert/remove', shape:'object', asserts:'bucket inserts, edits and removes emit the right change records' }, () => {
-  const res = $({
+  const res: any = $({
     1: { num: 1.1 }, 2: { num: 2.2 }, 3: { num: 1.9 },
     4: { num: 2.6 }, 5: { num: 1.7 }
   })
-  const grouped = group(res, d => Math.floor(d.num))
-  const changes = grouped.connect([])
+  const grouped: any = group(res, (d: any) => Math.floor(d.num))
+  const changes: any[] = grouped.connect([])
   res.insert({ num: 1.8 })
   res.insert({ num: 5.9 })
   res[5] = { num: 1.8 }
@@ -75,12 +74,12 @@ spec({ op:'group', guarantee:'Fidelity', trigger:'insert/remove', shape:'object'
 // aggregate over a bucket). Surfaced by the pivot example (group-by-region
 // with editable revenue / region). Mirrors the length(fn)-on-BU2 fix.
 spec({ op:'group', guarantee:'Propagation', trigger:'edit', shape:'object', via:['BU2'], chain:'group→sum', asserts:'a non-key edit reaches bucket aggregates; a key edit rebuckets' }, () => {
-  const res = $({
+  const res: any = $({
     x: { g: 'A', v: 1 }, y: { g: 'A', v: 2 }, z: { g: 'B', v: 5 },
   })
-  const grouped = group(res, d => d.g)
-  const aSum = sum(grouped.A, 'v')          // aggregate over bucket A
-  const bSum = sum(grouped.B, 'v')
+  const grouped: any = group(res, (d: any) => d.g)
+  const aSum: any = sum(grouped.A, 'v')          // aggregate over bucket A
+  const bSum: any = sum(grouped.B, 'v')
   same(aSum[value], 3)                      // 1 + 2
   same(bSum[value], 5)
 
@@ -107,17 +106,17 @@ spec({ op:'group', guarantee:'Propagation', trigger:'edit', shape:'object', via:
 // call. The cleared group should now be reported exactly once, with the
 // removed rows as the value.
 spec({ op:'group', guarantee:'Fidelity', trigger:'batch', shape:'object', via:['BU1'], asserts:'a batched cross-group move reports the cleared group exactly once' }, () => {
-  const res = $({
+  const res: any = $({
     1: { num: 1.1 }, 2: { num: 1.2 }, 3: { num: 5.0 },
   })
-  const grouped = group(res, d => Math.floor(d.num))
-  const changes = grouped.connect([])
+  const grouped: any = group(res, (d: any) => Math.floor(d.num))
+  const changes: any[] = grouped.connect([])
   changes.length = 0  // discard the initial XU0
   // simulate a parent operator emitting a batched BU1 in which both rows in
   // group 1 cross over to group 2 in the same tick
-  const op = [...res[view].sinks]
-    .map(w => w.deref?.())
-    .find(s => s instanceof GroupValue)
+  const op: any = [...res[view].sinks]
+    .map((w: any) => w.deref?.())
+    .find((s: any) => s instanceof GroupValue)
   op.BU1(['1', { num: 2.1 }, '2', { num: 2.2 }])
   same(changes, [
     { type: 'remove', key: [ 1 ], value: { '1': { num: 1.1 }, '2': { num: 1.2 } } },
@@ -131,18 +130,18 @@ spec({ op:'group', guarantee:'Fidelity', trigger:'batch', shape:'object', via:['
 // and emitting BR2/BI2/BU2 keyed by per-group local index. This is what
 // limit→group composition relies on for incremental DOM updates.
 spec({ op:'group', guarantee:'Alignment', trigger:'remove', shape:'array', via:['BR1A'], asserts:'array removes splice buckets keyed by per-group local index' }, () => {
-  const res = $([
+  const res: any = $([
     { num: 1.1 },   // 0 → group 1, idx 0
     { num: 5.0 },   // 1 → group 5, idx 0
     { num: 1.2 },   // 2 → group 1, idx 1
     { num: 1.3 },   // 3 → group 1, idx 2
   ])
-  const grouped = group(res, d => Math.floor(d.num))
-  const changes = grouped.connect([])
+  const grouped: any = group(res, (d: any) => Math.floor(d.num))
+  const changes: any[] = grouped.connect([])
   changes.length = 0
-  const op = [...res[view].sinks]
-    .map(w => w.deref?.())
-    .find(s => s instanceof GroupValue)
+  const op: any = [...res[view].sinks]
+    .map((w: any) => w.deref?.())
+    .find((s: any) => s instanceof GroupValue)
 
   // Simulate limit-style remove at upstream pos 1 (the only group-5 row).
   // Group 5 should clear; surviving positions [2, 3] shift down to [1, 2].
@@ -168,16 +167,16 @@ spec({ op:'group', guarantee:'Alignment', trigger:'remove', shape:'array', via:[
 // later upstream key up by one. The new row lands in its group's bucket
 // at the position dictated by upstream order.
 spec({ op:'group', guarantee:'Alignment', trigger:'insert', shape:'array', via:['BI0A'], asserts:'a mid-array insert lands in its bucket in upstream order' }, () => {
-  const res = $([
+  const res: any = $([
     { num: 1.1 },
     { num: 1.3 },
   ])
-  const grouped = group(res, d => Math.floor(d.num))
-  const changes = grouped.connect([])
+  const grouped: any = group(res, (d: any) => Math.floor(d.num))
+  const changes: any[] = grouped.connect([])
   changes.length = 0
-  const op = [...res[view].sinks]
-    .map(w => w.deref?.())
-    .find(s => s instanceof GroupValue)
+  const op: any = [...res[view].sinks]
+    .map((w: any) => w.deref?.())
+    .find((s: any) => s instanceof GroupValue)
 
   // Insert a new row at upstream pos 1 (between the two existing entries).
   // It joins group 1 and should land at idx 1 in the bucket so that
@@ -199,11 +198,11 @@ spec({ op:'group', guarantee:'Alignment', trigger:'insert', shape:'array', via:[
 spec({ op:'group', guarantee:'Alignment', trigger:'brush', shape:'array', chain:'limit→group', asserts:'limit churn that shifts upstream positions keeps buckets consistent' }, () => {
   // 30 source rows in 3 categories. limit(10) keeps the 10 lowest-id rows
   // (object iteration order). Each category has ~3 rows in the window.
-  const data = {}
+  const data: any = {}
   for (let i = 0; i < 30; i++) data[i] = { cat: i % 3, val: i }
-  const src = $(data)
-  const limited = limit(src, 10)
-  const grouped = group(limited, d => d.cat)
+  const src: any = $(data)
+  const limited: any = limit(src, 10)
+  const grouped: any = group(limited, (d: any) => d.cat)
 
   same(grouped[value], {
     0: [ { cat: 0, val: 0 }, { cat: 0, val: 3 }, { cat: 0, val: 6 }, { cat: 0, val: 9 } ],
@@ -248,8 +247,8 @@ spec({ op:'group', guarantee:'Alignment', trigger:'brush', shape:'array', chain:
 // DUPLICATE it on a cross-group move, because posMap stored the literal undefined
 // group, indistinguishable from "untracked". posMap.has() now disambiguates.
 spec({ op:'group', guarantee:'Robustness', trigger:'remove/edit', shape:'object', asserts:'an undefined group key removes and moves without crash or duplicate' }, () => {
-  const src = $({ a: { cat: 'x', v: 1 }, b: { v: 2 }, c: { cat: 'x', v: 3 } })
-  const g = group(src, r => r.cat)            // b → the "undefined" bucket
+  const src: any = $({ a: { cat: 'x', v: 1 }, b: { v: 2 }, c: { cat: 'x', v: 3 } })
+  const g: any = group(src, (r: any) => r.cat)            // b → the "undefined" bucket
   same(g[value], { x: { a: { cat: 'x', v: 1 }, c: { cat: 'x', v: 3 } }, undefined: { b: { v: 2 } } })
 
   // remove the undefined-group row — must not throw, bucket disappears
@@ -257,14 +256,14 @@ spec({ op:'group', guarantee:'Robustness', trigger:'remove/edit', shape:'object'
   same(g[value], { x: { a: { cat: 'x', v: 1 }, c: { cat: 'x', v: 3 } } })
 
   // move an undefined-group row into a real group — must not leave a duplicate
-  const src2 = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
-  const g2 = group(src2, r => r.cat)
+  const src2: any = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
+  const g2: any = group(src2, (r: any) => r.cat)
   src2.b = { cat: 'z', v: 2 }                 // BU1 cross-group move out of "undefined"
   same(g2[value], { x: { a: { cat: 'x', v: 1 } }, z: { b: { cat: 'z', v: 2 } } })
 
   // same via an in-place BU2 field edit that newly classifies the row
-  const src3 = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
-  const g3 = group(src3, r => r.cat)
+  const src3: any = $({ a: { cat: 'x', v: 1 }, b: { v: 2 } })
+  const g3: any = group(src3, (r: any) => r.cat)
   src3.b.cat = 'z'
   same(g3[value], { x: { a: { cat: 'x', v: 1 } }, z: { b: { cat: 'z', v: 2 } } })
 })
@@ -276,8 +275,8 @@ spec({ op:'group', guarantee:'Robustness', trigger:'remove/edit', shape:'object'
 // `unexpected group r1` — so the (documented array-positional-limitation) combo
 // degrades to no-crash through churn instead of throwing.
 spec({ op:'group', guarantee:'Robustness', trigger:'remove', shape:'array', chain:'between→group', asserts:'a sparse array source skips excluded slots without crashing' }, () => {
-  const src = $([{ v: 10, g: 1 }, { v: 50, g: 2 }, { v: 90, g: 1 }])
-  const g = group(between(src, 'v', [20, 80]), r => r.g)
+  const src: any = $([{ v: 10, g: 1 }, { v: 50, g: 2 }, { v: 90, g: 1 }])
+  const g: any = group(between(src, 'v', [20, 80]), (r: any) => r.g)
   same(g[value], { 2: [ { v: 50, g: 2 } ] })
   // a removal that shifts past hole slots used to throw in BR1A — must not now
   delete src[0]
@@ -290,17 +289,17 @@ spec({ op:'group', guarantee:'Robustness', trigger:'remove', shape:'array', chai
 // fn(undefined) and crashed — at construction (XU0) and on a leave via
 // `src.k = undefined` (BU1). Both now treat undefined as excluded / a leave.
 spec({ op:'group', guarantee:'Robustness', trigger:'edit', shape:'object', issue:'G2', chain:'between→group', asserts:'a sparse object source and undefined assignment do not crash' }, () => {
-  const src = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 2 } })
-  const ext = $([0, 10])
-  const ranged = between(src, 'v', ext)
+  const src: any = $({ a: { v: 1 }, b: { v: 5 }, c: { v: 2 } })
+  const ext: any = $([0, 10])
+  const ranged: any = between(src, 'v', ext)
   ext[value] = [0, 3]                       // b (v:5) leaves -> explicit-undefined slot
-  const g = group(ranged, (r) => r.v < 3 ? 'lo' : 'hi') // construct over the churned sparse view
-  const counts = (o) => Object.fromEntries(
-    Object.entries(o).map(([k, b]) => [k, Object.values(b).filter((x) => x !== undefined).length]))
+  const g: any = group(ranged, (r: any) => r.v < 3 ? 'lo' : 'hi') // construct over the churned sparse view
+  const counts = (o: any) => Object.fromEntries(
+    Object.entries(o).map(([k, b]: any) => [k, Object.values(b).filter((x: any) => x !== undefined).length]))
   same(counts(g[value]), { lo: 2 })         // a(1), c(2) in lo; b excluded; no crash
 
-  const s2 = $({ a: { g: 'x', v: 1 }, b: { g: 'y', v: 2 } })
-  const g2 = group(s2, (r) => r.g)
+  const s2: any = $({ a: { g: 'x', v: 1 }, b: { g: 'y', v: 2 } })
+  const g2: any = group(s2, (r: any) => r.g)
   s2.a = undefined                          // leave -> drops a, collapses bucket x
   same(Object.keys(g2[value]), ['y'])
 })
@@ -311,29 +310,29 @@ spec({ op:'group', guarantee:'Robustness', trigger:'edit', shape:'object', issue
 // and every non-key in-place edit triggered a full XU0 rebuild (a whole-view
 // update event downstream). Coerced to posMap.get(+name).
 spec({ op:'group', guarantee:'Efficiency', trigger:'edit', shape:'array', via:['BU2'], issue:'G2', asserts:'a non-key array edit re-evaluates one row, not a full rebuild' }, () => {
-  const src = $([{ g: 'x', v: 1 }, { g: 'y', v: 2 }, { g: 'x', v: 3 }])
+  const src: any = $([{ g: 'x', v: 1 }, { g: 'y', v: 2 }, { g: 'x', v: 3 }])
   let fnCalls = 0
-  const g = group(src, (r) => { fnCalls++; return r.g })
+  const g: any = group(src, (r: any) => { fnCalls++; return r.g })
   const base = fnCalls
-  const ev = g.connect([])
+  const ev: any[] = g.connect([])
   const evBase = ev.length
   src[0].v = 99                  // non-key edit
   same(fnCalls - base, 1)        // one re-evaluation, NOT a full 3-row rebuild
   same(ev.length - evBase, 0)    // non-key edit emits nothing
   // a key edit still rebuckets correctly
   src[0].g = 'y'
-  same(g[value].x.filter((x) => x !== undefined).length, 1) // only {v:3} left in x
+  same(g[value].x.filter((x: any) => x !== undefined).length, 1) // only {v:3} left in x
 })
 
 // Regression (burndown): group over an ARRAY source crashed on a slot set to
 // undefined (`src[i] = undefined` -> BU1A called fn(undefined)). It's a leave:
 // the row drops from its bucket, no fn call.
 spec({ op:'group', guarantee:'Robustness', trigger:'edit', shape:'array', via:['BU1'], asserts:'an array slot set to undefined leaves cleanly without crashing' }, () => {
-  const s = $([{ g: 'a', v: 1 }, { g: 'b', v: 2 }, { g: 'a', v: 3 }])
-  const g = group(s, (r) => r.g)
+  const s: any = $([{ g: 'a', v: 1 }, { g: 'b', v: 2 }, { g: 'a', v: 3 }])
+  const g: any = group(s, (r: any) => r.g)
   s[1] = undefined                       // leave — was a crash
   same(Object.keys(g[value]).sort(), ['a'])
-  same(g[value].a.filter((x) => x !== undefined).map((r) => r.v), [1, 3])
+  same(g[value].a.filter((x: any) => x !== undefined).map((r: any) => r.v), [1, 3])
   s[1] = { g: 'c', v: 9 }                 // refill into a fresh group
   same(Object.keys(g[value]).sort(), ['a', 'c'])
 })
