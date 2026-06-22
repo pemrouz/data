@@ -42,6 +42,9 @@
     "differential.test.ts",
     "entry.test.ts",
     "index.test.ts",
-    "devtools/devtools.test.ts"
+    "devtools/devtools.test.ts",
+    "jsx/jsx.test.ts",
+    "render/list.test.ts",
+    "render/devtools_link.test.ts"
   ]
 }

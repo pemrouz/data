@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Locks in the __ripple_sink back-reference set in Node.render. $.fromDOM(el)
 // in the devtools layer relies on this property existing on every DOM element
 // that's been bound to a reactive view.
@@ -9,7 +8,7 @@ import { render, HTML } from './index.ts'
 
 function recordingDom() {
   let nextId = 0
-  function make(tag) {
+  function make(tag: any) {
     return {
       _id: nextId++,
       tagName: tag,
@@ -22,9 +21,9 @@ function recordingDom() {
       get textContent() { return '' }, set textContent(_) {},
     }
   }
-  globalThis.document = {
-    createElement(t) { return make(t) },
-    createElementNS(_, t) { return make(t) },
+  ;(globalThis as any).document = {
+    createElement(t: any) { return make(t) },
+    createElementNS(_: any, t: any) { return make(t) },
     createTextNode() { return make('#text') },
   }
 }
@@ -37,8 +36,8 @@ function recordingDom() {
 
 spec({ op:'render', guarantee:'Identity', trigger:'construct', via:['__ripple_sink'], asserts:'a data-bound element carries a back-reference to its sink and view' }, () => {
   recordingDom()
-  const items = $({})
-  const root = document.createElement('div')
+  const items: any = $({})
+  const root: any = document.createElement('div')
   render(root, HTML.ul(HTML.li(items, () => HTML.span())))
   ok(root.__ripple_sink, '__ripple_sink should be defined on the sink-bound element')
   strictEqual(root.__ripple_sink, root.sink)
@@ -47,8 +46,8 @@ spec({ op:'render', guarantee:'Identity', trigger:'construct', via:['__ripple_si
 
 spec({ op:'render', guarantee:'Robustness', trigger:'construct', via:['__ripple_sink'], asserts:'the back-reference is non-enumerable and configurable so it neither leaks nor blocks a re-render' }, () => {
   recordingDom()
-  const items = $({})
-  const root = document.createElement('div')
+  const items: any = $({})
+  const root: any = document.createElement('div')
   render(root, HTML.ul(HTML.li(items, () => HTML.span())))
   const desc = Object.getOwnPropertyDescriptor(root, '__ripple_sink')
   ok(desc, '__ripple_sink descriptor should exist')
@@ -58,7 +57,7 @@ spec({ op:'render', guarantee:'Robustness', trigger:'construct', via:['__ripple_
 
 spec({ op:'render', guarantee:'Identity', trigger:'construct', via:['__ripple_sink'], asserts:'a static-only element gets no back-reference' }, () => {
   recordingDom()
-  const root = document.createElement('div')
+  const root: any = document.createElement('div')
   render(root, HTML.div('static text only'))
   ok(!('__ripple_sink' in root), 'static-only elements should not get __ripple_sink')
 })

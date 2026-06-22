@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { spec } from '../tests/spec.ts'
 import { strictEqual as eq } from 'node:assert'
 
@@ -16,15 +15,16 @@ import { strictEqual as eq } from 'node:assert'
 // Surfaced building the Kanban example (a sort() column with mid inserts).
 
 class El {
-  constructor(tag) {
+  [k: string]: any
+  constructor(tag: any) {
     this.tag = tag; this.children = []; this.parentNode = null; this._text = ''
     this.isConnected = true
     this.classList = { add() {}, remove() {} }
     this.style = { setProperty() {}, removeProperty() {} }
   }
-  append(...kids) { for (const k of kids) { k.parentNode = this; this.children.push(k) } }
-  appendChild(k) { k.parentNode = this; this.children.push(k); return k }
-  insertBefore(k, before) {
+  append(...kids: any[]) { for (const k of kids) { k.parentNode = this; this.children.push(k) } }
+  appendChild(k: any) { k.parentNode = this; this.children.push(k); return k }
+  insertBefore(k: any, before: any) {
     k.parentNode = this
     if (!before) { this.children.push(k); return k }
     const i = this.children.indexOf(before)
@@ -36,14 +36,14 @@ class El {
     this.parentNode = null
   }
   setAttribute() {} removeAttribute() {} addEventListener() {}
-  set textContent(v) { this._text = v }
+  set textContent(v: any) { this._text = v }
   get textContent() { return this._text }
-  get text() { return (this.tag === '#text' ? this._text : '') + this.children.map(c => c.text).join('') }
+  get text() { return (this.tag === '#text' ? this._text : '') + this.children.map((c: any) => c.text).join('') }
 }
 
-global.document = {
-  createElement: (t) => new El(t),
-  createElementNS: (_ns, t) => new El(t),
+;(global as any).document = {
+  createElement: (t: any) => new El(t),
+  createElementNS: (_ns: any, t: any) => new El(t),
   createTextNode: () => new El('#text'),
 }
 
@@ -51,14 +51,14 @@ global.document = {
 const { $, value, render, HTML } = await import('../full.ts')
 
 spec({ op:'render', guarantee:'Alignment', trigger:'insert/remove/edit', shape:'array', chain:'az→render', asserts:'the DOM mirrors a sort view through insert, remove, reorder and edit' }, () => {
-  const data = $({ a: { t: 'A', o: 0 }, b: { t: 'B', o: 1 }, c: { t: 'C', o: 2 } })
+  const data: any = $({ a: { t: 'A', o: 0 }, b: { t: 'B', o: 1 }, c: { t: 'C', o: 2 } })
   const view = data.az('o')                 // array-shaped [A, B, C]
-  const root = new El('root')
-  render(root, HTML.ul(HTML.li(view, (n, r) => n.text(r.t))))
+  const root: any = new El('root')
+  render(root, HTML.ul(HTML.li(view, (n: any, r: any) => n.text(r.t))))
 
-  const dom = () => root.children.map(li => li.text).join('')
-  const dat = () => Object.values(view[value]).filter(Boolean).map(r => r.t).join('')
-  const same = (label) => eq(dom(), dat(), `${label}: dom=[${dom()}] data=[${dat()}]`)
+  const dom = () => root.children.map((li: any) => li.text).join('')
+  const dat = () => Object.values(view[value]).filter(Boolean).map((r: any) => r.t).join('')
+  const same = (label: any) => eq(dom(), dat(), `${label}: dom=[${dom()}] data=[${dat()}]`)
 
   same('init')
   data.insert({ t: 'M', o: 0.5 }, ['m']); same('insert mid')      // A M B C
@@ -80,13 +80,13 @@ spec({ op:'render', guarantee:'Fidelity', trigger:'bound-move', shape:'object', 
   // The object-sink guard skips explicit-undefined slots — create_node is
   // index-keyed for objects (`nodes[k]` bound to `data[k]`), so skipping a hole
   // can't misalign survivors (unlike the tail-relative ARRAY path).
-  const data = $({ a: { v: 10 }, b: { v: 50 }, c: { v: 90 } })
-  const bound = $([40, 60])
+  const data: any = $({ a: { v: 10 }, b: { v: 50 }, c: { v: 90 } })
+  const bound: any = $([40, 60])
   const view = data.between('v', bound)        // in range: {b:{v:50}}
   bound[value] = [40, 45]                       // b leaves -> view.value.b = undefined (explicit hole)
-  const root = new El('root')
-  render(root, HTML.ul(HTML.li(view, (n, r) => n.text(r.v))))
-  eq(root.children.length, 0, `expected no rows, got [${root.children.map(li => li.text).join(',')}]`)
+  const root: any = new El('root')
+  render(root, HTML.ul(HTML.li(view, (n: any, r: any) => n.text(r.v))))
+  eq(root.children.length, 0, `expected no rows, got [${root.children.map((li: any) => li.text).join(',')}]`)
 
   bound[value] = [40, 60]                       // b re-enters -> BI0 -> exactly one real row
   eq(root.children.length, 1)
@@ -101,14 +101,14 @@ spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', 
   // <li> for a hole, no drifted binding, no wrong row removed when a bound
   // moves. Driven by BF0 (hole fill) / BH1 (hole remove) on the DOMSink, plus
   // an index-keyed sparse XU0 build.
-  const data = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
-  const bound = $([40, 60])
+  const data: any = $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
+  const bound: any = $([40, 60])
   const view = data.between('v', bound)         // in range: idx 1 (50), idx 3 (55)
-  const root = new El('root')
-  render(root, HTML.ul(HTML.li(view, (n, r) => n.text(r.v))))
-  const dom = () => root.children.map(li => li.text).join(',')
-  const dat = () => view[value].filter(x => x !== undefined).map(r => r.v).join(',')
-  const same = (label) => eq(dom(), dat(), `${label}: dom=[${dom()}] data=[${dat()}]`)
+  const root: any = new El('root')
+  render(root, HTML.ul(HTML.li(view, (n: any, r: any) => n.text(r.v))))
+  const dom = () => root.children.map((li: any) => li.text).join(',')
+  const dat = () => view[value].filter((x: any) => x !== undefined).map((r: any) => r.v).join(',')
+  const same = (label: any) => eq(dom(), dat(), `${label}: dom=[${dom()}] data=[${dat()}]`)
 
   same('init'); eq(dom(), '50,55')
   bound[value] = [0, 100];  same('widen-all'); eq(dom(), '10,50,90,55,30')   // holes 0,2,4 fill in order
@@ -124,20 +124,20 @@ spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', 
   // emit BH1/BF0 over arrays, so a sparse producer of any kind composes with a
   // row template bound straight to the DOM — init AND incremental update.
   const mk = () => $([{ v: 10 }, { v: 50 }, { v: 90 }, { v: 55 }, { v: 30 }])
-  const mount = (viewOf) => {
+  const mount = (viewOf: any) => {
     const src = mk()
     const ctl = viewOf(src)            // returns { view, move }
-    const root = new El('root')
-    render(root, HTML.ul(HTML.li(ctl.view, (n, r) => n.text(r.v))))
-    const dom = () => root.children.map(li => li.text).join(',')
-    const dat = () => ctl.view[value].filter(x => x !== undefined).map(r => r.v).join(',')
+    const root: any = new El('root')
+    render(root, HTML.ul(HTML.li(ctl.view, (n: any, r: any) => n.text(r.v))))
+    const dom = () => root.children.map((li: any) => li.text).join(',')
+    const dat = () => ctl.view[value].filter((x: any) => x !== undefined).map((r: any) => r.v).join(',')
     return { dom, dat, move: ctl.move }
   }
 
   // intersect: rows in [0,100] AND [40,60] -> {50,55}; widen the second to all
   {
-    let bound
-    const t = mount((src) => {
+    let bound: any
+    const t = mount((src: any) => {
       bound = $([40, 60])
       return { view: src.between('v', $([0, 100])).intersect(src.between('v', bound)) }
     })
@@ -147,8 +147,8 @@ spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', 
   }
   // union: rows in [40,60] OR [80,100] -> {50,90,55}; move second band to [0,20]
   {
-    let bound
-    const t = mount((src) => {
+    let bound: any
+    const t = mount((src: any) => {
       bound = $([80, 100])
       return { view: src.between('v', $([40, 60])).union(src.between('v', bound)) }
     })
@@ -158,8 +158,8 @@ spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', 
   }
   // except: rows NOT in [0,60] -> {90}; narrow exclusion to [0,40] so 50,55 re-enter
   {
-    let ex
-    const t = mount((src) => {
+    let ex: any
+    const t = mount((src: any) => {
       ex = $([0, 60])
       return { view: src.except(src.between('v', ex)) }
     })
@@ -177,9 +177,9 @@ spec({ op:'render', guarantee:'Alignment', trigger:'bound-move', shape:'array', 
 // list after a tail-hole popped the hole (undefined.remove()). One _teardownAll
 // that walks holey arrays / object keys / the NODE slot fixes all three.
 spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'object', issue:'H1', asserts:'a list source going undefined tears down cleanly and restores' }, () => {
-  const root = document.createElement('div')
-  const data = $({ a: { t: 'A' }, b: { t: 'B' } })
-  render(root, HTML.ul(HTML.li(data, (n, r) => n.text(r?.t))))
+  const root: any = document.createElement('div')
+  const data: any = $({ a: { t: 'A' }, b: { t: 'B' } })
+  render(root, HTML.ul(HTML.li(data, (n: any, r: any) => n.text(r?.t))))
   eq(root.children.length, 2)
   data[value] = undefined
   eq(root.children.length, 0)            // was a TypeError mid-cascade
@@ -188,8 +188,8 @@ spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'object',
 })
 
 spec({ op:'render', guarantee:'Identity', trigger:'edit', shape:'scalar', issue:'H1', asserts:'a scalar VP binding does not duplicate its element on update' }, () => {
-  const root = document.createElement('div')
-  const n = $(1)
+  const root: any = document.createElement('div')
+  const n: any = $(1)
   render(root, HTML.div(HTML.span(n)))
   n[value] = 2
   n[value] = 3
@@ -198,10 +198,10 @@ spec({ op:'render', guarantee:'Identity', trigger:'edit', shape:'scalar', issue:
 })
 
 spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'array', issue:'H1', chain:'between→render', asserts:'clearing a sparse-bound list after a tail hole does not crash' }, () => {
-  const root = document.createElement('div')
-  const d = $([{ v: 50 }, { v: 90 }])
-  const ext = $([40, 100])
-  render(root, HTML.ul(HTML.li(d.between('v', ext), (n, r) => n.text(r?.v))))
+  const root: any = document.createElement('div')
+  const d: any = $([{ v: 50 }, { v: 90 }])
+  const ext: any = $([40, 100])
+  render(root, HTML.ul(HTML.li(d.between('v', ext), (n: any, r: any) => n.text(r?.v))))
   ext[value] = [40, 60]                  // 90 leaves -> trailing hole in nodes
   delete d[value]                        // clear -> must not pop the hole
   eq(root.children.length, 0)
@@ -214,18 +214,18 @@ spec({ op:'render', guarantee:'Robustness', trigger:'overwrite', shape:'array', 
 // so a reactive class update landed on one row, not all. generate now clones
 // each Prop/Node child.
 spec({ op:'render', guarantee:'Propagation', trigger:'edit', shape:'object', issue:'H2', asserts:'a reactive prop on the row template applies to every row' }, () => {
-  const root = document.createElement('div')
-  const items = $({ a: { t: 'A' }, b: { t: 'B' }, c: { t: 'C' } })
-  const flag = $(false)
-  render(root, HTML.ul(HTML.li.class('hot', flag)(items, (n, r) => n.text(r.t))))
-  const seen = root.children.map((li) => {
+  const root: any = document.createElement('div')
+  const items: any = $({ a: { t: 'A' }, b: { t: 'B' }, c: { t: 'C' } })
+  const flag: any = $(false)
+  render(root, HTML.ul(HTML.li.class('hot', flag)(items, (n: any, r: any) => n.text(r.t))))
+  const seen = root.children.map((li: any) => {
     const set = new Set()
-    li.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c) }
+    li.classList = { add: (c: any) => set.add(c), remove: (c: any) => set.delete(c) }
     li._cls = set
     return set
   })
   flag[value] = true
-  eq(seen.every((s) => s.has('hot')), true) // all rows, not just the last
+  eq(seen.every((s: any) => s.has('hot')), true) // all rows, not just the last
 })
 
 // Regression (H3 / #41): the documented list pattern must render. The template
@@ -233,9 +233,9 @@ spec({ op:'render', guarantee:'Propagation', trigger:'edit', shape:'object', iss
 // `HTML.ul(HTML.li(items, rowFn))`. (The old docs put data on the wrapper —
 // `HTML.ul(items, fn)` — which renders nothing; corrected in the JSDoc/README.)
 spec({ op:'render', guarantee:'Fidelity', trigger:'insert', shape:'array', issue:'H3', asserts:'the documented list pattern renders rows and updates on insert' }, () => {
-  const root = document.createElement('div')
-  const items = $([{ name: 'a' }, { name: 'b' }])
-  render(root, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
+  const root: any = document.createElement('div')
+  const items: any = $([{ name: 'a' }, { name: 'b' }])
+  render(root, HTML.ul(HTML.li(items, (li: any, item: any) => li.text(item.name))))
   eq(root.children.length, 2)
   eq(root.text, 'ab')
   items.insert({ name: 'c' })
@@ -249,10 +249,10 @@ spec({ op:'render', guarantee:'Fidelity', trigger:'insert', shape:'array', issue
 // row is in range gave "35" for [3,4,5]). All array XU0 now reconciles
 // index-keyed via _reconcile_sparse.
 spec({ op:'render', guarantee:'Alignment', trigger:'overwrite', shape:'array', issue:'H4', chain:'between→render', asserts:'a dense re-snapshot over a previously-sparse list keeps every row' }, () => {
-  const root = document.createElement('div')
-  const data = $([{ v: 3 }, { v: 1 }, { v: 4 }])
-  const ext = $([3, 5])
-  render(root, HTML.ul(HTML.li(data.between('v', ext), (n, r) => n.text(r?.v))))
+  const root: any = document.createElement('div')
+  const data: any = $([{ v: 3 }, { v: 1 }, { v: 4 }])
+  const ext: any = $([3, 5])
+  render(root, HTML.ul(HTML.li(data.between('v', ext), (n: any, r: any) => n.text(r?.v))))
   eq(root.text, '34')                      // sparse: v:1 out of range
   data[value] = [{ v: 3 }, { v: 4 }, { v: 5 }] // all in range -> dense re-snapshot
   eq(root.text, '345')                     // was "35" (v:4 dropped)
@@ -265,15 +265,15 @@ spec({ op:'render', guarantee:'Alignment', trigger:'overwrite', shape:'array', i
 // GC'd and silently stop rendering structural changes. `dom.sinks` now retains
 // all of them.
 spec({ op:'render', guarantee:'Robustness', trigger:'insert', shape:'object', issue:'H5', asserts:'multiple data-bound siblings are all retained and keep rendering' }, () => {
-  const root = document.createElement('div')
-  const a = $({ x: { t: 'a1' } })
-  const b = $({ y: { t: 'b1' } })
-  render(root, HTML.div(HTML.li(a, (n, r) => n.text(r.t)), HTML.em(b, (n, r) => n.text(r.t))))
+  const root: any = document.createElement('div')
+  const a: any = $({ x: { t: 'a1' } })
+  const b: any = $({ y: { t: 'b1' } })
+  render(root, HTML.div(HTML.li(a, (n: any, r: any) => n.text(r.t)), HTML.em(b, (n: any, r: any) => n.text(r.t))))
   eq(root.sinks.length, 2)               // both retained
   a.z = { t: 'a2' }                       // first list's insert still renders
-  eq(root.children.filter((c) => c.tag === 'li').length, 2)
+  eq(root.children.filter((c: any) => c.tag === 'li').length, 2)
   b.w = { t: 'b2' }
-  eq(root.children.filter((c) => c.tag === 'em').length, 2)
+  eq(root.children.filter((c: any) => c.tag === 'em').length, 2)
 })
 
 // Regression (H6 / #34): a STRUCTURAL source insert/remove on a sparse-bound
@@ -283,10 +283,10 @@ spec({ op:'render', guarantee:'Robustness', trigger:'insert', shape:'object', is
 // rendered the list. BR1A/BI0A now re-sync the sparse list by index. (Dense
 // lists only get tail BR1A/BI0A and keep the cheap path.)
 spec({ op:'render', guarantee:'Alignment', trigger:'insert/remove', shape:'array', issue:'H6', via:['BR1A','BI0A'], chain:'between→render', asserts:'a structural source insert/remove on a sparse-bound list stays correct' }, () => {
-  const mk = (rows) => {
-    const root = document.createElement('div')
-    const data = $(rows)
-    render(root, HTML.ul(HTML.li(data.between('v', $([40, 60])), (n, r) => n.text(r?.v))))
+  const mk = (rows: any) => {
+    const root: any = document.createElement('div')
+    const data: any = $(rows)
+    render(root, HTML.ul(HTML.li(data.between('v', $([40, 60])), (n: any, r: any) => n.text(r?.v))))
     return { root, data }
   }
   // remove an OUT-of-range row — visible rows unchanged
