@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Collect spec() metadata into tests/registry.json WITHOUT running the tests.
 // Run:  SPEC_COLLECT=1 node --experimental-strip-types tests/collect-registry.ts
 //

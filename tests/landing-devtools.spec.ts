@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Smoke test for the devtools mount on the landing page.
 //
 // History: this used to assert a STATIC `.dock-mock` marketing mockup mirrored
@@ -21,7 +20,7 @@ import { test, expect } from '@playwright/test'
 
 // Wait until the panel has fully mounted: shell ref non-null AND its shadow
 // dock exists. Mirrors devtools-panel.spec's waitForPanel.
-const waitForPanel = async (page) => {
+const waitForPanel = async (page: any) => {
   await page.waitForFunction(async () => {
     const dt: any = await import('data/devtools')
     const shell = dt.$?.devtools?.panel?.shell

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { test, expect } from '@playwright/test'
 
 // Regression: a `za`/sort view that rotates a row in-window emits a BMV1 move
@@ -13,14 +12,14 @@ import { test, expect } from '@playwright/test'
 
 test('render — za list DOM order tracks the sorted view across rotations', async ({ page }) => {
   const errors: string[] = []
-  page.on('pageerror', e => errors.push(String(e)))
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()) })
+  page.on('pageerror', (e: any) => errors.push(String(e)))
+  page.on('console', (m: any) => { if (m.type() === 'error') errors.push('console: ' + m.text()) })
 
   // any served page works as a host for the importmap — use the landing page
   await page.goto('/', { waitUntil: 'domcontentloaded' })
 
   const result = await page.evaluate(async () => {
-    const { $, render, HTML, value } = await import('/dist/full.js')
+    const { $, render, HTML, value } = await import('/dist/full.js' as any)
     const { div, span } = HTML
     const host = document.createElement('div')
     document.body.appendChild(host)
@@ -31,12 +30,12 @@ test('render — za list DOM order tracks the sorted view across rotations', asy
     ])
     const top = rows.za('pnl', 5)
     render(host, div(
-      div.row(top, (node, t) => node(
+      div.row(top, (node: any, t: any) => node(
         span.kid.text(t.id), span.kpnl.text(t.pnl),
       ))
     ))
 
-    const domIds = () => [...host.querySelectorAll('.row')].map(r => r.querySelector('.kid')?.textContent)
+    const domIds = () => [...host.querySelectorAll('.row')].map((r: any) => r.querySelector('.kid')?.textContent)
     const viewIds = () => top[value].map((r: any) => r.id)
 
     const snaps: any[] = []

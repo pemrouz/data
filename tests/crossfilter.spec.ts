@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { test, expect } from '@playwright/test'
 
 // Regression test for a DOMSink bug: V8's `for (i in arr)` terminates as
@@ -43,7 +42,7 @@ test('crossfilter brush leaves no stale DOM rows', async ({ page }) => {
     for (const k of Object.keys(acVal)) groupedTotal += acVal[k].length
     const domRows = document.querySelectorAll('.list .flight').length
     const empties = Array.from(document.querySelectorAll('.list .flight'))
-      .filter(r => !(r.querySelector('.time') as HTMLElement).textContent?.trim()).length
+      .filter((r: any) => !(r.querySelector('.time') as HTMLElement).textContent?.trim()).length
     return { groupedTotal, domRows, empties }
   })
 

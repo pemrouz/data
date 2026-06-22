@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Regression tests for the devtools overlay panel.
 //
 // The panel mounts into a CLOSED shadow root, so Playwright's locator API
@@ -26,7 +25,7 @@ const SEED = `
 // dock element exists inside its shadow root. The post-import poll waits up
 // to ~5s for the first $() root to appear before mounting, so tests must
 // allow time for both the example app and the panel to finish booting.
-const waitForPanel = async (page) => {
+const waitForPanel = async (page: any) => {
   await page.waitForFunction(async () => {
     const dt: any = await import('data/devtools')
     const shell = dt.$?.devtools?.panel?.shell
@@ -34,7 +33,7 @@ const waitForPanel = async (page) => {
   }, { timeout: 10_000 })
 }
 
-const setup = async (page) => {
+const setup = async (page: any) => {
   await page.addInitScript(SEED)
   await page.goto('/examples/todo-jsx/?devtools')
   await page.waitForSelector('.todo-list li', { timeout: 10_000 })
@@ -45,7 +44,7 @@ const setup = async (page) => {
 // rely on Tree-specific selectors (.tnode-row, .name text) for readability —
 // flipping the layout once at the top of those tests is cheaper than
 // rewriting every one to work against both shapes.
-const switchToTree = async (page) => {
+const switchToTree = async (page: any) => {
   await page.evaluate(async () => {
     const dt: any = await import('data/devtools')
     const root = dt.$.devtools.panel.shell.root
@@ -172,7 +171,7 @@ test.describe('devtools panel — graph', () => {
     // terminal sinks — the chip on the root row is absent.
     expect(tree.length).toBeGreaterThanOrEqual(2)
     expect(tree[0].name).toBe('<root>')
-    const labels = tree.map(t => t.name).join('|')
+    const labels = tree.map((t: any) => t.name).join('|')
     expect(labels).toMatch(/\.length\(\)/)
     expect(labels).toMatch(/\.filter\(\)/)
   })
@@ -283,7 +282,7 @@ test.describe('devtools panel — events tab', () => {
       const dt: any = await import('data/devtools')
       const root = dt.$.devtools.panel.shell.root
       const rows = Array.from(root.querySelectorAll('.tnode-row')) as any[]
-      const lengthRow = rows.find(r => (r.querySelector('.name')?.textContent || '').includes('.length()'))
+      const lengthRow = rows.find((r: any) => (r.querySelector('.name')?.textContent || '').includes('.length()'))
       if (!lengthRow) throw new Error('no .length() row found')
       lengthRow.click()
       const tab = Array.from(root.querySelectorAll('.insp-tabs button')).find((b: any) => b.textContent === 'events') as any
@@ -560,7 +559,7 @@ test.describe('devtools panel — Alt-hover popover escaping (#73)', () => {
       // dispatch an Alt-hover by simulating the alt key + mousemove the panel listens for
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }))
       li?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5, altKey: true }))
-      await new Promise((r) => setTimeout(r, 60))
+      await new Promise((r: any) => setTimeout(r, 60))
       const pop = document.querySelector('.__rp_alt_pop') as any
       return {
         xss: !!(window as any).__xss,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { test, expect } from '@playwright/test'
 
 // Smoke test for the home-page race carousel (assets/race.js + race-views.js).
@@ -26,7 +25,7 @@ const ENGINES: [string, string][] = [
   ['rxjs', 'RxJS'], ['react', 'React'],
 ]
 
-async function expectLiveCard (page, labelFragment: string) {
+async function expectLiveCard (page: any, labelFragment: string) {
   const card = page.locator('.rcard')
   await expect(card.locator('.rcard-name')).toContainText(labelFragment, { timeout: 60_000 })
   // order book renders 14 ladder rows (7 ask + 7 bid) once setup runs
@@ -44,7 +43,7 @@ for (const [id, label] of ENGINES) {
   test(`race — ${id} engine mounts and renders a live order book`, async ({ page }) => {
     test.setTimeout(150_000)
     const errors: string[] = []
-    page.on('pageerror', e => errors.push(String(e)))
+    page.on('pageerror', (e: any) => errors.push(String(e)))
     await page.goto(HOME, { timeout: 90_000 })
     await page.waitForSelector('.rcard', { timeout: 60_000 })
     if (id !== 'data') await page.selectOption('#race-lib', id)

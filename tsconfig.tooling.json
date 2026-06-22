@@ -11,7 +11,7 @@
   // value here is catching a genuinely broken import / dead assertion / wrong
   // workload shape, not internal soundness — same bargain as tsconfig.src.json.
   "extends": "./tsconfig.json",
-  "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM"] },
+  "compilerOptions": { "noCheck": false, "noEmit": true, "skipLibCheck": true, "lib": ["ESNext", "DOM", "DOM.Iterable"] },
   "include": [
     "perf/measure.ts",
     "perf/record.ts",
@@ -45,6 +45,9 @@
     "devtools/devtools.test.ts",
     "jsx/jsx.test.ts",
     "render/list.test.ts",
-    "render/devtools_link.test.ts"
+    "render/devtools_link.test.ts",
+    "tests/*.spec.ts",
+    "tests/spec.ts",
+    "tests/collect-registry.ts"
   ]
 }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Devtools-on-JSX smoke test. The JSX adapter routes through the same
 // NodeProxy/DOMSink pipeline as the builder DSL, so devtools' read-side
 // helpers ($.inspect, $.graph, $.fromDOM, $.highlight) and the in-page

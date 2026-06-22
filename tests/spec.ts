@@ -1,4 +1,3 @@
-// @ts-nocheck
 // spec() — a thin, backward-compatible wrapper over node:test that carries
 // structured metadata for each test (subject / aspect / shape / mechanism /
 // regression / assertion) so the test report can organise by BEHAVIOUR rather
@@ -38,12 +37,12 @@ import { test } from 'node:test'
 export const GUARANTEES = ['Selection','Order','Reduction','Identity','Alignment','Propagation','Fidelity','Efficiency','Robustness']
 export const TRIGGERS = ['construct','insert','remove','edit','overwrite','bound-move','brush','batch','re-point','dedup-call','scale']
 
-const REGISTRY = []
+const REGISTRY: any[] = []
 const COLLECT = process.env.SPEC_COLLECT === '1'
 
-function arr(x) { return x == null ? [] : (Array.isArray(x) ? x : [x]) }
+function arr(x: any) { return x == null ? [] : (Array.isArray(x) ? x : [x]) }
 
-export function specTitle(m) {
+export function specTitle(m: any) {
   const head = [m.chain || m.op, m.guarantee]
   if (m.trigger) head.push(m.trigger)
   if (m.shape) head.push(m.shape)
@@ -52,7 +51,7 @@ export function specTitle(m) {
   return head.join(' · ') + ' — ' + m.asserts
 }
 
-export function spec(meta, fn) {
+export function spec(meta: any, fn: any) {
   if (!meta || !meta.op || !meta.guarantee || !meta.asserts)
     throw new Error('spec() requires { op, guarantee, asserts } — got ' + JSON.stringify(meta))
   if (!GUARANTEES.includes(meta.guarantee))

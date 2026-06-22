@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { test, expect } from '@playwright/test'
 
 // Regression test for the landing-page `tap` operator demo (assets/demos.js).
@@ -26,7 +25,7 @@ const HOME = 'http://127.0.0.1:3000/'
 test('tap demo — counter keeps firing under GC (sink not collected)', async ({ page }) => {
   test.setTimeout(60_000)
   const errors: string[] = []
-  page.on('pageerror', e => errors.push(String(e)))
+  page.on('pageerror', (e: any) => errors.push(String(e)))
 
   await page.goto(HOME, { timeout: 90_000 })
   const counter = page.locator('#tap-result .tap-counter')

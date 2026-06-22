@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { test, expect } from '@playwright/test'
 
 // Smoke test for the multi-dim live comparisons page.
@@ -26,7 +25,7 @@ for (const lib of LIBS) {
     // libs were still synchronously building their reactive graphs, with
     // queued pointer events firing well after the assertion timeout.
     // Wait for at least N rows then check each total. N is the lib count.
-    await page.waitForFunction((minRows) => {
+    await page.waitForFunction((minRows: any) => {
       const rows = document.querySelectorAll('.mdf-row')
       if (rows.length < minRows) return false
       for (const r of rows) {
@@ -91,7 +90,7 @@ test('multidim — data row stays responsive across repeated date brushes', asyn
   test.setTimeout(180_000)
   await page.goto('http://127.0.0.1:3000/examples/multidim/', { timeout: 120_000 })
 
-  await page.waitForFunction((minRows) => {
+  await page.waitForFunction((minRows: any) => {
     const rows = document.querySelectorAll('.mdf-row')
     if (rows.length < minRows) return false
     for (const r of rows) {

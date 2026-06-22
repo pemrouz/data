@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The plan stands or falls on one claim: JSX preserves the per-key surgical
 // DOM updates that the existing builder DSL gets. We assert this two ways:
 //
@@ -19,7 +18,7 @@ const seed = (key: string) => `
   }))
 `
 
-async function loadTodo(page, path: string, key: string) {
+async function loadTodo(page: any, path: string, key: string) {
   await page.addInitScript(seed(key))
   await page.goto(path)
   await page.waitForSelector('.todo-list li', { timeout: 30_000 })
@@ -84,7 +83,7 @@ test('todo-jsx preserves DOM identity when a row is inserted', async ({ page }) 
 
   const markers = await page.evaluate(() => {
     const ls = document.querySelectorAll('.todo-list li label')
-    return Array.from(ls).map(l => (l as any).dataset.identityMarker || null)
+    return Array.from(ls).map((l: any) => (l as any).dataset.identityMarker || null)
   })
 
   // Original rows must still carry their markers — the insert created exactly

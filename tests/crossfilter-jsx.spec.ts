@@ -1,4 +1,3 @@
-// @ts-nocheck
 // JSX port of the crossfilter example must (a) load and produce the same
 // shape DOM as the builder version, and (b) not regress the empty-row bug
 // that `crossfilter.spec.ts` guards against. We replay the same brush
@@ -50,7 +49,7 @@ test('crossfilter-jsx brush leaves no stale DOM rows (parity with builder)', asy
     for (const k of Object.keys(acVal)) groupedTotal += acVal[k].length
     const domRows = document.querySelectorAll('.list .flight').length
     const empties = Array.from(document.querySelectorAll('.list .flight'))
-      .filter(r => !(r.querySelector('.time') as HTMLElement).textContent?.trim()).length
+      .filter((r: any) => !(r.querySelector('.time') as HTMLElement).textContent?.trim()).length
     return { groupedTotal, domRows, empties }
   })
 
