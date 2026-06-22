@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, createOperator } from '../../core.ts'
@@ -265,7 +264,7 @@ spec({ op:'sort', guarantee:'Propagation', trigger:'edit', shape:'object', via:[
 // top-K across narrow/shrink/widen/grow) AND the no-churn property (a window
 // turnover emits only `update`s, ≤ n of them — never insert/remove churn).
 spec({ op:'sort', guarantee:'Efficiency', trigger:'brush', shape:'object', via:['BU1','window','reactive-bound'], chain:'between→za-window', asserts:'a bounded window reconciles a batch removal/insert without churn' }, () => {
-  const seed = {}
+  const seed: any = {}
   for (let i = 1; i <= 12; i++) seed['v' + i] = { id: 'v' + i, r: i }
   const m: any = $(seed)
   const bounds: any = $([0, 100])

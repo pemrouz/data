@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, createOperator } from '../../core.ts'
@@ -7,7 +6,7 @@ import { filter } from '../filter/index.ts'
 import { length } from '../length/index.ts'
 import { sum } from '../aggregate/index.ts'
 import { AZColumnValue } from '../sort/index.ts'
-const az = (src: any, col: any, n: any) => createOperator(src, AZColumnValue, col, n)
+const az = (src: any, col: any, n?: any) => createOperator(src, AZColumnValue, col, n)
 
 const dense = (a: any) => (Array.isArray(a) ? a.filter((x: any) => x !== undefined) : a)
 
@@ -356,7 +355,7 @@ spec({ op:'between', guarantee:'Selection', trigger:'insert/remove', shape:'arra
 // Fidelity specs above can't catch that — here N (40) ≫ Δ. Bounds are inclusive.
 spec({ op:'between', guarantee:'Efficiency', trigger:'bound-move', shape:'object', via:['BR1','BI0'], asserts:'a bound move emits records proportional to rows crossed, not source size; a no-op move emits none' }, () => {
   const N = 40
-  const obj = {}
+  const obj: any = {}
   for (let i = 0; i < N; i++) obj['k' + i] = { v: i }     // v: 0..39
   const src: any = $(obj)
   const ext: any = $([0, 100])                                  // all 40 in range

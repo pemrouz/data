@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { deepStrictEqual as same, ok } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
 import { $, value, view } from '../../core.ts'
@@ -261,6 +260,6 @@ spec({ op:'intersect', guarantee:'Alignment', trigger:'remove', shape:'array', v
 spec({ op:'intersect', guarantee:'Identity', trigger:'construct', shape:'array', issue:'#27', asserts:'a duplicate or self source is idempotent, not empty' }, () => {
   const a: any = $([{ x: 1 }, { x: 2 }])
   const b: any = $([{ y: 1 }, { y: 2 }])
-  same(intersect(a, b, b)[value].filter((x: any) => x !== undefined).length, 2) // dup b
-  same(intersect(a, a)[value].filter((x: any) => x !== undefined).length, 2)    // self
+  same((intersect(a, b, b)[value] as any).filter((x: any) => x !== undefined).length, 2) // dup b
+  same((intersect(a, a)[value] as any).filter((x: any) => x !== undefined).length, 2)    // self
 })
