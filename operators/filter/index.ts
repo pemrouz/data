@@ -1,6 +1,6 @@
 import { isArray } from '../../utils.ts'
 import { createOperator, ViewProxy, value } from '../../core.ts'
-import type { Data } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
 // Walks a key path against a (possibly nested) row. Returns undefined if any
@@ -149,7 +149,16 @@ export class FilterColumnValue extends FilterValue {
   }
 }
 
-export const filter = <T>(source: Data<T>, a: any, b?: any): Data<T> => {
+// Overloads mirror the method-style `proxy.filter(...)`: the predicate form types
+// its row param from the source (`RowOf<T>` — so `filter(src, r => r.v > 0)` infers
+// `r` and rejects a wrong-shaped predicate); the (key, value) / [path], value /
+// {shape} forms take plain string/array/object args that don't need inference. A
+// function argument matches only the first overload (it is neither string, string[]
+// nor a plain-object record), so a malformed predicate surfaces a type error rather
+// than silently falling through.
+export function filter<T>(source: Data<T>, fn: (row: RowOf<T>) => boolean): Data<T>
+export function filter<T>(source: Data<T>, keyOrPathOrShape: string | readonly string[] | Record<string, unknown>, value?: any): Data<T>
+export function filter<T>(source: Data<T>, a: any, b?: any): Data<T> {
   const Class = typeof a === 'function' ? FilterValue
               : typeof a === 'string'   ? FilterStringValue
               : isArray(a)              ? FilterColumnValue
