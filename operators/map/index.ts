@@ -1,5 +1,5 @@
 import { createOperator } from '../../core.ts'
-import type { Data } from '../../core.ts'
+import type { Data, RowOf } from '../../core.ts'
 import { RowOperator } from '../../row.ts'
 
 // Map projects each row through `fn`. RowOperator handles all the
@@ -23,4 +23,9 @@ export class MapValue extends RowOperator {
   }
 }
 
-export const map = <T>(source: Data<T>, fn: RowFn): Data<Record<string, any>> => createOperator(source, MapValue, fn)
+// Types the row param from the source (`RowOf<T>`) and infers the projected element
+// type `R`, so `map(src, r => r.v)` is `Data<Record<string, number>>` — mirrors the
+// method-style `proxy.map(...)`. `name`/`old_val` (the key and the row's previous
+// value) stay available for "diff against last" projections. The internal `RowFn`
+// keeps typing the loose class field.
+export const map = <T, R>(source: Data<T>, fn: (row: RowOf<T>, name?: string, old_val?: RowOf<T>) => R): Data<Record<string, R>> => createOperator(source, MapValue, fn)
