@@ -19,7 +19,7 @@
 
 import { RowOperator } from '../../row.ts'
 import { createOperator, ViewProxy, view, bindReactive } from '../../core.ts'
-import type { Data } from '../../core.ts'
+import type { Data, ColOf, ColValue, Reactive } from '../../core.ts'
 
 abstract class CompareValue extends RowOperator {
   declare col: any
@@ -64,7 +64,13 @@ export class LtValue  extends CompareValue { _cmp(x: any) { return x <  this._va
 export class GteValue extends CompareValue { _cmp(x: any) { return x >= this._val } }
 export class LteValue extends CompareValue { _cmp(x: any) { return x <= this._val } }
 
-export const gt  = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, GtValue,  col, val)
-export const lt  = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, LtValue,  col, val)
-export const gte = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, GteValue, col, val)
-export const lte = <T>(source: Data<T>, col: any, val: any): Data<T> => createOperator(source, LteValue, col, val)
+// `col` is key-checked against the source's row shape (`ColOf<T>` — a typo like
+// `gt(src, 'agee', 18)` is rejected) and the threshold is typed to that column's
+// value type, plain or reactive (`Reactive<ColValue<T,K>>` — so a number column
+// rejects a string threshold, while a reactive `$(n)` bound is still accepted).
+// Mirrors the method-style `proxy.gt(...)`. Both args fall back to permissive
+// `string`/`any` for scalar-row, dynamic-`Record`, or untyped sources.
+export const gt  = <T, K extends ColOf<T>>(source: Data<T>, col: K, val: Reactive<ColValue<T, K>>): Data<T> => createOperator(source, GtValue,  col, val)
+export const lt  = <T, K extends ColOf<T>>(source: Data<T>, col: K, val: Reactive<ColValue<T, K>>): Data<T> => createOperator(source, LtValue,  col, val)
+export const gte = <T, K extends ColOf<T>>(source: Data<T>, col: K, val: Reactive<ColValue<T, K>>): Data<T> => createOperator(source, GteValue, col, val)
+export const lte = <T, K extends ColOf<T>>(source: Data<T>, col: K, val: Reactive<ColValue<T, K>>): Data<T> => createOperator(source, LteValue, col, val)

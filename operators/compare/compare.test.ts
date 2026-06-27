@@ -5,17 +5,17 @@ import { $, value } from '../../core.ts'
 import { gt, lt, gte, lte } from './index.ts'
 
 spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'gt keeps rows whose column exceeds the threshold' }, () => {
-  const src: any = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+  const src = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
   same(gt(src, 'age', 18)[value], { b: { age: 20 }, c: { age: 30 } })
 })
 
 spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'lt keeps rows whose column is below the threshold' }, () => {
-  const src: any = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+  const src = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
   same(lt(src, 'age', 25)[value], { a: { age: 10 }, b: { age: 20 } })
 })
 
 spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'gte/lte include the boundary, gt/lt exclude it' }, () => {
-  const src: any = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
   same(gte(src, 'n', 2)[value], { b: { n: 2 }, c: { n: 3 } })
   same(lte(src, 'n', 2)[value], { a: { n: 1 }, b: { n: 2 } })
   // Strict counterparts exclude the boundary.
@@ -26,8 +26,8 @@ spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object',
 // Single column mutation that crosses the threshold — drives BU2 through
 // the operator's `process` and out as BR1 (leaving) or BI0 (entering).
 spec({ op:'compare', guarantee:'Selection', trigger:'edit', shape:'object', via:['BU2','BI0','BR1'], asserts:'a row crossing the threshold enters or leaves' }, () => {
-  const src: any = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
-  const adults: any = gt(src, 'age', 18)
+  const src = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+  const adults = gt(src, 'age', 18)
   const ch = adults.connect([])
 
   src.a.age = 25            // a enters
@@ -47,8 +47,9 @@ spec({ op:'compare', guarantee:'Selection', trigger:'edit', shape:'object', via:
 })
 
 spec({ op:'compare', guarantee:'Selection', trigger:'insert/remove', shape:'object', asserts:'inserts and removes update membership by threshold' }, () => {
-  const src: any = $({ a: { v: 5 } })
-  const filt: any = gt(src, 'v', 3)
+  // adds keys b/c and deletes them — a dynamic-keyed map, declared
+  const src = $<Record<string, { v: number }>>({ a: { v: 5 } })
+  const filt = gt(src, 'v', 3)
   same(filt[value], { a: { v: 5 } })
   src.b = { v: 10 }
   same(filt[value], { a: { v: 5 }, b: { v: 10 } })
@@ -62,22 +63,25 @@ spec({ op:'compare', guarantee:'Selection', trigger:'insert/remove', shape:'obje
 
 spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'a row missing the column never passes the comparison' }, () => {
   // `undefined > 5` is false in JS; we propagate that — rows without the
-  // column never pass any comparison, no special-case.
-  const src: any = $({ a: { age: 10 }, b: { name: 'noage' }, c: { age: 30 } })
+  // column never pass any comparison, no special-case. Heterogeneous rows (one
+  // lacks `age`) → a dynamic `Record<string, any>`, since `ColOf` of a union of
+  // differing shapes is `never`.
+  const src = $<Record<string, any>>({ a: { age: 10 }, b: { name: 'noage' }, c: { age: 30 } })
   same(gt(src, 'age', 5)[value], { a: { age: 10 }, c: { age: 30 } })
   same(lt(src, 'age', 50)[value], { a: { age: 10 }, c: { age: 30 } })
 })
 
 spec({ op:'compare', guarantee:'Selection', trigger:'construct', shape:'object', asserts:'a string column compares lexicographically' }, () => {
   // JS `>` on strings is lexicographic. We don't coerce; if it works in JS,
-  // it works here. Useful for "rows where name >= 'M'".
-  const src: any = $({ a: { n: 'apple' }, b: { n: 'mango' }, c: { n: 'zebra' } })
+  // it works here. Useful for "rows where name >= 'M'". The threshold is typed to
+  // the column's value type, so a string column accepts a string bound.
+  const src = $({ a: { n: 'apple' }, b: { n: 'mango' }, c: { n: 'zebra' } })
   same(gte(src, 'n', 'm')[value], { b: { n: 'mango' }, c: { n: 'zebra' } })
 })
 
 spec({ op:'compare', guarantee:'Propagation', trigger:'edit', shape:'object', chain:'compare→length/max', asserts:'membership changes flow to a downstream length and max' }, () => {
-  const src: any = $({ a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
-  const filt: any = gt(src, 'v', 7)
+  const src = $<Record<string, { v: number }>>({ a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
+  const filt = gt(src, 'v', 7)
   same(filt.length()[value], 2)
   same(filt.max('v')[value], 15)
   src.d = { v: 100 }
@@ -93,21 +97,26 @@ spec({ op:'compare', guarantee:'Identity', trigger:'dedup-call', shape:'object',
   // observe the same value and stay in sync through mutations) rather than
   // by wrapper identity, since createOperator returns a fresh ViewProxy
   // wrapper each call even when the op is cached.
-  const src: any = $({ a: { v: 5 } })
-  const f1: any = gt(src, 'v', 3)
-  const f2: any = gt(src, 'v', 3)
+  const src = $<Record<string, { v: number }>>({ a: { v: 5 } })
+  const f1 = gt(src, 'v', 3)
+  const f2 = gt(src, 'v', 3)
   same(f1[value], f2[value])
   src.b = { v: 10 }
   same(f1[value], { a: { v: 5 }, b: { v: 10 } })
   same(f2[value], { a: { v: 5 }, b: { v: 10 } })
   // Different threshold → independent op (no false-sharing).
-  const f3: any = gt(src, 'v', 7)
+  const f3 = gt(src, 'v', 7)
   same(f3[value], { b: { v: 10 } })
 })
 
 spec({ op:'compare', guarantee:'Robustness', trigger:'overwrite', shape:'object', via:['XU0'], asserts:'a primitive whole-value collapses the view; an object restores it' }, () => {
-  const src: any = $({ a: { v: 5 } })
-  const filt: any = gt(src, 'v', 0)
+  // `src` is `Data<any>` (via `$<any>`): the test overwrites the whole value slot
+  // with a PRIMITIVE (`src[value] = 42`) and then a differently-shaped object —
+  // neither fits a precise source type. (`$<any>` also keeps `gt`'s `T` inferring
+  // `any`; a bare `: any` capture leaves `T` as `unknown`, collapsing the threshold
+  // type to `never`.)
+  const src = $<any>({ a: { v: 5 } })
+  const filt = gt(src, 'v', 0)
   same(filt[value], { a: { v: 5 } })
   src[value] = 42           // primitive — RowOperator collapses
   same(filt[value], undefined)
@@ -122,21 +131,21 @@ spec({ op:'compare', guarantee:'Alignment', trigger:'remove', shape:'array', via
   // trailing one) so the source<->operator index correspondence holds — that
   // length-mirroring is the C13 fix; the old code let the array stop at the
   // last passing index, which broke a later tail insert / positional chain.
-  const data: any = $([
+  const data = $([
     { v: 5 },
     { v: 1 },
     { v: 8 },
     { v: 2 },
   ])
-  const big: any = gt(data, 'v', 3)
+  const big = gt(data, 'v', 3)
   // keep indices 0 (v:5) and 2 (v:8); indices 1 and 3 are holes — length 4.
-  same(big[value].length, 4)
-  same(big[value].filter((x: any) => x !== undefined), [{ v: 5 }, { v: 8 }])
+  same(big[value]!.length, 4)
+  same(big[value]!.filter(x => x !== undefined), [{ v: 5 }, { v: 8 }])
   // Drop the v:1 row. Source becomes [v:5, v:8, v:2] (length 3); the operator
   // shifts in lockstep, keeping a trailing hole at the excluded v:2 — length 3.
   delete data[1]
-  same(big[value].length, 3)
-  same(big[value].filter((x: any) => x !== undefined), [{ v: 5 }, { v: 8 }])
+  same(big[value]!.length, 3)
+  same(big[value]!.filter(x => x !== undefined), [{ v: 5 }, { v: 8 }])
   // Post-shift mutation — the row originally at idx 3 is now at idx 2;
   // updating it via the new index must hit the right slot (and now passes).
   data[2].v = 99
@@ -150,9 +159,9 @@ spec({ op:'compare', guarantee:'Alignment', trigger:'remove', shape:'array', via
 // change stream is `update` records, not granular insert/remove — for an
 // incremental brush prefer between.
 spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'object', via:'reactive-threshold', asserts:'a reactive gt threshold re-selects when it changes' }, () => {
-  const src: any = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
-  const t: any = $(18)
-  const adults: any = gt(src, 'age', t)
+  const src = $({ a: { age: 10 }, b: { age: 20 }, c: { age: 30 } })
+  const t = $(18)
+  const adults = gt(src, 'age', t)
   same(adults[value], { b: { age: 20 }, c: { age: 30 } })
   t[value] = 25            // raise the bar — b leaves
   same(adults[value], { c: { age: 30 } })
@@ -161,10 +170,10 @@ spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'obj
 })
 
 spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'object', via:'reactive-threshold', asserts:'reactive lte/gte thresholds track their bound (boundary inclusive)' }, () => {
-  const src: any = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
-  const t: any = $(2)
-  const le: any = lte(src, 'n', t)
-  const ge: any = gte(src, 'n', t)
+  const src = $({ a: { n: 1 }, b: { n: 2 }, c: { n: 3 } })
+  const t = $(2)
+  const le = lte(src, 'n', t)
+  const ge = gte(src, 'n', t)
   same(le[value], { a: { n: 1 }, b: { n: 2 } })
   same(ge[value], { b: { n: 2 }, c: { n: 3 } })
   t[value] = 3
@@ -173,9 +182,9 @@ spec({ op:'compare', guarantee:'Selection', trigger:'threshold-move', shape:'obj
 })
 
 spec({ op:'compare', guarantee:'Fidelity', trigger:'threshold-move', shape:'object', via:'reactive-threshold', emits:['update'], asserts:'construction seeds exactly one snapshot, then each threshold move re-emits the whole view (XU0)' }, () => {
-  const src: any = $({ a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
-  const t: any = $(7)
-  const filt: any = gt(src, 'v', t)
+  const src = $({ a: { v: 5 }, b: { v: 10 }, c: { v: 15 } })
+  const t = $(7)
+  const filt = gt(src, 'v', t)
   const ch = filt.connect([])
   // The bindReactive construction-time seed must NOT double-fire: connect sees one snapshot.
   same(ch, [
@@ -192,16 +201,16 @@ spec({ op:'compare', guarantee:'Fidelity', trigger:'threshold-move', shape:'obje
 })
 
 spec({ op:'compare', guarantee:'Identity', trigger:'dedup-call', shape:'object', via:'reactive-threshold', asserts:'two calls sharing a reactive threshold SOURCE share one operator; a literal is independent' }, () => {
-  const src: any = $({ a: { v: 5 }, b: { v: 10 } })
-  const t: any = $(3)
-  const f1: any = gt(src, 'v', t)
-  const f2: any = gt(src, 'v', t)        // same bound source → deduped to one op (view-identity match)
+  const src = $<Record<string, { v: number }>>({ a: { v: 5 }, b: { v: 10 } })
+  const t = $(3)
+  const f1 = gt(src, 'v', t)
+  const f2 = gt(src, 'v', t)        // same bound source → deduped to one op (view-identity match)
   same(f1[value], f2[value])
   t[value] = 8
   same(f1[value], { b: { v: 10 } })
   same(f2[value], { b: { v: 10 } })
   // A plain-literal threshold never matches the reactive op (and vice-versa).
-  const f3: any = gt(src, 'v', 3)
+  const f3 = gt(src, 'v', 3)
   same(f3[value], { a: { v: 5 }, b: { v: 10 } })
 })
 
@@ -209,8 +218,8 @@ spec({ op:'compare', guarantee:'Identity', trigger:'dedup-call', shape:'object',
 // (that's between's job). We verify behaviour-wise by inspecting the
 // operator instance.
 spec({ op:'compare', guarantee:'Efficiency', trigger:'construct', shape:'object', asserts:'no sorted index is maintained, unlike between' }, () => {
-  const src: any = $({ a: { v: 1 } })
-  const op: any = gt(src, 'v', 0)
+  const src = $({ a: { v: 1 } })
+  const op = gt(src, 'v', 0)
   // The underlying operator instance is reachable via the proxy's view
   // chain; the simplest check is that the operator has no `sorted` field
   // (BetweenValue has one, CompareValue doesn't).

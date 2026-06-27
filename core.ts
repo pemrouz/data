@@ -244,12 +244,15 @@ export type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any
 // — scalar rows (`$([1,2,3])`), a dynamic `Record<string, V>` map output, or an
 // untyped source — any string is allowed, since the keyset isn't statically
 // meaningful. `RowOf<any>` distributes to `string`, so untyped sources stay
-// permissive. Used by between/gt/lt/gte/lte/sum/avg/max/min/za/az.
-type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string
+// permissive. Used by between/gt/lt/gte/lte/sum/avg/max/min/za/az. Exported so a
+// consumer (or a standalone operator factory like `gt`) can type a column arg the
+// same way the method overloads do.
+export type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string
 // The VALUE type at column `K` of a source's rows — the element type `max`/`min`
 // over that column yields. Falls back to `any` when the column isn't a known key
-// (scalar rows, dynamic Record, untyped source).
-type ColValue<T, K extends PropertyKey> =
+// (scalar rows, dynamic Record, untyped source). Exported alongside `ColOf` for the
+// same reason (a typed `val`/threshold arg in a standalone factory).
+export type ColValue<T, K extends PropertyKey> =
   RowOf<T> extends object ? (K extends keyof RowOf<T> ? RowOf<T>[K] : any) : any
 // "Some reactive view, value type irrelevant". `Data<T>` is INVARIANT in `T`
 // (T sits in `update`/`raf`/`first` param positions), so no `DataOps<X>` is a
