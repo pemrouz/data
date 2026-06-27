@@ -1,11 +1,11 @@
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
-import { $, value } from '../../core.ts'
+import { $, value, type Data } from '../../core.ts'
 import { to } from './index.ts'
 
 spec({ op:'to', guarantee:'Fidelity', trigger:'edit/overwrite', shape:'object', asserts:'the scalar projection re-derives on nested edit, whole-row replace and overwrite' }, async () => {
-  const res: any = $({ a: { b: 1 } })
-  const result: any = to(res, (r: any) => r.a.b * 10)
+  const res = $({ a: { b: 1 } })
+  const result = to(res, r => r.a.b * 10)
   const changes = result.connect([])
   res.a.b = 2
   res.a = { b: 3 }
@@ -20,8 +20,11 @@ spec({ op:'to', guarantee:'Fidelity', trigger:'edit/overwrite', shape:'object', 
 })
 
 spec({ op:'to', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a projection of a sub-view re-derives on edits to that sub-view' }, async () => {
-  const res: any = $({ a: { b: 1 } })
-  const result: any = to(res.a, (a: any) => a.b * 100)
+  const res = $({ a: { b: 1 } })
+  // reading an object child yields `Data<{b:number}> | {b:number}` (the `| T[K]`
+  // arm exists so `res.a = raw` assignment type-checks), so chaining an operator
+  // off it needs a narrowing cast back to `Data<…>`.
+  const result = to(res.a as Data<{ b: number }>, a => a.b * 100)
   const changes = result.connect([])
   res.a.b = 2
   res.a = { b: 3 }
@@ -40,8 +43,9 @@ spec({ op:'to', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a
 // count unchanged emit zero records; only a structural change that moves the
 // count emits one.
 spec({ op:'to', guarantee:'Efficiency', trigger:'edit', shape:'scalar', via:['XU0'], asserts:'a re-derive equal to the last value emits nothing; only a real change emits' }, () => {
-  const res: any = $({ a: { x: 1 }, b: { x: 1 } })
-  const out: any = to(res, (d: any) => Object.keys(d).length)
+  // a dynamic-keyed map (the test adds key `c` below) — declared, not inferred
+  const res = $<Record<string, { x: number }>>({ a: { x: 1 }, b: { x: 1 } })
+  const out = to(res, d => Object.keys(d).length)
   const changes = out.connect([])
   same(changes, [{ type: 'update', key: [], value: 2 }])   // baseline
   res.a.x = 9                          // BU2 reaches `to`; count still 2 — short-circuit
@@ -59,8 +63,8 @@ spec({ op:'to', guarantee:'Efficiency', trigger:'edit', shape:'scalar', via:['XU
 // no churn. Clearing from a NON-empty state (2 → 0) so the short-circuit doesn't
 // swallow it (clearing from already-0 would be a silent no-op asserting nothing).
 spec({ op:'to', guarantee:'Robustness', trigger:'remove', shape:'scalar', via:['XR0'], asserts:'clearing the source re-derives the guarded projection to a defined scalar with one update' }, () => {
-  const res: any = $({ a: 1, b: 2 })
-  const out: any = to(res, (r: any) => r ? Object.keys(r).length : 0)
+  const res = $<Record<string, number>>({ a: 1, b: 2 })
+  const out = to(res, r => r ? Object.keys(r).length : 0)
   const ch = out.connect([])
   same(out[value], 2)
   delete res[value]                    // XR0 → fn(undefined) → guard → 0
