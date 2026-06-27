@@ -270,18 +270,32 @@ export type ChangeRecord = { type: 'update' | 'insert' | 'remove', key: string[]
 // A bound prop / child value: either a reactive view or its raw value.
 export type Reactive<T> = Data<T> | T
 // `Data<T>` is `DataOps<T>` (the chainable operator surface) plus child access.
-// Split conditionally so an ARRAY source exposes element access via a numeric
-// index signature WITHOUT mapping over `keyof T[]` — the homomorphic
-// `{[k in keyof T]}` brought Array.prototype's `filter`/`map`/`length`/… into
-// the type, and those native signatures shadowed the operators (so
-// `$([...]).filter(d => …).length()` didn't type-check). Object children are
-// mapped, optional (so `delete proxy.k` is legal) and accept the RAW value on
-// assignment (so `proxy.k = 1` / `proxy.k.done = true` — the documented
-// mutate-by-assignment API — type-checks; reads still yield `Data<child>`).
-export type Data<T = any> =
-  [T] extends [readonly (infer E)[]] ? DataOps<T> & { [index: number]: Data<E> }
-: [T] extends [object] ? DataOps<T> & { [K in keyof T]: Data<T[K]> | T[K] }
-: DataOps<T>
+// The child shape is split by source kind in a SEPARATE `Children<T>` helper so
+// that `Data<T>` itself can be a plain INTERSECTION alias rather than a top-level
+// conditional — TypeScript preserves an intersection alias's NAME in hovers and
+// errors (`$({a:1})` shows `Data<{a:number}>`) but eagerly resolves a top-level
+// conditional alias to its branch (`DataOps<…> & {…}`), discarding the `Data`
+// name. The branches:
+//   • ARRAY  → a numeric index signature, NOT a homomorphic `{[K in keyof T]}` —
+//     mapping over an array type drags Array.prototype's `filter`/`map`/`length`/…
+//     in, and those native signatures shadow the operators (so
+//     `$([...]).filter(d => …).length()` wouldn't type-check).
+//   • OBJECT → children mapped, optional (so `delete proxy.k` is legal) and
+//     accepting the RAW value on assignment (so `proxy.k = 1` / `proxy.k.done =
+//     true` — the documented mutate-by-assignment API — type-checks; reads still
+//     yield `Data<child>`).
+//   • SCALAR → `object`, NOT `{}`. A scalar view has no children, so the branch
+//     must be a structural no-op; but `DataOps<T> & {}` (and `& unknown`)
+//     COLLAPSES — TS drops the empty member before alias resolution, so the name
+//     reverts to `DataOps<T>`. `object` is an equally vacuous no-op (`DataOps<T>`
+//     is already a non-primitive object type, so `& object` is mutually
+//     assignable and contributes no member) that DOESN'T collapse, so `$(5)`
+//     shows `Data<number>` too. `object` never leaks to a consumer hover.
+type Children<T> =
+  [T] extends [readonly (infer E)[]] ? { [index: number]: Data<E> }
+: [T] extends [object] ? { [K in keyof T]: Data<T[K]> | T[K] }
+: object
+export type Data<T = any> = DataOps<T> & Children<T>
 export type DataOps<T = any> = {
   [value]?: T;
   /**
