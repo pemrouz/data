@@ -335,8 +335,14 @@ export type DataOps<T = any> = {
   last(): Data<RowOf<T>>
   update(value: T): undefined
   update(value: any, key: string[]): undefined
+  // 1-arg appends a row (key minted / pushed to the tail) and type-checks the row
+  // against the source. 2-arg inserts `value` AT a position/key on the proxy you
+  // call it on: a `number` splices into an array at that index, a `string` (or a
+  // single-element `string[]`) names an object key. `at` is stringified at runtime
+  // (`${at}`), so all three forms are accepted; the value is loose for the 2-arg
+  // form since a keyed/positional insert can target a nested child.
   insert(value: RowOf<T>): undefined
-  insert(value: any, key: string[]): undefined
+  insert(value: any, at: number | string | string[]): undefined
   remove(key?: string[]): undefined
   /**
    * Rows matching a predicate. Four shapes: a `(row, key) => boolean` function,

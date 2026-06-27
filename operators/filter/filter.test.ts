@@ -133,9 +133,9 @@ spec({ op:'filter', guarantee:'Alignment', trigger:'insert', shape:'array', via:
   const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
   const f = filter(src, r => r.v >= 15)
   same(f[value]!.filter(x => x !== undefined), [{ v: 20 }, { v: 30 }])
-  ;(src as any).insert({ v: 99 }, 1)        // passes the predicate, splices at 1
+  src.insert({ v: 99 }, 1)        // passes the predicate, splices at 1
   same(f[value]!.filter(x => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
-  ;(src as any).insert({ v: 5 }, 0)         // fails the predicate, splices at 0
+  src.insert({ v: 5 }, 0)         // fails the predicate, splices at 0
   same(f[value]!.filter(x => x !== undefined), [{ v: 99 }, { v: 20 }, { v: 30 }])
 })
 

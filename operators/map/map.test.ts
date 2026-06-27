@@ -48,9 +48,9 @@ spec({ op:'map', guarantee:'Alignment', trigger:'insert', shape:'array', via:['B
   const src = $([{ v: 10 }, { v: 20 }, { v: 30 }])
   const m = map(src, r => r.v)              // row `r` inferred as { v: number }
   same(m[value], [10, 20, 30])
-  ;(src as any).insert({ v: 99 }, 1)        // splice in at index 1
+  src.insert({ v: 99 }, 1)        // splice in at index 1
   same(m[value], [10, 99, 20, 30])          // pre-BI0A: [10,99,30] (20 dropped)
-  ;(src as any).insert({ v: 77 }, 0)        // splice at the front too
+  src.insert({ v: 77 }, 0)        // splice at the front too
   same(m[value], [77, 10, 99, 20, 30])
 })
 
@@ -66,7 +66,7 @@ spec({ op:'map', guarantee:'Fidelity', trigger:'insert/remove', shape:'array', v
   const m = map(src, r => r.v)
   const changes = m.connect([])
   src.insert({ v: 40 })                // tail insert → at '3'
-  ;(src as any).insert({ v: 99 }, 1)   // mid splice → at '1'
+  src.insert({ v: 99 }, 1)   // mid splice → at '1'
   delete src[0]                        // array delete → remove key ['0']
   same(changes, [
     { type: 'update', key: [], value: [10, 20, 30] },
