@@ -88,7 +88,7 @@ export function mutateOnce () {
   // Skip if the formatted display wouldn't change — reactive .to() already
   // dedupes the DOM text update, so flashing here would be noise.
   if (fmt(cur) === fmt(next)) return
-  row[f] = next
+  row[f].update(next)
   lastTick[value] = `trades[${i}].${f} = ${fmt(next)}`
   const id = row.id[value]
   for (const fn of tickListeners) fn({ row: i, field: f, id })

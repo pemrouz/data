@@ -116,7 +116,7 @@ function makeDataEngine (initial) {
   const asks = trades.length(t => priceBucket(t.ask))
   const flat = o => { const a = new Array(PRICE_BINS).fill(0); for (const k in o) { const b = o[k]; if (b) a[k] = b.value } return a }
   return {
-    ingest (t) { const cur = trades[t.idx][value]; trades[t.idx] = { ...cur, [t.field]: t.newValue } },
+    ingest (t) { const cur = trades[t.idx][value]; trades[t.idx].update({ ...cur, [t.field]: t.newValue }) },
     settle () { void liquid[value]; void avgBid[value]; void bids[value]; void asks[value] },
     view () { return { bids: flat(bids[value] || {}), asks: flat(asks[value] || {}), liquid: liquid[value] || 0, avg: avgBid[value] || 0 } },
   }
