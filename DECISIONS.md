@@ -6,6 +6,29 @@ The array-positional correctness family (C1–C3) was closed on branch `fix/open
 
 ---
 
+## Type-surface design (v2)
+
+### TD1 — object children are bare `Data<T[K]>` (drop the `| T[K]` raw arm); methods are the typed write surface ✅
+`faf9b75` (issue #67)
+
+**Decision.** `Children<T>`'s object branch is `{ [K in keyof T]: Data<T[K]> }` — a bare child view, with **no** `| T[K]` raw alternative. The underlying value is read/written through the `[value]` symbol; the *typed* write surface is `child.update(v)` / `child[value] = v` and `child.remove()`; `.get(k)` is the method twin of `proxy[k]` for dynamic/computed keys.
+
+**Why the union existed, and its cost.** v1's branch was `{ [K in keyof T]: Data<T[K]> | T[K] }`. The `| T[K]` arm let `proxy.field = rawValue` (the mutate-by-assignment API) type-check. But a **mapped member has one type for both read and write**, so admitting the raw value on *write* also widened every *read* to `Data<T[K]> | T[K]` — and a union isn't a `Data`, so chaining an operator off a child (`proxy.child.filter(…)`, `to(res.a, …)`) needed an `as Data<…>` cast. That cast was the irreducible tax of the union.
+
+**Why not asymmetric get/set.** TypeScript supports read-type ≠ write-type **only** on an explicit named `get`/`set` accessor pair, never on a mapped/index member — so "read as `Data`, accept raw on write" is inexpressible generically (verified identical across tsc 5.7, tsc 7.0-rc, and native tsgo). The symmetric union was the only fallback; there was no asymmetric escape.
+
+**Options weighed.** (A) keep the union + cast — rejected; the cast sits on the hottest path (child chaining). **(B, chosen)** drop the raw arm — children become bare `Data`, child chaining is cast-free, and the typed write moves to methods/`[value]`. (C) recursive children — doesn't remove the read-side widening. (D) asymmetric accessors — impossible (above). (E) a `raw()` cast helper — write-only-sound and strictly worse than `[value]`, which is sound on read too and built-in. (F) typed methods + loose-`any` navigation — throws away the per-child typing that makes the surface worth having.
+
+**Consequences.**
+- Cast-free child chaining is the headline win — the v1 `as Data<…>` cast is gone (`operators/to/to.test.ts` et al.).
+- `delete proxy.k` still type-checks (key optionality is preserved); `.remove()` is its typed twin.
+- **Backward-compatible at RUNTIME**: the `set` / `deleteProperty` traps are unchanged, so bare `proxy.k = v` / `delete proxy.k` still *run* — they're only no longer type-checked. `.update()` / `.remove()` dispatch to the **same** `res.update` / `res.remove` calls as the traps, so the method idiom is behaviour-identical (the migration of the data apps is provably a no-op at runtime).
+- **Breaking change → v2.0.0**: a consumer's bare-`=` object-child write stops type-checking; migrate to `child.update(v)` / `child[value] = v` / `child.remove()`.
+
+**Where:** `Children<T>` + the `get` dispatch in [core.ts](core.ts); fixtures [types/check.ts](types/check.ts) (cast-free-chaining positive) + [types/check.negative.ts](types/check.negative.ts) (bare `= raw` rejected, `.update`/`[value]=` still value-check); `.get()` test in [core.test.ts](core.test.ts). The examples / landing / perf data apps are migrated to the method idiom in companion commits (runtime unaffected; they're `noCheck`, so not gated).
+
+---
+
 ## Fixed
 
 ### C1 — array-positional desync after a sparse producer (the `BH1`/`BF0` hole-vs-splice signal) ✅
