@@ -168,8 +168,8 @@ const onDrop = status => ev => {
   const order = dropOrder(status, ev.clientY, colEl)
   // one logical move → two in-place writes (status + order). Filters re-route
   // the card, az re-sorts, counts/points update — all surgical.
-  board[id].status = status
-  board[id].order = order
+  board[id].status.update(status)
+  board[id].order.update(order)
   colEl.classList.remove('drop-target')
 }
 
@@ -197,30 +197,30 @@ const addCard = status => () => {
 const editTitle = ev => {
   const id = cardIdOf(ev); if (!id) return
   const next = (prompt('Edit title', board[value][id].title) || '').trim()
-  if (next) board[id].title = next          // in-place edit through filter→sort
+  if (next) board[id].title.update(next)          // in-place edit through filter→sort
 }
 const cyclePriority = ev => {
   ev.stopPropagation()
   const id = cardIdOf(ev); if (!id) return
   const cur = board[value][id].priority
-  board[id].priority = PRIORITIES[(PRIORITIES.indexOf(cur) + 1) % PRIORITIES.length]
+  board[id].priority.update(PRIORITIES[(PRIORITIES.indexOf(cur) + 1) % PRIORITIES.length])
 }
 const cyclePoints = ev => {
   ev.stopPropagation()
   const id = cardIdOf(ev); if (!id) return
   const steps = [1, 2, 3, 5, 8, 13]
   const cur = board[value][id].points
-  board[id].points = steps[(steps.indexOf(cur) + 1) % steps.length]
+  board[id].points.update(steps[(steps.indexOf(cur) + 1) % steps.length])
 }
 const reassign = ev => {
   ev.stopPropagation()
   const id = cardIdOf(ev); if (!id) return
   const cur = board[value][id].assignee
-  board[id].assignee = PEOPLE[(PEOPLE.indexOf(cur) + 1) % PEOPLE.length]
+  board[id].assignee.update(PEOPLE[(PEOPLE.indexOf(cur) + 1) % PEOPLE.length])
 }
 const removeCard = ev => {
   ev.stopPropagation()
-  const id = cardIdOf(ev); if (id) delete board[id]
+  const id = cardIdOf(ev); if (id) board[id].remove()
 }
 
 const setAssigneeFilter = who => () => {

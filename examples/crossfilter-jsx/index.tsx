@@ -187,7 +187,7 @@ function chart(node: any, c: any, name: string) {
   const extent = range.to(([lo, hi]: any) => x(hi) - x(lo))
   const start = range[0].to((d: any) => x(d))
   const barPath = data.to(bars(maxRef, domain, width, name))
-  const reset = () => ((filters as any)[name] = [])
+  const reset = () => ((filters as any)[name].update([]))
 
   let exDown = false, exInitial = 0, exBase = [0, 0], exLeftRef = 0, exWrite: any
 

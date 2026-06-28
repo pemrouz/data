@@ -56,53 +56,53 @@ addEventListener('hashchange', change_view)
 change_view()
 
 const toggle = (item: any) => () => {
-  item.completed = !item.completed[value]
+  item.completed.update(!item.completed[value])
   persist()
 }
 
 const edit = (item: any) => (ev: any) => {
-  item.editing = true
-  item.text = item.title[value]
+  item.editing.update(true)
+  item.text.update(item.title[value])
   ev.target.parentNode.parentNode.querySelector('.edit').focus()
 }
 
 const clear = () => {
   for (const [id, { completed }] of Object.entries(items[value]) as any) {
-    if (completed === true) delete items[id]
+    if (completed === true) items[id].remove()
   }
   persist()
 }
 
 const destroy = (id: any) => () => {
-  delete items[id]
+  items[id].remove()
   persist()
 }
 
 const submit = (item: any, id: any) => () => {
   if (item.cancelling[value]) {
-    delete item.editing
-    delete item.text
-    delete item.cancelling
+    item.editing.remove()
+    item.text.remove()
+    item.cancelling.remove()
     return
   }
   const text = (item.text[value] ?? '').trim()
   if (text === '') {
-    delete items[id]
+    items[id].remove()
     persist()
     return
   }
-  item.title = text
-  delete item.editing
-  delete item.text
+  item.title.update(text)
+  item.editing.remove()
+  item.text.remove()
   persist()
 }
 
-const change = (item: any) => (ev: any) => { item.text = ev.target.value }
+const change = (item: any) => (ev: any) => { item.text.update(ev.target.value) }
 
 const keydown = (item: any) => (ev: any) => {
   if (ev.which === ENTER) ev.target.blur()
   if (ev.which === ESC) {
-    item.cancelling = true
+    item.cancelling.update(true)
     ev.target.blur()
   }
 }
@@ -118,7 +118,7 @@ const add_todo = (ev: any) => {
 
 const toggle_all = (ev: any) => {
   const checked = ev.target.checked
-  for (const id in items[value]) items[id].completed = checked
+  for (const id in items[value]) items[id].completed.update(checked)
   persist()
 }
 

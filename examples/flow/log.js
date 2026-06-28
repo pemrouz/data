@@ -149,23 +149,23 @@ export function createLog (seed) {
       const id = nextId++
       const region = REGIONS[(id - 1) % REGIONS.length]
       const v = 40 + ((id * 37) % 80)
-      return tag(append(d => { d[id] = { id, active: id % 2 === 1, region, value: v } }), { rid: id, field: 'row' })
+      return tag(append(d => { d[id].update({ id, active: id % 2 === 1, region, value: v }) }), { rid: id, field: 'row' })
     },
     toggle () {
       const ks = presentKeys(); if (!ks.length) return []   // nothing to toggle → no-op, not an insert
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { d[k].active = !d[k].active[value] }), { rid, field: 'active' })
+      return tag(append(d => { d[k].active.update(!d[k].active[value]) }), { rid, field: 'active' })
     },
     bump () {
       const ks = presentKeys().filter(k => display[value][k].active)
       if (!ks.length) return actions.toggle()   // no active row to bump → toggle one on (still an update, never an insert)
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { d[k].value = d[k].value[value] + 15 }), { rid, field: 'value' })
+      return tag(append(d => { d[k].value.update(d[k].value[value] + 15) }), { rid, field: 'value' })
     },
     remove () {
       const ks = presentKeys(); if (!ks.length) return []
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { delete d[k] }), { rid, field: 'row' })
+      return tag(append(d => { d[k].remove() }), { rid, field: 'row' })
     },
   }
 
@@ -177,7 +177,7 @@ export function createLog (seed) {
    * make §3 cost, §4 dots, and §5's edge disagree on the opening records.) */
   for (const r of seed) {
     const id = nextId++; r.id = id
-    const recs = append(d => { d[id] = r })
+    const recs = append(d => { d[id].update(r) })
     for (const rec of recs) { rec.rid = id; rec.field = 'row' }
   }
   head = log.length

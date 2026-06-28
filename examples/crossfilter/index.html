@@ -276,7 +276,7 @@ window.v = value
     const start = range[0].to(d => x(d))
     const barPath = data
       .to(bars(max, domain, width, name))
-    const reset = () => (filters[name] = [])
+    const reset = () => (filters[name].update([]))
 
     // exScale converts incoming screen-px deltas back into SVG-px before
     // they reach `rx`. With viewBox + responsive CSS the SVG can be drawn

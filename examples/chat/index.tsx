@@ -66,7 +66,7 @@ const unread = $(Object.fromEntries(CHANNELS.map(c => [c, 0])) as any)
 // ── actions ──────────────────────────────────────────────────────────────────
 const openChannel = (c: string) => () => {
   cur[value] = c
-  unread[c] = 0          // mark read
+  unread[c].update(0)          // mark read
   repoint()
 }
 // Coalesce the search re-point to one rebuild per frame (see kanban's search /
@@ -101,7 +101,7 @@ const react = (emoji: string) => (ev: any) => {
   if (!id) return
   const m = messages[value][id]
   const next = { ...m.reactions, [emoji]: (m.reactions[emoji] || 0) + 1 }
-  messages[id].reactions = next
+  messages[id].reactions.update(next)
 }
 
 // bot: stream a message into a random channel
@@ -109,7 +109,7 @@ const botTick = () => {
   const channel = pick(CHANNELS)
   const m = mkMsg(channel, pick(USERS), pick(LINES))
   messages.insert(m, [m.id])
-  if (channel !== cur[value]) unread[channel] = (unread[value] as any)[channel] + 1
+  if (channel !== cur[value]) unread[channel].update((unread[value] as any)[channel] + 1)
 }
 let botTimer: any = setInterval(botTick, 1500)
 
