@@ -92,8 +92,15 @@ var Value = class {
   }
   // Idempotent: a Value already at undefined emits nothing. Returns false so
   // callers can short-circuit when nothing happened (used by Sink chains that
-  // skip propagation on no-ops).
-  XR0() {
+  // skip propagation on no-ops). Return typed `any`: the `false` is an internal
+  // short-circuit sentinel, while most subclass overrides return void — typing
+  // it `false | undefined` would make every void override a TS2416 mismatch.
+  // The optional 2nd `src` param across these verb methods is the source-identity
+  // a multi-source operator (intersect/union/except) receives when it acts as a
+  // sink for a secondary source (`src.connect(this)` → the secondary's View fans
+  // out `sink.<verb>(payload, this)`). The base single-source path ignores it;
+  // typing it optional lets those overrides stay assignable to the base.
+  XR0(_value, src) {
     if (this.view.value === void 0) return false;
     const value2 = this.view.value;
     this.view.value = void 0;
@@ -109,7 +116,7 @@ var Value = class {
   // operators like tap, which point view.value at p.value via XU0),
   // upstream has already spliced the array and re-splicing here shifts
   // every survivor one position further than intended.
-  BR1A(R1) {
+  BR1A(R1, src) {
     const owns = this.view.value !== this.p?.value;
     const NR1 = [];
     for (let i = 0; i < R1.length; i++) {
@@ -125,7 +132,7 @@ var Value = class {
   // an array so we get splice semantics and downstream V1 propagation. Skips
   // already-undefined slots so a remove is a true no-op rather than emitting
   // a phantom event.
-  BR1(R1) {
+  BR1(R1, src) {
     if (isArray(this.view.value)) return this.BR1A(R1);
     const NR1 = [];
     for (let i = 0; i < R1.length; i++) {
@@ -138,7 +145,7 @@ var Value = class {
     }
     this.view.BR1(NR1);
   }
-  BR2(R2) {
+  BR2(R2, src) {
     const NR2 = [];
     loop1: for (let i = 0; i < R2.length; i++) {
       const key = R2[i];
@@ -165,7 +172,7 @@ var Value = class {
   // already hold, skip the entire dispatch. Operators that mutate in place
   // and re-emit (e.g. between, sort) rely on this — they swap the live
   // reference for a copy first to avoid this guard suppressing real changes.
-  XU0(value2) {
+  XU0(value2, src) {
     if (this.view.value === value2) return;
     this.view.value = value2;
     this.view.XU0();
@@ -185,7 +192,7 @@ var Value = class {
   // producers already use. For OBJECT sources a previously-undefined key is
   // always a fresh insert (no positions to shift) — load-bearing for the
   // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
-  BU1(U1) {
+  BU1(U1, src) {
     const NU1 = [];
     const NI0 = [];
     const NF0 = [];
@@ -211,7 +218,7 @@ var Value = class {
   // for what's logically one assignment. `key.slice().reverse()` then `pop()`
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
-  BU2(U2) {
+  BU2(U2, src) {
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     const NU2 = [];
     for (let i = 0; i < U2.length; i++) {
@@ -232,7 +239,7 @@ var Value = class {
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
-  BI0(I0) {
+  BI0(I0, src) {
     if (isArray(this.view.value)) return this.BI0A(I0);
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     const NI0 = [];
@@ -255,7 +262,7 @@ var Value = class {
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BMV1 — see comment on BR1A).
-  BI0A(I0) {
+  BI0A(I0, src) {
     const owns = this.view.value !== this.p?.value;
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
@@ -289,7 +296,7 @@ var Value = class {
     }
     this.view.BMV1(M1);
   }
-  BI2(I2) {
+  BI2(I2, src) {
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++];
@@ -400,7 +407,7 @@ var View = class _View {
   // present in the new value gets a refresh (XU0), any name that vanished
   // gets a clear (XR0). The `if (this.p)` re-reads our slice from the parent
   // because XU0 on the parent already mutated `p.value`; we just mirror it.
-  XU0() {
+  XU0(value2) {
     if (this.p) this.value = this.p.value?.[this.name];
     this.each((name, child) => {
       if (this.value?.[name] !== void 0)
@@ -675,11 +682,13 @@ var LinkedView = class _LinkedView extends View {
   }
   // `value` and `res` are read-through to the source — the LinkedView itself
   // never holds data, it's a transparent forwarder.
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get value() {
     return this.src.value;
   }
   set value(v) {
   }
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get res() {
     return this;
   }
@@ -927,6 +936,7 @@ var ViewProxy = class _ViewProxy {
     }
     if (type === "first") return new _ViewProxy(p.get_or_create_named(firstKey(p.value)));
     if (type === "last") return new _ViewProxy(p.get_or_create_named(lastKey(p.value)));
+    if (type === "get") return new _ViewProxy(p.get_or_create_named(`${args[0]}`));
     if (type === "toJSON") return p.value;
     const OperatorClass = Operators[type]?.(...args);
     if (OperatorClass) {
@@ -1029,6 +1039,10 @@ var render = (p, np) => (
   isArray(np) ? Node.render(p, Node.add(new Node("", null), ...np.filter((c) => c != null && c !== false))[NODE]) : Node.render(p, np[NODE])
 );
 var DOMSink = class {
+  parent;
+  node;
+  p;
+  nodes;
   constructor(parent, node) {
     this.parent = parent;
     this.node = node;
@@ -1269,6 +1283,12 @@ var DOMSink = class {
 var Child = class {
 };
 var Node = class _Node extends Child {
+  ns;
+  tag;
+  children;
+  static;
+  data;
+  fn;
   constructor(tag, ns, children = []) {
     super();
     this.ns = ns;
@@ -1355,6 +1375,9 @@ var Node = class _Node extends Child {
   }
 };
 var Prop = class extends Child {
+  name;
+  value;
+  parent;
   constructor(name, value2) {
     super();
     this.name = name;
@@ -1389,6 +1412,7 @@ var Attr = class extends Prop {
   }
 };
 var Class = class extends Prop {
+  _last;
   // Two reactive shapes reach here:
   //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
   //                           add/remove toggle the fixed class `this.name`.
@@ -1427,6 +1451,7 @@ var Style = class extends Prop {
   }
 };
 var Text = class extends Prop {
+  dom;
   create(parent) {
     parent.appendChild(this.dom = document.createTextNode(""));
     super.create(parent);
@@ -1459,6 +1484,8 @@ var props = {
   nodes: Node
 };
 var NodeProxy = class _NodeProxy {
+  node;
+  prop;
   constructor(node, prop) {
     this.node = node;
     this.prop = prop;

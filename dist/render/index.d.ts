@@ -1,3 +1,5 @@
+import { D as Data, c as RowOf } from '../core-B6UvChJ_.js';
+
 declare const NODE: unique symbol;
 /**
  * Mount a template (built with {@link HTML}/{@link SVG}) into a parent DOM
@@ -30,7 +32,7 @@ declare const render: (p: any, np: any) => any;
  * @example HTML.ul(items, item => HTML.li(item.name))
  */
 interface NodeBuilder {
-    (data: any, rowFn: (node: any, item: any, key: any) => any): NodeBuilder;
+    <T>(data: Data<T>, rowFn: (node: NodeBuilder, item: RowOf<T>, key: string) => any): NodeBuilder;
     (...children: any[]): NodeBuilder;
     [prop: string]: NodeBuilder;
 }

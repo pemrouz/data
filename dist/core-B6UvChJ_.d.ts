@@ -23,7 +23,14 @@ declare const view: unique symbol;
  * hand-picked subset of operators: `Operators['filter'] = () => FilterValue`.
  */
 declare const Operators: Record<string, (...args: any[]) => any>;
-declare const $: <T>(v: T) => Data<T>;
+interface Dollar {
+    <T>(v: T): Data<T>;
+    /** Override the id generator — set to a deterministic fn in tests. */
+    random: (o?: any) => string;
+    /** Dev flag (e.g. an asymmetric 3-arg `reduce` warns on drift when true). */
+    debug?: boolean;
+}
+declare const $: Dollar;
 
 /**
  * Low-level escape hatch for building a derived view from a custom `Operator`
@@ -32,8 +39,14 @@ declare const $: <T>(v: T) => Data<T>;
  * (`src.filter(...)`) instead; reach for this only when authoring a new
  * operator or wiring one that isn't registered. See operators/README.md.
  */
-declare function createOperator(source: any, OperatorClass: any, ...args: any[]): ViewProxy;
+declare function createOperator(source: any, OperatorClass: any, ...args: any[]): any;
 type RowOf<T> = T extends readonly (infer E)[] ? E : T extends Record<any, infer R> ? R : never;
+type ColOf<T> = RowOf<T> extends object ? (keyof RowOf<T> & string) : string;
+type ColValue<T, K extends PropertyKey> = RowOf<T> extends object ? (K extends keyof RowOf<T> ? RowOf<T>[K] : any) : any;
+type AnyData = Pick<DataOps<any>, 'connect'>;
+type FilterShape<T> = Partial<{
+    [K in ColOf<T>]: ColValue<T, K> | AnyData;
+}>;
 type ChangeRecord = {
     type: 'update' | 'insert' | 'remove';
     key: string[];
@@ -41,13 +54,14 @@ type ChangeRecord = {
     at?: any;
 };
 type Reactive<T> = Data<T> | T;
-type Data<T = any> = [
+type Children<T> = [
     T
-] extends [readonly (infer E)[]] ? DataOps<T> & {
+] extends [readonly (infer E)[]] ? {
     [index: number]: Data<E>;
-} : [T] extends [object] ? DataOps<T> & {
-    [K in keyof T]: Data<T[K]> | T[K];
-} : DataOps<T>;
+} : [T] extends [object] ? {
+    [K in keyof T]: Data<T[K]>;
+} : object;
+type Data<T = any> = DataOps<T> & Children<T>;
 type DataOps<T = any> = {
     [value]?: T;
     /**
@@ -82,40 +96,49 @@ type DataOps<T = any> = {
     raf(): ((value: T) => void) & {
         flush(): void;
     };
+    get<K extends keyof T>(k: K): Data<T[K]>;
     first(): Data<RowOf<T>>;
     last(): Data<RowOf<T>>;
     update(value: T): undefined;
     update(value: any, key: string[]): undefined;
     insert(value: RowOf<T>): undefined;
-    insert(value: any, key: string[]): undefined;
+    insert(value: any, at: number | string | string[]): undefined;
     remove(key?: string[]): undefined;
     /**
      * Rows matching a predicate. Four shapes: a `(row, key) => boolean` function,
      * a `key, value` pair, a `string[]` path + value, or a partial-shape object.
-     * The predicate is captured once — it re-runs when a row mutates, not when
-     * outside state changes; for a reactive predicate derive a view and chain
-     * `between`/`intersect`.
-     * @example rows.filter(d => d.active)   //  rows.filter('done', false)   //  rows.filter({ done: false })
+     * The predicate FUNCTION is captured once — it re-runs when a row mutates, not
+     * when state it closes over changes (for a reactive function predicate, derive
+     * a view and chain `between`/`intersect`). The VALUE slot, however, may be a
+     * reactive `ViewProxy` — `filter('done', $(flag))` / `filter({k: $(v)})`
+     * re-selects when the bound value changes (the equality counterpart to
+     * `between`/`gt`'s reactive bounds).
+     * @example rows.filter(d => d.active)   //  rows.filter('done', false)   //  rows.filter('done', $(flag))
      */
     filter(fn: (row: RowOf<T>) => boolean): Data<T>;
-    filter(key: string, value: any): Data<T>;
-    filter(arg: object): Data<T>;
+    filter<K extends ColOf<T>>(key: K, value: ColValue<T, K> | AnyData): Data<T>;
+    filter(path: string[], value: Reactive<any>): Data<T>;
+    filter(arg: FilterShape<T>): Data<T>;
     /**
      * Rows whose `key` column falls within `[lo, hi]` (sort-indexed). Pass
      * ViewProxy bounds for a reactive range (a moving brush); plain numbers are
      * static. For a single moving threshold prefer `gt`/`lt`/`gte`/`lte`.
      * @example trades.between('pnl', [-1e6, 1e6])
      */
-    between(key: string, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>;
+    between(key: ColOf<T>, bounds: [Reactive<number>, Reactive<number>] | Data<[number, number]>): Data<T>;
     /**
-     * Single-threshold row filters (RowOperator-based, O(1) per change — prefer
-     * over `between(col, [T, Infinity])` for a moving threshold).
-     * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)
+     * Single-threshold row filters (RowOperator-based, O(1) per row change). The
+     * threshold may be a plain literal (captured once) or a reactive `ViewProxy`
+     * (`gt('pnl', t)` with `t = $(0)`) — a reactive threshold re-selects when it
+     * moves. A threshold MOVE re-runs a whole-snapshot rebuild (O(N), no sort
+     * index); for a fast-moving threshold over a large source prefer `between`,
+     * whose reactive bounds recompute incrementally.
+     * @example trades.gt('pnl', 0)   //  trades.lte('age', 65)   //  trades.gt('pnl', $(0))
      */
-    gt(key: string, value: number): Data<T>;
-    lt(key: string, value: number): Data<T>;
-    gte(key: string, value: number): Data<T>;
-    lte(key: string, value: number): Data<T>;
+    gt(key: ColOf<T>, value: Reactive<number>): Data<T>;
+    lt(key: ColOf<T>, value: Reactive<number>): Data<T>;
+    gte(key: ColOf<T>, value: Reactive<number>): Data<T>;
+    lte(key: ColOf<T>, value: Reactive<number>): Data<T>;
     /**
      * Apply many child updates as ONE batched cascade (sinks see a single BU1).
      * Pairs are `[name, value, name, value, …]`.
@@ -140,16 +163,28 @@ type DataOps<T = any> = {
      * @example rows.length()   //  rows.length(r => r.region) → { east: { value: 4 }, … }
      */
     length(): Data<number>;
-    length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, number>>;
+    length<R extends PropertyKey>(fn: (row: RowOf<T>) => R): Data<Record<R, {
+        value: number;
+    }>>;
     /**
      * Scalar aggregate over a column (or row values if `col` omitted). `sum`/`avg`
-     * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined`.
-     * @example orders.sum('amount')   //  orders.avg('amount')
+     * are O(1) per change; `max`/`min` recompute O(n). Empty set → `undefined` for
+     * `avg`/`max`/`min`; `sum` of an empty set is `0`. `sum`/`avg` are numeric;
+     * `max`/`min` carry the column's element type (number, Date, string, …). `col`
+     * is a column name checked against the row shape (`ColOf<T>`), or a reactive
+     * `Data<string>` (`sum($(currentCol))`) whose runtime value names the column —
+     * the reactive form can't be statically key-checked, so it stays a bare
+     * `Data<string>` and yields `any`.
+     * @example orders.sum('amount')   //  orders.avg('amount')   //  orders.max('ts')   //  orders.sum($(col))
      */
-    sum(col?: string): Data<number>;
-    avg(col?: string): Data<number>;
-    max(col?: string): Data<any>;
-    min(col?: string): Data<any>;
+    sum(col?: ColOf<T> | Data<string>): Data<number>;
+    avg(col?: ColOf<T> | Data<string>): Data<number | undefined>;
+    max<K extends ColOf<T>>(col: K): Data<ColValue<T, K> | undefined>;
+    max(col: Data<string>): Data<any>;
+    max(): Data<RowOf<T> | undefined>;
+    min<K extends ColOf<T>>(col: K): Data<ColValue<T, K> | undefined>;
+    min(col: Data<string>): Data<any>;
+    min(): Data<RowOf<T> | undefined>;
     /**
      * Scalar boolean — does any (`some`) / every (`every`) row match the predicate.
      * @example alerts.some(a => a.level >= 3)
@@ -194,15 +229,17 @@ type DataOps<T = any> = {
     /**
      * Descending sort (`za`) by `column`, optionally windowed to the top `max` —
      * a bounded top-K, cheaper than `za(col).limit(n)`. `az` is ascending;
-     * `top`/`limit` window without re-sorting.
-     * @example trades.za('pnl', 50)   //  rows.az('name')
+     * `top`/`limit` window without re-sorting. The window size `max` may be a
+     * reactive `ViewProxy` (`za('rating', $(pageSize))`, `limit($(n))`) — moving
+     * it re-windows in place (grow/shrink), so a page-size slider needs no rebuild.
+     * @example trades.za('pnl', 50)   //  rows.az('name')   //  rows.za('pnl', $(pageSize))
      */
-    za(column: string, max?: number): Data<T>;
-    za(max?: number): Data<T>;
-    az(column: string, max?: number): Data<T>;
-    az(max?: number): Data<T>;
-    top(max?: number): Data<T>;
-    limit(max: number): Data<T>;
+    za(column: ColOf<T>, max?: Reactive<number>): Data<T>;
+    za(max?: Reactive<number>): Data<T>;
+    az(column: ColOf<T>, max?: Reactive<number>): Data<T>;
+    az(max?: Reactive<number>): Data<T>;
+    top(max?: Reactive<number>): Data<T>;
+    limit(max: Reactive<number>): Data<T>;
     /**
      * Rows present in ALL source views — set intersection (one bitmask bit per row,
      * O(1) per membership flip). Tracks reactive sources live.
@@ -218,15 +255,5 @@ type DataOps<T = any> = {
 };
 declare class Sink {
 }
-declare class ViewProxy {
-    view: any;
-    constructor(view: any);
-    deleteProperty(target: any, name: any): boolean;
-    set(t: any, name: any, value: any): boolean;
-    get(t: any, name: any): any;
-    apply(t: any, m: any, args: any): any;
-    getPrototypeOf(target: any): ViewProxy;
-    iterator(i?: number): Generator<any, void, unknown>;
-}
 
-export { $, Operators as O, Sink as S, view as a, createOperator as c, reactive as r, value as v };
+export { $, type ChangeRecord as C, type Data as D, Operators as O, type Reactive as R, Sink as S, type DataOps as a, type Dollar as b, type RowOf as c, createOperator as d, view as e, reactive as r, value as v };

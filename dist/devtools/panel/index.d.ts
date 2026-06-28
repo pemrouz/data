@@ -1,4 +1,4 @@
-declare function mount(rootProxy: any): any;
+declare function mount(rootProxy?: any): any;
 declare function unmount(): void;
 declare function getShell(): any;
 

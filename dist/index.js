@@ -106,6 +106,12 @@ function createOperator(source, OperatorClass, ...args) {
   }
   return new ViewProxy(op.view);
 }
+var bindReactive = (arg, host, prop) => {
+  if (!(arg instanceof ViewProxy)) return false;
+  host["_" + prop + "View"] = arg[view];
+  arg.connect(host, prop);
+  return true;
+};
 var Value = class {
   constructor() {
     this.view = new View(this);
@@ -129,8 +135,15 @@ var Value = class {
   }
   // Idempotent: a Value already at undefined emits nothing. Returns false so
   // callers can short-circuit when nothing happened (used by Sink chains that
-  // skip propagation on no-ops).
-  XR0() {
+  // skip propagation on no-ops). Return typed `any`: the `false` is an internal
+  // short-circuit sentinel, while most subclass overrides return void — typing
+  // it `false | undefined` would make every void override a TS2416 mismatch.
+  // The optional 2nd `src` param across these verb methods is the source-identity
+  // a multi-source operator (intersect/union/except) receives when it acts as a
+  // sink for a secondary source (`src.connect(this)` → the secondary's View fans
+  // out `sink.<verb>(payload, this)`). The base single-source path ignores it;
+  // typing it optional lets those overrides stay assignable to the base.
+  XR0(_value, src) {
     if (this.view.value === void 0) return false;
     const value2 = this.view.value;
     this.view.value = void 0;
@@ -146,7 +159,7 @@ var Value = class {
   // operators like tap, which point view.value at p.value via XU0),
   // upstream has already spliced the array and re-splicing here shifts
   // every survivor one position further than intended.
-  BR1A(R1) {
+  BR1A(R1, src) {
     const owns = this.view.value !== this.p?.value;
     const NR1 = [];
     for (let i = 0; i < R1.length; i++) {
@@ -162,7 +175,7 @@ var Value = class {
   // an array so we get splice semantics and downstream V1 propagation. Skips
   // already-undefined slots so a remove is a true no-op rather than emitting
   // a phantom event.
-  BR1(R1) {
+  BR1(R1, src) {
     if (isArray(this.view.value)) return this.BR1A(R1);
     const NR1 = [];
     for (let i = 0; i < R1.length; i++) {
@@ -175,7 +188,7 @@ var Value = class {
     }
     this.view.BR1(NR1);
   }
-  BR2(R2) {
+  BR2(R2, src) {
     const NR2 = [];
     loop1: for (let i = 0; i < R2.length; i++) {
       const key = R2[i];
@@ -202,7 +215,7 @@ var Value = class {
   // already hold, skip the entire dispatch. Operators that mutate in place
   // and re-emit (e.g. between, sort) rely on this — they swap the live
   // reference for a copy first to avoid this guard suppressing real changes.
-  XU0(value2) {
+  XU0(value2, src) {
     if (this.view.value === value2) return;
     this.view.value = value2;
     this.view.XU0();
@@ -222,7 +235,7 @@ var Value = class {
   // producers already use. For OBJECT sources a previously-undefined key is
   // always a fresh insert (no positions to shift) — load-bearing for the
   // upsert-as-leave/re-enter idiom — so the BF0 routing is array-only.
-  BU1(U1) {
+  BU1(U1, src) {
     const NU1 = [];
     const NI0 = [];
     const NF0 = [];
@@ -248,7 +261,7 @@ var Value = class {
   // for what's logically one assignment. `key.slice().reverse()` then `pop()`
   // is just a cheap way to walk the path forward without mutating the caller's
   // key array.
-  BU2(U2) {
+  BU2(U2, src) {
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     const NU2 = [];
     for (let i = 0; i < U2.length; i++) {
@@ -269,7 +282,7 @@ var Value = class {
   // BI0: object insert. If `at` is omitted we mint a random key — this lets
   // `arr.insert(row)` work without the caller managing IDs. Routes to BI0A
   // for arrays so insert-at-position carries shift semantics.
-  BI0(I0) {
+  BI0(I0, src) {
     if (isArray(this.view.value)) return this.BI0A(I0);
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     const NI0 = [];
@@ -292,7 +305,7 @@ var Value = class {
   //
   // Splice only if this operator owns its view.value (same shared-ref
   // guard as BR1A / BMV1 — see comment on BR1A).
-  BI0A(I0) {
+  BI0A(I0, src) {
     const owns = this.view.value !== this.p?.value;
     for (let i = 0; i < I0.length; i += 2) {
       const at = I0[i];
@@ -326,7 +339,7 @@ var Value = class {
     }
     this.view.BMV1(M1);
   }
-  BI2(I2) {
+  BI2(I2, src) {
     if (typeof this.view.value !== "object" || this.view.value === null) this.view.value = {};
     for (let i = 0; i < I2.length; i++) {
       const key = I2[i++];
@@ -439,7 +452,7 @@ var View = class _View {
   // present in the new value gets a refresh (XU0), any name that vanished
   // gets a clear (XR0). The `if (this.p)` re-reads our slice from the parent
   // because XU0 on the parent already mutated `p.value`; we just mirror it.
-  XU0() {
+  XU0(value2) {
     if (this.p) this.value = this.p.value?.[this.name];
     this.each((name, child) => {
       if (this.value?.[name] !== void 0)
@@ -714,11 +727,13 @@ var LinkedView = class _LinkedView extends View {
   }
   // `value` and `res` are read-through to the source — the LinkedView itself
   // never holds data, it's a transparent forwarder.
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get value() {
     return this.src.value;
   }
   set value(v) {
   }
+  // @ts-expect-error base data-field intentionally shadowed by a read-through accessor (perf: View.value must stay a field)
   get res() {
     return this;
   }
@@ -966,6 +981,7 @@ var ViewProxy = class _ViewProxy {
     }
     if (type === "first") return new _ViewProxy(p.get_or_create_named(firstKey(p.value)));
     if (type === "last") return new _ViewProxy(p.get_or_create_named(lastKey(p.value)));
+    if (type === "get") return new _ViewProxy(p.get_or_create_named(`${args[0]}`));
     if (type === "toJSON") return p.value;
     const OperatorClass = Operators[type]?.(...args);
     if (OperatorClass) {
@@ -1057,7 +1073,11 @@ function raf(p) {
 
 // row.ts
 var RowOperator = class extends Operator {
-  process() {
+  // Base signature widened to the (value, name, old_val) shape every subclass
+  // overrides with — without it a 3-arg `process` override is a TS2416 arity
+  // mismatch against a 0-arg base. Type-only (the body is unchanged); erases at
+  // runtime. All params optional so a subclass may take fewer.
+  process(value2, name, old_val) {
     throw new Error("not implemented, process:", this.name);
   }
   // Generic loop body shared by every BU1/BU2/BI0/BI2/BR2 entrypoint. `inc`
@@ -1232,10 +1252,20 @@ function get(k, r) {
   return r;
 }
 function match(actual, expected) {
+  if (expected instanceof ViewProxy)
+    return actual === expected[value];
   if (typeof expected !== "object")
     return actual === expected;
   else
     return Object.entries(expected).every(([k, v]) => match(actual?.[k], v));
+}
+function reactiveLeaves(obj, out = []) {
+  for (const k in obj) {
+    const v = obj[k];
+    if (v instanceof ViewProxy) out.push(v);
+    else if (v && typeof v === "object") reactiveLeaves(v, out);
+  }
+  return out;
 }
 var FilterValue = class extends RowOperator {
   constructor(p, fn) {
@@ -1247,27 +1277,64 @@ var FilterValue = class extends RowOperator {
   process(value2, name, old_val) {
     return this.fn(value2, name, old_val) ? value2 : void 0;
   }
+  // Connect target for a reactive value arg (FilterString/ColumnValue). The
+  // predicate reads a mutable `_cell.v` (set up in the subclass BEFORE super(),
+  // since `this` isn't available to close over there yet), so updating the cell
+  // and re-running XU0 re-classifies every row against the new value. The
+  // value-equality guard makes the construction-time connect seed a no-op (the
+  // initial XU0 already used the snapshot) and skips a redundant rebuild when a
+  // bound re-emits the same value. A non-reactive filter has no `_cell`, so this
+  // is inert for the fn / truthy forms.
+  set val(v) {
+    if (this._cell && v !== this._cell.v) {
+      this._cell.v = v;
+      this.XU0(this.p.value);
+    }
+  }
 };
 var FilterObjectValue = class extends FilterValue {
   constructor(p, obj) {
     super(p, (r) => match(r, obj));
+    const reactives = reactiveLeaves(obj);
+    if (reactives.length) {
+      this._anchor = {};
+      const rebuild = () => {
+        if (this._live) this.XU0(this.p.value);
+      };
+      for (const vp of reactives) vp.connect(this._anchor, rebuild);
+      this._live = true;
+    }
   }
 };
 var FilterStringValue = class extends FilterValue {
-  constructor(p, name, value2) {
-    super(
-      p,
-      value2 === void 0 ? (r) => !!r?.[name] : (r) => r?.[name] === value2
-    );
+  constructor(p, name, arg) {
+    if (arg instanceof ViewProxy) {
+      const cell = { v: arg[value] };
+      super(p, (r) => r?.[name] === cell.v);
+      this._cell = cell;
+      arg.connect(this, "val");
+    } else {
+      super(
+        p,
+        arg === void 0 ? (r) => !!r?.[name] : (r) => r?.[name] === arg
+      );
+    }
   }
 };
 var FilterColumnValue = class extends FilterValue {
-  constructor(p, name, value2) {
+  constructor(p, name, arg) {
     const key = [].concat(name);
-    super(
-      p,
-      value2 === void 0 ? (r) => !!get(key, r) : (r) => get(key, r) === value2
-    );
+    if (arg instanceof ViewProxy) {
+      const cell = { v: arg[value] };
+      super(p, (r) => get(key, r) === cell.v);
+      this._cell = cell;
+      arg.connect(this, "val");
+    } else {
+      super(
+        p,
+        arg === void 0 ? (r) => !!get(key, r) : (r) => get(key, r) === arg
+      );
+    }
   }
 };
 
@@ -1338,12 +1405,15 @@ var BetweenValue = class extends Operator {
     b = +b;
     const new_lo = a < b ? a : b;
     const new_hi = a < b ? b : a;
-    if (!this.view.value)
-      return [this.lo_val, this.hi_val] = [new_lo, new_hi];
+    if (!this.view.value) {
+      [this.lo_val, this.hi_val] = [new_lo, new_hi];
+      return;
+    }
     if (new_lo === -Infinity && new_hi === Infinity) {
       this.hi_index = this.lo_index = void 0;
       [this.lo_val, this.hi_val] = [new_lo, new_hi];
-      return this.view.XU0(this.view.value = this.p.value);
+      this.view.XU0(this.view.value = this.p.value);
+      return;
     }
     if (this.view.value === this.p.value) {
       this.view.value = isArray(this.p.value) ? [...this.p.value] : { ...this.p.value };
@@ -1647,12 +1717,25 @@ var CompareValue = class extends RowOperator {
     super();
     this.p = p;
     this.col = col;
-    this.val = val;
+    if (!bindReactive(val, this, "val")) this._val = val;
     this.XU0(this.p.value);
+    this._live = true;
   }
-  // Repeated `proxy.gt('col', v)` with identical args returns the cached view.
+  // Dedup by the threshold SOURCE's view identity when reactive (mirrors between
+  // — a freshly-minted wrapper proxy per access would never `===` a stored one),
+  // by value for a plain literal. `_valView` is set by bindReactive.
   matches(col, val) {
-    return this.col === col && this.val === val;
+    if (this.col !== col) return false;
+    if (val instanceof ViewProxy) return this._valView === val[view];
+    if (this._valView) return false;
+    return this._val === val;
+  }
+  // `set val` is the connect target: PropSink writes `this.val = <bound value>`
+  // on construction (guarded out by `_live` being unset) and on every later
+  // change (which recomputes). Subclasses read the live threshold via `this._val`.
+  set val(v) {
+    this._val = v;
+    if (this._live) this.XU0(this.p.value);
   }
   // Subclasses implement `_cmp(x)`. `value?.[col]` short-circuits on missing
   // rows / non-object rows — any such row fails every comparison (matches
@@ -1663,27 +1746,28 @@ var CompareValue = class extends RowOperator {
 };
 var GtValue = class extends CompareValue {
   _cmp(x) {
-    return x > this.val;
+    return x > this._val;
   }
 };
 var LtValue = class extends CompareValue {
   _cmp(x) {
-    return x < this.val;
+    return x < this._val;
   }
 };
 var GteValue = class extends CompareValue {
   _cmp(x) {
-    return x >= this.val;
+    return x >= this._val;
   }
 };
 var LteValue = class extends CompareValue {
   _cmp(x) {
-    return x <= this.val;
+    return x <= this._val;
   }
 };
 
 // operators/sort/index.ts
 var ZAValue = class extends Operator {
+  // bisect_right / bisect_left, set on the prototype below
   // Dedup for the COLUMN forms (za/az('col') and za/az('col', n)). matches()
   // receives the RAW call args, so n must default to Infinity exactly like the
   // ZAColumnValue/AZColumnValue constructor — otherwise `za('col')` (raw n
@@ -1692,15 +1776,32 @@ var ZAValue = class extends Operator {
   // override this on ZANumberValue/AZNumberValue. (=== not ==: the col_name of
   // the numeric forms is the `value` Symbol, and Symbol == n is always false.)
   matches(col, n = Infinity) {
-    return this.col_name === col && this.n === n;
+    if (this.col_name !== col) return false;
+    if (n instanceof ViewProxy) return this._nView === n[view];
+    if (this._nView) return false;
+    return this.n === n;
   }
   constructor(p, col, col_name, n) {
     super();
     this.p = p;
-    this.n = n;
     this.col = col;
     this.col_name = col_name;
+    if (n instanceof ViewProxy) {
+      this._nView = n[view];
+      n.connect(this, "nReactive");
+    } else this.n = n;
     this.XU0(p.value);
+    this._live = true;
+  }
+  // Connect target for a reactive window size. PropSink writes the live numeric
+  // value here on construction (guarded out by `_live`) and on every change. A
+  // window-size move re-materializes the visible window from `sorted` — the rank
+  // ORDER is unchanged, only how much is shown — so it routes through the
+  // existing incremental `_window` reconcile (tail BI0A to grow / tail BR1A to
+  // shrink / per-slot BU1), never a full XU0. `v == null` → Infinity (unbounded).
+  set nReactive(v) {
+    this.n = v == null ? Infinity : +v;
+    if (this._live) this._window();
   }
   XR0() {
     this.sorted = [];
@@ -2062,8 +2163,11 @@ var ZAColumnValue = class extends ZAValue {
 var ZANumberValue = class extends ZAValue {
   // Numeric form: the only arg is `n` (top(n) / za(n)); col is implicitly the
   // whole row. Default to Infinity like the constructor so top(2) dedups with
-  // a second top(2) (and with za(2) — the same operation).
+  // a second top(2) (and with za(2) — the same operation). A reactive n dedups
+  // by bound-source identity (see ZAValue.matches).
   matches(n = Infinity) {
+    if (n instanceof ViewProxy) return this._nView === n[view];
+    if (this._nView) return false;
     return this.n === n;
   }
   constructor(p, n = Infinity) {
@@ -2094,9 +2198,10 @@ var AZColumnValue = class extends AZValue {
 };
 var AZNumberValue = class extends AZValue {
   matches(n = Infinity) {
+    if (n instanceof ViewProxy) return this._nView === n[view];
+    if (this._nView) return false;
     return this.n === n;
   }
-  // see ZANumberValue
   constructor(p, n = Infinity) {
     super(p, (d) => d, value, n);
   }
@@ -2105,8 +2210,34 @@ var LimitValue = class extends Operator {
   constructor(p, n) {
     super();
     this.p = p;
-    this.n = n;
+    if (n instanceof ViewProxy) {
+      this._nView = n[view];
+      n.connect(this, "nReactive");
+    } else this.n = n;
     this.XU0(this.p.value);
+    this._live = true;
+  }
+  set nReactive(v) {
+    this.n = v == null ? Infinity : +v;
+    if (this._live) this._relimit();
+  }
+  // Re-window after a reactive limit change: shrink by dropping tail rows, grow
+  // by refilling from the next available source key (array: nextAfter; object:
+  // nextObjectKey) — the same refill the BU1/BR1 paths use. Each emits one
+  // positional remove/insert so a downstream sink updates only the changed tail.
+  _relimit() {
+    while (this.view.value.length > this.n) {
+      this.keys.pop();
+      super.BR1A([this.view.value.length - 1]);
+    }
+    while (this.view.value.length < this.n) {
+      const next = this.isArr ? this.nextAfter(this.last ?? -1) : this.nextObjectKey();
+      if (next === void 0) break;
+      this.keys.push(next);
+      if (this.isArr) this.last = next;
+      super.BI0A([this.view.value.length, this.p.value[next]]);
+    }
+    if (this.isArr) this.last = this.keys.length ? this.keys[this.keys.length - 1] : void 0;
   }
   XR0() {
     this.XU0(this.p.value);
@@ -3257,12 +3388,30 @@ var AggregateValue = class extends Operator {
     super();
     this.p = p;
     this.col = col;
-    this.read = read || (typeof col === "string" ? ((r) => r?.[col]) : ((r) => r));
+    if (read) {
+      this.read = read;
+    } else if (col instanceof ViewProxy) {
+      this._colView = col[view];
+      col.connect(this, "colName");
+    } else {
+      this.read = typeof col === "string" ? ((r) => r?.[col]) : ((r) => r);
+    }
     this.tracked = /* @__PURE__ */ new Map();
     this.XU0(p.value);
+    this._live = true;
   }
+  // Dedup by the column SOURCE's view identity when reactive (like between), by
+  // value (the string column / fn reference) otherwise.
   matches(col) {
+    if (col instanceof ViewProxy) return this._colView === col[view];
+    if (this._colView) return false;
     return this.col === col;
+  }
+  // Connect target for a reactive column name: rebuild the projector, then
+  // (after construction) re-run XU0 to re-project every row under the new column.
+  set colName(c) {
+    this.read = typeof c === "string" ? ((r) => r?.[c]) : ((r) => r);
+    if (this._live) this.XU0(this.p.value);
   }
   _project(v) {
     if (v === void 0) return void 0;
@@ -3362,17 +3511,17 @@ var AggregateValue = class extends Operator {
     }
     if (dirty) this._publish();
   }
+  // Default no-op stubs; subclasses override. `_delta` declares the full
+  // (old, new, key) arity so the internal call sites and the subclass
+  // overrides both type-check against the base.
   _afterReset() {
   }
-  _delta() {
+  _delta(_old, _new, _key) {
   }
   _publish() {
   }
 };
 var SumValue = class extends AggregateValue {
-  // Note: `total` is intentionally not a class field — class fields
-  // initialize *after* super() returns, which would overwrite the value
-  // computed by _afterReset during construction.
   _afterReset() {
     this.total = 0;
     for (const v of this.tracked.values()) this.total += +v;
@@ -3816,6 +3965,12 @@ var DistinctValue = class extends Operator {
 };
 
 // operators/reduce/index.ts
+function assertPlainInit(init) {
+  if (init instanceof ViewProxy)
+    throw new Error(
+      "reduce(): init must be a plain value or a thunk, not a reactive ViewProxy \u2014 a fold seed is its identity element, not a reactive input. For a reactive base, derive it upstream (filter/between/gt) and fold the derived view, or pass init[value]."
+    );
+}
 var _approxEqual = (a, b) => a === b || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
 var _deepEqual = (a, b) => {
   if (a === b) return true;
@@ -3836,6 +3991,7 @@ var _deepEqual = (a, b) => {
 var ReduceValue = class extends Operator {
   constructor(p, fn, init) {
     super();
+    assertPlainInit(init);
     this.p = p;
     this.fn = fn;
     this.init = init;
@@ -3883,6 +4039,7 @@ var ReduceValue = class extends Operator {
 var ReduceIncrementalValue = class extends Operator {
   constructor(p, add, remove, init) {
     super();
+    assertPlainInit(init);
     this.p = p;
     this.add = add;
     this.remove = remove;
@@ -4639,7 +4796,7 @@ Operators["some"] = () => SomeValue;
 Operators["every"] = () => EveryValue;
 Operators["tap"] = (fn) => tapHasParam(fn) ? TapValue : TapBareValue;
 Operators["distinct"] = () => DistinctValue;
-Operators["reduce"] = (_, b) => typeof b === "function" ? ReduceIncrementalValue : ReduceValue;
+Operators["reduce"] = (_, b) => typeof b === "function" && !(b instanceof ViewProxy) ? ReduceIncrementalValue : ReduceValue;
 Operators["union"] = () => UnionValue;
 Operators["except"] = () => ExceptValue;
 Operators["keys"] = () => KeysValue;
@@ -4659,6 +4816,10 @@ var render = (p, np) => (
   isArray(np) ? Node.render(p, Node.add(new Node("", null), ...np.filter((c) => c != null && c !== false))[NODE]) : Node.render(p, np[NODE])
 );
 var DOMSink = class {
+  parent;
+  node;
+  p;
+  nodes;
   constructor(parent, node) {
     this.parent = parent;
     this.node = node;
@@ -4899,6 +5060,12 @@ var DOMSink = class {
 var Child = class {
 };
 var Node = class _Node extends Child {
+  ns;
+  tag;
+  children;
+  static;
+  data;
+  fn;
   constructor(tag, ns, children = []) {
     super();
     this.ns = ns;
@@ -4985,6 +5152,9 @@ var Node = class _Node extends Child {
   }
 };
 var Prop = class extends Child {
+  name;
+  value;
+  parent;
   constructor(name, value2) {
     super();
     this.name = name;
@@ -5019,6 +5189,7 @@ var Attr = class extends Prop {
   }
 };
 var Class = class extends Prop {
+  _last;
   // Two reactive shapes reach here:
   //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
   //                           add/remove toggle the fixed class `this.name`.
@@ -5057,6 +5228,7 @@ var Style = class extends Prop {
   }
 };
 var Text = class extends Prop {
+  dom;
   create(parent) {
     parent.appendChild(this.dom = document.createTextNode(""));
     super.create(parent);
@@ -5089,6 +5261,8 @@ var props = {
   nodes: Node
 };
 var NodeProxy = class _NodeProxy {
+  node;
+  prop;
   constructor(node, prop) {
     this.node = node;
     this.prop = prop;
