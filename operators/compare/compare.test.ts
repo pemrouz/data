@@ -30,9 +30,9 @@ spec({ op:'compare', guarantee:'Selection', trigger:'edit', shape:'object', via:
   const adults = gt(src, 'age', 18)
   const ch = adults.connect([])
 
-  src.a.age = 25            // a enters
-  src.b.age = 5             // b leaves
-  src.c.age = 31            // c stays (update, not enter/leave)
+  src.a.age[value] = 25            // a enters
+  src.b.age[value] = 5             // b leaves
+  src.c.age[value] = 31            // c stays (update, not enter/leave)
 
   same(adults[value], { c: { age: 31 }, a: { age: 25 } })
   // Note: remove/update values reflect the row object's current state.
@@ -51,9 +51,9 @@ spec({ op:'compare', guarantee:'Selection', trigger:'insert/remove', shape:'obje
   const src = $<Record<string, { v: number }>>({ a: { v: 5 } })
   const filt = gt(src, 'v', 3)
   same(filt[value], { a: { v: 5 } })
-  src.b = { v: 10 }
+  src.b[value] = { v: 10 }
   same(filt[value], { a: { v: 5 }, b: { v: 10 } })
-  src.c = { v: 1 }          // below threshold — not inserted into view
+  src.c[value] = { v: 1 }          // below threshold — not inserted into view
   same(filt[value], { a: { v: 5 }, b: { v: 10 } })
   delete src.c              // out-of-range delete — view unchanged
   same(filt[value], { a: { v: 5 }, b: { v: 10 } })
@@ -84,10 +84,10 @@ spec({ op:'compare', guarantee:'Propagation', trigger:'edit', shape:'object', ch
   const filt = gt(src, 'v', 7)
   same(filt.length()[value], 2)
   same(filt.max('v')[value], 15)
-  src.d = { v: 100 }
+  src.d[value] = { v: 100 }
   same(filt.length()[value], 3)
   same(filt.max('v')[value], 100)
-  src.c.v = 6              // c leaves the filter
+  src.c.v[value] = 6              // c leaves the filter
   same(filt.length()[value], 2)
   same(filt.max('v')[value], 100)
 })
@@ -101,7 +101,7 @@ spec({ op:'compare', guarantee:'Identity', trigger:'dedup-call', shape:'object',
   const f1 = gt(src, 'v', 3)
   const f2 = gt(src, 'v', 3)
   same(f1[value], f2[value])
-  src.b = { v: 10 }
+  src.b[value] = { v: 10 }
   same(f1[value], { a: { v: 5 }, b: { v: 10 } })
   same(f2[value], { a: { v: 5 }, b: { v: 10 } })
   // Different threshold → independent op (no false-sharing).
@@ -148,7 +148,7 @@ spec({ op:'compare', guarantee:'Alignment', trigger:'remove', shape:'array', via
   same(big[value]!.filter(x => x !== undefined), [{ v: 5 }, { v: 8 }])
   // Post-shift mutation — the row originally at idx 3 is now at idx 2;
   // updating it via the new index must hit the right slot (and now passes).
-  data[2].v = 99
+  data[2].v[value] = 99
   same(big[value], [{ v: 5 }, { v: 8 }, { v: 99 }])
 })
 

@@ -283,10 +283,14 @@ export type Reactive<T> = Data<T> | T
 //     mapping over an array type drags Array.prototype's `filter`/`map`/`length`/…
 //     in, and those native signatures shadow the operators (so
 //     `$([...]).filter(d => …).length()` wouldn't type-check).
-//   • OBJECT → children mapped, optional (so `delete proxy.k` is legal) and
-//     accepting the RAW value on assignment (so `proxy.k = 1` / `proxy.k.done =
-//     true` — the documented mutate-by-assignment API — type-checks; reads still
-//     yield `Data<child>`).
+//   • OBJECT → children mapped to BARE `Data<T[K]>` (no `| T[K]` raw arm).
+//     Because a child is a plain `Data<…>` with no raw alternative, chaining
+//     an operator off it needs NO cast (`proxy.child.filter(…)` just works), and
+//     the optionality of `T`'s keys is preserved (so `delete proxy.k` still type-
+//     checks). The TYPED write surface is `proxy.k.update(v)` / `proxy.k[value] = v`
+//     and `proxy.k.remove()`; bare `proxy.k = v` still runs but is no longer typed
+//     (raw `v` isn't assignable to `Data<T[K]>`). `[value]` is the raw read/write
+//     hatch. See the `## Public API` mutation notes in CLAUDE.md.
 //   • SCALAR → `object`, NOT `{}`. A scalar view has no children, so the branch
 //     must be a structural no-op; but `DataOps<T> & {}` (and `& unknown`)
 //     COLLAPSES — TS drops the empty member before alias resolution, so the name
@@ -296,7 +300,7 @@ export type Reactive<T> = Data<T> | T
 //     shows `Data<number>` too. `object` never leaks to a consumer hover.
 type Children<T> =
   [T] extends [readonly (infer E)[]] ? { [index: number]: Data<E> }
-: [T] extends [object] ? { [K in keyof T]: Data<T[K]> | T[K] }
+: [T] extends [object] ? { [K in keyof T]: Data<T[K]> }
 : object
 export type Data<T = any> = DataOps<T> & Children<T>
 export type DataOps<T = any> = {
@@ -331,6 +335,7 @@ export type DataOps<T = any> = {
    */
   connect(fn: (change: ChangeRecord) => void): never;
   raf(): ((value: T) => void) & { flush(): void }
+  get<K extends keyof T>(k: K): Data<T[K]>
   first(): Data<RowOf<T>>
   last(): Data<RowOf<T>>
   update(value: T): undefined
@@ -1485,6 +1490,11 @@ export class ViewProxy {
     }
     if (type === 'first')   return new ViewProxy(p.get_or_create_named(firstKey(p.value)))
     if (type === 'last')    return new ViewProxy(p.get_or_create_named(lastKey(p.value)))
+    // Typed dynamic-key child access — the method twin of `proxy[k]` (and the
+    // sibling of first()/last()). Raw read/write stays on the `[value]` symbol
+    // (sound + typed), so no method-style `.value()` is needed. Additive: `get`
+    // previously fell through to "Unknown operator".
+    if (type === 'get')     return new ViewProxy(p.get_or_create_named(`${args[0]}`))
     // JSON.stringify probes `.toJSON` — a callable child view like any other —
     // and calls it (with the holder's key as the argument). Resolve with the
     // raw snapshot, same spirit as the thenable guard above: serializing a

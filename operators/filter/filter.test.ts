@@ -21,12 +21,12 @@ spec({ op:'filter', guarantee:'Selection', trigger:'construct/edit', shape:'arra
   same(0 in f[value]!, false)           // excluded → hole, not undefined
   same(3 in f[value]!, false)           // trailing excluded → still a hole within length 4
 
-  src[3].v = 99                        // idx3 now passes → fills the trailing hole in place
+  src[3].v[value] = 99                 // idx3 now passes → fills the trailing hole in place
   same(f[value]!.length, 4)             // no shift
   same(3 in f[value]!, true); same(f[value]![3].v, 99)
   same(0 in f[value]!, false)           // neighbour holes unchanged
 
-  src[1].v = 0                         // idx1 now fails → holes in place
+  src[1].v[value] = 0                  // idx1 now fails → holes in place
   same(1 in f[value]!, false)
   same(2 in f[value]!, true); same(f[value]![2].v, 40)
 })
@@ -117,7 +117,7 @@ spec({ op:'filter', guarantee:'Alignment', trigger:'remove', shape:'array', via:
   // The row originally at idx 3 is now at idx 2; updating it via the new
   // index must surface as an update on the post-shift slot (not a stale-
   // hole-filling insert that leaves the old row dangling at idx 3).
-  data[2].n = 99
+  data[2].n[value] = 99
   same(kept[value], [
     { keep: true, n: 1 }, { keep: true, n: 3 }, { keep: true, n: 99 },
   ])
@@ -154,9 +154,9 @@ spec({ op:'filter', guarantee:'Robustness', trigger:'construct', shape:'object',
   })
   const filtered = filter(res, ['x', 'y'], 1)
   same(filtered[value], { a: { x: { y: 1 } } })
-  res.e = { x: { y: 1 } }                  // mutation cascade walks the path too
+  res.e[value] = { x: { y: 1 } }           // mutation cascade walks the path too
   same(filtered[value], { a: { x: { y: 1 } }, e: { x: { y: 1 } } })
-  res.e = { x: {} }                        // leaves via a now-missing leaf
+  res.e[value] = { x: {} }                 // leaves via a now-missing leaf
   same(filtered[value], { a: { x: { y: 1 } } })
   // truthy (2-arg) nested form takes the same walker
   same(filter(res, ['x', 'y'])[value], { a: { x: { y: 1 } } })
@@ -174,10 +174,10 @@ spec({ op:'filter', guarantee:'Robustness', trigger:'edit', shape:'object', via:
   const eq = filter(src, 'on', 1)
   same(truthy[value], { a: { on: 1 } })
   same(eq[value], { a: { on: 1 } })
-  src.a = undefined                 // BU1 [a, undefined] — a leave
+  src.a[value] = undefined          // BU1 [a, undefined] — a leave
   same(truthy[value], {})
   same(eq[value], {})
-  src.a = { on: 1 }                 // re-enters
+  src.a[value] = { on: 1 }          // re-enters
   same(truthy[value], { a: { on: 1 } })
   same(eq[value], { a: { on: 1 } })
 })

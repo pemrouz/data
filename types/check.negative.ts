@@ -31,10 +31,16 @@ obj.filter(d => d.bogus > 3)
 // @ts-expect-error — string is not a valid numeric bound
 obj.between('n', ['a', 'b'])
 
-// Mutation by assignment is type-checked against the child's value type.
+// Option B: a child is a bare `Data<boolean>`, so BARE assignment of any raw value
+// is rejected (the runtime still accepts it, but it's no longer the typed surface).
 const todos = $({ a: { done: false } })
-// @ts-expect-error — a string is not assignable to a boolean field
-todos.a.done = 'yes'
+// @ts-expect-error — raw `true` is not assignable to a child view `Data<boolean>`; use [value]/.update
+todos.a.done = true
+// The TYPED write surface ([value] / .update) still value-checks against the field:
+// @ts-expect-error — a string is not assignable to a boolean field (via .update)
+todos.a.done.update('yes')
+// @ts-expect-error — same rejection through the [value] hatch
+todos.a.done[value] = 'yes'
 
 // Column/key args are checked against the row shape (ColOf<T>): a typo'd column
 // on an object-row source is a hard error across aggregate/sort/between/compare.

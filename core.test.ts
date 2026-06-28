@@ -356,6 +356,18 @@ spec({ op:'core', guarantee:'Fidelity', shape:'object', asserts:'first() and las
   same(res.last()[value], 3)
 })
 
+// `get(key)` is the method twin of `proxy[key]` (like first()/last() are sugar
+// over the boundary child views): both resolve the SAME child node, so chaining
+// get() walks nested children and a write through one is observed through the
+// other. Catches a regression where get() would mint a fresh/divergent node.
+spec({ op:'core', guarantee:'Identity', shape:'object', asserts:'get(key) resolves the same child node as proxy[key], and chains' }, () => {
+  const d: any = $({ a: { b: 1 } })
+  same(d.get('a').get('b')[value], 1)
+  // Write via the bracket path (Option B idiom), read back via get(): same node.
+  d.a.b[value] = 9
+  same(d.get('a').get('b')[value], 9)
+})
+
 // Replaces the rafWriter pattern that was hand-rolled in
 // examples/crossfilter/index.html. Tests run in node where there's no native
 // requestAnimationFrame; the operator falls back to setTimeout(16), so these

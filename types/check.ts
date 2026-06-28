@@ -49,20 +49,25 @@ obj.filter('n', $(3))          // reactive value (Data<number>) accepted
 obj.filter({ n: 3 })           // partial-shape object form, value tied to column
 obj.filter(['a', 'n'], 3)      // nested key-path form (value is loose)
 
-// --- mutation by assignment (#67) ---
-// Fixed-shape source: assign to known keys / nested paths (the documented
-// mutate-by-assignment API). Reads still yield Data<child> for chaining.
+// --- typed mutation (Option B, #67) ---
+// Object children are bare `Data<T[K]>` (no raw `| T[K]` arm), so the TYPED write
+// surface is `child[value] = v` / `child.update(v)` and `child.remove()`; reads
+// stay `child[value]`. (Bare `child = rawValue` still runs at runtime but is no
+// longer type-checked — raw `v` isn't assignable to `Data<T[K]>`.)
 const todos = $({ a: { done: false }, b: { done: true } })
-todos.a.done = true
-todos.b.done = false
+todos.a.done[value] = true
+todos.b.done[value] = false
 // Dynamic-key sources are typed Record<string, V> — then arbitrary keys assign
 // and `delete` works (an index-signature member is optional):
 const board = $<Record<string, { done: boolean }>>({})
-board.x = { done: false }
+board.x[value] = { done: false }
 delete board.x
 // Typed removal of a known key uses .remove() (bare `delete` on a fixed-shape
 // property needs the key optional — use .remove() or a Record source):
 todos.remove(['a'])
+// Option B headline: an object child is a bare `Data<…>`, so an operator chains
+// off it with NO cast (the old `Data<T[K]> | T[K]` union needed `as Data<…>` here):
+todos.b.to(row => row.done).connect([])
 
 // --- patch + 3-arg reduce (#68) ---
 obj.patch(['a', { n: 9 }])

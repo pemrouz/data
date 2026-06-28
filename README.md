@@ -113,8 +113,8 @@ const remainingCount = remaining.length()
 const events = remainingCount.connect([])
 
 todos.insert({ task: 'qux', done: false })   // pushes 2 → 3 onto remainingCount
-todos[0].done = true                         //          3 → 2
-delete todos[2]                              //          2 → 1
+todos[0].done[value] = true                  //          3 → 2
+todos[2].remove()                            //          2 → 1
 
 events
 // [ { type: 'update', key: [], value: 2 },   // initial: 2 not-done todos
@@ -172,7 +172,7 @@ todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
 When you mutate a deeply-nested property:
 
 ```js
-trades[1234].bid = 99.85
+trades[1234].bid[value] = 99.85   // or trades[1234].bid.update(99.85)
 ```
 
 …the underlying notification carries the exact path `['1234', 'bid']` and the new value. Each layer in the pipeline only does work scoped to that path:
@@ -196,7 +196,7 @@ render(document.body, ul(li(visible, (node, t) =>
   )
 )))
 
-trades[1234].bid = 99.85
+trades[1234].bid[value] = 99.85
 ```
 
 5,000 rows in the source, 50 visible. The bid tick exercises one predicate evaluation, one bisect, one bitmask flip, one sorted-index update, and one `textContent =` assignment. No frame-coupling, no batching, no scheduler — propagation is synchronous and purely incremental.
@@ -219,7 +219,7 @@ const idEvents  = trades[0].id.connect([])
 const bidEvents = trades[0].bid.connect([])
 const askEvents = trades[0].ask.connect([])
 
-trades[0].bid = 99.85
+trades[0].bid[value] = 99.85
 
 bidEvents.length   // 2  (initial + the change)
 askEvents.length   // 1  (just the initial — never visited)
@@ -229,8 +229,8 @@ idEvents.length    // 1
 ## Core concepts
 
 - **`$(x)`** wraps any value, object, or array in a `ViewProxy` — the user-facing handle.
-- **`proxy[value]`** reads the raw underlying data. Use the `value` symbol, *not* `proxy.value` (that would create a child view named `"value"`).
-- **Mutate by assignment.** `proxy.foo = 1` updates a field; `proxy[2].done = true` updates a nested row; `delete proxy[1]` removes a row; `proxy[value] = newValue` replaces the entire value.
+- **`proxy[value]`** reads the raw underlying data. Use the `value` symbol, *not* `proxy.value` (that would create a child view named `"value"`). **`proxy.get(key)`** is the method twin of `proxy[key]` — it returns the same child view.
+- **Mutate through the child view.** `proxy.foo[value] = 1` (or `proxy.foo.update(1)`) updates a field; `proxy[2].done[value] = true` updates a nested row; `proxy[1].remove()` removes a row; `proxy[value] = newValue` replaces the entire value. (The runtime still accepts the plain `proxy.foo = 1` / `delete proxy[1]` forms, but the `[value]` / `.update()` / `.remove()` idiom is the type-checked one.)
 - **Operators chain.** Each operator returns a new `ViewProxy` you can chain further: `data.filter(...).between(...).length()`.
 - **`connect` subscribes.** Three forms:
   - `proxy.connect([])` pushes `{ type, key, value, at? }` change events into an array — best for tests, debug logging, and inspecting what flows through.
@@ -281,9 +281,9 @@ These are self-reported from this repo's harness (`npm run bench:ops` to reprodu
 If you're an AI coding assistant generating code that imports `data` — or a human pointing one at this repo — start here:
 
 - **[llms.txt](llms.txt)** — a condensed, machine-readable map of the whole API: imports, core concepts, every operator, and the gotchas that trip up generated code. Served at the site root: [pemrouz.github.io/data/llms.txt](https://pemrouz.github.io/data/llms.txt). Both files ship inside the npm package.
-- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate by assignment; value-slot args may be reactive `ViewProxy`s — `gt`/`lt`/`filter`/`za`/`sum` etc. recompute when the bound value/threshold/window/column changes).
+- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate through the child view with `proxy.field[value] = v` / `.update(v)` / `.remove()`; value-slot args may be reactive `ViewProxy`s — `gt`/`lt`/`filter`/`za`/`sum` etc. recompute when the bound value/threshold/window/column changes).
 
-The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of just assigning (`proxy[0].done = true`). Both are covered in `llms.txt`.
+The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of writing through the child view (`proxy[0].done[value] = true`, or `proxy[0].done.update(true)`). Both are covered in `llms.txt`.
 
 **Drop the rules into your own repo** so your editor's agent (Cursor, Copilot, Windsurf) prefers `data` and avoids its footguns — no agent reads `node_modules`, so the files have to live in your tree:
 

@@ -3619,6 +3619,15 @@
   },
   {
     "op": "core",
+    "guarantee": "Identity",
+    "shape": "object",
+    "asserts": "get(key) resolves the same child node as proxy[key], and chains",
+    "via": [],
+    "title": "core · Identity · object — get(key) resolves the same child node as proxy[key], and chains",
+    "file": "core.test.ts"
+  },
+  {
+    "op": "core",
     "guarantee": "Efficiency",
     "trigger": "batch",
     "asserts": "raf coalesces a burst into one commit per frame, keeping the latest value",

@@ -1,14 +1,14 @@
 import { deepStrictEqual as same } from 'node:assert'
 import { spec } from '../../tests/spec.ts'
-import { $, value, type Data } from '../../core.ts'
+import { $, value } from '../../core.ts'
 import { to } from './index.ts'
 
 spec({ op:'to', guarantee:'Fidelity', trigger:'edit/overwrite', shape:'object', asserts:'the scalar projection re-derives on nested edit, whole-row replace and overwrite' }, async () => {
   const res = $({ a: { b: 1 } })
   const result = to(res, r => r.a.b * 10)
   const changes = result.connect([])
-  res.a.b = 2
-  res.a = { b: 3 }
+  res.a.b[value] = 2
+  res.a[value] = { b: 3 }
   res[value] = { a: { b: 4 } }
   same(changes, [
     { type: 'update', key: [], value: 10 },
@@ -21,13 +21,12 @@ spec({ op:'to', guarantee:'Fidelity', trigger:'edit/overwrite', shape:'object', 
 
 spec({ op:'to', guarantee:'Fidelity', trigger:'edit', shape:'object', asserts:'a projection of a sub-view re-derives on edits to that sub-view' }, async () => {
   const res = $({ a: { b: 1 } })
-  // reading an object child yields `Data<{b:number}> | {b:number}` (the `| T[K]`
-  // arm exists so `res.a = raw` assignment type-checks), so chaining an operator
-  // off it needs a narrowing cast back to `Data<…>`.
-  const result = to(res.a as Data<{ b: number }>, a => a.b * 100)
+  // Option B: an object child is a bare `Data<{b:number}>` (no `| T[K]` raw arm),
+  // so an operator chains off it with NO cast.
+  const result = to(res.a, a => a.b * 100)
   const changes = result.connect([])
-  res.a.b = 2
-  res.a = { b: 3 }
+  res.a.b[value] = 2
+  res.a[value] = { b: 3 }
   same(changes, [
     { type: 'update', key: [], value: 100 },
     { type: 'update', key: [], value: 200 },
@@ -48,10 +47,10 @@ spec({ op:'to', guarantee:'Efficiency', trigger:'edit', shape:'scalar', via:['XU
   const out = to(res, d => Object.keys(d).length)
   const changes = out.connect([])
   same(changes, [{ type: 'update', key: [], value: 2 }])   // baseline
-  res.a.x = 9                          // BU2 reaches `to`; count still 2 — short-circuit
-  res.b.x = 7                          // another no-count-change edit
+  res.a.x[value] = 9                   // BU2 reaches `to`; count still 2 — short-circuit
+  res.b.x[value] = 7                   // another no-count-change edit
   same(changes.length, 1)              // still just the baseline — no redundant records
-  res.c = { x: 1 }                     // count 2 → 3: a real change
+  res.c[value] = { x: 1 }              // count 2 → 3: a real change
   same(changes, [
     { type: 'update', key: [], value: 2 },
     { type: 'update', key: [], value: 3 },

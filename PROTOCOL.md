@@ -24,7 +24,9 @@ $(value)
   - `delete proxy.x` → `res.remove([...key, 'x'])`.
   - `proxy.x` → returns a child `ViewProxy` lazily (creates child `View` on demand).
   - `proxy[value]` (the `value` symbol) returns the raw underlying value.
-  - `proxy.method(args)` — if `method` is a registered operator name (in `Operators`), instantiates/reuses the operator class; if it's a built-in (`connect` wires a sink, `raf` a coalescing writer, `first`/`last` a positional child, `patch` a batched multi-row write that fans one `BU1`/`BU2` out to all sinks); otherwise dispatches `update`/`insert`/`remove`.
+  - `proxy.method(args)` — if `method` is a registered operator name (in `Operators`), instantiates/reuses the operator class; if it's a built-in (`connect` wires a sink, `raf` a coalescing writer, `first`/`last` a positional child, `patch` a batched multi-row write that fans one `BU1`/`BU2` out to all sinks, `get(key)` returns a child view — the method twin of `proxy[key]`); otherwise dispatches `update`/`insert`/`remove`.
+
+  The `proxy.x = v` and `delete proxy.x` traps above are the *runtime* surface and still work, but they are no longer the **typed** write API: Data object-children are now bare `Data<T[K]>`, so the type-checked idiom is `proxy.x[value] = v` / `proxy.x.update(v)` to write and `proxy.x.remove()` to delete (`proxy[value]` / `proxy.x[value]` to read is unchanged). See [README.md](README.md) for the public mutation idiom.
 
 ## Symbols
 
