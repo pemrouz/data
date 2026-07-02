@@ -1,0 +1,24 @@
+{
+  // The v3 TYPE gate (plan §3.2): `npx tsc -p v3/types` compiles the typed
+  // surface (surface.ts) plus the positive (check.ts) and @ts-expect-error
+  // negative (check.negative.ts) fixtures with noCheck:false — the v2
+  // tsconfig.typecheck.json discipline applied to v3. Standalone on purpose:
+  // the root tsconfig emits (rewriteRelativeImportExtensions), this gate
+  // must not. NB surface.ts loads the runtime `$` through a non-literal
+  // dynamic import so the (strip-types-only, currently type-erroring)
+  // implementation stays OUT of this program — see surface.ts's facade note.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noCheck": false,
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["surface.ts", "check.ts", "check.negative.ts"]
+}

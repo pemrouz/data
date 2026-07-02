@@ -302,9 +302,9 @@ export function fromAsync<T>(
           drain(r.value)
         }
       } else {
-        const rows = await input
+        const rows = await (input as Promise<readonly unknown[]> | readonly unknown[])
         if (cancelled) return
-        drain(rows)
+        drain(rows as any)
       }
       flush() // commit any coalesce buffer before declaring ready
       setStatus('ready')

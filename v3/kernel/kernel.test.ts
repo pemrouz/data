@@ -378,3 +378,27 @@ test('batch(fn, origin) stamps the commit — echo suppression works at batch le
   rt.batch(() => src.write('a', ['val'], 2)) // default origin → delivered
   same(delivered, 1)
 })
+
+test('batch() issued INSIDE an effect defers as a next commit (queue-shape regression from the types gate)', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows())
+  const log: number[] = []
+  let once = false
+  src.connect({
+    wantsOrder: false, origin: null,
+    apply(b: CommitBatch<Row>) {
+      log.push(b.seq)
+      if (!once) {
+        once = true
+        rt.batch(() => {
+          src.write('b', ['val'], 777)
+          src.write('c', ['val'], 888)
+        })
+      }
+    },
+  })
+  src.write('a', ['val'], 1)
+  same(log, [1, 2]) // the deferred batch ran as ONE next commit, no crash
+  same(src.get('b')!.val, 777)
+  same(src.get('c')!.val, 888)
+})

@@ -92,9 +92,9 @@ export class Runtime {
   batch<R>(fn: () => R, origin?: OriginToken): R {
     if (this.flushing && !this.draining) {
       // batch() inside an effect: defer the whole batch as the next commit.
-      this.queue.push(() => {
-        this.batch(fn, origin)
-      })
+      // queue-shape regression (found by the types gate): this pushed a bare
+      // closure into the {origin, w} queue — the drain's q.w() then crashed.
+      this.queue.push({ origin: this.currentOrigin, w: () => this.batch(fn, origin) })
       return undefined as R
     }
     this.batchDepth++

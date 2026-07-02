@@ -12,11 +12,13 @@ architecture detail: [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/key
 | **M1** kernel + filter/map/compare + sum/avg/length + v2-record sink | done | `219897d` | legality+replay everywhere; single-tick 0.91–1.04× v2 (≤1.15) — PASS |
 | **M2** hard ports (ordered/between/setops/bucket/misc) + differential fuzz | done | `ac3b16b` | C-series scenario family exact-equal; brush 0.98–1.04×, batch 0.74–0.86× v2 — PASS |
 | **M3** public API (non-callable handle, RESERVED dispatch, methods-only writes) | done | `faac6f8` | 117 tests incl. collision/thenable/dedup semantics |
-| **M4** keyed render + reactive args + seam | core done | (this commit) | 169 tests; keyed DOM identity, mirror/raf/ingest live |
-| M4.5 builders/JSX + devtools panel port | not started | | |
+| **M4** keyed render + reactive args + seam | done | `037c174` | 169 tests; keyed DOM identity, mirror/raf/ingest live |
+| **M4.5a** typed surface + devtools consumption | done | (this commit) | tsc gate clean (89 pos + 47 neg fixtures); 184 tests |
+| M4.5b builders/JSX + devtools panel port | not started | | |
 | M5 examples migration + flip | not started | | |
 
-Run everything: `node --experimental-strip-types --no-warnings --test v3/**/*.test.ts` (117 tests).
+Run everything: `node --experimental-strip-types --no-warnings --test v3/**/*.test.ts` (184 tests).
+Types gate: `npx tsc -p v3/types` (89 positive + 47 @ts-expect-error negative fixtures).
 Perf gates: `node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts` and
 `... --expose-gc v3/perf/m2-gate.ts`. v2's `npm test` is untouched and green (v2 files unmodified).
 
@@ -65,16 +67,31 @@ Perf gates: `node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts` a
   batch-level echo suppression was silently dead; queued re-entrant writes now also capture
   their issue-time origin. Regression test in kernel.test.ts.
 
-## Known gaps / next work (M4.5+)
+## M4.5a state (this commit)
 
-1. **Builders/JSX** (M4.5): the full HTML.*/SVG.* DSL + h/Fragment/For over the AST;
+- `v3/types/`: the typed public surface (Data/ReadonlyData/DataChild/Scalar/View/Reactive;
+  ordered views as arrays; methods-only writes — no index-assignment signatures) with the
+  fixture gate: `npx tsc -p v3/types`, 89 positives + 47 negatives, both directions verified.
+  Reserved/Ops are hand-mirrors of the runtime registry until registry-generated types land.
+- `v3/devtools/`: inspect/graph/trace/profile/cascades over runtime.graph() + onCommit —
+  serializable, per-operator profile rows by construction, subscriptions dispose cleanly.
+- FIVE bugs found by the types gate + integration, all fixed with regression coverage:
+  (1) batch()-inside-an-effect crashed (queue-shape regression); (2) a seam narrowing miss;
+  (3) set-op handle args weren't unwrapped to nodes (d.intersect(handle) was broken);
+  (4) child-handle operator calls misdispatched to the OWNING view — now throw;
+  (5) d.length(fn) silently ignored fn — now routes to the lengthBuckets histogram.
+
+## Known gaps / next work (M4.5b+)
+
+1. **Builders/JSX** (M4.5b): the full HTML.*/SVG.* DSL + h/Fragment/For over the AST;
   per-binding surgical PROP updates (render currently re-runs a row's text bindings);
-  structural row diff; components/onCleanup/error-boundary scopes.
-2. **Devtools**: consume runtime.graph() + onCommit (both implemented, unconsumed).
-3. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
+  structural row diff; components/onCleanup/error-boundary scopes; devtools panel port.
+2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
   parity-test compat/v2-records.ts against them (only shape-level tests exist).
-4. **Types-first surface** (`Data<T>`/`Ops<T>` generated from the registry) + tsconfig
-  wiring (v3 files are outside all typecheck gates — strip-types only).
+3. **Registry-generated types** — replace the hand-mirrored Reserved/Ops in types/surface.ts;
+  flip surface.ts's dynamic-import facade to the static import (marked in-file). Also expose
+  between's setBounds as a reactive slot on the handle; wrap max/min in installReactive.
+4. **Wire `npx tsc -p v3/types` into package.json scripts/CI** alongside the v2 gates.
 5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
   cast into parents today); height re-propagation after repoint (stale-height edge — not
   reachable in shipped tests but real); a ScalarSource cell primitive; SourceNode.move()

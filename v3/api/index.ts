@@ -196,18 +196,21 @@ function makeMethods(state: HandleState, self: () => any): Record<string, (...ar
       state.node.dispose()
     },
     mirror() {
+      if (state.path.length > 0) throw new Error('data: mirror() applies to a view, not a child path')
       return handleFor(makeMirror(state.node))
     },
     raf() {
       return rafWriter((v: unknown) => m.update(v))
     },
     first() {
+      if (state.path.length > 0) throw new Error('data: first() applies to a view, not a child path')
       const n = state.node
       const order = n.currentOrder()
       const k = order ? order[0] : n.snapshot().keys().next().value
       return childHandle(state, String(k ?? 0))
     },
     last() {
+      if (state.path.length > 0) throw new Error('data: last() applies to a view, not a child path')
       const n = state.node
       const order = n.currentOrder()
       let k: RowKey | undefined
@@ -252,14 +255,31 @@ function wrap(state: HandleState): any {
         if (builtin) return builtin
         const def = registry.get(prop)
         if (def) {
-          return (...args: unknown[]) => {
-            const key = def.dedupKey ? def.dedupKey(...args) : null
+          if (state.path.length > 0)
+            throw new Error(
+              `data: .${prop}(...) on a child path would operate on the OWNING view — chain operators off the view itself (child handles are addresses, not views)`,
+            )
+          return (...rawArgs: unknown[]) => {
+            // Unwrap ROOT-view handle args to their nodes (set-ops take view
+            // operands). CHILD handles pass through intact — a path-addressed
+            // reactive param ("cfg.t") must keep its path; reactiveArg reads
+            // the leaf through the handle's [value].
+            const args = rawArgs.map((a) => {
+              if (a === null || typeof a !== 'object') return a
+              const st = (a as any)[HANDLE] as HandleState | undefined
+              if (st !== undefined && st.path.length === 0 && (a as any)[node] instanceof DataNode)
+                return (a as any)[node]
+              return a
+            })
+            // length(fn) routes to the histogram (v2's length(fn) contract)
+            const def2 = prop === 'length' && typeof args[0] === 'function' ? registry.get('lengthBuckets')! : def
+            const key = def2.dedupKey ? def2.dedupKey(...args) : null
             if (key !== null) {
               const hit = state.dedup.get(key)
               if (hit !== undefined) return hit
             }
             const out = wrap({
-              node: def.create(state.node, ...args),
+              node: def2.create(state.node, ...args),
               source: null,
               path: [],
               children: new Map(),
