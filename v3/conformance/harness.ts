@@ -7,7 +7,7 @@
 // also proven its change-stream legal and replayable.
 
 import { LegalityChecker } from './legality.ts'
-import { ReplaySink } from './replay.ts'
+import { ReplaySink, deepEq } from './replay.ts'
 import type { CommitBatch, RowKey } from '../contract/delta.ts'
 import type { DataNode } from '../kernel/node.ts'
 
@@ -58,7 +58,9 @@ export function assertOracle<T>(
     throw new Error(`${msg}: size actual ${actual.size} != oracle ${expected.size}`)
   for (const [k, v] of expected) {
     if (!actual.has(k)) throw new Error(`${msg}: missing key ${String(k)}`)
-    if (JSON.stringify(actual.get(k)) !== JSON.stringify(v))
+    // structural equality (property-order-insensitive, NaN-aware) — a keyed
+    // record whose property order is history-dependent must still oracle-check
+    if (!deepEq(actual.get(k), v))
       throw new Error(`${msg}: value at ${String(k)}: ${JSON.stringify(actual.get(k))} != ${JSON.stringify(v)}`)
   }
 }

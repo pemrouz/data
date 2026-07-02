@@ -318,6 +318,14 @@ export class SourceNode<T> extends DataNode<T> {
     } else if (prior.op === 'update') {
       const samePath =
         prior.path.length === path.length && prior.path.every((p, i) => p === path[i])
+      if (samePath && Object.is(leafAt(prior.prev, path), leafAt(row, path))) {
+        // The batch's net effect at this leaf is zero (e.g. a flip A→B→A):
+        // annihilate — emitting it would be a phantom update (clause 8).
+        // Same-path merges structurally share every other field with prev,
+        // so a leaf-equal merge means the whole row is content-identical.
+        this.pending.delete(key)
+        return
+      }
       this.pending.set(key, {
         op: 'update', key, row, prev: prior.prev, path: samePath ? path : [],
       })

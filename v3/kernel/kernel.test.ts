@@ -337,3 +337,24 @@ test('v2 records: object source — insert/update/remove/nested shapes', () => {
   src.remove('b')
   same(recs[3], { type: 'remove', key: ['b'], value: { region: 'south', val: 2 } })
 })
+
+test('batch consolidation: a leaf flip A→B→A annihilates (no phantom update) — surfaced by the ordered-port churn', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows())
+  conform(src) // the LegalityChecker rejects the phantom if it survives
+  let batches = 0
+  src.connect({ wantsOrder: false, origin: null, apply: () => batches++ })
+  rt.batch(() => {
+    src.write('a', ['region'], 'south')
+    src.write('a', ['region'], 'north') // back to the pre-batch value
+  })
+  same(batches, 0) // net-zero batch: nothing emitted at all
+  same(src.get('a')!.region, 'north')
+  // and a flip that ALSO leaves another real change still emits exactly that
+  rt.batch(() => {
+    src.write('a', ['region'], 'south')
+    src.write('a', ['region'], 'north')
+    src.write('b', ['val'], 99)
+  })
+  same(batches, 1)
+})
