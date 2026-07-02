@@ -38,10 +38,23 @@
 // against the survivor array, then inserts at ascending final indices). Its
 // tests wrap it in conform().
 //
-// Deliberately NOT here (M4.5): the full HTML.*/SVG.* DSL, JSX, reactive
-// props/attributes, components, SSR targets. The AST shape is extensible
-// (each kind is a tagged record) so those land as new kinds/props handling,
-// not a rewrite.
+// M4.5 slice added for the crossfilter-v3 example (the first M5 migration):
+// - SVG NAMESPACE: `el('svg', …)` switches to createElementNS and children
+//   inherit the namespace (browser semantics), so charts are first-class.
+// - REACTIVE PROPS: `bind(view, fn?)` as a prop value creates a per-binding
+//   surgical attribute subscription — recompute on the view's commit, string-
+//   normalized equality cutoff, setAttribute/removeAttribute only on real
+//   change. A bare handle/node prop value auto-binds (fn = identity).
+// - `text(view, fn?)` — rtext gained the optional format fn.
+// - STRUCTURAL ROW REBUILD: patchRow now reports whether the row's shape
+//   matched; on mismatch (child count / tag / kind changed — e.g. a group
+//   bucket gaining a member) the list sink rebuilds that row in place (same
+//   list position, old row scope disposed, fresh element). Shape-stable rows
+//   keep element identity exactly as before.
+//
+// Deliberately still NOT here (rest of M4.5): the full HTML.*/SVG.* DSL, JSX,
+// components, SSR targets. The AST shape is extensible (each kind is a tagged
+// record) so those land as new kinds/props handling, not a rewrite.
 
 import type {
   CommitBatch, OrderDelta, OriginToken, RowDelta, RowKey,
@@ -71,6 +84,7 @@ export interface TextNode {
 export interface RTextNode {
   readonly kind: 'rtext'
   readonly view: unknown // scalar view (DataNode with value()) or a handle
+  readonly fn: ((v: any) => unknown) | null // optional format fn over the read
 }
 export interface ListNode {
   readonly kind: 'list'
@@ -78,6 +92,18 @@ export interface ListNode {
   readonly rowFn: (row: any, key: RowKey) => VNode
 }
 export type VNode = ElNode | TextNode | RTextNode | ListNode
+
+// A reactive PROP value: `el('path', { d: bind(view, fn) })` — subscribes to
+// the view, recomputes fn(read()) per commit, writes the attribute only when
+// the normalized string actually changed. A bare handle prop value auto-binds.
+export interface BindProp {
+  readonly kind: 'bind'
+  readonly view: unknown
+  readonly fn: ((v: any) => unknown) | null
+}
+export function bind(view: unknown, fn?: (v: any) => unknown): BindProp {
+  return { kind: 'bind', view, fn: fn ?? null }
+}
 
 export type Child = VNode | string | number | boolean | null | undefined
 
@@ -95,8 +121,8 @@ export function el(
   return { kind: 'el', tag, props: props ?? null, children: kids }
 }
 
-export function text(view: unknown): RTextNode {
-  return { kind: 'rtext', view }
+export function text(view: unknown, fn?: (v: any) => unknown): RTextNode {
+  return { kind: 'rtext', view, fn: fn ?? null }
 }
 
 export function list(view: unknown, rowFn: (row: any, key: RowKey) => VNode): ListNode {
@@ -130,11 +156,56 @@ function toText(v: unknown): string {
   return v == null ? '' : String(v)
 }
 
+// ── reactive attribute binding ───────────────────────────────────────────────
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+function isBindProp(x: unknown): x is BindProp {
+  return x !== null && typeof x === 'object' && (x as any).kind === 'bind' && 'view' in (x as any)
+}
+
+function isView(x: unknown): boolean {
+  if (x instanceof DataNode) return true
+  return x !== null && typeof x === 'object' && (x as any)[NODE] instanceof DataNode
+}
+
+// Attribute value normalization: null/undefined/false remove the attribute,
+// true sets the empty attribute, everything else stringifies.
+function normAttr(v: unknown): string | null {
+  return v == null || v === false ? null : v === true ? '' : String(v)
+}
+
+function bindAttr(
+  dom: any,
+  name: string,
+  view: unknown,
+  fn: ((v: any) => unknown) | null,
+  scope: Scope,
+): void {
+  const read = readerOf(view)
+  const compute = () => normAttr(fn === null ? read() : fn(read()))
+  let last = compute()
+  if (last !== null) dom.setAttribute(name, last)
+  const sub = nodeOf(view).connect({
+    wantsOrder: false,
+    origin: null,
+    apply() {
+      const next = compute()
+      if (next === last) return // normalized-string cutoff — no redundant DOM writes
+      last = next
+      if (next === null) dom.removeAttribute(name)
+      else dom.setAttribute(name, next)
+    },
+  })
+  scope.add(sub)
+}
+
 // ── materialization ──────────────────────────────────────────────────────────
 
 interface Ctx {
   readonly doc: any
   readonly scope: Scope
+  readonly ns: string | null // element namespace — children inherit (SVG)
 }
 
 interface Mounted {
@@ -149,7 +220,9 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
       return { vnode: v, dom: ctx.doc.createTextNode(v.s), children: null }
     case 'rtext': {
       const n = nodeOf(v.view)
-      const read = readerOf(v.view)
+      const raw = readerOf(v.view)
+      const fmt = v.fn
+      const read = fmt === null ? raw : () => fmt(raw())
       const tn = ctx.doc.createTextNode(toText(read()))
       const sub = n.connect({
         wantsOrder: false,
@@ -163,7 +236,10 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
       return { vnode: v, dom: tn, children: null }
     }
     case 'el': {
-      const dom = ctx.doc.createElement(v.tag)
+      // Namespace: <svg> switches to the SVG namespace; children inherit.
+      const ns = v.tag === 'svg' ? SVG_NS : ctx.ns
+      const dom = ns === null ? ctx.doc.createElement(v.tag) : ctx.doc.createElementNS(ns, v.tag)
+      const kidCtx = ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns }
       if (v.props !== null) {
         for (const k of Object.keys(v.props)) {
           const pv = v.props[k]
@@ -171,6 +247,10 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
             const evt = k.slice(2).toLowerCase()
             dom.addEventListener(evt, pv)
             ctx.scope.onDispose(() => dom.removeEventListener(evt, pv))
+          } else if (isBindProp(pv)) {
+            bindAttr(dom, k, pv.view, pv.fn, ctx.scope)
+          } else if (isView(pv)) {
+            bindAttr(dom, k, pv, null, ctx.scope)
           } else if (pv != null && pv !== false) {
             dom.setAttribute(k, pv === true ? '' : String(pv))
           }
@@ -179,11 +259,11 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
       const kids: Mounted[] = []
       for (const c of v.children) {
         if (c.kind === 'list') {
-          const binding = new ListBinding(dom, c, ctx)
+          const binding = new ListBinding(dom, c, kidCtx)
           ctx.scope.add(binding)
           kids.push({ vnode: c, dom: binding.anchor, children: null })
         } else {
-          const m = materialize(c, ctx)
+          const m = materialize(c, kidCtx)
           dom.appendChild(m.dom)
           kids.push(m)
         }
@@ -198,25 +278,31 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
 
 // Row-update patching: re-run ONLY the row's text bindings against the fresh
 // rowFn output. rtext and nested lists are self-updating (their own
-// subscriptions) and are left untouched; structural mismatches (a rowFn whose
-// SHAPE depends on the row) are skipped — per-binding surgical props and
-// keyed structural row diffs come with the full builder in M4.5.
-function patchRow(m: Mounted, v: VNode): void {
-  if (m.vnode.kind !== v.kind) return
+// subscriptions) and are left untouched. Returns whether the shapes matched;
+// a structural mismatch (kind / tag / child count changed — a rowFn whose
+// SHAPE depends on the row, e.g. a group bucket gaining a member) reports
+// false and the list sink REBUILDS that row in place. Static props are set
+// once at build; a prop that must track the row reactively should be a
+// bind()/handle prop (self-updating) or the row shape should change (rebuild).
+function patchRow(m: Mounted, v: VNode): boolean {
+  if (m.vnode.kind !== v.kind) return false
   if (v.kind === 'text') {
     if ((m.vnode as TextNode).s !== v.s) m.dom.textContent = v.s
     m.vnode = v
-    return
+    return true
   }
-  if (v.kind === 'el' && m.children !== null) {
+  if (v.kind === 'el') {
     const prev = m.vnode as ElNode
-    if (prev.tag !== v.tag) return
+    if (prev.tag !== v.tag) return false
     const next = v.children
-    const n = Math.min(m.children.length, next.length)
-    for (let i = 0; i < n; i++) patchRow(m.children[i], next[i])
+    if (m.children === null || m.children.length !== next.length) return false
+    for (let i = 0; i < next.length; i++) {
+      if (!patchRow(m.children[i], next[i])) return false
+    }
     m.vnode = v
+    return true
   }
-  // rtext / list: self-updating
+  return true // rtext / list: self-updating
 }
 
 // ── the keyed list sink ──────────────────────────────────────────────────────
@@ -231,6 +317,7 @@ interface RowRec {
 class ListBinding {
   declare host: any
   declare doc: any
+  declare ns: string | null // inherited element namespace for row builds
   declare anchor: any // marker before which every row element is placed
   declare view: DataNode<any>
   declare rowFn: (row: any, key: RowKey) => VNode
@@ -242,6 +329,7 @@ class ListBinding {
   constructor(host: any, vnode: ListNode, ctx: Ctx) {
     this.host = host
     this.doc = ctx.doc
+    this.ns = ctx.ns
     this.rowFn = vnode.rowFn
     this.view = nodeOf(vnode.view)
     this.recs = new Map()
@@ -268,12 +356,16 @@ class ListBinding {
     ctx.scope.add(this.sub)
   }
 
-  // Each row owns a child Scope: its rtext subscriptions and listeners are
-  // registered there and die with the row (removeEventListener, finally).
+  // Each row owns a child Scope: its rtext/bind subscriptions and listeners
+  // are registered there and die with the row (removeEventListener, finally).
   private buildRow(key: RowKey, row: any): RowRec {
+    return this.buildRowFrom(this.rowFn(row, key), key)
+  }
+
+  private buildRowFrom(vnode: VNode, key: RowKey): RowRec {
     const rowScope = new Scope(null)
     const mounted = runInScope(rowScope, () =>
-      materialize(this.rowFn(row, key), { doc: this.doc, scope: rowScope }),
+      materialize(vnode, { doc: this.doc, scope: rowScope, ns: this.ns }),
     )
     return { key, el: mounted.dom, scope: rowScope, mounted }
   }
@@ -304,7 +396,16 @@ class ListBinding {
         case 'update': {
           const rec = this.recs.get(d.key)
           if (rec === undefined) break
-          patchRow(rec.mounted, this.rowFn(d.row, d.key))
+          const next = this.rowFn(d.row, d.key)
+          if (!patchRow(rec.mounted, next)) {
+            // Structural change — rebuild the row IN PLACE (same list
+            // position); the old row's scope (listeners, bindings) disposes.
+            const fresh = this.buildRowFrom(next, d.key)
+            this.host.insertBefore(fresh.el, rec.el)
+            rec.el.remove()
+            rec.scope.dispose()
+            this.recs.set(d.key, fresh)
+          }
           break
         }
       }
@@ -388,7 +489,7 @@ export function render(host: any, ast: VNode | readonly VNode[], _runtime?: Runt
     throw new Error('data/render: no global document — a DOM (or the test mock) must be installed')
   const mount = new Scope(null) // one Scope per mount — owns everything below
   const tops: any[] = []
-  const ctx: Ctx = { doc, scope: mount }
+  const ctx: Ctx = { doc, scope: mount, ns: null }
   runInScope(mount, () => {
     const vs = Array.isArray(ast) ? (ast as readonly VNode[]) : [ast as VNode]
     for (const v of vs) {

@@ -24,7 +24,7 @@ import { filter } from '../ops/rowops.ts'
 import { za } from '../ops/ordered.ts'
 import { sum } from '../ops/aggregate.ts'
 import { conform } from '../conformance/harness.ts'
-import { render, el, text, list, mirror, raf, MirrorNode } from './index.ts'
+import { render, el, text, list, bind, mirror, raf, MirrorNode } from './index.ts'
 import { handleFor } from '../api/index.ts'
 
 const same = assert.deepStrictEqual
@@ -418,4 +418,106 @@ test('raf(): accepts a $ child handle (.update target) — the v2 bounds-writer 
   eq(src.get('k')!.v, 0)
   w.flush()
   eq(src.get('k')!.v, 42)
+})
+
+// ── the M4.5 slice: SVG namespace, bind() props, text fn, structural rebuild ──
+
+test('svg namespace: <svg> switches to createElementNS and children inherit; HTML siblings do not', () => {
+  const h = host()
+  render(h, el('div', null,
+    el('svg', { viewBox: '0 0 10 10' },
+      el('g', null, el('rect', { width: '4' })),
+    ),
+    el('span', null, 'plain'),
+  ))
+  const div = h.children[0]
+  const svg = div.children[0]
+  const g = svg.children[0]
+  const rect = g.children[0]
+  const span = div.children[1]
+  eq(svg.ns, 'http://www.w3.org/2000/svg')
+  eq(g.ns, 'http://www.w3.org/2000/svg') // inherited
+  eq(rect.ns, 'http://www.w3.org/2000/svg')
+  eq(svg.attrs.viewBox, '0 0 10 10') // attribute case preserved
+  eq(span.ns, null) // HTML sibling untouched
+})
+
+test('bind(): reactive attribute — recompute per commit, normalized-string cutoff, remove on null', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { t: 'A', val: 10 }, b: { t: 'B', val: 10 } })
+  const s = sum(src, 'val')
+  const h = host()
+  render(h, el('path', {
+    d: bind(s, (v: number) => `M0,${v}`),
+    display: bind(s, (v: number) => (v > 25 ? null : '')),
+  }))
+  const path = h.children[0]
+  eq(path.attrs.d, 'M0,20')
+  eq(path.attrs.display, '')
+  dom.reset()
+  src.write('a', ['val'], 15)
+  eq(path.attrs.d, 'M0,25')
+  eq(dom.ops.attrWrites, 1) // d changed; display recomputed to '' — cutoff, no write
+  src.write('b', ['val'], 30) // sum 45 → display removes
+  eq(path.attrs.d, 'M0,45')
+  eq('display' in path.attrs, false)
+  dom.reset()
+  src.write('a', ['t'], 'AA') // sum unchanged → BOTH bindings cut off
+  eq(dom.ops.attrWrites, 0)
+})
+
+test('bind() subscriptions are row-scoped: removing the row detaches its attr binding', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { t: 'A', val: 1 } })
+  const s = sum(src, 'val')
+  const h = host()
+  render(h, list(src, (r: Row, k) => el('li', { 'data-v': bind(s, (v: number) => `${k}:${v}`) }, r.t)))
+  const li = h.children[0]
+  eq(li.attrs['data-v'], 'a:1')
+  src.remove('a') // row leaves — its bind subscription must die with the row scope
+  src.write('z', [], { t: 'Z', val: 9 }) // sum recomputes; the dead binding must not fire
+  eq(li.attrs['data-v'], 'a:1') // untouched after disposal
+})
+
+test('text(view, fn): formatted reactive text', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { t: 'A', val: 2 } })
+  const s = sum(src, 'val')
+  const h = host()
+  render(h, el('span', null, text(s, (v: number) => `total: ${v}`)))
+  eq(h.text, 'total: 2')
+  src.write('a', ['val'], 7)
+  eq(h.text, 'total: 7')
+})
+
+test('structural row rebuild: a shape-changing update rebuilds IN PLACE; shape-stable rows still patch', () => {
+  const rt = new Runtime()
+  type Bucket = { items: string[] }
+  const src = new SourceNode<Bucket>(rt, {
+    a: { items: ['x'] },
+    b: { items: ['y', 'z'] },
+    c: { items: ['w'] },
+  })
+  const h = host()
+  render(h, list(src, (r: Bucket) =>
+    el('div', null, ...r.items.map((s) => el('i', null, s))),
+  ))
+  eq(h.text, 'xyzw')
+  const elA = h.children[0]
+  const elB = h.children[1]
+
+  // shape-stable update (same child count) → PATCH, identity preserved
+  dom.reset()
+  src.write('a', [], { items: ['X'] })
+  eq(h.text, 'Xyzw')
+  ok(h.children[0] === elA) // patched in place
+  eq(dom.ops.removed, 0)
+
+  // shape-CHANGING update (child count grows) → REBUILD in place
+  dom.reset()
+  src.write('b', [], { items: ['y', 'z', 'q'] })
+  eq(h.text, 'Xyzqw') // rebuilt at the SAME list position (before c)
+  ok(h.children[1] !== elB) // fresh element
+  eq(h.children[1].children.length, 3)
+  eq(dom.ops.removed, 1) // exactly the one replaced row element
 })

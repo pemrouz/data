@@ -31,7 +31,7 @@ import { ingest as seamIngest } from '../seam/index.ts'
 
 installReactive() // reactive value-slot args on gt/lt/gte/lte/za/az/top/limit/sum/avg
 
-export { render, el, text, list } from '../render/index.ts'
+export { render, el, text, list, bind } from '../render/index.ts'
 export { fromAsync, exportContract, InMemoryBacking } from '../seam/index.ts'
 
 export const value = Symbol.for('data.v3.value')

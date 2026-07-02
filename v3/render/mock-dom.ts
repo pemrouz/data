@@ -8,16 +8,18 @@
 // mutation step.
 
 export interface DomOps {
-  created: number // createElement + createTextNode
+  created: number // createElement + createTextNode + createElementNS
   inserted: number // appendChild + insertBefore (a move counts as one insert)
   removed: number // remove() / removeChild()
   textWrites: number // textContent assignments that reach a node
+  attrWrites: number // setAttribute calls that reach a node
   listeners: number // addEventListener
   unlistened: number // removeEventListener
 }
 
 export class El {
   declare tag: string
+  declare ns: string | null // namespace when created via createElementNS
   declare children: El[]
   declare parentNode: El | null
   declare attrs: Record<string, string>
@@ -25,8 +27,9 @@ export class El {
   declare _text: string
   declare _ops: DomOps
 
-  constructor(tag: string, ops: DomOps) {
+  constructor(tag: string, ops: DomOps, ns: string | null = null) {
     this.tag = tag
+    this.ns = ns
     this.children = []
     this.parentNode = null
     this.attrs = {}
@@ -84,6 +87,7 @@ export class El {
 
   setAttribute(k: string, v: string): void {
     this.attrs[k] = v
+    this._ops.attrWrites++
   }
 
   removeAttribute(k: string): void {
@@ -121,6 +125,7 @@ export class El {
 export interface MockDom {
   document: {
     createElement(tag: string): El
+    createElementNS(ns: string, tag: string): El
     createTextNode(s: unknown): El
   }
   ops: DomOps
@@ -130,11 +135,15 @@ export interface MockDom {
 // Installs the stubs on globalThis.document (each test file runs in its own
 // process under node --test, so this is isolated) and returns the recorder.
 export function installMockDom(): MockDom {
-  const ops: DomOps = { created: 0, inserted: 0, removed: 0, textWrites: 0, listeners: 0, unlistened: 0 }
+  const ops: DomOps = { created: 0, inserted: 0, removed: 0, textWrites: 0, attrWrites: 0, listeners: 0, unlistened: 0 }
   const document = {
     createElement(tag: string): El {
       ops.created++
       return new El(tag, ops)
+    },
+    createElementNS(ns: string, tag: string): El {
+      ops.created++
+      return new El(tag, ops, ns)
     },
     createTextNode(s: unknown): El {
       ops.created++
@@ -152,6 +161,7 @@ export function installMockDom(): MockDom {
       ops.inserted = 0
       ops.removed = 0
       ops.textWrites = 0
+      ops.attrWrites = 0
       ops.listeners = 0
       ops.unlistened = 0
     },
