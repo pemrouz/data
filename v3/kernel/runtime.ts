@@ -32,7 +32,7 @@ export class Runtime {
   private flushing = false
   private draining = false // executing ONE queued re-entrant write (apply directly)
   private dirty: SourceNode<any>[] = [] // array + per-source inDirty flag: no Set hashing/iterator on the hot path
-  private queue: (() => void)[] = [] // re-entrant writes → next commit(s), FIFO
+  private queue: { origin: OriginToken | null; w: () => void }[] = [] // re-entrant writes → next commit(s), FIFO (origin captured at issue time)
   private currentOrigin: OriginToken | null = null
   private defaultOrigin: OriginToken = Symbol('user')
   private hooks = new Set<(c: CommitInfo) => void>()
@@ -78,7 +78,7 @@ export class Runtime {
   }
 
   queueWrite(w: () => void): void {
-    this.queue.push(w)
+    this.queue.push({ origin: this.currentOrigin, w })
   }
 
   written(source: SourceNode<any>): void {
@@ -103,9 +103,15 @@ export class Runtime {
     try {
       return fn()
     } finally {
-      this.currentOrigin = prevOrigin
       this.batchDepth--
-      if (this.batchDepth === 0 && this.dirty.length > 0 && !this.flushing) this.flush()
+      // Flush BEFORE restoring the origin — restoring first meant batch-level
+      // origin tokens never stamped the commit (echo suppression silently
+      // dead; found by the seam agent's round-trip test).
+      try {
+        if (this.batchDepth === 0 && this.dirty.length > 0 && !this.flushing) this.flush()
+      } finally {
+        this.currentOrigin = prevOrigin
+      }
     }
   }
 
@@ -130,11 +136,14 @@ export class Runtime {
         if (this.dirty.length === 0) {
           // Drain ONE queued re-entrant write per commit, FIFO (v2's transact
           // discipline: each queued write runs its own cascade).
-          const w = this.queue.shift()!
+          const q = this.queue.shift()!
           this.draining = true
+          const prevO = this.currentOrigin
+          this.currentOrigin = q.origin
           try {
-            w()
+            q.w()
           } finally {
+            this.currentOrigin = prevO
             this.draining = false
           }
           continue

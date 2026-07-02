@@ -25,6 +25,14 @@ import { RESERVED, type ChangeRecordV2 } from '../contract/index.ts'
 import type { Path, RowKey } from '../contract/delta.ts'
 import { V2RecordSink, materialize } from '../compat/v2-records.ts'
 import { currentScope } from '../kernel/scope.ts'
+import { installReactive } from '../ops/reactive.ts'
+import { mirror as makeMirror, MirrorNode, raf as rafWriter } from '../render/index.ts'
+import { ingest as seamIngest } from '../seam/index.ts'
+
+installReactive() // reactive value-slot args on gt/lt/gte/lte/za/az/top/limit/sum/avg
+
+export { render, el, text, list } from '../render/index.ts'
+export { fromAsync, exportContract, InMemoryBacking } from '../seam/index.ts'
 
 export const value = Symbol.for('data.v3.value')
 export const node = Symbol.for('data.v3.node')
@@ -127,13 +135,18 @@ function makeMethods(state: HandleState, self: () => any): Record<string, (...ar
       const { src, key, sub } = writeTarget(state)
       src.write(key, sub, v)
     },
-    set(k: string, v: unknown) {
+    set(k: unknown, v?: unknown) {
+      // mirror repoint: mirrorHandle.set(otherViewHandle) — single object arg
+      if (state.node instanceof MirrorNode && state.path.length === 0 && v === undefined && k !== null && typeof k === 'object') {
+        state.node.set((k as any)[node] ?? k)
+        return
+      }
       if (state.source !== null && state.path.length === 0) {
-        state.source.write(coerceKey(state, k), [], v)
+        state.source.write(coerceKey(state, String(k)), [], v)
         return
       }
       const { src, key, sub } = writeTarget(state)
-      src.write(key, [...sub, k], v)
+      src.write(key, [...sub, String(k)], v)
     },
     insert(v: unknown, at?: number) {
       if (!(state.node instanceof SourceNode) || state.path.length > 0)
@@ -183,10 +196,10 @@ function makeMethods(state: HandleState, self: () => any): Record<string, (...ar
       state.node.dispose()
     },
     mirror() {
-      throw new Error('data: mirror() lands with the render layer (M4) — the $(view)-swap replacement')
+      return handleFor(makeMirror(state.node))
     },
     raf() {
-      throw new Error('data: raf() lands with the render layer (M4)')
+      return rafWriter((v: unknown) => m.update(v))
     },
     first() {
       const n = state.node
@@ -202,8 +215,10 @@ function makeMethods(state: HandleState, self: () => any): Record<string, (...ar
       else for (k of n.snapshot().keys());
       return childHandle(state, String(k ?? 0))
     },
-    ingest() {
-      throw new Error('data: ingest() lands with the seam (M4)')
+    ingest(records: unknown, opts?: unknown) {
+      if (!(state.node instanceof SourceNode) || state.path.length > 0)
+        throw new Error('data: ingest() applies to a source root')
+      seamIngest(state.node, records as any, opts as any)
     },
   }
   void self

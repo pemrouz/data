@@ -11,8 +11,9 @@ architecture detail: [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/key
 | **M0** contract + conformance kit | done | `122895c` | kit red/green on toy ops — PASS |
 | **M1** kernel + filter/map/compare + sum/avg/length + v2-record sink | done | `219897d` | legality+replay everywhere; single-tick 0.91–1.04× v2 (≤1.15) — PASS |
 | **M2** hard ports (ordered/between/setops/bucket/misc) + differential fuzz | done | `ac3b16b` | C-series scenario family exact-equal; brush 0.98–1.04×, batch 0.74–0.86× v2 — PASS |
-| **M3** public API (non-callable handle, RESERVED dispatch, methods-only writes) | core done | (this commit) | 117 tests green incl. collision/thenable/dedup semantics |
-| M4 render + devtools + seam | not started | | |
+| **M3** public API (non-callable handle, RESERVED dispatch, methods-only writes) | done | `faac6f8` | 117 tests incl. collision/thenable/dedup semantics |
+| **M4** keyed render + reactive args + seam | core done | (this commit) | 169 tests; keyed DOM identity, mirror/raf/ingest live |
+| M4.5 builders/JSX + devtools panel port | not started | | |
 | M5 examples migration + flip | not started | | |
 
 Run everything: `node --experimental-strip-types --no-warnings --test v3/**/*.test.ts` (117 tests).
@@ -46,22 +47,41 @@ Perf gates: `node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts` a
   (uniform binder for filter/compare/sort args should reuse this shape).
 - **Operator-view children are read-only projections** (writes throw, pointing at the source).
 
-## Known gaps / next work (M4+), from the port agents' reports
+## M4 state (this commit)
 
-1. **Render layer** (plan §3.4): keyed DOMSink consuming membership + order deltas,
-  children AST, per-row scopes, `mirror()` + `raf()` (both stubbed in api/index.ts).
-2. **Seam**: `ingest()` public record-apply (stubbed), `SourceBacking` extraction, async
-  sources. fero Phase 0.5 items on v2 remain undone (they live on the v2 side).
-3. **Reactive value-slot args** — the uniform binder (between's internal-source pattern).
-4. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
-  parity-test `compat/v2-records.ts` against them (only shape-level tests exist).
-5. Positional `limit()` over array-born sources (currently key-insertion order — flagged
-  by the ordered agent); `page()`; export `ProjectionAggregate` to dedupe misc.ts's copy.
-6. Deep-scalar emission mode for in-place accumulators (misc.ts works around with clones).
-7. Types-first surface (`Data<T>`/`Ops<T>` generated from the registry) — the M3 runtime
-  dispatch exists; the *typed* surface + fixture gates are still to come, along with
-  `tsconfig` wiring (v3 files are currently outside all typecheck gates).
-8. Devtools consumption of `runtime.graph()` + `onCommit` (both already implemented).
+- `v3/render/`: ordered-children AST (el/text/rtext/list — the single-static-slot trap is
+  structurally dead), render() with per-mount + per-row scopes, the KEYED list sink
+  (Map<RowKey, Element>; orderMove = one insertBefore of the EXISTING element — identity
+  survives, asserted), MirrorNode (the $(view)-swap replacement: a repoint is one
+  consolidated diff commit; overlapping keys emit nothing so DOM survives) and raf().
+- `v3/ops/reactive.ts`: the uniform reactive value-slot binder — gt/lt/gte/lte/za/az/top/
+  limit/sum/avg accept reactive args (handles or nodes) via registry wrapping; dedup by
+  bound-node identity; param subscriptions die with the operator.
+- `v3/seam/`: public ingest() (both wire profiles, origin-token echo suppression round-trip
+  tested, live-key add tolerance for LWW), fromAsync (pending/ready/error, batch-per-drain,
+  dispose-cancels), SourceBacking interface + InMemoryBacking proof, exportContract() (the
+  machine-readable manifest — fero deletes its hand-copied BUILTIN set against it).
+- Kernel fix (seam agent's find): batch(fn, origin) restored the origin BEFORE flushing —
+  batch-level echo suppression was silently dead; queued re-entrant writes now also capture
+  their issue-time origin. Regression test in kernel.test.ts.
+
+## Known gaps / next work (M4.5+)
+
+1. **Builders/JSX** (M4.5): the full HTML.*/SVG.* DSL + h/Fragment/For over the AST;
+  per-binding surgical PROP updates (render currently re-runs a row's text bindings);
+  structural row diff; components/onCleanup/error-boundary scopes.
+2. **Devtools**: consume runtime.graph() + onCommit (both implemented, unconsumed).
+3. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
+  parity-test compat/v2-records.ts against them (only shape-level tests exist).
+4. **Types-first surface** (`Data<T>`/`Ops<T>` generated from the registry) + tsconfig
+  wiring (v3 files are outside all typecheck gates — strip-types only).
+5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
+  cast into parents today); height re-propagation after repoint (stale-height edge — not
+  reachable in shipped tests but real); a ScalarSource cell primitive; SourceNode.move()
+  for ingest's deferred 'move' records; export ProjectionAggregate; deep-scalar emission
+  mode; per-path connect(); positional limit(); page().
+6. **M5**: example migrations (todo first), v2 perf corpus re-baseline, MIGRATION.md,
+  the flip. fero Phase 0.5 items on the v2 side remain undone.
 
 ## Standing methodology rules (hard-won; do not regress)
 

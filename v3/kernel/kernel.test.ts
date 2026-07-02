@@ -358,3 +358,23 @@ test('batch consolidation: a leaf flip A→B→A annihilates (no phantom update)
   })
   same(batches, 1)
 })
+
+test('batch(fn, origin) stamps the commit — echo suppression works at batch level (seam-agent regression)', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows())
+  const mine = Symbol('batch-origin')
+  let suppressed = 0
+  let delivered = 0
+  src.connect({
+    wantsOrder: false, origin: mine,
+    apply(b: CommitBatch<Row>) {
+      if (b.origin === mine) suppressed++
+      else delivered++
+    },
+  })
+  rt.batch(() => src.write('a', ['val'], 1), mine) // must stamp `mine` → runtime-suppressed
+  same(delivered, 0)
+  same(suppressed, 0)
+  rt.batch(() => src.write('a', ['val'], 2)) // default origin → delivered
+  same(delivered, 1)
+})
