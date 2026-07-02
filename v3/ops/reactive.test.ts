@@ -23,6 +23,7 @@ import { registry } from './registry.ts'
 import { FilterNode } from './rowops.ts'
 import { OrderedView } from './ordered.ts'
 import { sum } from './aggregate.ts'
+import { BetweenNode } from './between.ts'
 import {
   reactiveArg, bindParam, installReactive, normN,
   compareR, orderedR, sumR, avgR,
@@ -549,4 +550,92 @@ test('churn: 320 seeded steps mixing data writes, threshold moves, window resize
     same(sm.value(), sumExpect(), `sum @ step ${step}`)
   }
   ok(src.snapshot().size > 0)
+})
+
+// ── betweenR ─────────────────────────────────────────────────────────────────
+
+test('betweenR: reactive bounds through the $ handle — brush walk, oracle, dedup, lifetime', () => {
+  const d = $({
+    a: { val: 10 }, b: { val: 25 }, c: { val: 50 }, d: { val: 75 }, e: { val: 90 },
+  } as Record<string, Row>)
+  const filters = $({ r: [] as number[], other: [0, 1] as number[] })
+  const dim = d.between('val', filters.get('r'))
+  const bn = dim[N] as BetweenNode<Row>
+  conform(bn)
+  const oracle = () => {
+    const m = new Map<RowKey, Row>()
+    for (const [k, row] of (d[N] as DataNode<Row>).snapshot())
+      if (row.val >= bn.lo && row.val <= bn.hi) m.set(k, row)
+    return m
+  }
+  // [] = unfiltered (±∞) — the v2 empty-filter contract
+  same(bn.view.size, 5)
+  assertOracle(bn, oracle)
+
+  const batches = collect(bn)
+  filters.set('r', [20, 60]) // a, d, e leave — ONE consolidated batch
+  same(batches.length, 1)
+  same(batches[0].rows.map((x) => x.op).sort(), ['remove', 'remove', 'remove'])
+  assertOracle(bn, oracle)
+
+  filters.set('r', [20, 80]) // d re-enters via the walk (only the crossing row)
+  same(batches.length, 2)
+  same(batches[1].rows.length, 1)
+  ok(batches[1].rows[0].op === 'add' && batches[1].rows[0].key === 'd')
+  assertOracle(bn, oracle)
+
+  filters.set('other', [5, 6]) // unrelated key: effect fires, leaf unchanged → no-op
+  same(batches.length, 2)
+
+  filters.set('r', []) // reset re-opens to ±∞ — a and e re-enter
+  same(batches.length, 3)
+  same(batches[2].rows.map((x) => x.key).sort(), ['a', 'e'])
+  assertOracle(bn, oracle)
+
+  d.get('f').update({ val: 33 }) // the data path stays incremental
+  same(batches.length, 4)
+  assertOracle(bn, oracle)
+
+  // dedup by bound-node identity + key path — never by current value
+  ok(d.between('val', filters.get('r')) === dim)
+  ok(d.between('val', filters.get('other')) !== dim)
+
+  // lifetime: disposing the operator detaches the param subscription
+  bn.dispose()
+  const before = batches.length
+  filters.set('r', [0, 1])
+  same(batches.length, before)
+})
+
+test('betweenR churn: 300 seeded steps mixing writes, removes, and bound moves — oracle every step', () => {
+  const d = $({} as Record<string, Row>)
+  const filters = $({ r: [] as number[] })
+  const dim = d.between('val', filters.get('r'))
+  const bn = dim[N] as BetweenNode<Row>
+  conform(bn)
+  const cnt = dim.length()
+  const oracle = () => {
+    const m = new Map<RowKey, Row>()
+    for (const [k, row] of (d[N] as DataNode<Row>).snapshot())
+      if (row.val >= bn.lo && row.val <= bn.hi) m.set(k, row)
+    return m
+  }
+  const rnd = lcg(0xbe7)
+  let nextId = 0
+  for (let step = 0; step < 300; step++) {
+    const r = rnd()
+    if (r < 0.45) {
+      d.get('k' + nextId++).update({ val: (rnd() * 100) | 0 })
+    } else if (r < 0.6 && nextId > 0) {
+      d.get('k' + ((rnd() * nextId) | 0)).remove()
+    } else if (r < 0.85) {
+      const lo = (rnd() * 100) | 0
+      const hi = (rnd() * 100) | 0
+      filters.set('r', [lo, hi]) // crossed bounds normalize inside setBounds
+    } else {
+      filters.set('r', [])
+    }
+    assertOracle(bn, oracle, `between oracle @ step ${step}`)
+    same(cnt[V], oracle().size, `count @ step ${step}`)
+  }
 })

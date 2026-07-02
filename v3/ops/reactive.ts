@@ -41,8 +41,9 @@
 //   matching the plan's rule and v2's `arg[view]` identity dedup.
 //
 // installReactive() re-registers 'gt','lt','gte','lte','za','az','top',
-// 'limit','sum','avg' by WRAPPING the existing registry defs (delegating to
-// the original create/dedupKey whenever the value-slot arg is plain), via
+// 'limit','sum','avg','between' by WRAPPING the existing registry defs
+// (delegating to the original create/dedupKey whenever the value-slot arg is
+// plain), via
 // registry.set (defineOperator throws on duplicates). Function-slot args
 // (filter(fn), map, group(fn), …) are deliberately NOT reactive — the v2
 // "operators react only to args they explicitly subscribe to" rule.
@@ -59,6 +60,7 @@ import { FilterNode } from './rowops.ts'
 import { OrderedView, cmpBy } from './ordered.ts'
 import type { RowComparator } from './ordered.ts'
 import { SumNode, AvgNode } from './aggregate.ts'
+import { between, BetweenNode } from './between.ts'
 
 // The api's handle symbols (Symbol.for — global registry, so no api import).
 const NODE = Symbol.for('data.v3.node')
@@ -587,6 +589,26 @@ export function avgR<T>(src: DataNode<T>, col: unknown): AvgRNode<T> {
 
 // ── 4. installReactive — wrap the registry entries ──────────────────────────
 
+// ── betweenR — reactive bounds on between ────────────────────────────────────
+//
+// The one reactive slot that needs NO hidden param source of its own:
+// BetweenNode already routes bounds through an internal SourceNode (the M2
+// precedent this module generalized), and setBounds is the O(Δ) brush walk —
+// so a reactive bounds arg binds straight onto it. This is the crossfilter
+// idiom: `flights.between('date', filters.date)` — every write to the
+// filters tuple re-selects only the rows whose col value crossed a boundary.
+// An empty/non-array leaf ([] = unfiltered, the v2 contract) opens to ±∞.
+
+const normBounds = (b: unknown): readonly [number?, number?] =>
+  Array.isArray(b) ? (b as [number?, number?]) : []
+
+export function betweenR<T>(src: DataNode<T>, col: string, arg: unknown): BetweenNode<T> {
+  const ra = reactiveArg(arg)
+  const node = between(src, col, normBounds(ra.current()))
+  bindParam(node, arg, (b: unknown) => node.setBounds(normBounds(b)))
+  return node
+}
+
 function wrapDef(
   name: string,
   reactiveCreate: (src: DataNode<any>, args: any[]) => DataNode<any> | null,
@@ -663,4 +685,14 @@ export function installReactive(): void {
       },
     )
   }
+
+  wrapDef(
+    'between',
+    (src, [col, bounds]) => (reactiveArg(bounds).isReactive ? betweenR(src, col, bounds) : null),
+    ([col, bounds]) => {
+      const ra = reactiveArg(bounds)
+      if (!ra.isReactive) return undefined
+      return typeof col === 'string' ? `between:${col}:${ra.identity}` : null
+    },
+  )
 }
