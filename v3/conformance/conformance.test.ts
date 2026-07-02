@@ -10,7 +10,7 @@ import type { CommitBatch, RowKey } from '../contract/delta.ts'
 
 const ORIGIN = Symbol('test')
 const batch = <T>(seq: number, rows: CommitBatch<T>['rows'], order?: CommitBatch<T>['order']): CommitBatch<T> =>
-  ({ seq, origin: ORIGIN, rows, ...(order ? { order } : {}) })
+  ({ seq, origin: ORIGIN, rows, order, scalar: undefined })
 
 type Row = { v: number }
 
@@ -70,7 +70,7 @@ test('legality: phantom scalar is illegal', () => {
   const c = new LegalityChecker<Row>('scalar')
   c.init(new Map())
   assert.throws(
-    () => c.apply({ seq: 1, origin: ORIGIN, rows: [], scalar: { prev: 5, next: 5 } }),
+    () => c.apply({ seq: 1, origin: ORIGIN, rows: [], order: undefined, scalar: { prev: 5, next: 5 } }),
     (e: Error) => e instanceof LegalityError && /phantom scalar/.test(e.message),
   )
 })
@@ -121,7 +121,7 @@ test('replay: a wrong incremental delta fails on the introducing commit (the C8 
 test('replay: scalar channel folds', () => {
   const r = new ReplaySink<Row>('sum')
   r.initScalar(3)
-  r.apply({ seq: 1, origin: ORIGIN, rows: [], scalar: { prev: 3, next: 7 } })
+  r.apply({ seq: 1, origin: ORIGIN, rows: [], order: undefined, scalar: { prev: 3, next: 7 } })
   r.assertScalar(7, 1)
   assert.throws(() => r.assertScalar(8, 1), ReplayError)
 })

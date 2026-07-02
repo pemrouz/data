@@ -72,8 +72,10 @@ export interface CommitBatch<T> {
   readonly seq: number // per-runtime monotonic commit id (causality/devtools)
   readonly origin: OriginToken
   readonly rows: readonly RowDelta<T>[] // consolidated: ≤1 delta per key
-  readonly order?: readonly OrderDelta[] // present only from ordered nodes
-  readonly scalar?: ScalarDelta // present only from scalar nodes
+  // order/scalar are REQUIRED-but-undefined rather than optional: every batch
+  // object has the same hidden class (monomorphic for every consumer IC).
+  readonly order: readonly OrderDelta[] | undefined // only from ordered nodes
+  readonly scalar: ScalarDelta | undefined // only from scalar nodes
 }
 
 // The sink contract — closed, exhaustive, typed. snapshot-then-deltas:
