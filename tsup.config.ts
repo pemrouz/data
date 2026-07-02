@@ -36,22 +36,39 @@ import { defineConfig } from 'tsup'
 // correctness wins outweigh the disk cost.
 //
 // ESM-only for now. Add 'cjs' to `format` later if a real consumer asks.
-export default defineConfig({
-  entry: [
-    'index.ts',
-    'lean.ts',
-    'full.ts',
-    'render/index.ts',
-    'devtools/index.ts',
-    'devtools/panel/index.ts',
-    'jsx-runtime.ts',
-    'jsx-dev-runtime.ts',
-  ],
-  format: ['esm'],
-  dts: true,
-  splitting: false,
-  sourcemap: true,
-  clean: true,
-  target: 'es2022',
-  treeshake: true,
-})
+export default defineConfig([
+  {
+    entry: [
+      'index.ts',
+      'lean.ts',
+      'full.ts',
+      'render/index.ts',
+      'devtools/index.ts',
+      'devtools/panel/index.ts',
+      'jsx-runtime.ts',
+      'jsx-dev-runtime.ts',
+    ],
+    format: ['esm'],
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+    clean: true,
+    target: 'es2022',
+    treeshake: true,
+  },
+  // The v3 rewrite (branch v3): one self-contained browser bundle so the
+  // migrated examples can import it via their importmaps ("data/v3" →
+  // ../../dist/v3/index.js). dts deliberately off — v3's typed surface is the
+  // fixture-gated v3/types (npx tsc -p v3/types), not generated declarations.
+  // clean: false so this config doesn't wipe the first config's output.
+  {
+    entry: { 'v3/index': 'v3/api/index.ts' },
+    format: ['esm'],
+    dts: false,
+    splitting: false,
+    sourcemap: true,
+    clean: false,
+    target: 'es2022',
+    treeshake: true,
+  },
+])
