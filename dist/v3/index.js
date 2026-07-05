@@ -170,12 +170,12 @@ var DataNode = class {
     this.opName = opName;
     this.runtime = runtime2;
     this.parents = parents;
-    let h = 0;
+    let h2 = 0;
     for (const p of parents) {
-      if (p.height + 1 > h) h = p.height + 1;
+      if (p.height + 1 > h2) h2 = p.height + 1;
       p.children.push(this);
     }
-    this.height = h;
+    this.height = h2;
     this.scope = currentScope();
     this.scope?.add(this);
     runtime2.register(this);
@@ -197,6 +197,23 @@ var DataNode = class {
   // Current order, if this node is ordered (null otherwise).
   currentOrder() {
     return null;
+  }
+  // ── membership / row lookup protocol ────────────────────────────────────
+  // Per-key access for multi-parent operators: set algebra queries its
+  // parents per touched key instead of mirroring every parent's rows (the
+  // mirrors were the dominant retained memory on wide graphs). Valid
+  // whenever the node is settled — during a flush, height order guarantees
+  // every parent settled first (and midBatch is false there: the flush runs
+  // after batchDepth returns to 0). hasRow is distinct from rowAt because a
+  // row's VALUE may legitimately be undefined (v3 has no sparse holes —
+  // undefined rows are first-class). These base fallbacks materialize a
+  // snapshot per call (O(N), correct for any node, midBatch-safe); every
+  // in-tree collection node overrides them with O(1) materialized reads.
+  hasRow(key) {
+    return this.snapshot().has(key);
+  }
+  rowAt(key) {
+    return this.snapshot().get(key);
   }
   connect(entry) {
     this.effects.push(entry);
@@ -287,6 +304,14 @@ var SourceNode = class extends DataNode {
     return this.store.snapshot();
   }
   get(key) {
+    return this.store.get(key);
+  }
+  // The store applies writes inline (read-your-writes), so it is current
+  // even mid-batch — no midBatch branch needed.
+  hasRow(key) {
+    return this.store.has(key);
+  }
+  rowAt(key) {
     return this.store.get(key);
   }
   // ── mutation entry points (the runtime write protocol) ────────────────────
@@ -447,6 +472,14 @@ var FilterNode = class extends DataNode {
     }
     return new Map(this.view);
   }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
+  }
   settle(seq, origin) {
     const input = this.in0;
     if (input === null) return null;
@@ -500,6 +533,14 @@ var MapNode = class extends DataNode {
       return m;
     }
     return new Map(this.view);
+  }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
   }
   settle(seq, origin) {
     const input = this.in0;
@@ -824,6 +865,14 @@ var BetweenNode = class extends DataNode {
     }
     return new Map(this.view);
   }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
+  }
   dispose() {
     super.dispose();
     this.boundsSrc.dispose();
@@ -1085,64 +1134,106 @@ var SetOpNode = class extends DataNode {
     for (const o of others) if (unique.indexOf(o) < 0) unique.push(o);
     super(runtime2, "operator", variant, unique);
     this.variant = variant;
-    this.parentIndex = /* @__PURE__ */ new Map();
-    for (let i = 0; i < unique.length; i++) this.parentIndex.set(unique[i], i);
-    this.fullMask = (1 << unique.length) - 1;
     this.othersMask = 0;
-    for (const o of others) this.othersMask |= 1 << this.parentIndex.get(o);
+    for (const o of others) this.othersMask |= 1 << unique.indexOf(o);
     let common = [...rootsOf(unique[0])];
     for (let i = 1; i < unique.length && common.length > 0; i++) {
       const ri = rootsOf(unique[i]);
       common = common.filter((r) => ri.has(r));
     }
     this.sharedProvenance = common.length > 0;
-    this.prows = [];
-    for (const p of unique) this.prows.push(p.snapshot());
-    this.masks = /* @__PURE__ */ new Map();
-    for (let i = 0; i < this.prows.length; i++)
-      for (const k of this.prows[i].keys()) this.masks.set(k, (this.masks.get(k) ?? 0) | 1 << i);
     this.view = /* @__PURE__ */ new Map();
-    for (const [k, m] of this.masks) if (this.isLive(k, m)) this.view.set(k, this.exposed(k));
+    if (variant === "union") {
+      const seen = /* @__PURE__ */ new Set();
+      for (const p of unique) {
+        for (const k of p.snapshot().keys()) {
+          if (seen.has(k)) continue;
+          seen.add(k);
+          if (this.live(k)) this.view.set(k, this.exposed(k));
+        }
+      }
+    } else {
+      for (const k of unique[0].snapshot().keys()) {
+        if (this.live(k)) this.view.set(k, this.exposed(k));
+      }
+    }
   }
-  isLive(key, mask) {
-    const numericForeign = typeof key === "number" && !this.sharedProvenance && this.parents.length > 1;
+  // Liveness by direct parent membership queries (hasRow is O(1) on every
+  // in-tree node once the parent has settled — height order guarantees that
+  // whenever WE settle). Cross-domain numeric keys (independent array-born
+  // stores) never co-match: minted-int equality across unrelated stores is
+  // positional coincidence, not identity — see the key-domain header note.
+  live(key) {
+    const parents = this.parents;
+    const numericForeign = typeof key === "number" && !this.sharedProvenance && parents.length > 1;
     switch (this.variant) {
-      case "intersect":
-        return numericForeign ? false : mask === this.fullMask;
-      case "union":
-        return mask !== 0;
+      case "intersect": {
+        if (numericForeign) return false;
+        for (let i = 0; i < parents.length; i++) if (!parents[i].hasRow(key)) return false;
+        return true;
+      }
+      case "union": {
+        for (let i = 0; i < parents.length; i++) if (parents[i].hasRow(key)) return true;
+        return false;
+      }
       case "except": {
-        if ((mask & 1) === 0) return false;
+        if (!parents[0].hasRow(key)) return false;
         if (numericForeign) return true;
-        return (mask & this.othersMask) === 0;
+        for (let i = 0; i < parents.length; i++)
+          if ((this.othersMask & 1 << i) !== 0 && parents[i].hasRow(key)) return false;
+        return true;
       }
     }
   }
   // The exposed row for a live key. intersect/except: the primary's row.
-  // union: first parent (in parent order) holding the key — primary wins.
+  // union: first parent (in parent order) HOLDING the key — primary wins
+  // (hasRow, not a rowAt !== undefined check: undefined rows are first-class).
   exposed(key) {
+    const parents = this.parents;
     if (this.variant === "union") {
-      const prows = this.prows;
-      for (let i = 0; i < prows.length; i++) if (prows[i].has(key)) return prows[i].get(key);
+      for (let i = 0; i < parents.length; i++)
+        if (parents[i].hasRow(key)) return parents[i].rowAt(key);
       return void 0;
     }
-    return this.prows[0].get(key);
+    return parents[0].rowAt(key);
   }
   snapshot() {
     if (this.runtime.midBatch) return this.recomputePure();
     return new Map(this.view);
+  }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
   }
   // Flush-on-read: recompute PURE from parents (whose snapshots are
   // themselves mid-batch-consistent), touching none of this node's state.
   recomputePure() {
     const snaps = [];
     for (const p of this.parents) snaps.push(p.snapshot());
+    const fullMask = (1 << snaps.length) - 1;
     const masks = /* @__PURE__ */ new Map();
     for (let i = 0; i < snaps.length; i++)
       for (const k of snaps[i].keys()) masks.set(k, (masks.get(k) ?? 0) | 1 << i);
     const out = /* @__PURE__ */ new Map();
     for (const [k, m] of masks) {
-      if (!this.isLive(k, m)) continue;
+      const numericForeign = typeof k === "number" && !this.sharedProvenance && snaps.length > 1;
+      let liveNow;
+      switch (this.variant) {
+        case "intersect":
+          liveNow = numericForeign ? false : m === fullMask;
+          break;
+        case "union":
+          liveNow = m !== 0;
+          break;
+        case "except":
+          liveNow = (m & 1) !== 0 && (numericForeign || (m & this.othersMask) === 0);
+          break;
+      }
+      if (!liveNow) continue;
       if (this.variant === "union") {
         for (let i = 0; i < snaps.length; i++)
           if (snaps[i].has(k)) {
@@ -1158,14 +1249,14 @@ var SetOpNode = class extends DataNode {
   settle(seq, origin) {
     if (this.in0 === null) return null;
     const touched = /* @__PURE__ */ new Map();
-    this.fold(this.inFrom0, this.in0, touched);
+    this.fold(this.in0, touched);
     if (this.inMore !== null)
-      for (const { from, batch: batch2 } of this.inMore) this.fold(from, batch2, touched);
+      for (const { batch: batch2 } of this.inMore) this.fold(batch2, touched);
     const out = [];
     for (const [k, cand] of touched) {
       const preLive = this.view.has(k);
       const preRow = this.view.get(k);
-      const postLive = this.isLive(k, this.masks.get(k) ?? 0);
+      const postLive = this.live(k);
       if (!preLive && postLive) {
         const row = this.exposed(k);
         this.view.set(k, row);
@@ -1184,12 +1275,7 @@ var SetOpNode = class extends DataNode {
     }
     return out.length ? { seq, origin, rows: out, order: void 0, scalar: void 0 } : null;
   }
-  fold(from, batch2, touched) {
-    const idx = this.parentIndex.get(from);
-    if (idx === void 0) return;
-    const bit = 1 << idx;
-    const rows = this.prows[idx];
-    const masks = this.masks;
+  fold(batch2, touched) {
     for (const d of batch2.rows) {
       if (!touched.has(d.key)) {
         touched.set(d.key, d.op === "update" ? d.path : null);
@@ -1197,20 +1283,6 @@ var SetOpNode = class extends DataNode {
         const prior = touched.get(d.key);
         if (!(d.op === "update" && prior !== null && pathEq(prior, d.path)))
           touched.set(d.key, null);
-      }
-      switch (d.op) {
-        case "add":
-        case "update":
-          rows.set(d.key, d.row);
-          masks.set(d.key, (masks.get(d.key) ?? 0) | bit);
-          break;
-        case "remove": {
-          rows.delete(d.key);
-          const m = (masks.get(d.key) ?? 0) & ~bit;
-          if (m === 0) masks.delete(d.key);
-          else masks.set(d.key, m);
-          break;
-        }
       }
     }
   }
@@ -1332,6 +1404,14 @@ var BucketNode = class extends DataNode {
       return out;
     }
     return new Map(this.view);
+  }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
   }
   // ── settle ──────────────────────────────────────────────────────────────────
   settle(seq, origin) {
@@ -1522,6 +1602,14 @@ var OrderedView = class extends DataNode {
     const m = /* @__PURE__ */ new Map();
     for (const k of this.window) m.set(k, this.rows.get(k));
     return m;
+  }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.winSet.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.winSet.has(key) ? this.rows.get(key) : void 0;
   }
   // Pure recompute from the parent (flush-on-read, SCHEDULE clause 2b): sort
   // the parent's mid-batch snapshot with the same comparator. Keys this view
@@ -2534,9 +2622,9 @@ var Runtime = class {
     agenda.length = 0;
     if (stats) {
       const info = { seq, origin, nodes: stats };
-      for (const h of this.hooks) {
+      for (const h2 of this.hooks) {
         try {
-          h(info);
+          h2(info);
         } catch (e) {
           errors.push(e);
         }
@@ -3392,6 +3480,14 @@ var MirrorNode = class extends DataNode {
     if (this.runtime.midBatch) return this.parents[0].snapshot();
     return new Map(this.view);
   }
+  hasRow(key) {
+    if (this.runtime.midBatch) return super.hasRow(key);
+    return this.view.has(key);
+  }
+  rowAt(key) {
+    if (this.runtime.midBatch) return super.rowAt(key);
+    return this.view.get(key);
+  }
   currentOrder() {
     if (this.runtime.midBatch) return this.parents[0].currentOrder();
     return this.order;
@@ -3766,6 +3862,174 @@ function exportContract() {
   return { SCHEMA_VERSION, reserved: [...RESERVED], operators };
 }
 
+// v3/render/builders.ts
+var NODE4 = /* @__PURE__ */ Symbol.for("data.v3.node");
+function isViewLike(x) {
+  if (x instanceof DataNode) return true;
+  return x !== null && typeof x === "object" && x[NODE4] instanceof DataNode;
+}
+var VNODE_KINDS = /* @__PURE__ */ new Set(["el", "text", "rtext", "list"]);
+function isVNode(x) {
+  return x !== null && typeof x === "object" && VNODE_KINDS.has(x.kind);
+}
+function isBindShape(x) {
+  return x !== null && typeof x === "object" && x.kind === "bind" && "view" in x;
+}
+function isPropsObject(x) {
+  if (x === null || typeof x !== "object") return false;
+  if (Array.isArray(x)) return false;
+  if (x instanceof DataNode) return false;
+  if (x[NODE4] instanceof DataNode) return false;
+  if (isBindShape(x) || isVNode(x)) return false;
+  const proto = Object.getPrototypeOf(x);
+  return proto === Object.prototype || proto === null;
+}
+function normChildren(children) {
+  const out = [];
+  const push = (c) => {
+    if (c == null || typeof c === "boolean") return;
+    if (typeof c === "string" || typeof c === "number") {
+      out.push({ kind: "text", s: String(c) });
+      return;
+    }
+    if (Array.isArray(c)) {
+      for (const k of c) push(k);
+      return;
+    }
+    if (isViewLike(c)) {
+      out.push(text(c));
+      return;
+    }
+    if (isBindShape(c)) {
+      out.push(text(c.view, c.fn ?? void 0));
+      return;
+    }
+    if (isVNode(c)) {
+      out.push(c);
+      return;
+    }
+    throw new Error(
+      "data/render: unsupported child \u2014 expected a VNode, string/number, view/$ handle, bind(), or a nested array of those"
+    );
+  };
+  for (const c of children) push(c);
+  return out;
+}
+var EMPTY_DOT = { classes: [], id: null, attrs: {} };
+function addDot(dot, prop) {
+  if (prop.startsWith("#")) return { classes: dot.classes, id: prop.slice(1), attrs: dot.attrs };
+  const eq = prop.indexOf("=");
+  if (eq > 0)
+    return {
+      classes: dot.classes,
+      id: dot.id,
+      attrs: { ...dot.attrs, [prop.slice(0, eq)]: prop.slice(eq + 1) }
+      // FIRST '=' splits
+    };
+  return { classes: [...dot.classes, prop], id: dot.id, attrs: dot.attrs };
+}
+var toS = (x) => x == null ? "" : String(x);
+function elFrom(tag, dot, callProps, children) {
+  const dotClass = dot.classes.length > 0 ? dot.classes.join(" ") : null;
+  let props = null;
+  const hasDot = dotClass !== null || dot.id !== null || Object.keys(dot.attrs).length > 0;
+  const hasCall = callProps !== null && Object.keys(callProps).length > 0;
+  if (hasDot || hasCall) {
+    props = { ...dot.attrs };
+    if (dotClass !== null) props.class = dotClass;
+    if (dot.id !== null) props.id = dot.id;
+    if (callProps !== null) {
+      for (const k of Object.keys(callProps)) {
+        const v = callProps[k];
+        if (k === "class" && dotClass !== null) {
+          if (isViewLike(v)) props.class = bind(v, (x) => dotClass + " " + toS(x));
+          else if (isBindShape(v)) {
+            const f = v.fn;
+            props.class = bind(v.view, (x) => dotClass + " " + toS(f === null ? x : f(x)));
+          } else if (v != null && v !== false) props.class = dotClass + " " + String(v);
+        } else {
+          props[k] = v;
+        }
+      }
+    }
+  }
+  return el(tag, props, ...normChildren(children));
+}
+function makeBuilder(tag, dot) {
+  const call = (...args) => {
+    if (args.length > 0 && isPropsObject(args[0]))
+      return elFrom(tag, dot, args[0], args.slice(1));
+    return elFrom(tag, dot, null, args);
+  };
+  return new Proxy(call, {
+    get(t, prop) {
+      if (typeof prop !== "string") return t[prop];
+      return makeBuilder(tag, addDot(dot, prop));
+    }
+  });
+}
+function namespaceProxy() {
+  return new Proxy(/* @__PURE__ */ Object.create(null), {
+    get(_t, prop) {
+      if (typeof prop !== "string") return void 0;
+      return makeBuilder(prop, EMPTY_DOT);
+    }
+  });
+}
+var HTML = namespaceProxy();
+var SVG = namespaceProxy();
+
+// v3/jsx/index.ts
+var NODE5 = /* @__PURE__ */ Symbol.for("data.v3.node");
+function isViewLike2(x) {
+  if (x instanceof DataNode) return true;
+  return x !== null && typeof x === "object" && x[NODE5] instanceof DataNode;
+}
+function viewNodeOf(x) {
+  return x instanceof DataNode ? x : x[NODE5];
+}
+function normComponentChildren(children) {
+  const out = [];
+  const push = (c) => {
+    if (typeof c === "function") {
+      out.push(c);
+      return;
+    }
+    if (Array.isArray(c)) {
+      for (const k of c) push(k);
+      return;
+    }
+    for (const v of normChildren([c])) out.push(v);
+  };
+  for (const c of children) push(c);
+  return out;
+}
+function h(tag, props, ...children) {
+  if (typeof tag === "function") {
+    const p = children.length > 0 ? { ...props ?? {}, children: normComponentChildren(children) } : { children: [], ...props ?? {} };
+    return tag(p);
+  }
+  return el(tag, props ?? null, ...normChildren(children));
+}
+function Fragment(props) {
+  const c = props?.children;
+  return Array.isArray(c) ? c : c == null ? [] : [c];
+}
+function For(props) {
+  const each = props?.each;
+  if (!isViewLike2(each))
+    throw new Error("data/jsx: <For> requires each={view} \u2014 a collection $ handle or DataNode");
+  if (viewNodeOf(each).kind === "scalar")
+    throw new Error("data/jsx: <For each={\u2026}> expects a COLLECTION view, got a scalar");
+  const c = props?.children;
+  const kids = Array.isArray(c) ? c : c == null ? [] : [c];
+  if (kids.length !== 1 || typeof kids[0] !== "function")
+    throw new Error(
+      "data/jsx: <For each={view}> takes exactly ONE child \u2014 the row function (row, key) => vnode. Iteration is ONLY For/list(); a bare view child is reactive text, and the v2 [vp, fn] shorthand is gone."
+    );
+  return list(each, kids[0]);
+}
+
 // v3/api/index.ts
 installReactive();
 var value = /* @__PURE__ */ Symbol.for("data.v3.value");
@@ -4032,6 +4296,6 @@ function handleFor(n) {
   return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() });
 }
 
-export { $, InMemoryBacking, batch, bind, el, exportContract, fromAsync, handleFor, list, node, render, runtime, text, value };
+export { $, For, Fragment, HTML, InMemoryBacking, SVG, batch, bind, el, exportContract, fromAsync, h, handleFor, list, node, normChildren, render, runtime, text, value };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
