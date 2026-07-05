@@ -205,7 +205,10 @@ function buildV2(mod: any, raw: Record<string, Raw>): EngineApp {
 // is a bounded za('date', 80) window (the true top-80 by date) grouped by day.
 function buildV3(mod: any, raw: Record<string, Raw>): EngineApp {
   const { $, value } = mod
-  const flights = $(raw).map(parseRow)
+  // Array-born source (MINTED INTEGER keys) — matches the example. Adopted
+  // "0".."231082" string keys make every Map hop in the graph hash a string
+  // (~30% slower per brush step, double the p95 tail, measured here).
+  const flights = $(Object.values(raw)).map(parseRow)
   const filters = $({
     delay: [],
     distance: [],
