@@ -3209,11 +3209,24 @@ function isView(x) {
 function normAttr(v) {
   return v == null || v === false ? null : v === true ? "" : String(v);
 }
+function setProp(dom, name, v) {
+  if ((name === "checked" || name === "value") && name in dom) {
+    if (name === "checked") dom.checked = v === true || v === "";
+    else dom.value = v == null ? "" : String(v);
+    return true;
+  }
+  return false;
+}
+function applyAttr(dom, name, next) {
+  if (setProp(dom, name, next)) return;
+  if (next === null) dom.removeAttribute(name);
+  else dom.setAttribute(name, next);
+}
 function bindAttr(dom, name, view, fn, scope) {
   const read = readerOf(view);
   const compute = () => normAttr(fn === null ? read() : fn(read()));
   let last = compute();
-  if (last !== null) dom.setAttribute(name, last);
+  if (last !== null || name === "checked" || name === "value") applyAttr(dom, name, last);
   const sub = nodeOf(view).connect({
     wantsOrder: false,
     origin: null,
@@ -3221,8 +3234,7 @@ function bindAttr(dom, name, view, fn, scope) {
       const next = compute();
       if (next === last) return;
       last = next;
-      if (next === null) dom.removeAttribute(name);
-      else dom.setAttribute(name, next);
+      applyAttr(dom, name, next);
     }
   });
   scope.add(sub);
@@ -3286,6 +3298,29 @@ function materialize2(v, ctx) {
       throw new Error("data/render: internal \u2014 list must be materialized by its host");
   }
 }
+function staticProp(x) {
+  return typeof x !== "function" && !isView(x) && !isBindProp(x);
+}
+function patchProps(dom, prev, next) {
+  if (prev === next) return;
+  if (next !== null) {
+    for (const k of Object.keys(next)) {
+      if (k.startsWith("on")) continue;
+      const nv = next[k];
+      if (!staticProp(nv)) continue;
+      const pv = prev !== null && k in prev ? prev[k] : void 0;
+      if (pv !== void 0 && !staticProp(pv)) continue;
+      const na = normAttr(nv);
+      if (normAttr(pv) !== na) applyAttr(dom, k, na);
+    }
+  }
+  if (prev !== null) {
+    for (const k of Object.keys(prev)) {
+      if (k.startsWith("on") || !staticProp(prev[k])) continue;
+      if (next === null || !(k in next)) applyAttr(dom, k, null);
+    }
+  }
+}
 function patchRow(m, v) {
   if (m.vnode.kind !== v.kind) return false;
   if (v.kind === "text") {
@@ -3298,6 +3333,7 @@ function patchRow(m, v) {
     if (prev.tag !== v.tag) return false;
     const next = v.children;
     if (m.children === null || m.children.length !== next.length) return false;
+    patchProps(m.dom, prev.props, v.props);
     for (let i = 0; i < next.length; i++) {
       if (!patchRow(m.children[i], next[i])) return false;
     }
@@ -3926,7 +3962,7 @@ function addDot(dot, prop) {
       attrs: { ...dot.attrs, [prop.slice(0, eq)]: prop.slice(eq + 1) }
       // FIRST '=' splits
     };
-  return { classes: [...dot.classes, prop], id: dot.id, attrs: dot.attrs };
+  return { classes: [...dot.classes, prop.replaceAll("_", "-")], id: dot.id, attrs: dot.attrs };
 }
 var toS = (x) => x == null ? "" : String(x);
 function elFrom(tag, dot, callProps, children) {
@@ -3972,7 +4008,7 @@ function namespaceProxy() {
   return new Proxy(/* @__PURE__ */ Object.create(null), {
     get(_t, prop) {
       if (typeof prop !== "string") return void 0;
-      return makeBuilder(prop, EMPTY_DOT);
+      return makeBuilder(prop.replaceAll("_", "-"), EMPTY_DOT);
     }
   });
 }

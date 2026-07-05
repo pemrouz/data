@@ -16,6 +16,7 @@
 !examples/pivot/**/*.js
 !examples/library/**/*.js
 !examples/crossfilter-v3/**/*.js
+!examples/todo-v3/**/*.js
 !perf/**/*.js
 !mockups/**/*.js
 
