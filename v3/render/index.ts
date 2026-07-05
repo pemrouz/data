@@ -247,10 +247,12 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
             const evt = k.slice(2).toLowerCase()
             dom.addEventListener(evt, pv)
             ctx.scope.onDispose(() => dom.removeEventListener(evt, pv))
+          } else if (isView(pv)) {
+            // checked BEFORE isBindProp: probing .kind on a handle would
+            // route through its proxy (a scalar handle throws on child reads)
+            bindAttr(dom, k, pv, null, ctx.scope)
           } else if (isBindProp(pv)) {
             bindAttr(dom, k, pv.view, pv.fn, ctx.scope)
-          } else if (isView(pv)) {
-            bindAttr(dom, k, pv, null, ctx.scope)
           } else if (pv != null && pv !== false) {
             dom.setAttribute(k, pv === true ? '' : String(pv))
           }
