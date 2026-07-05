@@ -172,6 +172,16 @@ export class BucketNode<T, B> extends DataNode<B> {
     return new Map(this.view)
   }
 
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): B | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
+  }
+
   // ── settle ──────────────────────────────────────────────────────────────────
 
   settle(seq: number, origin: OriginToken): CommitBatch<B> | null {

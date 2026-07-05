@@ -31,6 +31,16 @@ export class FilterNode<T> extends DataNode<T> {
     return new Map(this.view)
   }
 
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
+  }
+
   settle(seq: number, origin: OriginToken): CommitBatch<T> | null {
     const input = this.in0
     if (input === null) return null
@@ -90,6 +100,16 @@ export class MapNode<T, Out> extends DataNode<Out> {
       return m
     }
     return new Map(this.view)
+  }
+
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): Out | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
   }
 
   settle(seq: number, origin: OriginToken): CommitBatch<Out> | null {

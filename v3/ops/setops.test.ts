@@ -13,6 +13,7 @@ import { SourceNode } from '../kernel/node.ts'
 import { filter } from './rowops.ts'
 import { sum } from './aggregate.ts'
 import { intersect, union, except } from './setops.ts'
+import { za } from './ordered.ts'
 import { conform, conformScalar, assertOracle } from '../conformance/harness.ts'
 import type { CommitBatch, RowKey } from '../contract/delta.ts'
 
@@ -509,4 +510,43 @@ test('seeded churn ≥300 steps: intersect/union/except over derived filters —
     { val: 20, cat: 'z' },
   ])
   churnLoop(rt, src, true, 0xc0ffee42, 320)
+})
+
+// ── the hasRow/rowAt protocol (what set-ops now query instead of mirroring) ──
+
+test('hasRow/rowAt: O(1) materialized reads when settled; pure (post-write) mid-batch; window membership on ordered views', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { g: 'x', val: 1 }, b: { g: 'y', val: 2 }, c: { g: 'x', val: 3 } })
+  const f = filter(src, (r) => r?.g === 'x') // ?-guard: the test writes an undefined row below
+  const i = intersect(src, f)
+  conform(i)
+
+  // settled reads
+  assert.strictEqual(src.hasRow('a'), true)
+  assert.strictEqual(f.hasRow('b'), false)
+  assert.strictEqual(f.rowAt('a'), src.rowAt('a')) // same reference exposure
+  assert.strictEqual(i.hasRow('c'), true)
+
+  // an undefined-VALUED row is a first-class member: hasRow true, rowAt undefined
+  src.write('u', [], undefined as unknown as Row)
+  assert.strictEqual(src.hasRow('u'), true)
+  assert.strictEqual(src.rowAt('u'), undefined)
+
+  // mid-batch: reads are pure post-write (read-your-writes), not stale views
+  rt.batch(() => {
+    src.write('b', ['g'], 'x')
+    assert.strictEqual(f.hasRow('b'), true) // filter admits b mid-batch
+    assert.strictEqual((f.rowAt('b') as Row).g, 'x')
+    assert.strictEqual(i.hasRow('b'), true)
+  })
+  assert.strictEqual(f.hasRow('b'), true) // and after the flush
+
+  // ordered views expose WINDOW membership, not the full row cache
+  const w = za(src, 'val', 2) // vals: c=3, b=2, a=1, u=undefined → window [c, b]
+  assert.strictEqual(w.hasRow('c'), true)
+  assert.strictEqual(w.hasRow('b'), true)
+  assert.strictEqual(w.hasRow('a'), false) // ranked, but OUTSIDE the window
+  assert.strictEqual(w.hasRow('u'), false)
+  assert.strictEqual((w.rowAt('c') as Row).val, 3)
+  assert.strictEqual(w.rowAt('a'), undefined) // not exposed by this view
 })

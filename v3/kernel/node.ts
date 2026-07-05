@@ -91,6 +91,25 @@ export abstract class DataNode<Out> {
     return null
   }
 
+  // ── membership / row lookup protocol ────────────────────────────────────
+  // Per-key access for multi-parent operators: set algebra queries its
+  // parents per touched key instead of mirroring every parent's rows (the
+  // mirrors were the dominant retained memory on wide graphs). Valid
+  // whenever the node is settled — during a flush, height order guarantees
+  // every parent settled first (and midBatch is false there: the flush runs
+  // after batchDepth returns to 0). hasRow is distinct from rowAt because a
+  // row's VALUE may legitimately be undefined (v3 has no sparse holes —
+  // undefined rows are first-class). These base fallbacks materialize a
+  // snapshot per call (O(N), correct for any node, midBatch-safe); every
+  // in-tree collection node overrides them with O(1) materialized reads.
+  hasRow(key: RowKey): boolean {
+    return this.snapshot().has(key)
+  }
+
+  rowAt(key: RowKey): Out | undefined {
+    return this.snapshot().get(key)
+  }
+
   connect(entry: EffectEntry<Out>): SubscriptionHandle {
     this.effects.push(entry)
     const self = this
@@ -209,6 +228,16 @@ export class SourceNode<T> extends DataNode<T> {
   }
 
   get(key: RowKey): T | undefined {
+    return this.store.get(key)
+  }
+
+  // The store applies writes inline (read-your-writes), so it is current
+  // even mid-batch — no midBatch branch needed.
+  hasRow(key: RowKey): boolean {
+    return this.store.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
     return this.store.get(key)
   }
 

@@ -148,6 +148,16 @@ export class BetweenNode<T> extends DataNode<T> {
     return new Map(this.view)
   }
 
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
+  }
+
   dispose(): void {
     super.dispose()
     this.boundsSrc.dispose()

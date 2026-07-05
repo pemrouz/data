@@ -1,16 +1,22 @@
 // v3/ops/setops.ts — set algebra over the KEY domain: intersect / union /
 // except. Multi-parent nodes (primary = first parent).
 //
-// The v2 IP ported here is the per-row membership BITMASK from
-// operators/intersect/index.ts: each parent owns one bit; a key's mask says
-// which parents currently hold it, so the liveness check is O(1) per key
-// regardless of how many sources participate (the 4–8-dimension crossfilter
-// case). What is deliberately NOT ported is everything that compensated for
-// v2's positional value domain — the echo-ordering split (primary splices
-// last), pendingShift, BH1/BF0 holes, sparse explicit-undefined arrays, the
-// C12–C16 machinery. In v3 membership is BY KEY (`Map.has`), a membership
-// flip is an honest add/remove, and ordering is a separate channel this node
-// never emits (set ops are unordered).
+// Liveness and exposure are DIRECT PARENT QUERIES per touched key (the
+// hasRow/rowAt protocol on DataNode — O(1) on every in-tree node once the
+// parent has settled, which height order guarantees whenever this node
+// settles). The first cut instead ported v2's per-row membership BITMASK
+// (operators/intersect/index.ts) plus a full per-parent row MIRROR for value
+// resolution — on the crossfilter graph (5 set-op nodes over 4–5 parents
+// each at 231k rows) those mirrors were ~21 Maps of 231k entries: the
+// dominant retained memory in the whole app, and two Map writes per parent-
+// batch row to maintain. Querying the parents keeps the same O(touched)
+// settle complexity with ZERO retained per-parent state. What is
+// deliberately NOT ported from v2 is everything that compensated for its
+// positional value domain — the echo-ordering split (primary splices last),
+// pendingShift, BH1/BF0 holes, sparse explicit-undefined arrays, the
+// C12–C16 machinery. In v3 membership is BY KEY, a membership flip is an
+// honest add/remove, and ordering is a separate channel this node never
+// emits (set ops are unordered).
 //
 // Liveness per variant (mask bit i = key live in parents[i]):
 //   intersect — mask === fullMask (every parent has the key)
@@ -83,11 +89,7 @@ function pathEq(a: Path, b: Path): boolean {
 export class SetOpNode<T> extends DataNode<T> {
   declare variant: SetVariant
   declare view: Map<RowKey, T> // materialized output, updated at settle
-  declare masks: Map<RowKey, number> // bit i = key live in this.parents[i]
-  declare prows: Map<RowKey, T>[] // per-parent live rows (value resolution)
-  declare parentIndex: Map<DataNode<any>, number>
-  declare fullMask: number // all parents' bits set
-  declare othersMask: number // except only: OR of the *others* args' bits
+  declare othersMask: number // except only: OR of the *others* args' bits (bit i = parents[i])
   declare sharedProvenance: boolean // parents share ≥1 root source
 
   constructor(runtime: Runtime, variant: SetVariant, primary: DataNode<T>, others: readonly DataNode<T>[]) {
@@ -98,11 +100,8 @@ export class SetOpNode<T> extends DataNode<T> {
     for (const o of others) if (unique.indexOf(o) < 0) unique.push(o)
     super(runtime, 'operator', variant, unique)
     this.variant = variant
-    this.parentIndex = new Map()
-    for (let i = 0; i < unique.length; i++) this.parentIndex.set(unique[i], i)
-    this.fullMask = (1 << unique.length) - 1
     this.othersMask = 0
-    for (const o of others) this.othersMask |= 1 << (this.parentIndex.get(o) as number)
+    for (const o of others) this.othersMask |= 1 << unique.indexOf(o)
 
     let common = [...rootsOf(unique[0])]
     for (let i = 1; i < unique.length && common.length > 0; i++) {
@@ -111,43 +110,66 @@ export class SetOpNode<T> extends DataNode<T> {
     }
     this.sharedProvenance = common.length > 0
 
-    this.prows = []
-    for (const p of unique) this.prows.push(p.snapshot())
-    this.masks = new Map()
-    for (let i = 0; i < this.prows.length; i++)
-      for (const k of this.prows[i].keys()) this.masks.set(k, (this.masks.get(k) ?? 0) | (1 << i))
+    // Seed the view by DIRECT PARENT QUERIES (no retained mirrors): liveness
+    // for intersect/except is a subset of the primary's keyspace; union walks
+    // every parent's keys once.
     this.view = new Map()
-    for (const [k, m] of this.masks) if (this.isLive(k, m)) this.view.set(k, this.exposed(k) as T)
+    if (variant === 'union') {
+      const seen = new Set<RowKey>()
+      for (const p of unique) {
+        for (const k of p.snapshot().keys()) {
+          if (seen.has(k)) continue
+          seen.add(k)
+          if (this.live(k)) this.view.set(k, this.exposed(k) as T)
+        }
+      }
+    } else {
+      for (const k of unique[0].snapshot().keys()) {
+        if (this.live(k)) this.view.set(k, this.exposed(k) as T)
+      }
+    }
   }
 
-  private isLive(key: RowKey, mask: number): boolean {
-    // Cross-domain numeric keys (independent array-born stores) never
-    // co-match: minted-int equality across unrelated stores is positional
-    // coincidence, not identity. See the key-domain note in the header.
+  // Liveness by direct parent membership queries (hasRow is O(1) on every
+  // in-tree node once the parent has settled — height order guarantees that
+  // whenever WE settle). Cross-domain numeric keys (independent array-born
+  // stores) never co-match: minted-int equality across unrelated stores is
+  // positional coincidence, not identity — see the key-domain header note.
+  private live(key: RowKey): boolean {
+    const parents = this.parents as readonly DataNode<T>[]
     const numericForeign =
-      typeof key === 'number' && !this.sharedProvenance && this.parents.length > 1
+      typeof key === 'number' && !this.sharedProvenance && parents.length > 1
     switch (this.variant) {
-      case 'intersect':
-        return numericForeign ? false : mask === this.fullMask
-      case 'union':
-        return mask !== 0
+      case 'intersect': {
+        if (numericForeign) return false
+        for (let i = 0; i < parents.length; i++) if (!parents[i].hasRow(key)) return false
+        return true
+      }
+      case 'union': {
+        for (let i = 0; i < parents.length; i++) if (parents[i].hasRow(key)) return true
+        return false
+      }
       case 'except': {
-        if ((mask & 1) === 0) return false // not in primary (bit 0)
+        if (!parents[0].hasRow(key)) return false // not in primary
         if (numericForeign) return true // unrelated others cannot exclude
-        return (mask & this.othersMask) === 0
+        for (let i = 0; i < parents.length; i++)
+          if ((this.othersMask & (1 << i)) !== 0 && parents[i].hasRow(key)) return false
+        return true
       }
     }
   }
 
   // The exposed row for a live key. intersect/except: the primary's row.
-  // union: first parent (in parent order) holding the key — primary wins.
+  // union: first parent (in parent order) HOLDING the key — primary wins
+  // (hasRow, not a rowAt !== undefined check: undefined rows are first-class).
   private exposed(key: RowKey): T | undefined {
+    const parents = this.parents as readonly DataNode<T>[]
     if (this.variant === 'union') {
-      const prows = this.prows
-      for (let i = 0; i < prows.length; i++) if (prows[i].has(key)) return prows[i].get(key)
+      for (let i = 0; i < parents.length; i++)
+        if (parents[i].hasRow(key)) return parents[i].rowAt(key)
       return undefined
     }
-    return this.prows[0].get(key)
+    return parents[0].rowAt(key)
   }
 
   snapshot(): Map<RowKey, T> {
@@ -155,17 +177,42 @@ export class SetOpNode<T> extends DataNode<T> {
     return new Map(this.view)
   }
 
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
+  }
+
   // Flush-on-read: recompute PURE from parents (whose snapshots are
   // themselves mid-batch-consistent), touching none of this node's state.
   private recomputePure(): Map<RowKey, T> {
     const snaps: Map<RowKey, T>[] = []
     for (const p of this.parents) snaps.push(p.snapshot() as Map<RowKey, T>)
+    const fullMask = (1 << snaps.length) - 1
     const masks = new Map<RowKey, number>()
     for (let i = 0; i < snaps.length; i++)
       for (const k of snaps[i].keys()) masks.set(k, (masks.get(k) ?? 0) | (1 << i))
     const out = new Map<RowKey, T>()
     for (const [k, m] of masks) {
-      if (!this.isLive(k, m)) continue
+      const numericForeign =
+        typeof k === 'number' && !this.sharedProvenance && snaps.length > 1
+      let liveNow: boolean
+      switch (this.variant) {
+        case 'intersect':
+          liveNow = numericForeign ? false : m === fullMask
+          break
+        case 'union':
+          liveNow = m !== 0
+          break
+        case 'except':
+          liveNow = (m & 1) !== 0 && (numericForeign || (m & this.othersMask) === 0)
+          break
+      }
+      if (!liveNow) continue
       if (this.variant === 'union') {
         for (let i = 0; i < snaps.length; i++)
           if (snaps[i].has(k)) {
@@ -182,15 +229,16 @@ export class SetOpNode<T> extends DataNode<T> {
   settle(seq: number, origin: OriginToken): CommitBatch<T> | null {
     if (this.in0 === null) return null
 
-    // Phase 1: fold every parent batch into prows/masks, collecting the
-    // touched keys. `touched` also carries the update-path candidate: the
+    // Phase 1: collect the touched keys across every parent batch — no state
+    // folding: liveness/exposure in phase 2 query the (already-settled)
+    // parents directly. `touched` also carries the update-path candidate: the
     // path if every delta seen for the key this commit was an update with
     // the SAME path (two derived parents echoing one source write), else
     // null (→ whole-row path []).
     const touched = new Map<RowKey, Path | null>()
-    this.fold(this.inFrom0 as DataNode<any>, this.in0 as CommitBatch<T>, touched)
+    this.fold(this.in0 as CommitBatch<T>, touched)
     if (this.inMore !== null)
-      for (const { from, batch } of this.inMore) this.fold(from, batch as CommitBatch<T>, touched)
+      for (const { batch } of this.inMore) this.fold(batch as CommitBatch<T>, touched)
 
     // Phase 2: one pass over touched keys against the view. Pre-state is
     // read from the view before mutation, so consolidation + prev-discipline
@@ -199,7 +247,7 @@ export class SetOpNode<T> extends DataNode<T> {
     for (const [k, cand] of touched) {
       const preLive = this.view.has(k)
       const preRow = this.view.get(k) as T
-      const postLive = this.isLive(k, this.masks.get(k) ?? 0)
+      const postLive = this.live(k)
       if (!preLive && postLive) {
         const row = this.exposed(k) as T
         this.view.set(k, row)
@@ -223,12 +271,7 @@ export class SetOpNode<T> extends DataNode<T> {
     return out.length ? { seq, origin, rows: out, order: undefined, scalar: undefined } : null
   }
 
-  private fold(from: DataNode<any>, batch: CommitBatch<T>, touched: Map<RowKey, Path | null>): void {
-    const idx = this.parentIndex.get(from)
-    if (idx === undefined) return
-    const bit = 1 << idx
-    const rows = this.prows[idx]
-    const masks = this.masks
+  private fold(batch: CommitBatch<T>, touched: Map<RowKey, Path | null>): void {
     for (const d of batch.rows) {
       if (!touched.has(d.key)) {
         touched.set(d.key, d.op === 'update' ? d.path : null)
@@ -236,20 +279,6 @@ export class SetOpNode<T> extends DataNode<T> {
         const prior = touched.get(d.key)
         if (!(d.op === 'update' && prior !== null && pathEq(prior as Path, d.path)))
           touched.set(d.key, null)
-      }
-      switch (d.op) {
-        case 'add':
-        case 'update':
-          rows.set(d.key, d.row)
-          masks.set(d.key, (masks.get(d.key) ?? 0) | bit)
-          break
-        case 'remove': {
-          rows.delete(d.key)
-          const m = (masks.get(d.key) ?? 0) & ~bit
-          if (m === 0) masks.delete(d.key)
-          else masks.set(d.key, m)
-          break
-        }
       }
     }
   }

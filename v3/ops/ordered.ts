@@ -197,6 +197,16 @@ export class OrderedView<T> extends DataNode<T> {
     return m
   }
 
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.winSet.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.winSet.has(key) ? this.rows.get(key) : undefined
+  }
+
   // Pure recompute from the parent (flush-on-read, SCHEDULE clause 2b): sort
   // the parent's mid-batch snapshot with the same comparator. Keys this view
   // already knows keep their tie seq; unseen keys tie in snapshot order after
