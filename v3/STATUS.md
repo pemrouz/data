@@ -1,7 +1,7 @@
 # v3 rewrite — status
 
-*Updated 2026-07-05 (crossfilter-v3 example migration session on branch `v3`). Plan:
-[plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
+*Updated 2026-07-06 ("continue building v3" session: the DSL, the set-ops rewrite, todo-v3).
+Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
 ## Where things stand
@@ -16,14 +16,17 @@
 | **M4** keyed render + reactive args + seam | done | `037c174` | 169 tests; keyed DOM identity, mirror/raf/ingest live |
 | **M4.5a** typed surface + devtools consumption | done | `ae0c2d8` | tsc gate clean (89 pos + 47 neg fixtures); 184 tests |
 | **M4.5b slice** reactive between bounds; render SVG/bind()/text-fn/row-rebuild; browser bundle | done | `50e8cd7`…`e2818d7` | 191 tests; bundle smoke; two live integration bugs fixed |
-| **M5 (first migration)** examples/crossfilter-v3 + spec + example bench + the ordered-quadratic fix it surfaced | done | `693cd0e` `f3ddb0d` | spec green; bench checksums v2 ≡ v3; m1 0.73/0.79, m2 brush 0.96 / batch 0.68 (both improved) |
-| M4.5b rest: builders/JSX DSL + devtools panel port | not started | | |
+| **M5 (first migration)** examples/crossfilter-v3 + spec + example bench + the ordered-quadratic fix it surfaced | done | `693cd0e` `f3ddb0d` | spec green; bench checksums v2 ≡ v3 |
+| **perf: set-ops direct parent queries** (hasRow/rowAt protocol; mirrors die) | done | `09adf4a` | RSS 337→218 MB build / 403→186 MB post-brush; brush −18%; m1/m2 PASS |
+| **M4.5b DSL**: HTML/SVG builders + classic JSX (h/Fragment/For) + static-prop patching + live form props | done | `4e87200`…`7536e82` `fb7c84a` | 215 tests; DSL smoke through dist |
+| **M5 (second migration)** examples/todo-v3 on the builders + spec | done | `db23da9` | spec green (live checked props, mirror routes, edit flow, persistence) |
+| M4.5b rest: automatic jsx-runtime, per-tag intrinsic types, component scopes (onCleanup), devtools panel port | not started | | |
 | M5 rest: remaining examples, MIGRATION.md, the flip | not started | | |
 
-Run everything: `node --experimental-strip-types --no-warnings --test v3/**/*.test.ts` (192 tests).
-Types gate: `npx tsc -p v3/types` (89 positive + 47 @ts-expect-error negative fixtures).
-Perf gates: `node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts` and
-`... --expose-gc v3/perf/m2-gate.ts`. v2's `npm test` is untouched and green (v2 files unmodified).
+Run everything: `npm run test:v3` (215 tests). Types gate: `npm run typecheck:v3`
+(89 positive + 47 @ts-expect-error negative fixtures). Perf gates: `npm run perf:v3`
+(m1 + m2 — LOCAL, not CI; noisy-runner policy). CI runs test:v3 + typecheck:v3.
+v2's `npm test` is untouched and green (v2 files unmodified).
 
 ## Layout
 
@@ -124,18 +127,48 @@ The first M5 example migration, plus the M4.5b slice it forced:
   m2-gate methodology (one engine per process, ABAB reps, deep warmup, monotonic brush
   tuples, cross-engine checksum equality). Full-dataset numbers in the module header.
 
+## The 2026-07-06 session ("continue building v3")
+
+- **Set-ops rewrite** (`09adf4a`): new kernel protocol `DataNode.hasRow/rowAt` (O(1)
+  materialized overrides everywhere, midBatch-aware) — SetOpNode's per-parent row
+  mirrors + masks Map DELETED; liveness/exposure are direct parent queries per touched
+  key. On the crossfilter graph: RSS 337→218 MB after build, 403→186 MB after brushing;
+  brush −18% (36.4→29.8 ms/step on the chain micro).
+- **The DSL** (`4e87200` `b77b1af`, workflow-built): HTML.*/SVG.* immutable Proxy
+  builders (dot sugar: class / `'#id'` / `'attr=value'`; `_`→`-` per v2, `fb7c84a`) and
+  classic JSX h/Fragment/For — both THIN sugar producing exact el()/list() records via
+  the shared `normChildren`. **The v2 child ambiguity is dead**: a bare view child is
+  reactive TEXT always; iteration is ONLY `<For>`/list(); a function child under a
+  string tag throws (no `[vp, fn]`, no hasRowFn discriminator family).
+- **Render prop slice** (`7536e82`): patchRow diffs STATIC props between rowFn outputs
+  (class-from-row-data patches surgically); `checked`/`value` write the DOM PROPERTY
+  when present (the attribute is only the pre-interaction default). Idiom: listeners
+  bind ONCE — handlers read current state through the source (`items.get(id)`), never
+  their captured row snapshot.
+- **todo-v3** (`db23da9`): the second M5 migration, first DSL browser consumer —
+  mirror()-routed filters, data-carried editing state, live checkbox props. Spec green.
+- **Gates wired** (`9906424`): `npm run test:v3 / typecheck:v3 / perf:v3`; CI runs the
+  first two (perf stays local — noisy-runner policy). Closes old gap 4.
+- **Integer keys** (`d63563c`): crossfilter-v3 + its bench use an array-born source
+  (minted int keys) — string-key hashing cost ~30% of a brush step, p95 halved.
+- Full-dataset bench re-run (post all of the above): brush_date 0.254× / brush_delay
+  0.141× of v2 at the median; setup 0.616× (v3 now FASTER than v2); RSS delta down to
+  1.40× (was 2.45×). Quiet-box floor: v3 date 25.9 ms/step, delay 10.6 ms/step —
+  approaching native crossfilter2's 20.9 ms/step on the same box/data/sweep. Full
+  table in [perf/crossfilter-example.bench.ts](perf/crossfilter-example.bench.ts)'s header.
+
 ## Known gaps / next work (M4.5b+)
 
-1. **Builders/JSX** (M4.5b): the full HTML.*/SVG.* DSL + h/Fragment/For over the AST
-  (el/text/list/bind is the complete primitive set now — the DSL is sugar over it);
-  components/onCleanup/error-boundary scopes; devtools panel port.
+1. **M4.5b rest**: the automatic jsx-runtime (jsx/jsxs/jsxDEV entries), per-tag
+  intrinsic JSX types (the jsx/intrinsics.ts port — .tsx authoring is untyped until
+  then), component scopes (onCleanup / error boundaries), devtools panel port.
 2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
   parity-test compat/v2-records.ts against them (only shape-level tests exist).
 3. **Registry-generated types** — replace the hand-mirrored Reserved/Ops in types/surface.ts;
   flip surface.ts's dynamic-import facade to the static import (marked in-file). Wrap
   max/min in installReactive (between's reactive bounds landed 2026-07-05; type fixtures
   for `between(col, handle)` + `bind()`/`text(view, fn)` should follow).
-4. **Wire `npx tsc -p v3/types` into package.json scripts/CI** alongside the v2 gates.
+4. ~~Wire the gates into package.json/CI~~ — DONE 2026-07-06 (`9906424`).
 5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
   cast into parents today); height re-propagation after repoint (stale-height edge — not
   reachable in shipped tests but real); a ScalarSource cell primitive; SourceNode.move()
@@ -143,12 +176,13 @@ The first M5 example migration, plus the M4.5b slice it forced:
   mode; per-path connect(); positional limit(); page().
 6. **M5**: remaining example migrations (todo next), v2 perf corpus re-baseline,
   MIGRATION.md, the flip. fero Phase 0.5 items on the v2 side remain undone.
-7. **Memory**: the example bench measured v3 at 2.4× v2's retained RSS on the 231k
-  workload (408 MB vs 167 MB) — the per-node full-mirror cost (map cache, each
-  between's rows mirror, intersect's per-parent prows). Not a correctness issue and
-  not gated, but the M6 columnar backing (plans/v3/concepts/columnar-ir.md) is the
-  planned answer; a cheaper interim is sharing row maps between an operator and its
-  sole parent where identity-forwarding allows.
+7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
+  per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
+  crossfilter-shaped micro). What remains per-node: map's output cache, each between's
+  rows mirror + view, ordered's rows cache. The M6 columnar backing
+  (plans/v3/concepts/columnar-ir.md) is still the structural answer; a cheaper interim
+  is sharing row maps between an operator and its sole parent where identity-forwarding
+  allows.
 
 ## Standing methodology rules (hard-won; do not regress)
 
