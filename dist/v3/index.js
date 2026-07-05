@@ -1424,7 +1424,6 @@ defineOperator({
 var OrderIndex = class {
   constructor(cmp) {
     this.keys = [];
-    this.rank = /* @__PURE__ */ new Map();
     this.cmp = cmp;
   }
   get size() {
@@ -1432,12 +1431,9 @@ var OrderIndex = class {
   }
   build(keys) {
     this.keys = keys.slice().sort(this.cmp);
-    this.rank.clear();
-    for (let i = 0; i < this.keys.length; i++) this.rank.set(this.keys[i], i);
   }
-  // lower_bound: the unique legal position for `key` under the strict total
-  // order. `key` must NOT currently be in the index (remove first — the v2
-  // splice-out-before-bisect rule, made structural).
+  // lower_bound: for an absent key, its unique legal insertion position; for
+  // a present key, its exact position (strict total order).
   bisect(key) {
     let lo = 0;
     let hi = this.keys.length;
@@ -1451,20 +1447,41 @@ var OrderIndex = class {
   insert(key) {
     const at = this.bisect(key);
     this.keys.splice(at, 0, key);
-    for (let i = at; i < this.keys.length; i++) this.rank.set(this.keys[i], i);
     return at;
   }
   remove(key) {
-    const at = this.rank.get(key);
-    if (at === void 0) return -1;
-    this.keys.splice(at, 1);
-    this.rank.delete(key);
-    for (let i = at; i < this.keys.length; i++) this.rank.set(this.keys[i], i);
+    const at = this.rankOf(key);
+    if (at >= 0) this.keys.splice(at, 1);
     return at;
   }
   rankOf(key) {
-    const r = this.rank.get(key);
-    return r === void 0 ? -1 : r;
+    const at = this.bisect(key);
+    return at < this.keys.length && this.keys[at] === key ? at : -1;
+  }
+  // Batch reconcile — ONE pass over the index: drop every key in `removed`
+  // (no comparisons — membership only), then merge the sorted `inserts`.
+  // O(N + Δ log Δ), independent of how the removals are distributed. NOTE:
+  // sorts `inserts` in place; every insert's row must already be current.
+  reconcile(removed, inserts) {
+    let base = this.keys;
+    if (removed !== null && removed.size > 0) {
+      const kept = [];
+      for (const k of base) if (!removed.has(k)) kept.push(k);
+      base = kept;
+    }
+    if (inserts.length > 0) {
+      if (inserts.length > 1) inserts.sort(this.cmp);
+      const merged = new Array(base.length + inserts.length);
+      let i = 0;
+      let j = 0;
+      let o = 0;
+      while (i < base.length && j < inserts.length)
+        merged[o++] = this.cmp(base[i], inserts[j]) < 0 ? base[i++] : inserts[j++];
+      while (i < base.length) merged[o++] = base[i++];
+      while (j < inserts.length) merged[o++] = inserts[j++];
+      base = merged;
+    }
+    this.keys = base;
   }
 };
 var OrderedView = class extends DataNode {
@@ -1531,6 +1548,9 @@ var OrderedView = class extends DataNode {
     const preSet = this.winSet;
     const dmap = /* @__PURE__ */ new Map();
     const toInsert = [];
+    const removedIdx = [];
+    const pendingRow = /* @__PURE__ */ new Map();
+    const pendingDel = [];
     for (const d of input.rows) {
       dmap.set(d.key, d);
       switch (d.op) {
@@ -1540,9 +1560,8 @@ var OrderedView = class extends DataNode {
           toInsert.push(d.key);
           break;
         case "remove":
-          this.index.remove(d.key);
-          this.rows.delete(d.key);
-          this.tie.delete(d.key);
+          removedIdx.push(d.key);
+          pendingDel.push(d.key);
           break;
         case "update": {
           if (!this.rows.has(d.key)) {
@@ -1551,17 +1570,29 @@ var OrderedView = class extends DataNode {
             toInsert.push(d.key);
             break;
           }
-          const old = this.rows.get(d.key);
-          this.rows.set(d.key, d.row);
-          if (this.userCmp(old, d.row) !== 0) {
-            this.index.remove(d.key);
+          if (this.userCmp(this.rows.get(d.key), d.row) !== 0) {
+            removedIdx.push(d.key);
+            pendingRow.set(d.key, d.row);
             toInsert.push(d.key);
+          } else {
+            this.rows.set(d.key, d.row);
           }
           break;
         }
       }
     }
-    for (const k of toInsert) this.index.insert(k);
+    if (removedIdx.length + toInsert.length > 32) {
+      for (const [k, row] of pendingRow) this.rows.set(k, row);
+      this.index.reconcile(removedIdx.length > 0 ? new Set(removedIdx) : null, toInsert);
+    } else {
+      for (const k of removedIdx) this.index.remove(k);
+      for (const [k, row] of pendingRow) this.rows.set(k, row);
+      for (const k of toInsert) this.index.insert(k);
+    }
+    for (const k of pendingDel) {
+      this.rows.delete(k);
+      this.tie.delete(k);
+    }
     const newWindow = this.index.keys.slice(0, this.winLen(this.index.keys.length));
     const newSet = new Set(newWindow);
     const out = [];

@@ -15,6 +15,7 @@
 !examples/kanban/**/*.js
 !examples/pivot/**/*.js
 !examples/library/**/*.js
+!examples/crossfilter-v3/**/*.js
 !perf/**/*.js
 !mockups/**/*.js
 
