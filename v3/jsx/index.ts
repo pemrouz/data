@@ -1,0 +1,118 @@
+// v3/jsx — the classic JSX transform (jsxFactory: h, jsxFragmentFactory:
+// Fragment) — M4.5b sugar layer.
+//
+// A THIN layer over the frozen render AST, sharing normChildren with the
+// builder DSL: `<div class="x">{total}</div>` produces the EXACT record
+// `el('div', { class: 'x' }, text(total))` produces — same renderer, same
+// keyed sink, same surgical updates. Props pass through UNCHANGED (the
+// renderer already dispatches on* events / handle / DataNode / bind() /
+// static values), so reactive attrs need no JSX-side work.
+//
+// THE v2 CHILD AMBIGUITY IS DEAD (deliberate kill, do not resurrect):
+// - a bare $ handle / view child is reactive TEXT, always — it never
+//   auto-iterates, whatever its siblings are.
+// - iteration is ONLY <For each={view}>{(row, key) => vnode}</For>, which is
+//   list(view, fn). There is NO [vp, fn] children shorthand: a FUNCTION child
+//   under a string tag THROWS (normChildren's unsupported-child error), so a
+//   view child can never silently pair with a sibling function and flip from
+//   text to iteration (the v2 hasRowFn discriminator and its whole bug family
+//   — text-vs-data path flips, element-sibling exclusions — do not exist here).
+//
+// Components: a FUNCTION tag is called as tag({ ...props, children }) and its
+// return value (a VNode or VNode[]) is used directly. Component children are
+// normalized with the SAME vocabulary as element children EXCEPT a function
+// child passes through raw — the render-prop protocol For itself relies on.
+// Fragment is just such a component: it returns its children array, and
+// normChildren's array-flattening makes it disappear into any parent
+// (render() accepts a VNode[] at the root).
+//
+// DEFERRED (rest of M4.5b+): the automatic runtime (jsx-runtime / jsxs /
+// jsxDEV), per-tag intrinsic JSX types (the v2 jsx/intrinsics.ts port),
+// components with scoped onCleanup / error boundaries.
+
+import { el, list } from '../render/index.ts'
+import type { VNode, ListNode } from '../render/index.ts'
+import { normChildren } from '../render/builders.ts'
+import { DataNode } from '../kernel/node.ts'
+import type { RowKey } from '../contract/delta.ts'
+
+// The versioned handle symbol (Symbol.for — shared with api/index.ts without
+// importing it; a symbol read is safe on the handle proxy, string reads are
+// child-path dispatch and may throw).
+const NODE = Symbol.for('data.v3.node')
+
+export type Component = (props: any) => VNode | VNode[]
+
+function isViewLike(x: unknown): boolean {
+  if (x instanceof DataNode) return true
+  return x !== null && typeof x === 'object' && (x as any)[NODE] instanceof DataNode
+}
+
+function viewNodeOf(x: unknown): DataNode<any> {
+  return x instanceof DataNode ? x : ((x as any)[NODE] as DataNode<any>)
+}
+
+// Component-children normalization: normChildren's vocabulary, EXCEPT a
+// FUNCTION child passes through raw (the render-prop protocol — For's row
+// fn). String tags use normChildren directly, so a function child of an
+// ELEMENT still throws.
+function normComponentChildren(children: unknown[]): unknown[] {
+  const out: unknown[] = []
+  const push = (c: unknown): void => {
+    if (typeof c === 'function') {
+      out.push(c)
+      return
+    }
+    if (Array.isArray(c)) {
+      for (const k of c) push(k)
+      return
+    }
+    for (const v of normChildren([c])) out.push(v)
+  }
+  for (const c of children) push(c)
+  return out
+}
+
+// ── h — the classic jsxFactory ───────────────────────────────────────────────
+
+export function h(
+  tag: string | Component,
+  props: Record<string, unknown> | null,
+  ...children: unknown[]
+): VNode | VNode[] {
+  if (typeof tag === 'function') {
+    // JSX children args win over a props.children entry; with no args a
+    // props-passed children (e.g. <For children={fn}/>) survives the default.
+    const p: Record<string, unknown> =
+      children.length > 0
+        ? { ...(props ?? {}), children: normComponentChildren(children) }
+        : { children: [], ...(props ?? {}) }
+    return tag(p)
+  }
+  return el(tag, props ?? null, ...normChildren(children))
+}
+
+// ── Fragment — flattened children, no host element ───────────────────────────
+
+export function Fragment(props: { children?: unknown }): VNode[] {
+  const c = props?.children
+  return (Array.isArray(c) ? c : c == null ? [] : [c]) as VNode[]
+}
+
+// ── For — THE iteration form: <For each={view}>{(row, key) => vnode}</For> ──
+
+export function For(props: { each?: unknown; children?: unknown }): ListNode {
+  const each = props?.each
+  if (!isViewLike(each))
+    throw new Error('data/jsx: <For> requires each={view} — a collection $ handle or DataNode')
+  if (viewNodeOf(each).kind === 'scalar')
+    throw new Error('data/jsx: <For each={…}> expects a COLLECTION view, got a scalar')
+  const c = props?.children
+  const kids = Array.isArray(c) ? c : c == null ? [] : [c]
+  if (kids.length !== 1 || typeof kids[0] !== 'function')
+    throw new Error(
+      'data/jsx: <For each={view}> takes exactly ONE child — the row function (row, key) => vnode. ' +
+        'Iteration is ONLY For/list(); a bare view child is reactive text, and the v2 [vp, fn] shorthand is gone.',
+    )
+  return list(each, kids[0] as (row: any, key: RowKey) => VNode)
+}
