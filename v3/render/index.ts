@@ -175,6 +175,26 @@ function normAttr(v: unknown): string | null {
   return v == null || v === false ? null : v === true ? '' : String(v)
 }
 
+// LIVE form props: for these, the DOM attribute is only the DEFAULT — once a
+// user has interacted, the browser reads the PROPERTY (a checkbox that was
+// clicked ignores setAttribute('checked')). When the element carries the
+// property, write it directly; the attribute path remains for everything
+// else (and for the test mock, whose El has no form properties).
+function setProp(dom: any, name: string, v: unknown): boolean {
+  if ((name === 'checked' || name === 'value') && name in dom) {
+    if (name === 'checked') dom.checked = v === true || v === ''
+    else dom.value = v == null ? '' : String(v)
+    return true
+  }
+  return false
+}
+
+function applyAttr(dom: any, name: string, next: string | null): void {
+  if (setProp(dom, name, next)) return
+  if (next === null) dom.removeAttribute(name)
+  else dom.setAttribute(name, next)
+}
+
 function bindAttr(
   dom: any,
   name: string,
@@ -185,7 +205,7 @@ function bindAttr(
   const read = readerOf(view)
   const compute = () => normAttr(fn === null ? read() : fn(read()))
   let last = compute()
-  if (last !== null) dom.setAttribute(name, last)
+  if (last !== null || name === 'checked' || name === 'value') applyAttr(dom, name, last)
   const sub = nodeOf(view).connect({
     wantsOrder: false,
     origin: null,
@@ -193,8 +213,7 @@ function bindAttr(
       const next = compute()
       if (next === last) return // normalized-string cutoff — no redundant DOM writes
       last = next
-      if (next === null) dom.removeAttribute(name)
-      else dom.setAttribute(name, next)
+      applyAttr(dom, name, next)
     },
   })
   scope.add(sub)
@@ -278,14 +297,44 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
   }
 }
 
-// Row-update patching: re-run ONLY the row's text bindings against the fresh
-// rowFn output. rtext and nested lists are self-updating (their own
-// subscriptions) and are left untouched. Returns whether the shapes matched;
-// a structural mismatch (kind / tag / child count changed — a rowFn whose
-// SHAPE depends on the row, e.g. a group bucket gaining a member) reports
-// false and the list sink REBUILDS that row in place. Static props are set
-// once at build; a prop that must track the row reactively should be a
-// bind()/handle prop (self-updating) or the row shape should change (rebuild).
+// Row-update patching: re-run the row's TEXT bindings and STATIC props
+// against the fresh rowFn output — a rowFn computing `class` from row data
+// ("todo completed") patches surgically on update. rtext, nested lists, and
+// bind()/handle props are self-updating (their own subscriptions) and are
+// left untouched; listeners are bound ONCE at build (so a handler must read
+// current row state through the source — `items.get(key)[value]` — not its
+// captured row snapshot). Returns whether the shapes matched; a structural
+// mismatch (kind / tag / child count changed — a rowFn whose SHAPE depends
+// on the row) reports false and the list sink REBUILDS that row in place.
+function staticProp(x: unknown): boolean {
+  return typeof x !== 'function' && !isView(x) && !isBindProp(x)
+}
+
+function patchProps(
+  dom: any,
+  prev: Readonly<Record<string, unknown>> | null,
+  next: Readonly<Record<string, unknown>> | null,
+): void {
+  if (prev === next) return
+  if (next !== null) {
+    for (const k of Object.keys(next)) {
+      if (k.startsWith('on')) continue
+      const nv = next[k]
+      if (!staticProp(nv)) continue
+      const pv = prev !== null && k in prev ? prev[k] : undefined
+      if (pv !== undefined && !staticProp(pv)) continue // was reactive: self-updating, leave it
+      const na = normAttr(nv)
+      if (normAttr(pv) !== na) applyAttr(dom, k, na)
+    }
+  }
+  if (prev !== null) {
+    for (const k of Object.keys(prev)) {
+      if (k.startsWith('on') || !staticProp(prev[k])) continue
+      if (next === null || !(k in next)) applyAttr(dom, k, null) // prop dropped
+    }
+  }
+}
+
 function patchRow(m: Mounted, v: VNode): boolean {
   if (m.vnode.kind !== v.kind) return false
   if (v.kind === 'text') {
@@ -298,6 +347,7 @@ function patchRow(m: Mounted, v: VNode): boolean {
     if (prev.tag !== v.tag) return false
     const next = v.children
     if (m.children === null || m.children.length !== next.length) return false
+    patchProps(m.dom, prev.props, v.props)
     for (let i = 0; i < next.length; i++) {
       if (!patchRow(m.children[i], next[i])) return false
     }

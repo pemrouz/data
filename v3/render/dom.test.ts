@@ -521,3 +521,46 @@ test('structural row rebuild: a shape-changing update rebuilds IN PLACE; shape-s
   eq(h.children[1].children.length, 3)
   eq(dom.ops.removed, 1) // exactly the one replaced row element
 })
+
+test('patchRow patches STATIC props: class computed from row data toggles surgically', () => {
+  const rt = new Runtime()
+  type Todo = { t: string; done: boolean }
+  const src = new SourceNode<Todo>(rt, { a: { t: 'A', done: false }, b: { t: 'B', done: true } })
+  const h = host()
+  render(h, list(src, (r: Todo) =>
+    el('li', { class: `todo${r.done ? ' completed' : ''}`, 'data-n': r.t }, r.t),
+  ))
+  const liA = h.children[0]
+  eq(liA.attrs.class, 'todo')
+  dom.reset()
+  src.write('a', ['done'], true)
+  eq(liA.attrs.class, 'todo completed') // patched in place
+  ok(h.children[0] === liA) // same element (no rebuild)
+  eq(dom.ops.attrWrites, 1) // class only — data-n unchanged, no redundant write
+  src.write('a', [], { t: 'A2', done: true })
+  eq(liA.attrs['data-n'], 'A2')
+  eq(liA.text, 'A2')
+})
+
+test('live form props: checked/value write the PROPERTY when the element has one', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ on: boolean; txt: string }>(rt, { a: { on: false, txt: 'hi' } })
+  const hnd = handleFor(src)
+  const h = host()
+  render(h, el('input', {
+    checked: bind(hnd.get('a').get('on')),
+    value: bind(hnd.get('a').get('txt')),
+  }))
+  const input = h.children[0]
+  // the mock El has no checked/value fields → attribute fallback
+  eq('checked' in input.attrs, false) // false → removed/absent
+  eq(input.attrs.value, 'hi')
+  // give the element live properties (a browser input) — property path takes over
+  ;(input as any).checked = false
+  ;(input as any).value = 'hi'
+  src.write('a', ['on'], true)
+  eq((input as any).checked, true) // PROPERTY write, not attribute
+  eq('checked' in input.attrs, false)
+  src.write('a', ['txt'], 'yo')
+  eq((input as any).value, 'yo')
+})
