@@ -24,14 +24,13 @@ function collect<T>(node: DataNode<T>): CommitBatch<T>[] {
 
 // ── OrderIndex ────────────────────────────────────────────────────────────────
 
-test('OrderIndex: bisect insertion, rank map repaired from the splice point', () => {
+test('OrderIndex: bisect insertion; rank lookup IS a bisect (no eager rank map)', () => {
   const vals = new Map<RowKey, number>([['a', 30], ['b', 10], ['c', 20], ['d', 40]])
   const idx = new OrderIndex((x, y) => vals.get(x)! - vals.get(y)!)
   idx.build(['a', 'b', 'c', 'd'])
   same(idx.keys, ['b', 'c', 'a', 'd'])
   const checkRanks = () => {
-    same(idx.rank.size, idx.keys.length)
-    for (let i = 0; i < idx.keys.length; i++) same(idx.rank.get(idx.keys[i]), i)
+    for (let i = 0; i < idx.keys.length; i++) same(idx.rankOf(idx.keys[i]), i)
   }
   checkRanks()
   vals.set('e', 25)
@@ -45,6 +44,40 @@ test('OrderIndex: bisect insertion, rank map repaired from the splice point', ()
   same(idx.rankOf('b'), -1)
   same(idx.remove('b'), -1) // absent key is a no-op
   checkRanks()
+})
+
+test('OrderIndex.reconcile: one filter+merge pass ≡ per-key splices', () => {
+  const vals = new Map<RowKey, number>()
+  const keys: RowKey[] = []
+  for (let i = 0; i < 500; i++) {
+    const k = `k${i}`
+    vals.set(k, (i * 7919) % 1000) // deterministic scatter with collisions
+    keys.push(k)
+  }
+  const cmp = (x: RowKey, y: RowKey) => {
+    const c = vals.get(x)! - vals.get(y)!
+    return c !== 0 ? c : String(x) < String(y) ? -1 : 1 // strict total order
+  }
+  const a = new OrderIndex(cmp)
+  const b = new OrderIndex(cmp)
+  a.build(keys)
+  b.build(keys)
+
+  // remove every 3rd key; insert 100 fresh keys landing across the range
+  const removed = new Set<RowKey>()
+  for (let i = 0; i < 500; i += 3) removed.add(`k${i}`)
+  const inserts: RowKey[] = []
+  for (let i = 0; i < 100; i++) {
+    const k = `n${i}`
+    vals.set(k, (i * 613) % 1000)
+    inserts.push(k)
+  }
+
+  for (const k of removed) a.remove(k)
+  for (const k of inserts) a.insert(k)
+  b.reconcile(removed, inserts.slice())
+  same(b.keys, a.keys) // identical membership AND order
+  same(b.rankOf('n0'), a.rankOf('n0'))
 })
 
 // ── az / za, object-born ─────────────────────────────────────────────────────

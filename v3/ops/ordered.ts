@@ -26,8 +26,17 @@
 //   for the WHOLE array, not just the bad rows).
 //
 // v2's known patchable flaw — the O(N) `sorted.indexOf(key)` rank lookup —
-// is fixed here: OrderIndex keeps a key → rank Map alongside the rank → key
-// array, repaired from the splice point after every splice.
+// is fixed here WITHOUT an eager rank map: the keys array is sorted under a
+// STRICT total order, so a key's rank is one comparator bisect away
+// (O(log N)). The first cut of this module kept a key → rank Map "repaired
+// from the splice point" after every splice — an O(N) Map-write loop PER
+// DELTA that went quadratic the moment an ordered view sat downstream of a
+// churning source (the crossfilter-v3 example: za('date', 80) over a 231k-row
+// intersect made one brush step cost seconds). Index maintenance is now
+// per-settle hybrid: small batches splice per key (O(Δ·(log N + memmove)));
+// batches touching > 32 keys reconcile in ONE set-filter + sorted-merge pass
+// (O(N + Δ log Δ)) — the same batch discipline the window reconcile below
+// already followed.
 //
 // Documented determinism rules:
 // - Ties break by key insertion order into THIS view (initial snapshot
@@ -49,20 +58,24 @@ import { defineOperator } from './registry.ts'
 export type RowComparator<T> = (a: T, b: T) => number
 
 // ── OrderIndex ───────────────────────────────────────────────────────────────
-// rank → key array + key → rank map, maintained under a STRICT total order
-// (the comparator must never return 0 for two distinct keys — OrderedView
-// guarantees this with the tie seq). After any splice, ranks are repaired
-// from the splice point; lookups are O(1), insertion is O(log N) to find +
-// O(N - pos) to splice/repair.
+// A rank → key array maintained under a STRICT total order (the comparator
+// must never return 0 for two distinct keys — OrderedView guarantees this
+// with the tie seq). No eager key → rank map: strictness makes lower_bound
+// land EXACTLY on a present key, so rank lookup is a bisect (O(log N)) and a
+// splice never triggers a rank-repair loop. Batch churn goes through
+// reconcile() — one set-filter + sorted-merge pass, never per-key splices.
+//
+// Comparator contract for lookups: bisecting a PRESENT key compares it
+// against members using the SAME row values it was ranked under — callers
+// must remove a key from the index BEFORE updating what its comparator sees
+// (OrderedView's settle defers row-cache writes accordingly).
 
 export class OrderIndex {
   declare keys: RowKey[]
-  declare rank: Map<RowKey, number>
   declare cmp: (a: RowKey, b: RowKey) => number
 
   constructor(cmp: (a: RowKey, b: RowKey) => number) {
     this.keys = []
-    this.rank = new Map()
     this.cmp = cmp
   }
 
@@ -72,13 +85,10 @@ export class OrderIndex {
 
   build(keys: readonly RowKey[]): void {
     this.keys = keys.slice().sort(this.cmp)
-    this.rank.clear()
-    for (let i = 0; i < this.keys.length; i++) this.rank.set(this.keys[i], i)
   }
 
-  // lower_bound: the unique legal position for `key` under the strict total
-  // order. `key` must NOT currently be in the index (remove first — the v2
-  // splice-out-before-bisect rule, made structural).
+  // lower_bound: for an absent key, its unique legal insertion position; for
+  // a present key, its exact position (strict total order).
   bisect(key: RowKey): number {
     let lo = 0
     let hi = this.keys.length
@@ -93,22 +103,44 @@ export class OrderIndex {
   insert(key: RowKey): number {
     const at = this.bisect(key)
     this.keys.splice(at, 0, key)
-    for (let i = at; i < this.keys.length; i++) this.rank.set(this.keys[i], i)
     return at
   }
 
   remove(key: RowKey): number {
-    const at = this.rank.get(key)
-    if (at === undefined) return -1
-    this.keys.splice(at, 1)
-    this.rank.delete(key)
-    for (let i = at; i < this.keys.length; i++) this.rank.set(this.keys[i], i)
+    const at = this.rankOf(key)
+    if (at >= 0) this.keys.splice(at, 1)
     return at
   }
 
   rankOf(key: RowKey): number {
-    const r = this.rank.get(key)
-    return r === undefined ? -1 : r
+    const at = this.bisect(key)
+    return at < this.keys.length && this.keys[at] === key ? at : -1
+  }
+
+  // Batch reconcile — ONE pass over the index: drop every key in `removed`
+  // (no comparisons — membership only), then merge the sorted `inserts`.
+  // O(N + Δ log Δ), independent of how the removals are distributed. NOTE:
+  // sorts `inserts` in place; every insert's row must already be current.
+  reconcile(removed: ReadonlySet<RowKey> | null, inserts: RowKey[]): void {
+    let base = this.keys
+    if (removed !== null && removed.size > 0) {
+      const kept: RowKey[] = []
+      for (const k of base) if (!removed.has(k)) kept.push(k)
+      base = kept
+    }
+    if (inserts.length > 0) {
+      if (inserts.length > 1) inserts.sort(this.cmp)
+      const merged: RowKey[] = new Array(base.length + inserts.length)
+      let i = 0
+      let j = 0
+      let o = 0
+      while (i < base.length && j < inserts.length)
+        merged[o++] = this.cmp(base[i], inserts[j]) < 0 ? base[i++] : inserts[j++]
+      while (i < base.length) merged[o++] = base[i++]
+      while (j < inserts.length) merged[o++] = inserts[j++]
+      base = merged
+    }
+    this.keys = base
   }
 }
 
@@ -191,22 +223,25 @@ export class OrderedView<T> extends DataNode<T> {
     const preSet = this.winSet
     const dmap = new Map<RowKey, RowDelta<T>>()
     const toInsert: RowKey[] = []
+    const removedIdx: RowKey[] = [] // keys leaving the index (removes + re-ranks)
+    const pendingRow = new Map<RowKey, T>() // re-ranked updates: applied after index removal
+    const pendingDel: RowKey[] = [] // removes: cache deletion deferred past index ops
 
-    // Phase A — apply row-cache mutations and REMOVE every touched key from
-    // the index. No bisect happens in this phase, so partially-updated rows
-    // can't feed a bisect a non-monotonic array (v2 _batchUpdate discipline).
+    // Phase A — classify. Row-cache writes a lookup bisect could observe are
+    // DEFERRED: a key's removal bisect must see the row it was ranked under
+    // (the bisect-rank contract), and every other indexed key's row must be
+    // unchanged-under-cmp (v2 _batchUpdate discipline, made structural).
     for (const d of input.rows as readonly RowDelta<T>[]) {
       dmap.set(d.key, d)
       switch (d.op) {
         case 'add':
-          this.rows.set(d.key, d.row)
+          this.rows.set(d.key, d.row) // not yet indexed — no bisect can see it
           this.tie.set(d.key, this.tieSeq++)
           toInsert.push(d.key)
           break
         case 'remove':
-          this.index.remove(d.key)
-          this.rows.delete(d.key)
-          this.tie.delete(d.key)
+          removedIdx.push(d.key)
+          pendingDel.push(d.key)
           break
         case 'update': {
           if (!this.rows.has(d.key)) {
@@ -217,21 +252,39 @@ export class OrderedView<T> extends DataNode<T> {
             toInsert.push(d.key)
             break
           }
-          const old = this.rows.get(d.key) as T
-          this.rows.set(d.key, d.row)
           // Reindex only when the comparator can see the change; a rank can't
           // move otherwise (the tie seq — preserved here — is stable).
-          if (this.userCmp(old, d.row) !== 0) {
-            this.index.remove(d.key)
+          if (this.userCmp(this.rows.get(d.key) as T, d.row) !== 0) {
+            removedIdx.push(d.key)
+            pendingRow.set(d.key, d.row)
             toInsert.push(d.key)
+          } else {
+            this.rows.set(d.key, d.row) // cmp-blind: position unaffected
           }
           break
         }
       }
     }
-    // Phase B — every bisect runs against a monotonic remainder + already-
-    // re-inserted current rows.
-    for (const k of toInsert) this.index.insert(k)
+
+    // Phase B — index maintenance, hybrid by batch size. Small batches splice
+    // per key; larger ones reconcile in ONE set-filter + sorted-merge pass
+    // (the crossfilter brush shape: thousands of membership flips per commit
+    // must never pay per-key O(N) splices). The per-key path removes BEFORE
+    // applying pending rows (each removal bisect sees the ranked-under row);
+    // the batch path filters by membership (no comparisons), so row currency
+    // only matters for the merge — where inserts carry their new rows.
+    if (removedIdx.length + toInsert.length > 32) {
+      for (const [k, row] of pendingRow) this.rows.set(k, row)
+      this.index.reconcile(removedIdx.length > 0 ? new Set(removedIdx) : null, toInsert)
+    } else {
+      for (const k of removedIdx) this.index.remove(k)
+      for (const [k, row] of pendingRow) this.rows.set(k, row)
+      for (const k of toInsert) this.index.insert(k)
+    }
+    for (const k of pendingDel) {
+      this.rows.delete(k)
+      this.tie.delete(k)
+    }
 
     // The once-per-batch window reconcile (v2 _window, generalized): diff the
     // old window keyset against the new one. Evictions are honest removes
