@@ -28,6 +28,31 @@
 //                      v3/perf/crossfilter-example.bench.ts
 // Dev iteration:     FLIGHTS_N=20000 REPS=1 node ... (same command)
 //
+// ── RESULTS 2026-07-06 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
+// Supersedes the 2026-07-05 table below. Taken AFTER perf(v3/setops) 09adf4a
+// (direct parent queries — the mask/prows mirrors died) and
+// perf(examples/crossfilter-v3) d63563c (array-born source → minted integer
+// keys; the same change is in this bench's v3 child).
+//
+//   | workload          | v2 median      | v3 median      | ratio (v3/v2) |
+//   |-------------------|----------------|----------------|---------------|
+//   | setup             | 7769.9 ms      | 5922.5 ms      | 0.616×        |
+//   | setup RSS delta   | 166.5 MB       | 237.8 MB       | 1.396×        |
+//   | brush_date median | 204.6 ms/step  | 64.2 ms/step   | 0.254×        |
+//   | brush_date p95    | 443.8 ms/step  | 104.7 ms/step  | 0.210×        |
+//   | brush_delay median| 103.5 ms/step  | 17.7 ms/step   | 0.141×        |
+//   | brush_delay p95   | 374.7 ms/step  | 213.9 ms/step  | 0.492×        |
+//
+// Checksums v2 ≡ v3 (1596228503) on every replicate. vs the 2026-07-05 run:
+// v3 setup 8322 → 5923 ms (now 0.62× of v2, was parity), RSS delta 407.7 →
+// 237.8 MB (2.45× → 1.40× of v2 — the setops mirrors were the bulk of the
+// overhang), brush_date p95 0.251× → 0.210×, brush_delay 0.153× → 0.141×.
+// Box note: only rep 1 ran on a fully quiet box (reps 2–5 shared the box with
+// test/commit activity; ABAB interleaving keeps the RATIOS honest but inflates
+// absolute medians). The quiet-rep-1 absolutes — v3 date 25.9 ms/step, delay
+// 10.6 ms/step — are the uncontended floor, approaching the native
+// crossfilter2 library measured at 20.9 ms/step on the same box/data/sweep.
+//
 // ── RESULTS 2026-07-05 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
 // Taken AFTER perf(v3/ordered) 693cd0e — the quadratic this bench surfaced
 // (pre-fix, the v3 date sweep did not finish in 30+ CPU-minutes).
