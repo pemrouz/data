@@ -50,3 +50,12 @@ jobs:
       # Files not yet migrated keep their local @ts-nocheck and are excluded.
       - name: Tooling type-check (strict)
         run: npm run typecheck:tooling
+      # The v3 rewrite (branch v3, PR-gated here): its unit+conformance suite
+      # and its fixture-based type gate. The v3 PERF gates (m1/m2) stay local,
+      # same policy as `npm run perf` — timing assertions are too noisy on
+      # shared runners; run `npm run perf:v3` before merging perf-sensitive
+      # changes.
+      - name: v3 suite (unit + conformance)
+        run: npm run test:v3
+      - name: v3 type gate (fixtures)
+        run: npm run typecheck:v3
