@@ -233,3 +233,10 @@ test('SVG subtree via HTML.div(SVG.svg(...)): namespace inheritance, reactive at
   eq(path.attrs.d, 'M0,10') // reactive attr works through the SVG builder
   ok(rect.attrs.width === '4')
 })
+
+test('underscore → hyphen (v2 parity): dot classes and tag names', () => {
+  const n = HTML.input.new_todo({ placeholder: 'x' })
+  assert.deepStrictEqual(n, el('input', { class: 'new-todo', placeholder: 'x' }))
+  const custom = HTML.my_widget('hi')
+  assert.strictEqual(custom.tag, 'my-widget')
+})

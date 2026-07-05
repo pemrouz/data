@@ -119,7 +119,9 @@ function addDot(dot: DotProps, prop: string): DotProps {
       id: dot.id,
       attrs: { ...dot.attrs, [prop.slice(0, eq)]: prop.slice(eq + 1) }, // FIRST '=' splits
     }
-  return { classes: [...dot.classes, prop], id: dot.id, attrs: dot.attrs }
+  // v2 parity: JS identifiers can't carry '-', so `input.new_todo` means the
+  // CSS class "new-todo" (same for tag names below).
+  return { classes: [...dot.classes, prop.replaceAll('_', '-')], id: dot.id, attrs: dot.attrs }
 }
 
 // ── el construction: dot sugar merged with the call's explicit props ─────────
@@ -192,7 +194,7 @@ function namespaceProxy(): BuilderNamespace {
   return new Proxy(Object.create(null), {
     get(_t, prop) {
       if (typeof prop !== 'string') return undefined
-      return makeBuilder(prop, EMPTY_DOT)
+      return makeBuilder(prop.replaceAll('_', '-'), EMPTY_DOT)
     },
   }) as BuilderNamespace
 }
