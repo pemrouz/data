@@ -1067,6 +1067,359 @@ defineOperator({
   }
 });
 
+// v3/ops/setops.ts
+function rootsOf(n, out = /* @__PURE__ */ new Set()) {
+  if (n.parents.length === 0) out.add(n);
+  else for (const p of n.parents) rootsOf(p, out);
+  return out;
+}
+function pathEq(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+var SetOpNode = class extends DataNode {
+  // parents share ≥1 root source
+  constructor(runtime2, variant, primary, others) {
+    const unique = [primary];
+    for (const o of others) if (unique.indexOf(o) < 0) unique.push(o);
+    super(runtime2, "operator", variant, unique);
+    this.variant = variant;
+    this.parentIndex = /* @__PURE__ */ new Map();
+    for (let i = 0; i < unique.length; i++) this.parentIndex.set(unique[i], i);
+    this.fullMask = (1 << unique.length) - 1;
+    this.othersMask = 0;
+    for (const o of others) this.othersMask |= 1 << this.parentIndex.get(o);
+    let common = [...rootsOf(unique[0])];
+    for (let i = 1; i < unique.length && common.length > 0; i++) {
+      const ri = rootsOf(unique[i]);
+      common = common.filter((r) => ri.has(r));
+    }
+    this.sharedProvenance = common.length > 0;
+    this.prows = [];
+    for (const p of unique) this.prows.push(p.snapshot());
+    this.masks = /* @__PURE__ */ new Map();
+    for (let i = 0; i < this.prows.length; i++)
+      for (const k of this.prows[i].keys()) this.masks.set(k, (this.masks.get(k) ?? 0) | 1 << i);
+    this.view = /* @__PURE__ */ new Map();
+    for (const [k, m] of this.masks) if (this.isLive(k, m)) this.view.set(k, this.exposed(k));
+  }
+  isLive(key, mask) {
+    const numericForeign = typeof key === "number" && !this.sharedProvenance && this.parents.length > 1;
+    switch (this.variant) {
+      case "intersect":
+        return numericForeign ? false : mask === this.fullMask;
+      case "union":
+        return mask !== 0;
+      case "except": {
+        if ((mask & 1) === 0) return false;
+        if (numericForeign) return true;
+        return (mask & this.othersMask) === 0;
+      }
+    }
+  }
+  // The exposed row for a live key. intersect/except: the primary's row.
+  // union: first parent (in parent order) holding the key — primary wins.
+  exposed(key) {
+    if (this.variant === "union") {
+      const prows = this.prows;
+      for (let i = 0; i < prows.length; i++) if (prows[i].has(key)) return prows[i].get(key);
+      return void 0;
+    }
+    return this.prows[0].get(key);
+  }
+  snapshot() {
+    if (this.runtime.midBatch) return this.recomputePure();
+    return new Map(this.view);
+  }
+  // Flush-on-read: recompute PURE from parents (whose snapshots are
+  // themselves mid-batch-consistent), touching none of this node's state.
+  recomputePure() {
+    const snaps = [];
+    for (const p of this.parents) snaps.push(p.snapshot());
+    const masks = /* @__PURE__ */ new Map();
+    for (let i = 0; i < snaps.length; i++)
+      for (const k of snaps[i].keys()) masks.set(k, (masks.get(k) ?? 0) | 1 << i);
+    const out = /* @__PURE__ */ new Map();
+    for (const [k, m] of masks) {
+      if (!this.isLive(k, m)) continue;
+      if (this.variant === "union") {
+        for (let i = 0; i < snaps.length; i++)
+          if (snaps[i].has(k)) {
+            out.set(k, snaps[i].get(k));
+            break;
+          }
+      } else {
+        out.set(k, snaps[0].get(k));
+      }
+    }
+    return out;
+  }
+  settle(seq, origin) {
+    if (this.in0 === null) return null;
+    const touched = /* @__PURE__ */ new Map();
+    this.fold(this.inFrom0, this.in0, touched);
+    if (this.inMore !== null)
+      for (const { from, batch: batch2 } of this.inMore) this.fold(from, batch2, touched);
+    const out = [];
+    for (const [k, cand] of touched) {
+      const preLive = this.view.has(k);
+      const preRow = this.view.get(k);
+      const postLive = this.isLive(k, this.masks.get(k) ?? 0);
+      if (!preLive && postLive) {
+        const row = this.exposed(k);
+        this.view.set(k, row);
+        out.push({ op: "add", key: k, row });
+      } else if (preLive && !postLive) {
+        this.view.delete(k);
+        out.push({ op: "remove", key: k, prev: preRow });
+      } else if (preLive && postLive) {
+        const row = this.exposed(k);
+        if (Object.is(preRow, row)) continue;
+        this.view.set(k, row);
+        let path = cand ?? [];
+        if (path.length > 0 && Object.is(leafAt(preRow, path), leafAt(row, path))) path = [];
+        out.push({ op: "update", key: k, row, prev: preRow, path });
+      }
+    }
+    return out.length ? { seq, origin, rows: out, order: void 0, scalar: void 0 } : null;
+  }
+  fold(from, batch2, touched) {
+    const idx = this.parentIndex.get(from);
+    if (idx === void 0) return;
+    const bit = 1 << idx;
+    const rows = this.prows[idx];
+    const masks = this.masks;
+    for (const d of batch2.rows) {
+      if (!touched.has(d.key)) {
+        touched.set(d.key, d.op === "update" ? d.path : null);
+      } else {
+        const prior = touched.get(d.key);
+        if (!(d.op === "update" && prior !== null && pathEq(prior, d.path)))
+          touched.set(d.key, null);
+      }
+      switch (d.op) {
+        case "add":
+        case "update":
+          rows.set(d.key, d.row);
+          masks.set(d.key, (masks.get(d.key) ?? 0) | bit);
+          break;
+        case "remove": {
+          rows.delete(d.key);
+          const m = (masks.get(d.key) ?? 0) & ~bit;
+          if (m === 0) masks.delete(d.key);
+          else masks.set(d.key, m);
+          break;
+        }
+      }
+    }
+  }
+};
+function intersect(primary, ...others) {
+  return new SetOpNode(primary.runtime, "intersect", primary, others);
+}
+function union(primary, ...others) {
+  return new SetOpNode(primary.runtime, "union", primary, others);
+}
+function except(primary, ...others) {
+  return new SetOpNode(primary.runtime, "except", primary, others);
+}
+defineOperator({
+  name: "intersect",
+  kind: "set",
+  category: "rowop",
+  declarative: true,
+  create: (src, ...others) => intersect(src, ...others),
+  dedupKey: () => null
+  // dedup by source identity is an API-layer concern
+});
+defineOperator({
+  name: "union",
+  kind: "set",
+  category: "rowop",
+  declarative: true,
+  create: (src, ...others) => union(src, ...others),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "except",
+  kind: "set",
+  category: "rowop",
+  declarative: true,
+  create: (src, ...others) => except(src, ...others),
+  dedupKey: () => null
+});
+
+// v3/ops/bucket.ts
+var BucketNode = class extends DataNode {
+  constructor(runtime2, parent, fn, opts, name) {
+    super(runtime2, "operator", name, [parent]);
+    this.fn = fn;
+    this.prune = opts.prune;
+    this.counts = opts.counts;
+    this.members = /* @__PURE__ */ new Map();
+    this.bucketOf = /* @__PURE__ */ new Map();
+    this.view = /* @__PURE__ */ new Map();
+    for (const [k, row] of parent.snapshot()) this.enter(k, row);
+    for (const [bk, mem] of this.members) this.view.set(bk, this.build(mem));
+  }
+  // ── membership bookkeeping ──────────────────────────────────────────────────
+  enter(key, row) {
+    const bk = String(this.fn(row, key));
+    let mem = this.members.get(bk);
+    if (mem === void 0) {
+      mem = /* @__PURE__ */ new Map();
+      this.members.set(bk, mem);
+    }
+    mem.set(key, row);
+    this.bucketOf.set(key, bk);
+    return bk;
+  }
+  leave(key) {
+    const bk = this.bucketOf.get(key);
+    this.members.get(bk).delete(key);
+    this.bucketOf.delete(key);
+    return bk;
+  }
+  // Fresh bucket value — NEVER mutate a previously emitted object (prev must
+  // remain the pre-change object for every downstream consumer). Group bucket
+  // properties are emitted in SORTED key order: deterministic and
+  // history-independent (v2's bucket order depended on arrival history; a
+  // canonical order makes replay/oracle comparison exact byte-for-byte).
+  build(mem) {
+    if (this.counts) return { value: mem.size };
+    const keys = [];
+    const byKey = /* @__PURE__ */ new Map();
+    for (const [k, v] of mem) {
+      const sk = String(k);
+      keys.push(sk);
+      byKey.set(sk, v);
+    }
+    keys.sort();
+    const o = {};
+    for (const sk of keys) o[sk] = byKey.get(sk);
+    return o;
+  }
+  sameBucket(a, b) {
+    if (this.counts) return a.value === b.value;
+    const ao = a;
+    const bo = b;
+    const ka = Object.keys(ao);
+    if (ka.length !== Object.keys(bo).length) return false;
+    for (const k of ka) {
+      if (!Object.prototype.hasOwnProperty.call(bo, k) || !Object.is(ao[k], bo[k])) return false;
+    }
+    return true;
+  }
+  // ── reads ───────────────────────────────────────────────────────────────────
+  snapshot() {
+    if (this.runtime.midBatch) {
+      const members = /* @__PURE__ */ new Map();
+      for (const [k, row] of this.parents[0].snapshot()) {
+        const bk = String(this.fn(row, k));
+        let mem = members.get(bk);
+        if (mem === void 0) {
+          mem = /* @__PURE__ */ new Map();
+          members.set(bk, mem);
+        }
+        mem.set(k, row);
+      }
+      const out = /* @__PURE__ */ new Map();
+      for (const [bk, mem] of members) out.set(bk, this.build(mem));
+      if (!this.prune) {
+        for (const bk of this.view.keys()) if (!out.has(bk)) out.set(bk, this.build(/* @__PURE__ */ new Map()));
+      }
+      return out;
+    }
+    return new Map(this.view);
+  }
+  // ── settle ──────────────────────────────────────────────────────────────────
+  settle(seq, origin) {
+    const input = this.in0;
+    if (input === null) return null;
+    const touched = /* @__PURE__ */ new Map();
+    for (const d of input.rows) {
+      switch (d.op) {
+        case "add": {
+          const bk = this.enter(d.key, d.row);
+          if (!touched.has(bk)) touched.set(bk, this.view.get(bk));
+          break;
+        }
+        case "remove": {
+          const bk = this.leave(d.key);
+          if (!touched.has(bk)) touched.set(bk, this.view.get(bk));
+          break;
+        }
+        case "update": {
+          const oldBk = this.bucketOf.get(d.key);
+          const newBk = String(this.fn(d.row, d.key));
+          if (oldBk === newBk) {
+            this.members.get(oldBk).set(d.key, d.row);
+            if (!this.counts && !touched.has(oldBk)) touched.set(oldBk, this.view.get(oldBk));
+          } else {
+            const from = this.leave(d.key);
+            const to = this.enter(d.key, d.row);
+            if (!touched.has(from)) touched.set(from, this.view.get(from));
+            if (!touched.has(to)) touched.set(to, this.view.get(to));
+          }
+          break;
+        }
+      }
+    }
+    if (touched.size === 0) return null;
+    const out = [];
+    for (const [bk, prev] of touched) {
+      const mem = this.members.get(bk);
+      const emptied = mem.size === 0;
+      if (this.prune && emptied) this.members.delete(bk);
+      const liveNow = this.prune ? !emptied : true;
+      const wasLive = prev !== void 0;
+      if (!liveNow) {
+        if (wasLive) {
+          this.view.delete(bk);
+          out.push({ op: "remove", key: bk, prev });
+        }
+        continue;
+      }
+      const next = this.build(mem);
+      if (!wasLive) {
+        this.view.set(bk, next);
+        out.push({ op: "add", key: bk, row: next });
+      } else if (!this.sameBucket(prev, next)) {
+        this.view.set(bk, next);
+        out.push({ op: "update", key: bk, row: next, prev, path: [] });
+      }
+    }
+    return out.length ? { seq, origin, rows: out, order: void 0, scalar: void 0 } : null;
+  }
+};
+function group(src, fn) {
+  return new BucketNode(src.runtime, src, fn, { prune: true, counts: false }, "group");
+}
+function lengthBuckets(src, fn) {
+  return new BucketNode(src.runtime, src, fn, { prune: false, counts: true }, "lengthBuckets");
+}
+defineOperator({
+  name: "group",
+  kind: "bucket",
+  category: "aggregate-decomposable",
+  declarative: false,
+  create: (src, fn) => group(src, fn),
+  // fn-arg rule: an opaque closure has no value identity, so bucket ops never
+  // dedup (v2: group/length(fn) create a fresh operator per call; only
+  // value-identity args — columns, thresholds, bounds — participate in dedup).
+  dedupKey: () => null
+});
+defineOperator({
+  name: "lengthBuckets",
+  kind: "bucket",
+  category: "aggregate-decomposable",
+  declarative: false,
+  create: (src, fn) => lengthBuckets(src, fn),
+  dedupKey: () => null
+  // fn args — see the note on `group` above
+});
+
 // v3/ops/ordered.ts
 var OrderIndex = class {
   constructor(cmp) {
@@ -1378,6 +1731,580 @@ function materialize(snap, order) {
   for (const [k, v] of snap) o[String(k)] = v;
   return o;
 }
+
+// v3/ops/misc.ts
+var TrackedScalarNode = class extends ScalarNode {
+  constructor(runtime2, parent, name, col, read) {
+    super(runtime2, parent, name);
+    this.col = col;
+    const base = read ?? (col === void 0 ? (r) => r : (r) => r?.[col]);
+    this.projFn = (row) => {
+      const x = base(row);
+      return x === void 0 || x === null ? void 0 : x;
+    };
+    this.tracked = /* @__PURE__ */ new Map();
+    for (const [k, row] of parent.snapshot()) {
+      const x = this.projFn(row);
+      if (x !== void 0) {
+        this.tracked.set(k, x);
+        this.delta(void 0, x);
+      }
+    }
+    this.cur = this.read();
+  }
+  applyDelta(d) {
+    switch (d.op) {
+      case "add": {
+        const x = this.projFn(d.row);
+        if (x !== void 0) {
+          this.tracked.set(d.key, x);
+          this.delta(void 0, x);
+        }
+        break;
+      }
+      case "remove": {
+        const o = this.tracked.get(d.key);
+        if (o !== void 0) {
+          this.tracked.delete(d.key);
+          this.delta(o, void 0);
+        }
+        break;
+      }
+      case "update": {
+        const o = this.tracked.get(d.key);
+        const x = this.projFn(d.row);
+        if (x === void 0) {
+          if (o !== void 0) {
+            this.tracked.delete(d.key);
+            this.delta(o, void 0);
+          }
+        } else {
+          this.tracked.set(d.key, x);
+          if (!Object.is(o, x)) this.delta(o, x);
+        }
+        break;
+      }
+    }
+  }
+};
+var MaxNode = class extends TrackedScalarNode {
+  constructor(runtime2, parent, col) {
+    super(runtime2, parent, "max", col);
+  }
+  delta(o, n) {
+    if (o !== void 0) {
+      if (this.tracked.size === 0) {
+        this.best = void 0;
+        this.stale = false;
+      } else if (this.stale !== true && !(o < this.best)) {
+        this.stale = true;
+      }
+    }
+    if (n !== void 0 && this.stale !== true) {
+      if (this.best === void 0 || n > this.best) this.best = n;
+    }
+  }
+  read() {
+    if (this.stale === true) {
+      this.stale = false;
+      let m;
+      for (const v of this.tracked.values()) if (m === void 0 || v > m) m = v;
+      this.best = m;
+    }
+    return this.best;
+  }
+  recompute(snap) {
+    let m;
+    for (const row of snap.values()) {
+      const x = this.projFn(row);
+      if (x === void 0) continue;
+      if (m === void 0 || x > m) m = x;
+    }
+    return m;
+  }
+};
+var MinNode = class extends TrackedScalarNode {
+  constructor(runtime2, parent, col) {
+    super(runtime2, parent, "min", col);
+  }
+  delta(o, n) {
+    if (o !== void 0) {
+      if (this.tracked.size === 0) {
+        this.best = void 0;
+        this.stale = false;
+      } else if (this.stale !== true && !(o > this.best)) {
+        this.stale = true;
+      }
+    }
+    if (n !== void 0 && this.stale !== true) {
+      if (this.best === void 0 || n < this.best) this.best = n;
+    }
+  }
+  read() {
+    if (this.stale === true) {
+      this.stale = false;
+      let m;
+      for (const v of this.tracked.values()) if (m === void 0 || v < m) m = v;
+      this.best = m;
+    }
+    return this.best;
+  }
+  recompute(snap) {
+    let m;
+    for (const row of snap.values()) {
+      const x = this.projFn(row);
+      if (x === void 0) continue;
+      if (m === void 0 || x < m) m = x;
+    }
+    return m;
+  }
+};
+var SomeNode = class extends TrackedScalarNode {
+  constructor(runtime2, parent, fn) {
+    super(runtime2, parent, "some", void 0, (r) => !!fn(r));
+  }
+  delta(o, n) {
+    let c = this.trueCount ?? 0;
+    if (o === true) c--;
+    if (n === true) c++;
+    this.trueCount = c;
+  }
+  read() {
+    return (this.trueCount ?? 0) > 0;
+  }
+  recompute(snap) {
+    for (const row of snap.values()) if (this.projFn(row) === true) return true;
+    return false;
+  }
+};
+var EveryNode = class extends TrackedScalarNode {
+  constructor(runtime2, parent, fn) {
+    super(runtime2, parent, "every", void 0, (r) => !!fn(r));
+  }
+  delta(o, n) {
+    let c = this.trueCount ?? 0;
+    if (o === true) c--;
+    if (n === true) c++;
+    this.trueCount = c;
+  }
+  read() {
+    return (this.trueCount ?? 0) === this.tracked.size;
+  }
+  recompute(snap) {
+    for (const row of snap.values()) if (this.projFn(row) !== true) return false;
+    return true;
+  }
+};
+function assertPlainInit(init) {
+  if (init instanceof DataNode)
+    throw new Error(
+      "data: reduce(): init must be a plain value or a thunk, not a reactive node \u2014 a fold seed is its identity element, not a reactive input. For a reactive base, derive it upstream (filter/gt/between) and fold the derived view."
+    );
+}
+function deepEq(a, b) {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b;
+    return a.length === bb.length && a.every((v, i) => deepEq(v, bb[i]));
+  }
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (!deepEq(a[k], b[k])) return false;
+  return true;
+}
+var ReduceNode = class extends ScalarNode {
+  constructor(runtime2, parent, fn, init) {
+    super(runtime2, parent, "reduce");
+    assertPlainInit(init);
+    this.fn = fn;
+    this.init = init;
+    this.cur = this.recompute(parent.snapshot());
+  }
+  applyDelta() {
+  }
+  read() {
+    return this.recompute(this.parents[0].snapshot());
+  }
+  recompute(snap) {
+    let acc = this.init !== null && typeof this.init === "object" ? structuredClone(this.init) : this.init;
+    const order = this.parents[0].currentOrder();
+    if (order !== null) {
+      for (const k of order) if (snap.has(k)) acc = this.fn(acc, snap.get(k), k);
+    } else {
+      for (const [k, row] of snap) acc = this.fn(acc, row, k);
+    }
+    return acc;
+  }
+};
+var ReduceIncrementalNode = class extends ScalarNode {
+  constructor(runtime2, parent, addFn, removeFn, init) {
+    super(runtime2, parent, "reduce");
+    assertPlainInit(init);
+    this.addFn = addFn;
+    this.removeFn = removeFn;
+    this.init = init;
+    let acc = this.seed();
+    for (const [k, row] of parent.snapshot()) acc = addFn(acc, row, k);
+    this.acc = acc;
+    this.cur = this.publishable();
+  }
+  seed() {
+    return typeof this.init === "function" ? this.init() : this.init;
+  }
+  publishable() {
+    return this.acc !== null && typeof this.acc === "object" ? structuredClone(this.acc) : this.acc;
+  }
+  applyDelta(d) {
+    switch (d.op) {
+      case "add":
+        this.acc = this.addFn(this.acc, d.row, d.key);
+        break;
+      case "remove":
+        this.acc = this.removeFn(this.acc, d.prev, d.key);
+        break;
+      case "update":
+        this.acc = this.addFn(this.removeFn(this.acc, d.prev, d.key), d.row, d.key);
+        break;
+    }
+  }
+  read() {
+    return this.acc;
+  }
+  recompute(snap) {
+    let acc = this.seed();
+    for (const [k, row] of snap) acc = this.addFn(acc, row, k);
+    return acc;
+  }
+  settle(seq, origin) {
+    const input = this.in0;
+    if (input === null) return null;
+    for (const d of input.rows) this.applyDelta(d);
+    const next = this.publishable();
+    if (deepEq(this.cur, next)) return null;
+    const prev = this.cur;
+    this.cur = next;
+    return { seq, origin, rows: [], order: void 0, scalar: { prev, next } };
+  }
+};
+var DistinctNode = class extends DataNode {
+  constructor(runtime2, parent, fn) {
+    super(runtime2, "operator", "distinct", [parent]);
+    this.fn = fn ?? ((r) => r);
+    this.pos = /* @__PURE__ */ new Map();
+    this.projOf = /* @__PURE__ */ new Map();
+    this.dkOf = /* @__PURE__ */ new Map();
+    this.holders = /* @__PURE__ */ new Map();
+    this.view = /* @__PURE__ */ new Map();
+    this.counter = 0;
+    for (const [k, row] of parent.snapshot()) this._admit(k, row);
+    for (const dk of this.holders.keys()) this.view.set(dk, this._exposed(dk));
+  }
+  _admit(k, row) {
+    const v = this.fn(row);
+    const dk = String(v);
+    this.pos.set(k, this.counter++);
+    this.projOf.set(k, v);
+    this.dkOf.set(k, dk);
+    let set = this.holders.get(dk);
+    if (set === void 0) this.holders.set(dk, set = /* @__PURE__ */ new Set());
+    set.add(k);
+    return dk;
+  }
+  _expel(k) {
+    const dk = this.dkOf.get(k);
+    const set = this.holders.get(dk);
+    set.delete(k);
+    if (set.size === 0) this.holders.delete(dk);
+    this.pos.delete(k);
+    this.projOf.delete(k);
+    this.dkOf.delete(k);
+    return dk;
+  }
+  // The representative's projected value: min arrival position wins.
+  _exposed(dk) {
+    const set = this.holders.get(dk);
+    let bestK;
+    let bestP = Infinity;
+    for (const k of set) {
+      const p = this.pos.get(k);
+      if (p < bestP) {
+        bestP = p;
+        bestK = k;
+      }
+    }
+    return this.projOf.get(bestK);
+  }
+  snapshot() {
+    if (this.runtime.midBatch) {
+      const m = /* @__PURE__ */ new Map();
+      for (const row of this.parents[0].snapshot().values()) {
+        const v = this.fn(row);
+        const dk = String(v);
+        if (!m.has(dk)) m.set(dk, v);
+      }
+      return m;
+    }
+    return new Map(this.view);
+  }
+  settle(seq, origin) {
+    const input = this.in0;
+    if (input === null) return null;
+    const touched = /* @__PURE__ */ new Set();
+    for (const d of input.rows) {
+      switch (d.op) {
+        case "add":
+          touched.add(this._admit(d.key, d.row));
+          break;
+        case "remove":
+          touched.add(this._expel(d.key));
+          break;
+        case "update": {
+          const oldDk = this.dkOf.get(d.key);
+          const v = this.fn(d.row);
+          const dk = String(v);
+          touched.add(oldDk);
+          if (dk === oldDk) {
+            this.projOf.set(d.key, v);
+          } else {
+            touched.add(dk);
+            const set = this.holders.get(oldDk);
+            set.delete(d.key);
+            if (set.size === 0) this.holders.delete(oldDk);
+            this.projOf.set(d.key, v);
+            this.dkOf.set(d.key, dk);
+            let ns = this.holders.get(dk);
+            if (ns === void 0) this.holders.set(dk, ns = /* @__PURE__ */ new Set());
+            ns.add(d.key);
+          }
+          break;
+        }
+      }
+    }
+    const out = [];
+    for (const dk of touched) {
+      const was = this.view.has(dk);
+      const prev = this.view.get(dk);
+      if (this.holders.has(dk)) {
+        const val = this._exposed(dk);
+        if (!was) {
+          this.view.set(dk, val);
+          out.push({ op: "add", key: dk, row: val });
+        } else if (!Object.is(prev, val)) {
+          this.view.set(dk, val);
+          out.push({ op: "update", key: dk, row: val, prev, path: [] });
+        }
+      } else if (was) {
+        this.view.delete(dk);
+        out.push({ op: "remove", key: dk, prev });
+      }
+    }
+    return out.length ? { seq, origin, rows: out, order: void 0, scalar: void 0 } : null;
+  }
+};
+function tapHasParam(fn) {
+  if (typeof fn !== "function") return false;
+  if (fn.length > 0) return true;
+  const s = Function.prototype.toString.call(fn);
+  if (/^\s*(?:async\s+)?[A-Za-z_$][\w$]*\s*=>/.test(s)) return true;
+  const m = s.match(/\(([^)]*)\)/);
+  return !!(m && m[1].trim() !== "");
+}
+var TapNode = class extends DataNode {
+  constructor(runtime2, parent, fn) {
+    super(runtime2, "operator", "tap", [parent]);
+    if (typeof fn !== "function") throw new Error("data: tap(fn) requires a function");
+    if (tapHasParam(fn)) {
+      this.connect(new V2RecordSink(this, (r) => fn(r)));
+    } else {
+      fn();
+      this.connect({ wantsOrder: false, origin: null, apply: () => fn() });
+    }
+  }
+  snapshot() {
+    return this.parents[0].snapshot();
+  }
+  currentOrder() {
+    return this.parents[0].currentOrder();
+  }
+  settle() {
+    return this.in0;
+  }
+};
+var ToValueNode = class extends ScalarNode {
+  constructor(runtime2, parent, fn) {
+    super(runtime2, parent, "to");
+    this.fn = fn;
+    this.cur = fn(materialize(parent.snapshot(), parent.currentOrder()), void 0);
+  }
+  applyDelta() {
+  }
+  read() {
+    const p = this.parents[0];
+    return this.fn(materialize(p.snapshot(), p.currentOrder()), this.cur);
+  }
+  recompute(snap) {
+    return this.fn(materialize(snap, this.parents[0].currentOrder()), this.cur);
+  }
+};
+var KeysNode = class extends DataNode {
+  constructor(runtime2, parent) {
+    super(runtime2, "operator", "keys", [parent]);
+    this.view = /* @__PURE__ */ new Map();
+    for (const k of parent.snapshot().keys()) this.view.set(k, String(k));
+  }
+  snapshot() {
+    if (this.runtime.midBatch) {
+      const m = /* @__PURE__ */ new Map();
+      for (const k of this.parents[0].snapshot().keys()) m.set(k, String(k));
+      return m;
+    }
+    return new Map(this.view);
+  }
+  settle(seq, origin) {
+    const input = this.in0;
+    if (input === null) return null;
+    const out = [];
+    for (const d of input.rows) {
+      if (d.op === "add") {
+        const s = String(d.key);
+        this.view.set(d.key, s);
+        out.push({ op: "add", key: d.key, row: s });
+      } else if (d.op === "remove") {
+        const s = this.view.get(d.key);
+        this.view.delete(d.key);
+        out.push({ op: "remove", key: d.key, prev: s });
+      }
+    }
+    return out.length ? { seq, origin, rows: out, order: void 0, scalar: void 0 } : null;
+  }
+};
+var ValuesNode = class extends DataNode {
+  constructor(runtime2, parent) {
+    super(runtime2, "operator", "values", [parent]);
+  }
+  snapshot() {
+    return this.parents[0].snapshot();
+  }
+  settle(seq, origin) {
+    const input = this.in0;
+    if (input === null) return null;
+    const rows = input.rows;
+    return rows.length ? { seq, origin, rows, order: void 0, scalar: void 0 } : null;
+  }
+};
+function max(src, col) {
+  return new MaxNode(src.runtime, src, col);
+}
+function min(src, col) {
+  return new MinNode(src.runtime, src, col);
+}
+function some(src, fn) {
+  return new SomeNode(src.runtime, src, fn);
+}
+function every(src, fn) {
+  return new EveryNode(src.runtime, src, fn);
+}
+function reduce(src, fnOrAdd, removeOrInit, init) {
+  return typeof removeOrInit === "function" && !(removeOrInit instanceof DataNode) ? new ReduceIncrementalNode(src.runtime, src, fnOrAdd, removeOrInit, init) : new ReduceNode(src.runtime, src, fnOrAdd, removeOrInit);
+}
+function distinct(src, fn) {
+  return new DistinctNode(src.runtime, src, fn);
+}
+function tap(src, fn) {
+  return new TapNode(src.runtime, src, fn);
+}
+function toValue(src, fn) {
+  return new ToValueNode(src.runtime, src, fn);
+}
+function keysView(src) {
+  return new KeysNode(src.runtime, src);
+}
+function valuesView(src) {
+  return new ValuesNode(src.runtime, src);
+}
+defineOperator({
+  name: "max",
+  kind: "aggregate",
+  category: "holistic",
+  declarative: true,
+  create: (src, col) => max(src, col),
+  dedupKey: (col) => typeof col === "string" || col === void 0 ? `max:${col ?? ""}` : null
+});
+defineOperator({
+  name: "min",
+  kind: "aggregate",
+  category: "holistic",
+  declarative: true,
+  create: (src, col) => min(src, col),
+  dedupKey: (col) => typeof col === "string" || col === void 0 ? `min:${col ?? ""}` : null
+});
+defineOperator({
+  name: "some",
+  kind: "aggregate",
+  category: "aggregate-decomposable",
+  declarative: false,
+  create: (src, fn) => some(src, fn),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "every",
+  kind: "aggregate",
+  category: "aggregate-decomposable",
+  declarative: false,
+  create: (src, fn) => every(src, fn),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "reduce",
+  kind: "aggregate",
+  category: "holistic",
+  declarative: false,
+  create: (src, fnOrAdd, removeOrInit, init) => reduce(src, fnOrAdd, removeOrInit, init),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "distinct",
+  kind: "bucket",
+  category: "holistic",
+  declarative: false,
+  create: (src, fn) => distinct(src, fn),
+  dedupKey: (fn) => fn === void 0 ? "distinct" : null
+});
+defineOperator({
+  name: "tap",
+  kind: "effect",
+  category: "iter",
+  declarative: false,
+  create: (src, fn) => tap(src, fn),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "to",
+  kind: "rebuild",
+  category: "holistic",
+  declarative: false,
+  create: (src, fn) => toValue(src, fn),
+  dedupKey: () => null
+});
+defineOperator({
+  name: "keys",
+  kind: "row",
+  category: "iter",
+  declarative: true,
+  create: (src) => keysView(src),
+  dedupKey: () => "keys"
+});
+defineOperator({
+  name: "values",
+  kind: "row",
+  category: "iter",
+  declarative: true,
+  create: (src) => valuesView(src),
+  dedupKey: () => "values"
+});
 
 // v3/kernel/runtime.ts
 var REENTRANCY_CAP = 1e3;
@@ -2213,10 +3140,10 @@ function materialize2(v, ctx) {
             const evt = k.slice(2).toLowerCase();
             dom.addEventListener(evt, pv);
             ctx.scope.onDispose(() => dom.removeEventListener(evt, pv));
-          } else if (isBindProp(pv)) {
-            bindAttr(dom, k, pv.view, pv.fn, ctx.scope);
           } else if (isView(pv)) {
             bindAttr(dom, k, pv, null, ctx.scope);
+          } else if (isBindProp(pv)) {
+            bindAttr(dom, k, pv.view, pv.fn, ctx.scope);
           } else if (pv != null && pv !== false) {
             dom.setAttribute(k, pv === true ? "" : String(pv));
           }

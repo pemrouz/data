@@ -7,7 +7,9 @@
     "./register.ts",
     "./dist/index.js",
     "./dist/full.js",
-    "./dist/devtools/index.js"
+    "./dist/devtools/index.js",
+    "./v3/ops/*.ts",
+    "./dist/v3/index.js"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
