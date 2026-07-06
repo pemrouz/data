@@ -26,9 +26,13 @@
 // normChildren's array-flattening makes it disappear into any parent
 // (render() accepts a VNode[] at the root).
 //
-// DEFERRED (rest of M4.5b+): the automatic runtime (jsx-runtime / jsxs /
-// jsxDEV), per-tag intrinsic JSX types (the v2 jsx/intrinsics.ts port),
-// components with scoped onCleanup / error boundaries.
+// The automatic runtime (jsx / jsxs / jsxDEV) lives in ./runtime.ts — a thin
+// normalizer onto this module's h, so classic and automatic transforms can
+// never produce different records. Per-tag intrinsic types live in
+// ./intrinsics.ts (shared by ./jsx.d.ts's global namespace for the classic
+// transform and runtime.ts's exported namespace for the automatic one).
+// DEFERRED (rest of M4.5b+): components with scoped onCleanup / error
+// boundaries.
 
 import { el, list } from '../render/index.ts'
 import type { VNode, ListNode } from '../render/index.ts'
