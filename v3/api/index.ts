@@ -283,7 +283,13 @@ function wrap(state: HandleState): any {
             const key = def2.dedupKey ? def2.dedupKey(...args) : null
             if (key !== null) {
               const hit = state.dedup.get(key)
-              if (hit !== undefined) return hit
+              if (hit !== undefined) {
+                // A disposed node is detached and frozen forever — handing it
+                // back would silently return stale reads (the pivot-v3
+                // dispose-then-rerequest footgun). Evict lazily and mint fresh.
+                if (((hit as any)[node] as DataNode<any>).disposed) state.dedup.delete(key)
+                else return hit
+              }
             }
             const out = wrap({
               node: def2.create(state.node, ...args),

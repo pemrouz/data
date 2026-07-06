@@ -242,6 +242,13 @@ var DataNode = class {
 function shallowCopy(v) {
   return Array.isArray(v) ? v.slice() : { ...v };
 }
+function reheight(n) {
+  let h2 = 0;
+  for (const p of n.parents) if (p.height + 1 > h2) h2 = p.height + 1;
+  if (h2 <= n.height) return;
+  n.height = h2;
+  for (const c of n.children) reheight(c);
+}
 function leafAt(v, path) {
   let cur = v;
   for (const p of path) {
@@ -3551,7 +3558,7 @@ var MirrorNode = class extends DataNode {
     if (i >= 0) cur.children.splice(i, 1);
     this.parents[0] = nextNode;
     nextNode.children.push(this);
-    if (nextNode.height + 1 > this.height) this.height = nextNode.height + 1;
+    reheight(this);
     this.ctl.write(MKEY, [], ++this.gen);
   }
   dispose() {
@@ -4286,7 +4293,10 @@ function wrap(state) {
             const key = def2.dedupKey ? def2.dedupKey(...args) : null;
             if (key !== null) {
               const hit = state.dedup.get(key);
-              if (hit !== void 0) return hit;
+              if (hit !== void 0) {
+                if (hit[node].disposed) state.dedup.delete(key);
+                else return hit;
+              }
             }
             const out = wrap({
               node: def2.create(state.node, ...args),

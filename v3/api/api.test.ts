@@ -114,6 +114,21 @@ test('dedup: value-identity args return the SAME view; closures never dedup', ()
   assert.strictEqual(g1, g2)
 })
 
+test('dedup: a DISPOSED cached view is evicted, not handed back', () => {
+  // The pivot-v3 footgun: dispose a deduped aggregate, re-request it, and the
+  // cache used to return the detached node — frozen at its pre-dispose value
+  // forever. A cache hit whose node is disposed must mint fresh instead.
+  const d = $({ a: { name: 'a', val: 1 } } as Record<string, { name: string; val: number }>)
+  const s1 = d.sum('val')
+  same(s1[value], 1)
+  s1.dispose()
+  const s2 = d.sum('val')
+  assert.notStrictEqual(s2, s1) // fresh view, not the disposed one
+  d.set('b', { name: 'b', val: 2 })
+  same(s2[value], 3) // and it is LIVE
+  assert.strictEqual(d.sum('val'), s2) // the fresh one dedups from here on
+})
+
 test('mirror repoint at a TALLER view re-heights descendants (no stale double-path settle)', () => {
   // library-v3 PROBE A (STATUS gap 5): a mirror over the source (h1) with a
   // downstream intersect built pre-repoint (h2) is repointed at a
