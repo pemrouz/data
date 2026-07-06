@@ -168,6 +168,15 @@ function makeMethods(state: HandleState, self: () => any): Record<string, (...ar
     patch(pairs: readonly (readonly [string | number, unknown])[]) {
       if (!(state.node instanceof SourceNode) || state.path.length > 0)
         throw new Error('data: patch() applies to a source root')
+      // Tuple-shape fail-fast BEFORE any write. v2's flat form
+      // patch(['k1', v1, 'k2', v2]) is worse than a clean throw here: strings
+      // are iterable, so destructuring a string element commits a GARBAGE row
+      // char-wise ({ s:'t', o:'p' }) — silently for 2-char-key shapes.
+      for (const p of pairs)
+        if (!Array.isArray(p) || p.length !== 2)
+          throw new Error(
+            "data: patch() takes [key, row] TUPLE pairs — patch([[k1, v1], [k2, v2]]); v2's flat [k1, v1, k2, v2] array form is gone",
+          )
       const src = state.node
       src.runtime.batch(() => {
         for (const [k, v] of pairs) src.write(coerceKey(state, String(k)), [], v)
@@ -351,6 +360,15 @@ function childHandle(state: HandleState, name: string): any {
 // ── $ ────────────────────────────────────────────────────────────────────────
 
 export function $<T extends object>(v: T | unknown[]): any {
+  // $(handle) fail-fast: SourceNode's constructor would walk Object.keys(v)
+  // THROUGH the live proxy, minting a source whose rows are child-handle
+  // proxies — membership frozen at construction, field reads leaking through
+  // to live data, operator fns receiving proxies instead of rows. Silent
+  // weirdness; point at the two things the caller could have meant.
+  if (v !== null && typeof v === 'object' && (v as any)[node] instanceof DataNode)
+    throw new Error(
+      'data: $(handle) would copy through the live proxy — use handle.mirror() for a re-pointable slot, or $(structuredClone(handle[value])) to fork a plain snapshot',
+    )
   const src = new SourceNode(defaultRuntime, v as any)
   void currentScope() // nodes self-register with the ambient scope in their ctor
   return wrap({ node: src, source: src, path: [], children: new Map(), dedup: new Map() })

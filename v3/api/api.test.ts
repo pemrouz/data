@@ -194,3 +194,15 @@ test('crossfilter chain through the API reads naturally', () => {
   d.get('a').set('val', 50)
   same(count[value], 3)
 })
+
+test('v2-idiom fail-fasts: flat patch and $(handle) throw with migration hints', () => {
+  const d = $(rows())
+  // v2's flat patch form: strings are iterable, so pre-fix a string element
+  // destructured char-wise and could COMMIT a garbage row before any throw.
+  const snap = structuredClone(d[value])
+  assert.throws(() => d.patch(['a', { region: 'x', val: 1 } as any] as any), /TUPLE pairs/)
+  assert.throws(() => d.patch([['a', { region: 'x', val: 1 }], 'b' as any] as any), /TUPLE pairs/)
+  same(d[value], snap) // fail-FAST: nothing partially applied
+  // $(handle) minted a proxy-row source pre-fix (frozen membership, leaking reads).
+  assert.throws(() => $(d), /use handle\.mirror\(\)/)
+})
