@@ -581,9 +581,14 @@ var MapNode = class extends DataNode {
   }
 };
 function filter(src, pred) {
+  if (typeof pred !== "function")
+    throw new Error(
+      "data: filter() takes a predicate fn \u2014 v2's filter('key', value) / filter({key: value}) forms are gone: filter(r => r.key === value)"
+    );
   return new FilterNode(src.runtime, src, pred);
 }
 function map(src, fn) {
+  if (typeof fn !== "function") throw new Error("data: map() takes a fn (row, key) => value");
   return new MapNode(src.runtime, src, fn);
 }
 var CMP = {
@@ -1097,6 +1102,13 @@ var BetweenNode = class extends DataNode {
   }
 };
 function between(src, col, bounds = []) {
+  for (const el2 of bounds) {
+    if (el2 == null || typeof el2 === "number") continue;
+    const handleLike = typeof el2 === "object" && (el2[/* @__PURE__ */ Symbol.for("data.v3.node")] !== void 0 || el2 instanceof DataNode);
+    throw new Error(
+      handleLike ? "data: between() bounds must be plain numbers \u2014 v2's [$(lo), $(hi)] two-handle tuple is gone: drive both ends from ONE bounds child, between(col, bounds.get('range')) where range holds [lo, hi]" : `data: between() bounds must be numbers, got ${typeof el2}`
+    );
+  }
   let a = bounds[0] ?? -Infinity;
   let b = bounds[1] ?? Infinity;
   if (b < a) {
@@ -1134,12 +1146,22 @@ function pathEq(a, b) {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+function validatedOperands(variant, primary, others) {
+  const bad = (o) => o !== null && typeof o === "object" && !Array.isArray(o) ? `a plain object \u2014 v2's ${variant}({col: view}) object-map form is gone; compose the dims explicitly: src.${variant}(src.between('col', bounds.get('col')), \u2026)` : `${typeof o} \u2014 pass derived views or sources`;
+  if (!(primary instanceof DataNode))
+    throw new Error(`data: ${variant}() primary operand must be a view, got ${bad(primary)}`);
+  for (const o of others)
+    if (!(o instanceof DataNode))
+      throw new Error(`data: ${variant}() operands must be views, got ${bad(o)}`);
+  const unique = [primary];
+  for (const o of others) if (unique.indexOf(o) < 0) unique.push(o);
+  return unique;
+}
 var SetOpNode = class extends DataNode {
   // parents share ≥1 root source
   constructor(runtime2, variant, primary, others) {
-    const unique = [primary];
-    for (const o of others) if (unique.indexOf(o) < 0) unique.push(o);
-    super(runtime2, "operator", variant, unique);
+    super(runtime2, "operator", variant, validatedOperands(variant, primary, others));
+    const unique = this.parents;
     this.variant = variant;
     this.othersMask = 0;
     for (const o of others) this.othersMask |= 1 << unique.indexOf(o);
@@ -1743,11 +1765,21 @@ function cmpBy(proj2, dir) {
   };
 }
 var colProj = (col) => (row) => row?.[col];
+function assertBy(name, by) {
+  if (typeof by === "string" || typeof by === "function") return;
+  if (typeof by === "number")
+    throw new Error(
+      `data: ${name}(${by}) without a column is gone \u2014 use top(n) (descending numeric rows) / limit(n) (source order), or ${name}(col, n) for a bounded column sort`
+    );
+  throw new Error(`data: ${name}() takes a column name or comparator, got ${typeof by}`);
+}
 function az(src, by, n) {
+  assertBy("az", by);
   const cmp = typeof by === "string" ? cmpBy(colProj(by), 1) : by;
   return new OrderedView(src.runtime, src, "az", cmp, n);
 }
 function za(src, by, n) {
+  assertBy("za", by);
   const cmp = typeof by === "string" ? cmpBy(colProj(by), -1) : (a, b) => by(b, a);
   return new OrderedView(src.runtime, src, "za", cmp, n);
 }
@@ -1799,6 +1831,11 @@ var V2RecordSink = class {
   constructor(node2, out) {
     this.node = node2;
     this.out = out;
+    if (node2.kind === "scalar") {
+      this.order = null;
+      this.out({ type: "update", key: [], value: sclone(node2.value()) });
+      return;
+    }
     const snap = node2.snapshot();
     const order = node2.currentOrder();
     this.order = order ? [...order] : null;
@@ -3084,6 +3121,117 @@ function avgR(src, col) {
   }
   return node2;
 }
+function reprojected(node2, col) {
+  node2.col = col;
+  const base = col === void 0 ? (r) => r : (r) => r?.[col];
+  node2.projFn = (row) => {
+    const x = base(row);
+    return x === void 0 || x === null ? void 0 : x;
+  };
+}
+function extremumRebuild(node2) {
+  node2.tracked = /* @__PURE__ */ new Map();
+  node2.best = void 0;
+  node2.stale = true;
+  for (const [k, row] of node2.parents[0].snapshot()) {
+    const x = node2.projFn(row);
+    if (x !== void 0) node2.tracked.set(k, x);
+  }
+}
+function extremumValue(node2) {
+  if (!node2.runtime.midBatch) return node2.cur;
+  const savedCol = node2.col;
+  const savedProj = node2.projFn;
+  reprojected(node2, normCol(node2.target()));
+  try {
+    return node2.recompute(node2.parents[0].snapshot());
+  } finally {
+    node2.col = savedCol;
+    node2.projFn = savedProj;
+  }
+}
+var MaxRNode = class extends MaxNode {
+  constructor(runtime2, parent, paramSrc, col0) {
+    super(runtime2, parent, col0);
+    this.paramSrc = paramSrc;
+    this.target = () => paramSrc.get(PKEY);
+    adoptParam(this, paramSrc);
+  }
+  column() {
+    return normCol(this.target());
+  }
+  value() {
+    return extremumValue(this);
+  }
+  settle(seq, origin) {
+    const { data, param } = splitInputs(this);
+    if (data === null && param === null) return null;
+    if (param !== null) {
+      reprojected(this, normCol(lastParam(param, this.col)));
+      extremumRebuild(this);
+      return publishScalar(this, seq, origin);
+    }
+    this.in0 = data;
+    this.inFrom0 = this.parents[0];
+    this.inMore = null;
+    return super.settle(seq, origin);
+  }
+  dispose() {
+    super.dispose();
+    this.paramSrc.dispose();
+  }
+};
+var MinRNode = class extends MinNode {
+  constructor(runtime2, parent, paramSrc, col0) {
+    super(runtime2, parent, col0);
+    this.paramSrc = paramSrc;
+    this.target = () => paramSrc.get(PKEY);
+    adoptParam(this, paramSrc);
+  }
+  column() {
+    return normCol(this.target());
+  }
+  value() {
+    return extremumValue(this);
+  }
+  settle(seq, origin) {
+    const { data, param } = splitInputs(this);
+    if (data === null && param === null) return null;
+    if (param !== null) {
+      reprojected(this, normCol(lastParam(param, this.col)));
+      extremumRebuild(this);
+      return publishScalar(this, seq, origin);
+    }
+    this.in0 = data;
+    this.inFrom0 = this.parents[0];
+    this.inMore = null;
+    return super.settle(seq, origin);
+  }
+  dispose() {
+    super.dispose();
+    this.paramSrc.dispose();
+  }
+};
+function maxR(src, col) {
+  const ra = reactiveArg(col);
+  const paramSrc = new SourceNode(src.runtime, { [PKEY]: ra.current() }, "param:max");
+  const node2 = new MaxRNode(src.runtime, src, paramSrc, normCol(ra.current()));
+  if (ra.isReactive) {
+    node2.target = ra.current;
+    bindParam(node2, col, (v) => paramSrc.write(PKEY, [], v));
+  }
+  return node2;
+}
+function minR(src, col) {
+  const ra = reactiveArg(col);
+  const paramSrc = new SourceNode(src.runtime, { [PKEY]: ra.current() }, "param:min");
+  const node2 = new MinRNode(src.runtime, src, paramSrc, normCol(ra.current()));
+  if (ra.isReactive) {
+    node2.target = ra.current;
+    bindParam(node2, col, (v) => paramSrc.write(PKEY, [], v));
+  }
+  return node2;
+}
 var normBounds = (b) => Array.isArray(b) ? b : [];
 function betweenR(src, col, arg) {
   const ra = reactiveArg(arg);
@@ -3148,6 +3296,16 @@ function installReactive() {
     wrapDef(
       name,
       (src, [col]) => reactiveArg(col).isReactive ? name === "sum" ? sumR(src, col) : avgR(src, col) : null,
+      ([col]) => {
+        const ra = reactiveArg(col);
+        return ra.isReactive ? `${name}:${ra.identity}` : void 0;
+      }
+    );
+  }
+  for (const name of ["max", "min"]) {
+    wrapDef(
+      name,
+      (src, [col]) => reactiveArg(col).isReactive ? name === "max" ? maxR(src, col) : minR(src, col) : null,
       ([col]) => {
         const ra = reactiveArg(col);
         return ra.isReactive ? `${name}:${ra.identity}` : void 0;
@@ -4052,6 +4210,10 @@ function h(tag, props, ...children) {
     const p = children.length > 0 ? { ...props ?? {}, children: normComponentChildren(children) } : { children: [], ...props ?? {} };
     return tag(p);
   }
+  if (props !== null && props !== void 0 && "key" in props) {
+    const { key: _key, ...rest } = props;
+    props = Object.keys(rest).length > 0 ? rest : null;
+  }
   return el(tag, props ?? null, ...normChildren(children));
 }
 function Fragment(props) {
@@ -4188,6 +4350,11 @@ function makeMethods(state, self) {
     patch(pairs) {
       if (!(state.node instanceof SourceNode) || state.path.length > 0)
         throw new Error("data: patch() applies to a source root");
+      for (const p of pairs)
+        if (!Array.isArray(p) || p.length !== 2)
+          throw new Error(
+            "data: patch() takes [key, row] TUPLE pairs \u2014 patch([[k1, v1], [k2, v2]]); v2's flat [k1, v1, k2, v2] array form is gone"
+          );
       const src = state.node;
       src.runtime.batch(() => {
         for (const [k, v] of pairs) src.write(coerceKey(state, String(k)), [], v);
@@ -4354,6 +4521,10 @@ function childHandle(state, name) {
   return child;
 }
 function $(v) {
+  if (v !== null && typeof v === "object" && v[node] instanceof DataNode)
+    throw new Error(
+      "data: $(handle) would copy through the live proxy \u2014 use handle.mirror() for a re-pointable slot, or $(structuredClone(handle[value])) to fork a plain snapshot"
+    );
   const src = new SourceNode(defaultRuntime, v);
   return wrap({ node: src, source: src, path: [], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() });
 }
