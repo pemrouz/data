@@ -24,6 +24,7 @@ import { SourceNode } from '../kernel/node.ts'
 import { sum } from '../ops/aggregate.ts'
 import { render, el, text, list, bind } from '../render/index.ts'
 import { h, Fragment, For } from './index.ts'
+import { jsx } from './runtime.ts'
 import { handleFor } from '../api/index.ts'
 
 const same = assert.deepStrictEqual
@@ -228,4 +229,13 @@ test('events wire: onClick attaches a listener, fires via the mock handlers list
   handle.dispose()
   eq(btn.handlers.length, 0) // removeEventListener ran with the mount scope
   ok(dom.ops.unlistened >= 1)
+})
+
+test('key is stripped from element props — never a literal DOM attribute', () => {
+  // key is accepted-and-IGNORED (rows key by DATA identity). Pre-fix it fell
+  // through to the renderer and landed as a literal key="…" attribute.
+  same(h('li', { key: 'k1', class: 'row' }, 'x'), el('li', { class: 'row' }, 'x'))
+  same(h('li', { key: 7 }), el('li', null))
+  // and via the automatic runtime's props.children path (same h underneath)
+  same(jsx('li', { key: 'k1', class: 'row', children: 'x' }), el('li', { class: 'row' }, 'x'))
 })

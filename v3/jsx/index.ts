@@ -93,6 +93,13 @@ export function h(
         : { children: [], ...(props ?? {}) }
     return tag(p)
   }
+  // `key` is accepted-and-IGNORED (v3 keys rows by DATA identity) — strip it
+  // here or the renderer would forward it as a literal key="…" DOM attribute.
+  // Empty-after-strip collapses to null (byte-parity with a keyless call).
+  if (props !== null && props !== undefined && 'key' in props) {
+    const { key: _key, ...rest } = props
+    props = Object.keys(rest).length > 0 ? rest : null
+  }
   return el(tag, props ?? null, ...normChildren(children))
 }
 
