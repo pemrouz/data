@@ -1,7 +1,7 @@
 # v3 rewrite — status
 
-*Updated 2026-07-06 ("continue building v3" session, second block: the JSX completion —
-automatic runtime, per-tag intrinsics + fixture gates, chat-v3).
+*Updated 2026-07-06 ("continue building v3" session, third block: the kanban/pivot/library
+migrations + the reheight-on-repoint and dedup-eviction fixes they surfaced).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -23,8 +23,9 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M5 (second migration)** examples/todo-v3 on the builders + spec | done | `db23da9` | spec green (live checked props, mirror routes, edit flow, persistence) |
 | **M4.5b JSX completion**: automatic runtime (jsx/jsxs/jsxDEV through h) + per-tag intrinsics + classic/automatic fixture gates + the thin `data/v3/jsx-runtime` dist entry | done | `f8f326e` `2811cf5` `d86e014` | 222 tests; 3 tsc gate programs, gate-bite proven; m1 0.740 / m2 0.968·0.791 PASS |
 | **M5 (third migration)** examples/chat-v3 in classic JSX + spec | done | `b92b8d0` | spec green (mirror re-point, transient-filter dispose, nested reaction set, one-commit blast) |
+| **M5 (migrations 4–6)** kanban-v3 / pivot-v3 / library-v3 + specs, and the two fixes they surfaced (kernel reheight-on-repoint; dedup evicts disposed) | done | `92b920f`…`c18e4a4` | 224 tests; 23 spec cases; m1/m2 PASS |
 | M4.5b rest: component scopes (onCleanup / error boundaries), devtools panel port | not started | | |
-| M5 rest: remaining examples, MIGRATION.md, the flip | not started | | |
+| M5 rest: swarm/flow/multidim + landing, MIGRATION.md, v2 perf re-baseline, the flip | not started | | |
 
 Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
 THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -185,6 +186,30 @@ Second block (the JSX completion, `f8f326e`…`b92b8d0`):
   reaction writes; one-commit 200-row patch; PLAIN rows — no .to() bindings, no
   transient-undefined guards, no data-id read-back. Spec: 6 scenarios green.
 
+Third block (three more M5 migrations + the two fixes they surfaced,
+`92b920f`…`c18e4a4`):
+
+- **kanban-v3** (`613eae8`): per-status filter→mirror→az chains built once; drag-drop
+  is ONE batch() commit; the 3-arg INCREMENTAL reduce workload deck (an in-place edit
+  = exactly one remove(prev) + add(row) — spy-verified); ordered views keep CARD-ID
+  row keys so the v2 data-id read-back is gone. Spec proves the one-commit move and
+  transient-dispose non-leak via kernel probes (Symbol.for('data.v3.node')).
+- **pivot-v3** (`39905f1`): EVERY cell/total a standing filter()→aggregate scalar off
+  one source (bucket children are path addresses — per-cell filters ARE the idiom);
+  config churn disposes all transients; +100/shuffle are one-commit batches
+  (MutationObserver: exactly 1 characterData write on the grand cell).
+- **library-v3** (`c18e4a4`): the set-ops showcase — four mirror slots →
+  intersect → except → za('rating', reactive n). Load-more grows the window IN PLACE
+  (pageSize.get('n').update) — v2's repage() concept deleted. 282 oracle assertions;
+  graph size stable across 50 dispose cycles.
+- **fix(v3/kernel) `92b920f`**: mirror repoint now RE-HEIGHTS descendants
+  (kernel reheight()) — library's PROBE A showed a pre-repoint descendant settling
+  BEFORE the repointed mirror and reading its stale view, with the late batch
+  lingering until the next re-settling commit. Regression test bites (fails pre-fix).
+- **fix(v3/api) `873111b`**: the operator dedup cache EVICTS DISPOSED views (lazy,
+  on hit) — pivot's footgun: dispose a deduped aggregate, re-request it, get the
+  detached node frozen at its pre-dispose value.
+
 ## Known gaps / next work (M4.5b+)
 
 1. **M4.5b rest**: component scopes (onCleanup / error boundaries), devtools panel
@@ -198,12 +223,14 @@ Second block (the JSX completion, `f8f326e`…`b92b8d0`):
   for `between(col, handle)` + `bind()`/`text(view, fn)` should follow).
 4. ~~Wire the gates into package.json/CI~~ — DONE 2026-07-06 (`9906424`).
 5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
-  cast into parents today); height re-propagation after repoint (stale-height edge — not
-  reachable in shipped tests but real); a ScalarSource cell primitive; SourceNode.move()
-  for ingest's deferred 'move' records; export ProjectionAggregate; deep-scalar emission
-  mode; per-path connect(); positional limit(); page().
-6. **M5**: remaining example migrations (todo next), v2 perf corpus re-baseline,
-  MIGRATION.md, the flip. fero Phase 0.5 items on the v2 side remain undone.
+  cast into parents today); ~~height re-propagation after repoint~~ — DONE 2026-07-06
+  (`92b920f`, kernel reheight() called from MirrorNode.set; regression in api.test.ts);
+  a ScalarSource cell primitive; SourceNode.move() for ingest's deferred 'move' records;
+  export ProjectionAggregate; deep-scalar emission mode; per-path connect(); positional
+  limit(); page().
+6. **M5**: remaining example migrations (six done: crossfilter, todo, chat, kanban,
+  pivot, library; swarm/flow/multidim + the landing page remain), v2 perf corpus
+  re-baseline, MIGRATION.md, the flip. fero Phase 0.5 items on the v2 side remain undone.
 7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
   per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
   crossfilter-shaped micro). What remains per-node: map's output cache, each between's
