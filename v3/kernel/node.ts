@@ -142,6 +142,23 @@ function shallowCopy(v: any): any {
   return Array.isArray(v) ? v.slice() : { ...v }
 }
 
+// Height re-propagation after a REPARENT (today: only MirrorNode.set). A
+// node's height must exceed every parent's or the flush agenda settles it
+// BEFORE its input arrives: the repro is a mirror repointed at a TALLER view
+// while a descendant built pre-repoint keeps its construction-time height —
+// one source write then reaches the descendant along two paths, the
+// descendant settles first against the mirror's stale materialized view, and
+// the mirror's late batch lingers un-folded until the next re-settling
+// commit (the library-v3 PROBE A staleness; STATUS gap 5). Heights only ever
+// GROW: recompute from parents, and push increases through descendants.
+export function reheight(n: DataNode<any>): void {
+  let h = 0
+  for (const p of n.parents) if (p.height + 1 > h) h = p.height + 1
+  if (h <= n.height) return
+  ;(n as { height: number }).height = h
+  for (const c of n.children) reheight(c)
+}
+
 export function leafAt(v: unknown, path: Path): unknown {
   let cur: any = v
   for (const p of path) {

@@ -59,7 +59,7 @@
 import type {
   CommitBatch, OrderDelta, OriginToken, RowDelta, RowKey,
 } from '../contract/delta.ts'
-import { DataNode, SourceNode } from '../kernel/node.ts'
+import { DataNode, SourceNode, reheight } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import type { Runtime } from '../kernel/runtime.ts'
 import { Scope, currentScope, runInScope } from '../kernel/scope.ts'
@@ -629,10 +629,13 @@ export class MirrorNode<T> extends DataNode<T> {
     if (i >= 0) cur.children.splice(i, 1)
     ;(this.parents as DataNode<any>[])[0] = nextNode
     nextNode.children.push(this)
-    // Keep topological legality for future commits: height only ever grows.
-    // (Nodes created downstream BEFORE a repoint keep their construction-time
-    // height — a documented M4 limitation; see the module notes.)
-    if (nextNode.height + 1 > this.height) (this as { height: number }).height = nextNode.height + 1
+    // Keep topological legality for future commits: height only ever grows,
+    // and the growth PROPAGATES to descendants (reheight). Pre-fix, nodes
+    // created downstream BEFORE a repoint kept their construction-time height
+    // — a descendant could then settle BEFORE this mirror in a flush and read
+    // its stale materialized view (the library-v3 PROBE A staleness; STATUS
+    // gap 5, now closed).
+    reheight(this)
     this.ctl.write(MKEY, [], ++this.gen)
   }
 

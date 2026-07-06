@@ -114,6 +114,28 @@ test('dedup: value-identity args return the SAME view; closures never dedup', ()
   assert.strictEqual(g1, g2)
 })
 
+test('mirror repoint at a TALLER view re-heights descendants (no stale double-path settle)', () => {
+  // library-v3 PROBE A (STATUS gap 5): a mirror over the source (h1) with a
+  // downstream intersect built pre-repoint (h2) is repointed at a
+  // filter→union chain (h2), bumping the mirror to h3. Without descendant
+  // re-heighting the intersect keeps h2, settles BEFORE the mirror on the
+  // next source write (one write reaches it along two paths), reads the
+  // mirror's stale materialized view (same row reference → Object.is
+  // suppresses the update), and the mirror's late batch lingers unfolded
+  // until the next re-settling commit. reheight() pushes the growth through
+  // descendants so the intersect follows the mirror in the agenda.
+  const d = $({ a: { g: 'x', v: 1 }, b: { g: 'y', v: 2 } } as Record<string, { g: string; v: number }>)
+  const fx = d.filter((r: { g: string }) => r.g === 'x')
+  const fy = d.filter((r: { g: string }) => r.g === 'y')
+  const u = fx.union(fy)
+  const m = d.mirror() // h1, over the source
+  const x = m.intersect(d) // h2, built BEFORE the repoint
+  m.set(u) // u is h2 → mirror h3 → x must be re-heighted past it
+  same((x[value] as any).a.v, 1)
+  d.get('a').set('v', 9) // ONE write, two paths into x
+  same((x[value] as any).a.v, 9) // pre-fix: stale 1 until a later re-settling commit
+})
+
 test('array sources: minted keys via sugar, insert/patch, iteration', () => {
   const d = $([10, 20, 30] as unknown as object)
   same(d[value], [10, 20, 30])
