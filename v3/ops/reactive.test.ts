@@ -26,7 +26,7 @@ import { sum } from './aggregate.ts'
 import { BetweenNode } from './between.ts'
 import {
   reactiveArg, bindParam, installReactive, normN,
-  compareR, orderedR, sumR, avgR,
+  compareR, orderedR, sumR, avgR, maxR, minR,
   CompareRNode, OrderedRNode, SumRNode, AvgRNode,
 } from './reactive.ts'
 import { $, runtime, batch, node as N, value as V } from '../api/index.ts'
@@ -638,4 +638,53 @@ test('betweenR churn: 300 seeded steps mixing writes, removes, and bound moves �
     assertOracle(bn, oracle, `between oracle @ step ${step}`)
     same(cnt[V], oracle().size, `count @ step ${step}`)
   }
+})
+
+// ── maxR / minR ──────────────────────────────────────────────────────────────
+
+test('maxR/minR: reactive column re-projects — one scalar delta per move; incremental after', () => {
+  // STATUS gap 3's "wrap max/min in installReactive": a reactive column arg
+  // used to project rows through r?.[proxy] → undefined → a silently-
+  // undefined extremum. Same param-source shape as sumR, plus the projFn
+  // re-mint (TrackedScalarNode's projection closes over the ctor column).
+  const src = new SourceNode<{ x: number; y: number }>(runtime(), {
+    a: { x: 1, y: 10 }, b: { x: 2, y: 20 },
+  })
+  const cfg = $({ c: 'x' })
+  const mx = maxR(src, cfg.get('c'))
+  const mn = minR(src, cfg.get('c'))
+  conformScalar(mx as any)
+  conformScalar(mn as any)
+  same(mx.value(), 2)
+  same(mn.value(), 1)
+
+  const batches = collect(mx as unknown as DataNode<never>)
+  cfg.set('c', 'y')
+  same(batches.length, 1)
+  same(batches[0].scalar, { prev: 2, next: 20 })
+  same(mx.value(), 20)
+  same(mn.value(), 10)
+  same(mx.column(), 'y')
+
+  src.write('c', [], { x: 0, y: 99 }) // incremental add AFTER the rebuild
+  same(mx.value(), 99)
+  same(mn.value(), 10)
+  src.remove('c') // eviction of the extremum → lazy rescan path
+  same(mx.value(), 20)
+
+  cfg.set('c', 'x') // back — tracked set re-projects
+  same(mx.value(), 2)
+  same(mn.value(), 1)
+})
+
+test('max/min via the handle: a reactive column arg dispatches to maxR/minR and dedups by identity', () => {
+  const d = $({ a: { x: 1, y: 10 }, b: { x: 2, y: 20 } })
+  const cfg = $({ c: 'x' })
+  const m1 = d.max(cfg.get('c'))
+  const m2 = d.max(cfg.get('c'))
+  assert.strictEqual(m1, m2) // dedup by bound-node identity, the sum/avg rule
+  same(m1[V], 2)
+  cfg.set('c', 'y')
+  same(m1[V], 20)
+  same(d.min(cfg.get('c'))[V], 10)
 })

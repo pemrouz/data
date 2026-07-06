@@ -60,6 +60,7 @@ import { FilterNode } from './rowops.ts'
 import { OrderedView, cmpBy } from './ordered.ts'
 import type { RowComparator } from './ordered.ts'
 import { SumNode, AvgNode } from './aggregate.ts'
+import { MaxNode, MinNode } from './misc.ts'
 import { between, BetweenNode } from './between.ts'
 
 // The api's handle symbols (Symbol.for — global registry, so no api import).
@@ -587,6 +588,149 @@ export function avgR<T>(src: DataNode<T>, col: unknown): AvgRNode<T> {
   return node
 }
 
+// ── 3d. maxR / minR — extrema with a reactive column ─────────────────────────
+//
+// Same param-source shape as sumR/avgR, but TrackedScalarNode's projFn CLOSES
+// OVER the construction-time column, so a column move must re-mint the
+// projection before rebuilding tracked/best from the parent's post-batch
+// snapshot. Was STATUS gap 3's "wrap max/min in installReactive" (a reactive
+// column arg used to project every row through r?.[proxy] → undefined → a
+// silently-undefined extremum).
+
+function reprojected(node: any, col: string | undefined): void {
+  node.col = col
+  const base = col === undefined ? (r: any) => r : (r: any) => r?.[col]
+  node.projFn = (row: any) => {
+    const x = base(row)
+    return x === undefined || x === null ? undefined : x
+  }
+}
+
+function extremumRebuild(node: any): void {
+  node.tracked = new Map()
+  node.best = undefined
+  node.stale = true // read() rescans tracked — one O(n) pass, same as an eviction
+  for (const [k, row] of node.parents[0].snapshot() as Map<RowKey, unknown>) {
+    const x = node.projFn(row)
+    if (x !== undefined) node.tracked.set(k, x)
+  }
+}
+
+function extremumValue(node: any): unknown {
+  if (!node.runtime.midBatch) return node.cur
+  const savedCol = node.col
+  const savedProj = node.projFn
+  reprojected(node, normCol(node.target()))
+  try {
+    return node.recompute(node.parents[0].snapshot() as Map<RowKey, unknown>)
+  } finally {
+    node.col = savedCol
+    node.projFn = savedProj
+  }
+}
+
+export class MaxRNode<T> extends MaxNode<T> {
+  declare paramSrc: SourceNode<unknown>
+  declare target: () => unknown
+
+  constructor(runtime: Runtime, parent: DataNode<T>, paramSrc: SourceNode<unknown>, col0: string | undefined) {
+    super(runtime, parent, col0)
+    this.paramSrc = paramSrc
+    this.target = () => paramSrc.get(PKEY)
+    adoptParam(this, paramSrc)
+  }
+
+  column(): string | undefined {
+    return normCol(this.target())
+  }
+
+  value(): unknown {
+    return extremumValue(this)
+  }
+
+  settle(seq: number, origin: OriginToken): CommitBatch<never> | null {
+    const { data, param } = splitInputs(this)
+    if (data === null && param === null) return null
+    if (param !== null) {
+      // The rebuild reads the parent's post-batch snapshot — subsumes any
+      // data batch from the same commit (the sumR/avgR discipline).
+      reprojected(this, normCol(lastParam(param, this.col)))
+      extremumRebuild(this)
+      return publishScalar(this, seq, origin)
+    }
+    this.in0 = data
+    this.inFrom0 = this.parents[0]
+    this.inMore = null
+    return super.settle(seq, origin)
+  }
+
+  dispose(): void {
+    super.dispose()
+    this.paramSrc.dispose()
+  }
+}
+
+export class MinRNode<T> extends MinNode<T> {
+  declare paramSrc: SourceNode<unknown>
+  declare target: () => unknown
+
+  constructor(runtime: Runtime, parent: DataNode<T>, paramSrc: SourceNode<unknown>, col0: string | undefined) {
+    super(runtime, parent, col0)
+    this.paramSrc = paramSrc
+    this.target = () => paramSrc.get(PKEY)
+    adoptParam(this, paramSrc)
+  }
+
+  column(): string | undefined {
+    return normCol(this.target())
+  }
+
+  value(): unknown {
+    return extremumValue(this)
+  }
+
+  settle(seq: number, origin: OriginToken): CommitBatch<never> | null {
+    const { data, param } = splitInputs(this)
+    if (data === null && param === null) return null
+    if (param !== null) {
+      reprojected(this, normCol(lastParam(param, this.col)))
+      extremumRebuild(this)
+      return publishScalar(this, seq, origin)
+    }
+    this.in0 = data
+    this.inFrom0 = this.parents[0]
+    this.inMore = null
+    return super.settle(seq, origin)
+  }
+
+  dispose(): void {
+    super.dispose()
+    this.paramSrc.dispose()
+  }
+}
+
+export function maxR<T>(src: DataNode<T>, col: unknown): MaxRNode<T> {
+  const ra = reactiveArg(col)
+  const paramSrc = new SourceNode<unknown>(src.runtime, { [PKEY]: ra.current() }, 'param:max')
+  const node = new MaxRNode<T>(src.runtime, src, paramSrc, normCol(ra.current()))
+  if (ra.isReactive) {
+    node.target = ra.current
+    bindParam(node, col, (v) => paramSrc.write(PKEY, [], v))
+  }
+  return node
+}
+
+export function minR<T>(src: DataNode<T>, col: unknown): MinRNode<T> {
+  const ra = reactiveArg(col)
+  const paramSrc = new SourceNode<unknown>(src.runtime, { [PKEY]: ra.current() }, 'param:min')
+  const node = new MinRNode<T>(src.runtime, src, paramSrc, normCol(ra.current()))
+  if (ra.isReactive) {
+    node.target = ra.current
+    bindParam(node, col, (v) => paramSrc.write(PKEY, [], v))
+  }
+  return node
+}
+
 // ── 4. installReactive — wrap the registry entries ──────────────────────────
 
 // ── betweenR — reactive bounds on between ────────────────────────────────────
@@ -679,6 +823,18 @@ export function installReactive(): void {
       name,
       (src, [col]) =>
         reactiveArg(col).isReactive ? (name === 'sum' ? sumR(src, col) : avgR(src, col)) : null,
+      ([col]) => {
+        const ra = reactiveArg(col)
+        return ra.isReactive ? `${name}:${ra.identity}` : undefined
+      },
+    )
+  }
+
+  for (const name of ['max', 'min'] as const) {
+    wrapDef(
+      name,
+      (src, [col]) =>
+        reactiveArg(col).isReactive ? (name === 'max' ? maxR(src, col) : minR(src, col)) : null,
       ([col]) => {
         const ra = reactiveArg(col)
         return ra.isReactive ? `${name}:${ra.identity}` : undefined
