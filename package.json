@@ -49,6 +49,12 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-dev-runtime.d.ts",
       "import": "./dist/jsx-dev-runtime.js"
+    },
+    "./v3": {
+      "import": "./dist/v3/index.js"
+    },
+    "./v3/jsx-runtime": {
+      "import": "./dist/v3/jsx-runtime.js"
     }
   },
   "files": [

@@ -71,4 +71,31 @@ export default defineConfig([
     target: 'es2022',
     treeshake: true,
   },
+  // data/v3/jsx-runtime — the automatic JSX runtime entry, emitted as a THIN
+  // re-export over dist/v3/index.js rather than a self-contained bundle. A
+  // duplicate bundle would carry its own kernel classes (instanceof breaks
+  // across the boundary — the v2 single-entry trap); the rewrite plugin
+  // externalizes the jsx-layer import and points it at the sibling main
+  // bundle, so both entries share one module instance. The main bundle
+  // exports jsx/jsxs/jsxDEV/Fragment for exactly this reason (v3/api/index.ts).
+  {
+    entry: { 'v3/jsx-runtime': 'v3/api/jsx-runtime.ts' },
+    format: ['esm'],
+    dts: false,
+    splitting: false,
+    sourcemap: true,
+    clean: false,
+    target: 'es2022',
+    esbuildPlugins: [
+      {
+        name: 'v3-jsx-runtime-thin',
+        setup(build) {
+          build.onResolve({ filter: /^\.\.\/jsx\/runtime\.ts$/ }, () => ({
+            path: './index.js',
+            external: true,
+          }))
+        },
+      },
+    ],
+  },
 ])

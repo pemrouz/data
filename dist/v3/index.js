@@ -4066,6 +4066,25 @@ function For(props) {
   return list(each, kids[0]);
 }
 
+// v3/jsx/runtime.ts
+function toChildren(children) {
+  if (children === void 0) return [];
+  return Array.isArray(children) ? children : [children];
+}
+function transform(tag, props) {
+  const { children, ...rest } = props ?? {};
+  return h(tag, Object.keys(rest).length > 0 ? rest : null, ...toChildren(children));
+}
+function jsx(tag, props, _key) {
+  return transform(tag, props);
+}
+function jsxs(tag, props, _key) {
+  return transform(tag, props);
+}
+function jsxDEV(tag, props, _key, _isStaticChildren, _source, _self) {
+  return transform(tag, props);
+}
+
 // v3/api/index.ts
 installReactive();
 var value = /* @__PURE__ */ Symbol.for("data.v3.value");
@@ -4332,6 +4351,6 @@ function handleFor(n) {
   return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() });
 }
 
-export { $, For, Fragment, HTML, InMemoryBacking, SVG, batch, bind, el, exportContract, fromAsync, h, handleFor, list, node, normChildren, render, runtime, text, value };
+export { $, For, Fragment, HTML, InMemoryBacking, SVG, batch, bind, el, exportContract, fromAsync, h, handleFor, jsx, jsxDEV, jsxs, list, node, normChildren, render, runtime, text, value };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
