@@ -1,0 +1,21 @@
+{
+  // The v3 AUTOMATIC-transform JSX gate: `npx tsc -p v3/types/tsconfig.auto.json`
+  // compiles check.auto.tsx under jsx "react-jsx" with jsxImportSource
+  // "data/v3" — the paths map resolves `data/v3/jsx-runtime` to the
+  // DECLARATION shim (jsx-runtime-decl.d.ts) rather than the real
+  // v3/jsx/runtime.ts, which statically imports the strip-types-only (and
+  // currently type-erroring) implementation — see surface.ts's typedDollar
+  // note. The shim exports the same jsx/jsxs/jsxDEV/Fragment contract and a
+  // JSX namespace over the SAME shared ../jsx/intrinsics.ts, so the two
+  // transforms are gated against one per-tag surface. NB no ../jsx/jsx.d.ts
+  // here: the automatic transform reads the runtime module's EXPORTED JSX
+  // namespace, never the global one.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "data/v3",
+    "baseUrl": ".",
+    "paths": { "data/v3/jsx-runtime": ["./jsx-runtime-decl.d.ts"] }
+  },
+  "include": ["check.auto.tsx", "jsx-runtime-decl.d.ts"]
+}
