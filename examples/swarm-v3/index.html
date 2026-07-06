@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>swarm — live agent-simulation control room — data/v3</title>
+  <meta name="description" content="The swarm control room on the v3 engine: a live SIRS epidemic over thousands of moving agents at 60fps, with a fully-incremental analytics deck maintained by data/v3 — one patch commit per frame drives SIR counts, a region leaderboard, an energy histogram and a brushable cohort.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0e10'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../swarm/index.css">
+</head>
+<body>
+  <header class="hero">
+    <h1>swarm <span class="sub">— live agent-simulation control room · v3 engine</span></h1>
+    <p class="lede">
+      A SIRS epidemic over <strong id="hud-n">12,000</strong> moving agents runs
+      in plain JS (the same sim as the v2 example). The entire analytics deck on
+      the right is maintained <em>incrementally</em> by <code>data/v3</code>:
+      each frame the sim's dirty agents drain into <strong>one</strong>
+      <code>patch</code> commit, so every view settles exactly once and the
+      deck's cost tracks the flips and cell-crossings, not the population. Drag
+      a box on the cloud and watch the cohort churn as the wavefront sweeps
+      through it.
+    </p>
+    <div class="hud">
+      <span><b id="hud-fps">0</b> fps</span>
+      <span class="sep">·</span>
+      <span><b id="hud-ev">0</b> events/frame</span>
+      <span class="sep">·</span>
+      <span><b id="hud-ms">0.0</b> ms</span>
+      <span class="sep">·</span>
+      <span class="alarm" id="alarm" title="regionInf.some(cell => cell.value >= 22) over the per-region counts">● outbreak</span>
+    </div>
+    <p class="note">deck cost tracks the <em>event</em> rate, not the population — append <code>?n=30000</code> to push it and watch where the single-thread budget runs out.</p>
+  </header>
+
+  <main class="stage">
+    <section class="cloud-wrap">
+      <div class="cloud-box">
+        <canvas id="cloud"></canvas>
+        <div id="brush" class="brush" hidden></div>
+      </div>
+      <p class="hint">drag on the cloud to brush a region · <span class="dot s"></span>susceptible <span class="dot i"></span>infected <span class="dot r"></span>recovered</p>
+    </section>
+
+    <section class="deck">
+      <div class="panel tiles">
+        <div class="tile"><div class="tv" id="t-pop">—</div><div class="tk">population</div></div>
+        <div class="tile"><div class="tv" id="t-inf">—</div><div class="tk">infected</div></div>
+        <div class="tile"><div class="tv" id="t-energy">—</div><div class="tk">mean energy</div></div>
+        <div class="tile hot"><div class="tv" id="t-cohort">—</div><div class="tk">in brush</div></div>
+        <div class="tile hot"><div class="tv" id="t-cohort-e">—</div><div class="tk">brush energy</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>S · I · R</h2>
+        <div class="sir">
+          <div id="sir-S" class="srow s"><span class="lbl">S</span><span class="track"><span class="bar"></span></span><span class="n">0</span></div>
+          <div id="sir-I" class="srow i"><span class="lbl">I</span><span class="track"><span class="bar"></span></span><span class="n">0</span></div>
+          <div id="sir-R" class="srow r"><span class="lbl">R</span><span class="track"><span class="bar"></span></span><span class="n">0</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>hottest regions <span class="meta">infected per cell · top 12</span></h2>
+        <div id="leaderboard" class="leaderboard"></div>
+      </div>
+
+      <div class="panel">
+        <h2>energy histogram</h2>
+        <div id="hist" class="hist"></div>
+      </div>
+
+      <div class="panel cohort">
+        <h2>brushed cohort <span class="meta">keyed list() — surgical per-row · ≤120 shown</span></h2>
+        <div id="cohort-rows" class="cohort-rows"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span><a href="../../index.html">← data</a></span>
+    <span><a href="../swarm/">swarm (v2)</a></span>
+    <span><a href="../crossfilter-v3/">crossfilter-v3</a></span>
+    <span class="spacer"></span>
+    <span class="lic">MIT</span>
+  </footer>
+
+  <script type="importmap">
+  { "imports": { "data/v3": "../../dist/v3/index.js" } }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

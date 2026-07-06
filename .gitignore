@@ -20,6 +20,7 @@
 !examples/kanban-v3/**/*.js
 !examples/pivot-v3/**/*.js
 !examples/library-v3/**/*.js
+!examples/swarm-v3/**/*.js
 !perf/**/*.js
 !mockups/**/*.js
 
