@@ -550,3 +550,28 @@ test('hasRow/rowAt: O(1) materialized reads when settled; pure (post-write) mid-
   assert.strictEqual((w.rowAt('c') as Row).val, 3)
   assert.strictEqual(w.rowAt('a'), undefined) // not exposed by this view
 })
+
+test('invalid operands fail fast BEFORE attach — no runtime poisoning', () => {
+  // The v2 object-map form (intersect({col: extentView})) used to throw
+  // mid-attach and leave a half-constructed SetOpNode in the primary's
+  // children — every subsequent write to ANY related source then crashed at
+  // settle until reload. validatedOperands() now throws before DataNode's
+  // constructor touches any parent, with a migration hint for the object-map
+  // shape. The load-bearing assertion is the SECOND half: the source keeps
+  // accepting writes and standing views keep settling after the throw.
+  const rt = new Runtime()
+  const src = new SourceNode(rt, rows())
+  const f = filter(src, pA)
+  const total = sum(src, 'val')
+  const before = src.children.length
+
+  assert.throws(() => intersect(src, { g: f } as any), /object-map form is gone/)
+  assert.throws(() => union(src, 42 as any), /operands must be views/)
+  assert.throws(() => except(src, undefined as any), /operands must be views/)
+  assert.throws(() => intersect({ g: f } as any, src), /primary operand must be a view/)
+
+  same(src.children.length, before) // nothing half-attached
+  src.write('e', [], { val: 55, cat: 'x' }) // the poisoning repro: this used to throw
+  assert.strictEqual(f.hasRow('e'), true)
+  assert.strictEqual(total.value(), 60 + 70 + 10 + 20 + 55)
+})

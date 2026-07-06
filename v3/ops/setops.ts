@@ -86,6 +86,33 @@ function pathEq(a: Path, b: Path): boolean {
   return true
 }
 
+// Fail-fast operand validation, run INSIDE the super() argument expression —
+// i.e. BEFORE DataNode's constructor attaches this node to any parent. A bad
+// operand that threw mid-attach used to POISON the runtime: the primary's
+// children already held a half-constructed SetOpNode (fields uninitialized),
+// so every subsequent write to ANY related source crashed at settle until
+// reload. The v2 object-map form (intersect({col: extentView})) is exactly
+// the operand shape that hit this, so the message is a migration hint.
+function validatedOperands<T>(
+  variant: SetVariant,
+  primary: DataNode<T>,
+  others: readonly DataNode<T>[],
+): DataNode<T>[] {
+  const bad = (o: unknown): string =>
+    o !== null && typeof o === 'object' && !Array.isArray(o)
+      ? `a plain object — v2's ${variant}({col: view}) object-map form is gone; compose the dims explicitly: src.${variant}(src.between('col', bounds.get('col')), …)`
+      : `${typeof o} — pass derived views or sources`
+  if (!(primary instanceof DataNode))
+    throw new Error(`data: ${variant}() primary operand must be a view, got ${bad(primary)}`)
+  for (const o of others)
+    if (!(o instanceof DataNode))
+      throw new Error(`data: ${variant}() operands must be views, got ${bad(o)}`)
+  // Dedup parents by identity, primary first (the v2 a.intersect(a) fix).
+  const unique: DataNode<T>[] = [primary]
+  for (const o of others) if (unique.indexOf(o) < 0) unique.push(o)
+  return unique
+}
+
 export class SetOpNode<T> extends DataNode<T> {
   declare variant: SetVariant
   declare view: Map<RowKey, T> // materialized output, updated at settle
@@ -93,12 +120,13 @@ export class SetOpNode<T> extends DataNode<T> {
   declare sharedProvenance: boolean // parents share ≥1 root source
 
   constructor(runtime: Runtime, variant: SetVariant, primary: DataNode<T>, others: readonly DataNode<T>[]) {
-    // Dedup parents by identity, primary first (the v2 a.intersect(a) fix).
-    // For except the ORIGINAL others list still contributes to othersMask, so
-    // except(a, a) maps the primary bit into othersMask → honestly empty.
-    const unique: DataNode<T>[] = [primary]
-    for (const o of others) if (unique.indexOf(o) < 0) unique.push(o)
-    super(runtime, 'operator', variant, unique)
+    // Operands validate + dedup BEFORE attach (validatedOperands throws on a
+    // non-view operand without touching any parent's children — see its
+    // header for the poisoning this prevents). For except the ORIGINAL others
+    // list still contributes to othersMask, so except(a, a) maps the primary
+    // bit into othersMask → honestly empty.
+    super(runtime, 'operator', variant, validatedOperands(variant, primary, others))
+    const unique = this.parents as readonly DataNode<T>[]
     this.variant = variant
     this.othersMask = 0
     for (const o of others) this.othersMask |= 1 << unique.indexOf(o)
