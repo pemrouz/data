@@ -147,10 +147,18 @@ export class MapNode<T, Out> extends DataNode<Out> {
 // ── factories + registry entries ─────────────────────────────────────────────
 
 export function filter<T>(src: DataNode<T>, pred: (row: T, key: RowKey) => boolean): FilterNode<T> {
+  // Fail fast at construction, not on the first write: v2's non-predicate
+  // forms otherwise died LATE with a bare "pred is not a function" — and over
+  // an empty source, not until the first row arrived.
+  if (typeof pred !== 'function')
+    throw new Error(
+      "data: filter() takes a predicate fn — v2's filter('key', value) / filter({key: value}) forms are gone: filter(r => r.key === value)",
+    )
   return new FilterNode(src.runtime, src, pred)
 }
 
 export function map<T, Out>(src: DataNode<T>, fn: (row: T, key: RowKey) => Out): MapNode<T, Out> {
+  if (typeof fn !== 'function') throw new Error('data: map() takes a fn (row, key) => value')
   return new MapNode(src.runtime, src, fn)
 }
 

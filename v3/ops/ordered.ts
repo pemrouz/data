@@ -374,12 +374,26 @@ const colProj = (col: string) => (row: any) => row?.[col]
 
 // ── factories ────────────────────────────────────────────────────────────────
 
+// Fail fast at construction: v2's numeric top-K form (za(5)) otherwise died
+// LATE with a bare "by is not a function" at the first two-row comparison —
+// and stayed SILENT over 0/1-row sources until a second row arrived.
+function assertBy(name: 'az' | 'za', by: unknown): void {
+  if (typeof by === 'string' || typeof by === 'function') return
+  if (typeof by === 'number')
+    throw new Error(
+      `data: ${name}(${by}) without a column is gone — use top(n) (descending numeric rows) / limit(n) (source order), or ${name}(col, n) for a bounded column sort`,
+    )
+  throw new Error(`data: ${name}() takes a column name or comparator, got ${typeof by}`)
+}
+
 export function az<T>(src: DataNode<T>, by: string | RowComparator<T>, n?: number): OrderedView<T> {
+  assertBy('az', by)
   const cmp = typeof by === 'string' ? cmpBy<T>(colProj(by), 1) : by
   return new OrderedView(src.runtime, src, 'az', cmp, n)
 }
 
 export function za<T>(src: DataNode<T>, by: string | RowComparator<T>, n?: number): OrderedView<T> {
+  assertBy('za', by)
   const cmp: RowComparator<T> =
     typeof by === 'string' ? cmpBy<T>(colProj(by), -1) : (a, b) => by(b, a)
   return new OrderedView(src.runtime, src, 'za', cmp, n)

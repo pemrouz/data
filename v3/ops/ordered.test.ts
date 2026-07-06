@@ -543,3 +543,14 @@ test('LCG churn, array-born: filter → za(val, 6), 300 steps incl. mid-inserts,
     assertOracle(v, () => new Map(exp), `oracle @ step ${step}`)
   }
 })
+
+test("az/za fail fast on v2's numeric top-K form and junk 'by' args", () => {
+  // za(5) died LATE pre-guard: a bare "by is not a function" at the first
+  // two-row comparison — and silently NOTHING over 0/1-row sources.
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {})
+  assert.throws(() => za(src, 5 as any), /use top\(n\)/)
+  assert.throws(() => az(src, 3 as any), /use top\(n\)/)
+  assert.throws(() => za(src, {} as any), /column name or comparator/)
+  src.write('a', [], { val: 1 }) // runtime unharmed
+})

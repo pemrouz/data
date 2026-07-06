@@ -421,6 +421,20 @@ export function between<T>(
   col: string,
   bounds: readonly [number?, number?] = [],
 ): BetweenNode<T> {
+  // Fail fast on non-numeric bounds ELEMENTS. v2's two-handle tuple
+  // ([$(lo), $(hi)]) is the dangerous shape: the tuple itself isn't a
+  // reactive arg, so pre-guard it fell through to here and every row was
+  // compared against a proxy — a SILENTLY EMPTY view, no error.
+  for (const el of bounds) {
+    if (el == null || typeof el === 'number') continue
+    const handleLike =
+      typeof el === 'object' && ((el as any)[Symbol.for('data.v3.node')] !== undefined || el instanceof DataNode)
+    throw new Error(
+      handleLike
+        ? "data: between() bounds must be plain numbers — v2's [$(lo), $(hi)] two-handle tuple is gone: drive both ends from ONE bounds child, between(col, bounds.get('range')) where range holds [lo, hi]"
+        : `data: between() bounds must be numbers, got ${typeof el}`,
+    )
+  }
   let a = (bounds[0] ?? -Infinity) as number
   let b = (bounds[1] ?? Infinity) as number
   if (b < a) {

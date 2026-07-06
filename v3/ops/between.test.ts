@@ -595,3 +595,17 @@ test('churn (array-born): 350 seeded steps of inserts/removes/writes/batches/bru
   }
   ok(src.snapshot().size > 0)
 })
+
+test("between fails fast on v2's two-handle bounds tuple (was: silently empty)", () => {
+  // [$(lo), $(hi)] isn't a reactive arg (the TUPLE isn't a handle), so it
+  // used to fall through to the static path and compare every row against a
+  // proxy — an empty view with no error. Handle-shaped elements now throw
+  // the migration hint; other junk throws a typed error.
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { val: 5, cat: 'x' } })
+  const fakeHandle = { [Symbol.for('data.v3.node')]: src } // handle shape
+  assert.throws(() => between(src, 'val', [fakeHandle, fakeHandle] as any), /ONE bounds child/)
+  assert.throws(() => between(src, 'val', ['3' as any, 9]), /must be numbers, got string/)
+  const ok5 = between(src, 'val', [1, 9]) // runtime unharmed, op still works
+  assert.strictEqual(ok5.hasRow('a'), true)
+})
