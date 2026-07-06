@@ -1,6 +1,7 @@
 # v3 rewrite — status
 
-*Updated 2026-07-06 ("continue building v3" session: the DSL, the set-ops rewrite, todo-v3).
+*Updated 2026-07-06 ("continue building v3" session, second block: the JSX completion —
+automatic runtime, per-tag intrinsics + fixture gates, chat-v3).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -20,13 +21,18 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **perf: set-ops direct parent queries** (hasRow/rowAt protocol; mirrors die) | done | `09adf4a` | RSS 337→218 MB build / 403→186 MB post-brush; brush −18%; m1/m2 PASS |
 | **M4.5b DSL**: HTML/SVG builders + classic JSX (h/Fragment/For) + static-prop patching + live form props | done | `4e87200`…`7536e82` `fb7c84a` | 215 tests; DSL smoke through dist |
 | **M5 (second migration)** examples/todo-v3 on the builders + spec | done | `db23da9` | spec green (live checked props, mirror routes, edit flow, persistence) |
-| M4.5b rest: automatic jsx-runtime, per-tag intrinsic types, component scopes (onCleanup), devtools panel port | not started | | |
+| **M4.5b JSX completion**: automatic runtime (jsx/jsxs/jsxDEV through h) + per-tag intrinsics + classic/automatic fixture gates + the thin `data/v3/jsx-runtime` dist entry | done | `f8f326e` `2811cf5` `d86e014` | 222 tests; 3 tsc gate programs, gate-bite proven; m1 0.740 / m2 0.968·0.791 PASS |
+| **M5 (third migration)** examples/chat-v3 in classic JSX + spec | done | `b92b8d0` | spec green (mirror re-point, transient-filter dispose, nested reaction set, one-commit blast) |
+| M4.5b rest: component scopes (onCleanup / error boundaries), devtools panel port | not started | | |
 | M5 rest: remaining examples, MIGRATION.md, the flip | not started | | |
 
-Run everything: `npm run test:v3` (215 tests). Types gate: `npm run typecheck:v3`
-(89 positive + 47 @ts-expect-error negative fixtures). Perf gates: `npm run perf:v3`
-(m1 + m2 — LOCAL, not CI; noisy-runner policy). CI runs test:v3 + typecheck:v3.
-v2's `npm test` is untouched and green (v2 files unmodified).
+Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
+THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
+([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
+declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
+check.auto.tsx under `jsxImportSource: "data/v3"` via a paths-mapped decl shim). Perf
+gates: `npm run perf:v3` (m1 + m2 — LOCAL, not CI; noisy-runner policy). CI runs
+test:v3 + typecheck:v3. v2's `npm test` is untouched and green (v2 files unmodified).
 
 ## Layout
 
@@ -157,11 +163,33 @@ The first M5 example migration, plus the M4.5b slice it forced:
   approaching native crossfilter2's 20.9 ms/step on the same box/data/sweep. Full
   table in [perf/crossfilter-example.bench.ts](perf/crossfilter-example.bench.ts)'s header.
 
+Second block (the JSX completion, `f8f326e`…`b92b8d0`):
+
+- **Automatic runtime** (`f8f326e`, [jsx/runtime.ts](jsx/runtime.ts)): jsx/jsxs/jsxDEV
+  all peel props.children and normalize through the SAME `h(tag, rest, ...children)`
+  path as the classic transform — byte-identical records by construction, drift
+  structurally impossible. JSX `key` accepted and IGNORED (v3 keys rows by DATA).
+- **Per-tag intrinsics + gates** (`2811cf5`): [jsx/intrinsics.ts](jsx/intrinsics.ts) is
+  the zero-import single source of truth both transforms alias ([jsx/jsx.d.ts](jsx/jsx.d.ts)
+  global for classic; runtime.ts's exported namespace for automatic) — v3 truths encoded
+  as fixtures: literal `class`/`for`, string `style`, no class object-maps, function
+  children are a COMPILE error. Two new gate programs (classic + automatic) join the
+  base gate under `typecheck:v3`; `<For>` row-type inference is a positive fixture.
+- **The thin jsx-runtime entry** (`d86e014`): dist/v3/jsx-runtime.js is emitted as
+  `export … from './index.js'` (a tsup rewrite plugin) — ONE module instance across
+  entries, closing the v2 "single entry" instanceof trap structurally. package.json
+  exports `./v3` + `./v3/jsx-runtime` (no types keys — flip-time decision).
+- **chat-v3** (`b92b8d0`): third M5 migration, the JSX layer's first browser consumer.
+  Idioms it proves: mirror slot with az/length chained once; TRANSIENT search filter
+  dispose()d after re-point (the kanban pileup lesson, answered); path-addressed nested
+  reaction writes; one-commit 200-row patch; PLAIN rows — no .to() bindings, no
+  transient-undefined guards, no data-id read-back. Spec: 6 scenarios green.
+
 ## Known gaps / next work (M4.5b+)
 
-1. **M4.5b rest**: the automatic jsx-runtime (jsx/jsxs/jsxDEV entries), per-tag
-  intrinsic JSX types (the jsx/intrinsics.ts port — .tsx authoring is untyped until
-  then), component scopes (onCleanup / error boundaries), devtools panel port.
+1. **M4.5b rest**: component scopes (onCleanup / error boundaries), devtools panel
+  port. ~~automatic jsx-runtime, per-tag intrinsic types~~ — DONE 2026-07-06
+  (`f8f326e` `2811cf5` `d86e014`).
 2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
   parity-test compat/v2-records.ts against them (only shape-level tests exist).
 3. **Registry-generated types** — replace the hand-mirrored Reserved/Ops in types/surface.ts;
