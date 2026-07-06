@@ -206,3 +206,25 @@ test('v2-idiom fail-fasts: flat patch and $(handle) throw with migration hints',
   // $(handle) minted a proxy-row source pre-fix (frozen membership, leaking reads).
   assert.throws(() => $(d), /use handle\.mirror\(\)/)
 })
+
+test('scalar connect(): aggregates support the v2 change-stream capture forms', () => {
+  // v2's documented testing pattern — capture an aggregate's changes with
+  // connect([]). Pre-fix, V2RecordSink's constructor called snapshot() on the
+  // scalar node and threw "read value(), not snapshot()".
+  const d = $(rows())
+  const s = d.sum('val')
+  const recs: any[] = []
+  const h = s.connect(recs)
+  same(recs, [{ type: 'update', key: [], value: 60 }]) // initial whole-value record
+  d.a.val.update(50)
+  same(recs[1], { type: 'update', key: [], value: 100 })
+  h.dispose()
+  d.b.val.update(0)
+  same(recs.length, 2) // detached
+
+  const seen: any[] = []
+  const anchor = {}
+  d.length().connect(anchor, (r: any) => seen.push(r))
+  d.set('e', { region: 'east', val: 5 })
+  same(seen.map((r) => r.value), [3, 4]) // initial + the insert's delta
+})

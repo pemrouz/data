@@ -29,6 +29,16 @@ export class V2RecordSink<T> {
   constructor(node: DataNode<T>, out: (r: ChangeRecordV2) => void) {
     this.node = node
     this.out = out
+    // Scalars (aggregates) have no snapshot()/order — their stream is the
+    // initial whole-value record plus one update per scalar delta (apply()'s
+    // batch.scalar branch). v2 supported change-stream capture on aggregates
+    // (the documented v2 testing pattern), so connect([]) must work here too;
+    // pre-fix this snapshot() read threw "read value(), not snapshot()".
+    if (node.kind === 'scalar') {
+      this.order = null
+      this.out({ type: 'update', key: [], value: sclone((node as any).value()) })
+      return
+    }
     const snap = node.snapshot()
     const order = node.currentOrder()
     this.order = order ? [...order] : null
