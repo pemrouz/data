@@ -1,7 +1,7 @@
 # v3 rewrite — status
 
-*Updated 2026-07-06 ("continue building v3" session, third block: the kanban/pivot/library
-migrations + the reheight-on-repoint and dedup-eviction fixes they surfaced).
+*Updated 2026-07-06 ("continue building v3" session, fourth block: swarm-v3, MIGRATION.md
+drafted + adversarially verified, and the migration-hardening fix series it surfaced).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -24,8 +24,11 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M4.5b JSX completion**: automatic runtime (jsx/jsxs/jsxDEV through h) + per-tag intrinsics + classic/automatic fixture gates + the thin `data/v3/jsx-runtime` dist entry | done | `f8f326e` `2811cf5` `d86e014` | 222 tests; 3 tsc gate programs, gate-bite proven; m1 0.740 / m2 0.968·0.791 PASS |
 | **M5 (third migration)** examples/chat-v3 in classic JSX + spec | done | `b92b8d0` | spec green (mirror re-point, transient-filter dispose, nested reaction set, one-commit blast) |
 | **M5 (migrations 4–6)** kanban-v3 / pivot-v3 / library-v3 + specs, and the two fixes they surfaced (kernel reheight-on-repoint; dedup evicts disposed) | done | `92b920f`…`c18e4a4` | 224 tests; 23 spec cases; m1/m2 PASS |
+| **M5 (seventh migration)** examples/swarm-v3 + spec — the patch-throughput showcase | done | `80e9475` | organic frames 0.26 ms median; 2000-row patches 3.39 ms; spec proves one-commit-per-frame bridge |
+| **MIGRATION.md** drafted + adversarially verified (~220 executed checks) | done | (uncommitted → this block) | every code claim + error string executed against the runtime |
+| **Migration hardening** — the fix series the MIGRATION.md verification surfaced | done | `313e575`…`3f93655` | 233 tests; m1/m2 PASS; see the session section |
 | M4.5b rest: component scopes (onCleanup / error boundaries), devtools panel port | not started | | |
-| M5 rest: swarm/flow/multidim + landing, MIGRATION.md, v2 perf re-baseline, the flip | not started | | |
+| M5 rest: flow/multidim + landing, v2 perf re-baseline, the flip | not started | | |
 
 Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
 THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -210,6 +213,26 @@ Third block (three more M5 migrations + the two fixes they surfaced,
   on hit) — pivot's footgun: dispose a deduped aggregate, re-request it, get the
   detached node frozen at its pre-dispose value.
 
+Fourth block (swarm-v3 + MIGRATION.md + the hardening series it surfaced):
+
+- **swarm-v3** (`80e9475`): the patch-throughput showcase — one `pop.patch(pairs)` per
+  frame through the full deck (2 histograms + filter→histogram + some-over-buckets +
+  avg + reactive-bounds intersect + limit(120) table). Organic frames 0.26 ms median /
+  0.45 p95; heavy 2000-row patches 3.39 ms; worst case (bounds moved every frame while
+  churning) 8.15 ms — between's documented lazy-resort amortization, raf-capped.
+- **[MIGRATION.md](MIGRATION.md)**: drafted from the seven migrations, then an
+  adversarial pass EXECUTED ~220 claims (every code snippet + thrown string) against
+  the runtime. It surfaced six real gaps, ALL FIXED same-block:
+  - `313e575` set-op operands validate BEFORE attach — v2's `intersect({col: view})`
+    used to POISON the runtime (half-attached node crashed every later write).
+  - `14028b1` patch() tuple-shape pre-scan (v2's flat form could commit garbage
+    char-wise rows SILENTLY); `$(handle)` throws → mirror()/snapshot-fork hints.
+  - `3f607c1` construction fail-fasts: filter('k',v)/filter({k:v}), za(5)/az(5),
+    between(col, [$(lo), $(hi)]) (was a SILENTLY EMPTY view).
+  - `ce6b9d3` reactive max/min columns (MaxRNode/MinRNode — closes the gap-3 sub-item).
+  - `8fea5b6` scalar connect([]) / (anchor, fn) — v2's documented testing pattern.
+  - `3f93655` JSX `key` stripped (no literal key="…" DOM attribute).
+
 ## Known gaps / next work (M4.5b+)
 
 1. **M4.5b rest**: component scopes (onCleanup / error boundaries), devtools panel
@@ -218,9 +241,9 @@ Third block (three more M5 migrations + the two fixes they surfaced,
 2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
   parity-test compat/v2-records.ts against them (only shape-level tests exist).
 3. **Registry-generated types** — replace the hand-mirrored Reserved/Ops in types/surface.ts;
-  flip surface.ts's dynamic-import facade to the static import (marked in-file). Wrap
-  max/min in installReactive (between's reactive bounds landed 2026-07-05; type fixtures
-  for `between(col, handle)` + `bind()`/`text(view, fn)` should follow).
+  flip surface.ts's dynamic-import facade to the static import (marked in-file).
+  ~~Wrap max/min in installReactive~~ — DONE 2026-07-06 (`ce6b9d3`). Type fixtures
+  for `between(col, handle)` + `bind()`/`text(view, fn)` should still follow.
 4. ~~Wire the gates into package.json/CI~~ — DONE 2026-07-06 (`9906424`).
 5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
   cast into parents today); ~~height re-propagation after repoint~~ — DONE 2026-07-06
@@ -228,9 +251,11 @@ Third block (three more M5 migrations + the two fixes they surfaced,
   a ScalarSource cell primitive; SourceNode.move() for ingest's deferred 'move' records;
   export ProjectionAggregate; deep-scalar emission mode; per-path connect(); positional
   limit(); page().
-6. **M5**: remaining example migrations (six done: crossfilter, todo, chat, kanban,
-  pivot, library; swarm/flow/multidim + the landing page remain), v2 perf corpus
-  re-baseline, MIGRATION.md, the flip. fero Phase 0.5 items on the v2 side remain undone.
+6. **M5**: remaining example migrations (SEVEN done: crossfilter, todo, chat, kanban,
+  pivot, library, swarm; flow/multidim + the landing page remain — all three are
+  v2-showcase surfaces, likely flip-time decisions), v2 perf corpus re-baseline,
+  ~~MIGRATION.md~~ (drafted + verified this block; flip-time renames still TODO in its
+  §6), the flip. fero Phase 0.5 items on the v2 side remain undone.
 7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
   per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
   crossfilter-shaped micro). What remains per-node: map's output cache, each between's
