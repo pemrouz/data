@@ -1,6 +1,7 @@
 # v3 rewrite — status
 
-*Updated 2026-07-06 ("continue building v3" session, fourth block: swarm-v3, MIGRATION.md
+*Updated 2026-07-10 (fifth "continue building v3" block: the v2 perf-corpus re-baseline —
+the flip's perf evidence is now complete. Fourth block: swarm-v3, MIGRATION.md
 drafted + adversarially verified, and the migration-hardening fix series it surfaced).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
@@ -27,8 +28,9 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M5 (seventh migration)** examples/swarm-v3 + spec — the patch-throughput showcase | done | `80e9475` | organic frames 0.26 ms median; 2000-row patches 3.39 ms; spec proves one-commit-per-frame bridge |
 | **MIGRATION.md** drafted + adversarially verified (~220 executed checks) | done | (uncommitted → this block) | every code claim + error string executed against the runtime |
 | **Migration hardening** — the fix series the MIGRATION.md verification surfaced | done | `313e575`…`3f93655` | 233 tests; m1/m2 PASS; see the session section |
+| **v2 perf-corpus re-baseline** — corpus.bench.ts (64 paired cases over all 19 workloads.ts exports, checksummed equivalence, adversarial fairness pass) + the full-sweep table | done | `8e0da82` + results commit | geomean 1.569× on UNBATCHED write-for-write micros (see the header's read: setup-dominated; single-writes at parity or v3-faster; realistic batched shapes all favor v3 — m1 0.74×, m2 0.78–0.97×, examples 0.14–0.25×) |
 | M4.5b rest: component scopes (onCleanup / error boundaries), devtools panel port | not started | | |
-| M5 rest: flow/multidim + landing, v2 perf re-baseline, the flip | not started | | |
+| M5 rest: flow/multidim + landing, the flip decision (perf evidence now complete) | not started | | |
 
 Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
 THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -253,9 +255,16 @@ Fourth block (swarm-v3 + MIGRATION.md + the hardening series it surfaced):
   limit(); page().
 6. **M5**: remaining example migrations (SEVEN done: crossfilter, todo, chat, kanban,
   pivot, library, swarm; flow/multidim + the landing page remain — all three are
-  v2-showcase surfaces, likely flip-time decisions), v2 perf corpus re-baseline,
-  ~~MIGRATION.md~~ (drafted + verified this block; flip-time renames still TODO in its
-  §6), the flip. fero Phase 0.5 items on the v2 side remain undone.
+  v2-showcase surfaces, likely flip-time decisions), ~~v2 perf corpus re-baseline~~
+  (DONE — [perf/corpus.bench.ts](perf/corpus.bench.ts), table + read in its header),
+  ~~MIGRATION.md~~ (drafted + verified; flip-time renames still TODO in its §6), the
+  flip. fero Phase 0.5 items on the v2 side remain undone.
+8. **Corpus hotspots** (from the re-baseline table — follow-up perf levers, none
+  flip-blocking): graph-construction/setup overhead is the systematic slow class
+  (tap/setup 13.2×, to/setup 6.5×, filter/setup 5.1× — node + param-source minting);
+  group/insert 10.96× and to/* 4.8–6.2× are the named per-write outliers;
+  reduce/batch 1.8×, between/remove 3.8×. Single-write parity and the batched
+  flagship shapes are already at-or-ahead of v2.
 7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
   per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
   crossfilter-shaped micro). What remains per-node: map's output cache, each between's
