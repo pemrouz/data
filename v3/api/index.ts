@@ -40,6 +40,15 @@ export { h, Fragment, For } from '../jsx/index.ts'
 // one module instance either way.
 export { jsx, jsxs, jsxDEV } from '../jsx/runtime.ts'
 export { fromAsync, exportContract, InMemoryBacking } from '../seam/index.ts'
+// Devtools-support re-exports: dist/v3/devtools.js is emitted with every
+// cross-boundary import rewritten to './index.js' (the jsx-runtime
+// single-module-instance discipline — a duplicate kernel would break
+// instanceof across bundles), so everything the devtools layer touches BY
+// VALUE must be reachable from this entry. Not part of the consumer surface.
+export { DataNode } from '../kernel/node.ts'
+export { Runtime } from '../kernel/runtime.ts'
+export { materialize } from '../compat/v2-records.ts'
+export { domLinks, liveLists } from '../render/index.ts'
 
 export const value = Symbol.for('data.v3.value')
 export const node = Symbol.for('data.v3.node')

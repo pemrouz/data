@@ -12,8 +12,9 @@
 // any onCommit hook is live — so a traced write through a chain necessarily
 // yields one row per operator that settled.
 //
-// highlight()/fromDOM() are DEFERRED to the browser panel port (M4.5) — both
-// need a DOM and the render-layer element↔node registry.
+// highlight()/fromDOM() live in ./dom.ts (they need a DOM and the render
+// layer's element↔node registry); the overlay panel lives in ./panel/ and the
+// data/v3/devtools bundle entry (attach + auto-mount) in ./entry.ts.
 
 import { Runtime } from '../kernel/runtime.ts'
 import type { CommitInfo, GraphNodeInfo } from '../kernel/runtime.ts'
