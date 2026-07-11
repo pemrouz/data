@@ -357,6 +357,16 @@ function patchRow(m: Mounted, v: VNode): boolean {
   return true // rtext / list: self-updating
 }
 
+// ── devtools registry (zero-cost when unobserved) ────────────────────────────
+// The DOM ↔ data seam the devtools layer builds fromDOM()/highlight()/badges
+// on: row ELEMENT → { view, key } (set once per row build; WeakMap, so rows
+// die naturally), plus the live ListBinding set so a view's row elements are
+// enumerable (WeakMaps aren't). Nothing here is read by the render path
+// itself — one WeakMap.set per row creation and one Set add/delete per list
+// bind/dispose is the entire cost.
+export const domLinks: WeakMap<object, { view: DataNode<any>; key: RowKey }> = new WeakMap()
+export const liveLists: Set<{ view: DataNode<any>; recs: Map<RowKey, { el: any }> }> = new Set()
+
 // ── the keyed list sink ──────────────────────────────────────────────────────
 
 interface RowRec {
@@ -406,6 +416,7 @@ class ListBinding {
       apply: (b: CommitBatch<any>) => this.apply(b),
     })
     ctx.scope.add(this.sub)
+    liveLists.add(this)
   }
 
   // Each row owns a child Scope: its rtext/bind subscriptions and listeners
@@ -419,6 +430,7 @@ class ListBinding {
     const mounted = runInScope(rowScope, () =>
       materialize(vnode, { doc: this.doc, scope: rowScope, ns: this.ns }),
     )
+    domLinks.set(mounted.dom, { view: this.view, key })
     return { key, el: mounted.dom, scope: rowScope, mounted }
   }
 
@@ -518,6 +530,7 @@ class ListBinding {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    liveLists.delete(this)
     this.sub.dispose()
     for (const rec of this.recs.values()) {
       rec.scope.dispose()

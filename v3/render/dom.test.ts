@@ -24,7 +24,7 @@ import { filter } from '../ops/rowops.ts'
 import { za } from '../ops/ordered.ts'
 import { sum } from '../ops/aggregate.ts'
 import { conform } from '../conformance/harness.ts'
-import { render, el, text, list, bind, mirror, raf, MirrorNode } from './index.ts'
+import { render, el, text, list, bind, mirror, raf, MirrorNode, domLinks, liveLists } from './index.ts'
 import { handleFor } from '../api/index.ts'
 
 const same = assert.deepStrictEqual
@@ -563,4 +563,25 @@ test('live form props: checked/value write the PROPERTY when the element has one
   eq('checked' in input.attrs, false)
   src.write('a', ['txt'], 'yo')
   eq((input as any).value, 'yo')
+})
+
+test('devtools registry: domLinks maps row elements; liveLists tracks bindings', () => {
+  // The DOM ↔ data seam fromDOM()/highlight() build on: one WeakMap entry per
+  // row element (view + row key), one liveLists entry per list binding,
+  // removed on dispose. Zero reads on the render path itself.
+  const rt = new Runtime()
+  const src = new SourceNode(rt, { a: { t: 'x' }, b: { t: 'y' } })
+  const host = dom.document.createElement('div')
+  const handle = render(host, el('ul', null, list(src, (r: any) => el('li', null, r.t))))
+  const binding = [...liveLists].find((b) => b.view === src)
+  ok(binding, 'binding registered on construct')
+  same(binding!.recs.size, 2)
+  for (const [key, rec] of binding!.recs) {
+    same(domLinks.get(rec.el), { view: src, key }) // element → {view, key}
+  }
+  src.write('c', [], { t: 'z' }) // a row added later links too
+  same(binding!.recs.size, 3)
+  same(domLinks.get(binding!.recs.get('c')!.el)!.key, 'c')
+  handle.dispose()
+  ok(![...liveLists].includes(binding!), 'binding deregistered on dispose')
 })
