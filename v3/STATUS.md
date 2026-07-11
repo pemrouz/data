@@ -1,8 +1,8 @@
 # v3 rewrite — status
 
-*Updated 2026-07-10 (fifth "continue building v3" block: the v2 perf-corpus re-baseline —
-the flip's perf evidence is now complete. Fourth block: swarm-v3, MIGRATION.md
-drafted + adversarially verified, and the migration-hardening fix series it surfaced).
+*Updated 2026-07-10 (sixth "continue building v3" block: the devtools panel port —
+M4.5b is now component-scopes-only. Fifth block: the v2 perf-corpus re-baseline —
+the flip's perf evidence is complete).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -29,7 +29,8 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **MIGRATION.md** drafted + adversarially verified (~220 executed checks) | done | (uncommitted → this block) | every code claim + error string executed against the runtime |
 | **Migration hardening** — the fix series the MIGRATION.md verification surfaced | done | `313e575`…`3f93655` | 233 tests; m1/m2 PASS; see the session section |
 | **v2 perf-corpus re-baseline** — corpus.bench.ts (64 paired cases over all 19 workloads.ts exports, checksummed equivalence, adversarial fairness pass) + the full-sweep table | done | `8e0da82` + results commit | geomean 1.569× on UNBATCHED write-for-write micros (see the header's read: setup-dominated; single-writes at parity or v3-faster; realistic batched shapes all favor v3 — m1 0.74×, m2 0.78–0.97×, examples 0.14–0.25×) |
-| M4.5b rest: component scopes (onCleanup / error boundaries), devtools panel port | not started | | |
+| **M4.5b devtools panel port** — DOM seam (render registry + fromDOM/highlight) + the overlay panel (dock/graph/inspector/picker) + the `data/v3/devtools` entry | done | `688f378` `bbe1138` `0e37da4` `37115d3` | 239 tests; devtools-v3 spec 6/6; zero-subscriber leak audit; single-module-instance bundle proof |
+| M4.5b rest: component scopes (onCleanup / error boundaries) | not started | | |
 | M5 rest: flow/multidim + landing, the flip decision (perf evidence now complete) | not started | | |
 
 Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
@@ -235,10 +236,26 @@ Fourth block (swarm-v3 + MIGRATION.md + the hardening series it surfaced):
   - `8fea5b6` scalar connect([]) / (anchor, fn) — v2's documented testing pattern.
   - `3f93655` JSX `key` stripped (no literal key="…" DOM attribute).
 
+Sixth block (the devtools panel port, `688f378` `bbe1138` `0e37da4` `37115d3`):
+
+- **The DOM↔data seam**: render's zero-cost registry (domLinks WeakMap + liveLists
+  set) → [devtools/dom.ts](devtools/dom.ts) fromDOM/rowElements/highlight.
+- **The panel** ([devtools/panel/](devtools/panel/)): closed-shadow dock (persisted
+  resize), BFS-by-height graph (Tree/DAG, pan+zoom, frame-coalesced live refresh),
+  three-tab inspector (Inspect / Events with leave-drop subscriptions / Profile),
+  ◎ picker + single Alt-badge (deliberately not v2's all-rows badges — the swarm-
+  scale perf trap). Built by four parallel agents on pinned contracts — zero drift;
+  leak audit: close() → ZERO onCommit subscribers.
+- **The entry**: `data/v3/devtools` — attach + auto-mount (?nopanel opt-out),
+  $.devtools.panel.{open, close, shell}; the dist bundle externalizes every
+  boundary import to './index.js' (one kernel instance, spec-proven: the injected
+  bundle's graph() sees the app's nodes).
+
 ## Known gaps / next work (M4.5b+)
 
-1. **M4.5b rest**: component scopes (onCleanup / error boundaries), devtools panel
-  port. ~~automatic jsx-runtime, per-tag intrinsic types~~ — DONE 2026-07-06
+1. **M4.5b rest**: component scopes (onCleanup / error boundaries) — the LAST
+  M4.5b item. ~~devtools panel port~~ — DONE 2026-07-10 (`688f378`…`37115d3`).
+  ~~automatic jsx-runtime, per-tag intrinsic types~~ — DONE 2026-07-06
   (`f8f326e` `2811cf5` `d86e014`).
 2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and
   parity-test compat/v2-records.ts against them (only shape-level tests exist).
