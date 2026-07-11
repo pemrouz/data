@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup'
+import path from 'node:path'
 
 // Eight entries that line up with the "exports" map in package.json:
 //   data                  → ./dist/index.js              (default: core + render + all operators registered)
@@ -78,6 +79,33 @@ export default defineConfig([
   // externalizes the jsx-layer import and points it at the sibling main
   // bundle, so both entries share one module instance. The main bundle
   // exports jsx/jsxs/jsxDEV/Fragment for exactly this reason (v3/api/index.ts).
+  // data/v3/devtools — the inspection layer + panel. Bundles v3/devtools/**
+  // ONLY; every import that resolves OUTSIDE v3/devtools/ is externalized to
+  // the sibling main bundle (single module instance — same rule as the
+  // jsx-runtime entry; the api entry re-exports the value-level internals the
+  // devtools layer needs: DataNode, Runtime, materialize, domLinks, liveLists).
+  {
+    entry: { 'v3/devtools': 'v3/devtools/entry.ts' },
+    format: ['esm'],
+    dts: false,
+    splitting: false,
+    sourcemap: true,
+    clean: false,
+    target: 'es2022',
+    esbuildPlugins: [
+      {
+        name: 'v3-devtools-shared-core',
+        setup(build) {
+          const dtDir = path.resolve('v3/devtools')
+          build.onResolve({ filter: /^\./ }, (args: any) => {
+            const p = path.resolve(args.resolveDir, args.path)
+            if (p === dtDir || p.startsWith(dtDir + path.sep)) return null // stays in-bundle
+            return { path: './index.js', external: true }
+          })
+        },
+      },
+    ],
+  },
   {
     entry: { 'v3/jsx-runtime': 'v3/api/jsx-runtime.ts' },
     format: ['esm'],

@@ -55,6 +55,9 @@
     },
     "./v3/jsx-runtime": {
       "import": "./dist/v3/jsx-runtime.js"
+    },
+    "./v3/devtools": {
+      "import": "./dist/v3/devtools.js"
     }
   },
   "files": [

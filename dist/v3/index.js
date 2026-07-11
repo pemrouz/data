@@ -3507,6 +3507,8 @@ function patchRow(m, v) {
   }
   return true;
 }
+var domLinks = /* @__PURE__ */ new WeakMap();
+var liveLists = /* @__PURE__ */ new Set();
 var ListBinding = class {
   constructor(host, vnode, ctx) {
     this.host = host;
@@ -3533,6 +3535,7 @@ var ListBinding = class {
       apply: (b) => this.apply(b)
     });
     ctx.scope.add(this.sub);
+    liveLists.add(this);
   }
   // Each row owns a child Scope: its rtext/bind subscriptions and listeners
   // are registered there and die with the row (removeEventListener, finally).
@@ -3545,6 +3548,7 @@ var ListBinding = class {
       rowScope,
       () => materialize2(vnode, { doc: this.doc, scope: rowScope, ns: this.ns })
     );
+    domLinks.set(mounted.dom, { view: this.view, key });
     return { key, el: mounted.dom, scope: rowScope, mounted };
   }
   apply(batch2) {
@@ -3630,6 +3634,7 @@ var ListBinding = class {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    liveLists.delete(this);
     this.sub.dispose();
     for (const rec of this.recs.values()) {
       rec.scope.dispose();
@@ -4532,6 +4537,6 @@ function handleFor(n) {
   return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() });
 }
 
-export { $, For, Fragment, HTML, InMemoryBacking, SVG, batch, bind, el, exportContract, fromAsync, h, handleFor, jsx, jsxDEV, jsxs, list, node, normChildren, render, runtime, text, value };
+export { $, DataNode, For, Fragment, HTML, InMemoryBacking, Runtime, SVG, batch, bind, domLinks, el, exportContract, fromAsync, h, handleFor, jsx, jsxDEV, jsxs, list, liveLists, materialize, node, normChildren, render, runtime, text, value };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
