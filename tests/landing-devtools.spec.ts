@@ -1,63 +1,48 @@
-// Smoke test for the devtools mount on the landing page.
+// Smoke test for the devtools mount on the landing page — v3, post-flip.
 //
-// History: this used to assert a STATIC `.dock-mock` marketing mockup mirrored
-// the live panel's shape. The v2 landing redesign (commit e28460e) deleted that
-// mockup and replaced it with a real, lazily-mounted panel — the
-// `#devtools-mount` button dynamically imports `data/devtools` and calls
-// `$.devtools.panel.open()` on the `$` the page already got from `data/full`.
-// So the old mockup-drift assertion was dead; this spec now exercises the
-// actual mount path users hit.
-//
-// That path is the cross-bundle case C6 closed: `feed.js` imports `$` from
-// `data/full` (dist/full.js), the button imports `data/devtools`
-// (dist/devtools/index.js) — two SEPARATE tsup bundles. Before the
-// Symbol.for/globalThis singleton fix, `data/devtools` attached `.devtools` to
-// its own `$`, so `$.devtools?.panel?.open?.()` on the page's `$` silently
-// no-opped and no panel ever appeared. This is the browser-level regression
-// guard for that fix; the panel's internal shape is covered exhaustively by
-// devtools-panel.spec.ts.
+// History: the v2 version of this spec guarded the C6 cross-bundle regression
+// (`data/full` and `data/devtools` were SEPARATE self-contained tsup bundles;
+// before the Symbol.for/globalThis singleton fix, devtools attached `.devtools`
+// to its own `$` and the landing button's `$.devtools?.panel?.open?.()`
+// silently no-opped). The flip made `data` the v3 engine, whose devtools entry
+// closes the same trap STRUCTURALLY: dist/devtools.js externalizes every
+// boundary import to './index.js', so both specifiers resolve ONE url = one
+// module instance, and the attach lands on the page's own `$` by construction.
+// This spec asserts that end-to-end on the real button path users hit; the v3
+// panel's internal shape is covered exhaustively by devtools-v3.spec.ts.
 import { test, expect } from '@playwright/test'
 
-// Wait until the panel has fully mounted: shell ref non-null AND its shadow
-// dock exists. Mirrors devtools-panel.spec's waitForPanel.
-const waitForPanel = async (page: any) => {
-  await page.waitForFunction(async () => {
-    const dt: any = await import('data/devtools')
-    const shell = dt.$?.devtools?.panel?.shell
-    return shell && shell.root && shell.root.querySelector('.dock')
-  }, { timeout: 10_000 })
-}
-
-test('landing page mounts the live devtools panel (cross-bundle C6)', async ({ page }) => {
+test('landing page mounts the live v3 devtools panel (one module instance)', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(String(e)))
   await page.goto('/')
-  // The button is static HTML; clicking it triggers the lazy import + open().
+
+  // The button is static HTML; clicking it triggers the lazy import (which
+  // auto-mounts the panel host) + the handler's open().
   await page.click('#devtools-mount')
-  await waitForPanel(page)
+  await expect(page.locator('[data-v3-devtools]')).toHaveCount(1, { timeout: 10_000 })
 
   const state = await page.evaluate(async () => {
-    const dt: any = await import('data/devtools')
-    const shell = dt.$.devtools.panel.shell
+    const main: any = await import('data')
+    const shell = main.$?.devtools?.panel?.shell
     return {
-      // The page's $ (from data/full) and the devtools bundle's $ must be the
-      // same object for .devtools.panel to exist at all — this is the C6 fact.
-      sharedDollar: dt.$ === (globalThis as any)[Symbol.for('data.$')],
-      hostInDom:    !!document.querySelector('.__ripple_panel_host'),
-      shadowClosed: shell.host.shadowRoot === null,
-      brand:        shell.root.querySelector('.brand')?.textContent,
-      layoutBtns:   Array.from(shell.root.querySelectorAll('.seg button')).map((b: any) => b.textContent),
-      tabBtns:      Array.from(shell.root.querySelectorAll('.insp-tabs button')).map((b: any) => b.textContent),
-      status:       document.querySelector('#devtools-status')?.textContent || '',
+      // the single-instance fact: the devtools attach is visible on the $ the
+      // PAGE imported from 'data' (not on some second bundle's copy)
+      attachedToPageDollar:
+        typeof main.$?.devtools?.panel?.open === 'function' &&
+        typeof main.$?.devtools?.panel?.close === 'function',
+      shellLive: shell != null,
+      // the injected panel sees the page's own reactive graph (the feed's
+      // trades source + the operator-demo views)
+      gnodes: shell ? shell.querySelectorAll('.gnode').length : -1,
+      status: document.querySelector('#devtools-status')?.textContent || '',
     }
   })
 
-  // Mount actually happened (the cross-bundle call resolved, not a silent no-op).
-  expect(state.hostInDom).toBe(true)
-  expect(state.shadowClosed).toBe(true)
-  expect(state.brand).toContain('devtools')
-  // Same panel shape the live-panel spec pins, asserted here against the
-  // landing page's own mount.
-  expect(state.layoutBtns).toEqual(['Tree', 'DAG'])
-  expect(state.tabBtns).toEqual(['inspect', 'events', 'profile'])
+  expect(state.attachedToPageDollar).toBe(true)
+  expect(state.shellLive).toBe(true)
+  expect(state.gnodes).toBeGreaterThan(0)
   // The landing button's success wiring ran through.
   expect(state.status.toLowerCase()).toContain('mounted')
+  expect(errors).toEqual([])
 })
