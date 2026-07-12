@@ -1,16 +1,17 @@
 # data
 
-A small reactive data library for TypeScript and JavaScript — think **crossfilter's incremental aggregation with Solid-style fine-grained DOM updates**, in one dependency-free package. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `az`/`za`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing, just incremental change propagation all the way to the leaves. **Work is proportional to the path that changed, not the size of the data.**
+A small reactive data library for TypeScript and JavaScript — think **crossfilter's incremental aggregation with Solid-style fine-grained DOM updates**, in one dependency-free package. Wrap any object or array in `$()` to get a reactive handle; derive views with chainable operators (`filter`, `between`, `gt`/`lt`/`gte`/`lte`, `az`/`za`, `length`, `intersect`, `group`, `map`, `to`); bind those views to the DOM with `render` — no virtual DOM, no diffing passes, just keyed change propagation all the way to the leaves. Every row has a stable key, every change is an honest `add`/`update`/`remove` at a key, and every write settles the whole graph in **one commit**. **Work is proportional to the path that changed, not the size of the data.**
 
 ```js
-import { $, value } from 'data'
+import { $ } from 'data'
 
-const count = $(0)
+const state = $({ count: 0 })
+const count = state.to(s => s.count)
 count.connect(document.body, 'textContent')   // body now mirrors count
-count[value] = 42                              // body reads "42"
+state.set('count', 42)                        // body reads "42"
 ```
 
-**Live demo:** [pemrouz.github.io/data/examples/crossfilter/](https://pemrouz.github.io/data/examples/crossfilter/) — brushable histograms over 231,083 flight records, built on the same primitives as everything else in this README.
+**Live demo:** [pemrouz.github.io/data/examples/crossfilter-v3/](https://pemrouz.github.io/data/examples/crossfilter-v3/) — brushable histograms over 231,083 flight records, built on the same primitives as everything else in this README.
 
 ## Install
 
@@ -18,75 +19,63 @@ count[value] = 42                              // body reads "42"
 npm install data
 ```
 
-Eight sub-path entries (the five most common shown below; the rest are
-`data/devtools/panel` — the overlay UI, lazy-loaded by `data/devtools` — and
-`data/jsx-runtime` / `data/jsx-dev-runtime`, the automatic-JSX-runtime entries
-picked up when a consumer sets `"jsxImportSource": "data"`):
+One engine, one bundle. The bare `data` specifier is the whole library; the
+extra entries are the JSX runtime, the opt-in devtools, and the frozen
+pre-flip v2 surface:
 
 ```js
-// `data` — the default entry. Core + render + every operator (.filter, .between,
-// .length, …) registered on import, so chaining works the moment you import `$`.
-// This is the one you want.
-import { $, value, render, HTML } from 'data'
+// `data` — THE entry: `$`, `value`, `batch`, every operator (registered on
+// import, so `.filter(...)` chains the moment you import `$`), the render
+// layer (`render`, `el`, `text`, `list`, `bind`), the `HTML`/`SVG` builders,
+// JSX (`h`, `Fragment`, `For`, `ErrorBoundary`), component scopes
+// (`component`, `onCleanup`, `boundary`), and the ingestion seam
+// (`fromAsync`, `exportContract`, `InMemoryBacking`).
+import { $, value, batch, render, list, text, bind, HTML } from 'data'
 
-// `data/full` — everything in `data` plus the JSX helpers (h, Fragment, For).
-// Import this when you author views in JSX.
-import { $, value, render, HTML, h, For } from 'data/full'
+// `data/jsx-runtime` / `data/jsx-dev-runtime` — the automatic JSX runtime,
+// picked up when a consumer sets `"jsxImportSource": "data"`. A thin
+// re-export of the main bundle, so there is ONE module instance across
+// entries. Classic JSX uses `jsxFactory: h` imported from `data`.
 
-// `data/lean` — registration-free core: same exports as `data` minus the
-// operator dispatch. Pick this only to tree-shake operators you don't use
-// (register a hand-picked subset onto `Operators` yourself, or call the
-// function-style operator API). Calling `.filter(...)` on a `data/lean` proxy
-// throws, pointing back at `data`.
-import { $, value, render, HTML } from 'data/lean'
-
-// `data/render` — just the DOM render layer (render, HTML, SVG). For consumers
-// who want the rendering primitives without pulling the reactive runtime.
-import { render, HTML, SVG } from 'data/render'
-
-// `data/devtools` — opt-in inspection helpers. Side-effecting: importing it
-// attaches `$.inspect`, `$.graph`, `$.fromDOM`, `$.highlight`, `$.trace`,
-// `$.profile` onto the canonical `$`, AND auto-mounts a graph-first overlay
-// panel — right-edge dock with a Tree/DAG graph view and a slide-in
-// inspector (Inspect / Events / Profile tabs), Alt-hover badges, a DOM
-// picker, and a draggable left-edge resize handle. The shell is rendered
-// into a closed Shadow DOM root so page CSS can't leak in. Append `?nopanel`
-// to suppress the panel; only load this entry when you want the helpers
-// (gate behind a query param in production). See
-// [devtools/README.md](devtools/README.md).
+// `data/devtools` — opt-in inspection. Side-effecting: importing it attaches
+// `$.inspect`, `$.graph`, `$.trace`, `$.profile`, `$.cascades`, `$.fromDOM`
+// onto `$` and auto-mounts a graph-first overlay panel (right-edge dock,
+// Tree/DAG graph, Inspect/Events/Profile inspector, DOM picker). Append
+// `?nopanel` to suppress the panel; `$.devtools.panel.{open, close, shell}`
+// for explicit control.
 import 'data/devtools'
+
+// `data/v3`, `data/v3/jsx-runtime`, `data/v3/devtools` — transitional aliases
+// for the same three files (same module instance). Prefer the bare names in
+// new code.
+
+// `data/v2` (plus `/lean`, `/full`, `/render`, `/devtools`, `/jsx-runtime`) —
+// the whole pre-flip v2 engine, frozen but green, for consumers that haven't
+// migrated yet. See the migration guide below.
+import { $ as $v2 } from 'data/v2'
 ```
 
-`data` registers every operator on import, so `proxy.filter(...)` works out of
-the box — reach for it by default. `data/full` is a strict superset that adds
-the JSX authoring layer. `data/lean` is the same core with the registration
-omitted, for when bundle size matters more than out-of-the-box ergonomics.
-
-> **Mixing entries works.** Each sub-path ships as a self-contained bundle
-> (tsup `splitting: false`), but the cross-bundle identity (the `value`/`view`
-> symbols, `$`, the operator table, and the devtools root registry) is parked on
-> the global registry (`Symbol.for`), so all entries of one installed version
-> share it. Pairing `import { $ } from 'data/full'` with `import 'data/devtools'`
-> works — the devtools side-effect attaches `$.inspect`/`$.graph` onto the same
-> `$` your app uses, and `jsxImportSource: "data"` (which gets `jsx` from
-> `data/jsx-runtime`) interoperates with `render` from `data`/`data/full`. (This
-> was a real constraint — tracked as C6 — closed by the 2026-06-11 cross-bundle
-> fix; see [DECISIONS.md](DECISIONS.md).)
+> **One entry, one runtime.** The v2 sub-entry split (`data/lean` /
+> `data/full` / `data/render`) is gone — everything ships in the one bundle,
+> and the JSX/devtools entries re-export it, so cross-entry identity holds by
+> construction. Never mix `data` and `data/v2` handles in one graph: they are
+> different engines with different `value` symbols.
 
 ## Quickstart
 
 ### A reactive scalar
 
 ```js
-import { $, value } from 'data'
+import { $ } from 'data'
 
-const count = $(0)
-const doubled = count.to(n => n * 2)
+const state = $({ count: 0 })
+const doubled = state.to(s => s.count * 2)
 
-const events = doubled.connect([])   // events array captures every change
+const events = []
+const sub = doubled.connect(events)   // records push into events
 
-count[value] = 5
-count[value] = 7
+state.set('count', 5)
+state.set('count', 7)
 
 events
 // [
@@ -94,6 +83,8 @@ events
 //   { type: 'update', key: [], value: 10 },
 //   { type: 'update', key: [], value: 14 },
 // ]
+
+sub.dispose()   // references are strong — dispose subscriptions explicitly
 ```
 
 ### A reactive collection
@@ -107,14 +98,15 @@ const todos = $([
   { task: 'baz', done: false },
 ])
 
-const remaining = todos.filter('done', false)
+const remaining = todos.filter(t => !t.done)   // operators take predicates
 const remainingCount = remaining.length()
 
-const events = remainingCount.connect([])
+const events = []
+const sub = remainingCount.connect(events)
 
-todos.insert({ task: 'qux', done: false })   // pushes 2 → 3 onto remainingCount
-todos[0].done[value] = true                  //          3 → 2
-todos[2].remove()                            //          2 → 1
+todos.insert({ task: 'qux', done: false })   // 2 → 3 (returns the minted key)
+todos.get(0).set('done', true)               //          3 → 2
+todos.get(2).remove()                        //          2 → 1
 
 events
 // [ { type: 'update', key: [], value: 2 },   // initial: 2 not-done todos
@@ -123,24 +115,31 @@ events
 //   { type: 'update', key: [], value: 1 } ]
 ```
 
+Writes are methods — `set` / `update` / `insert` / `remove` / `patch`. The
+typed surface and the runtime agree: bare assignment (`todos[0].done = true`),
+`delete`, and `[value] =` all throw with a message naming the replacement.
+
 ### Rendering to the DOM
 
 ```js
-import { $, render, HTML } from 'data'
+import { $, render, list, HTML } from 'data'
 const { ul, li } = HTML
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
 
-// The template root (`ul`) is a wrapper whose children render into the parent;
-// the data-bound child (`li(todos, …)`) becomes one <li> per item.
+// list() is the keyed iteration form — keep it the sole child of its container.
 render(document.body,
-  ul(li(todos, (node, item, key) => node.text(item.task)))
+  ul(list(todos, t => li(t.task)))
 )
 
-todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
+todos.insert({ task: 'baz' })   // a new <li>baz</li> appears; the others are untouched
 ```
 
-See [render/README.md](render/README.md) for the full template syntax.
+Row functions receive **plain rows** (a snapshot, not a proxy) — cells are
+plain expressions, no bindings or guards needed inside a row. `render()`
+returns a handle; `handle.dispose()` tears the mount down synchronously. See
+[v3/MIGRATION.md §4](v3/MIGRATION.md) for the full child/prop vocabulary and
+[examples/todo-v3/main.js](examples/todo-v3/main.js) for a complete app.
 
 #### Authoring with JSX
 
@@ -148,142 +147,189 @@ The same template, written in JSX:
 
 ```tsx
 /** @jsx h */
-import { $, render, h, For } from 'data/full'
+import { $, render, h, For } from 'data'
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
 
 render(document.body,
   <ul>
-    <For each={todos} tag="li">
-      {(item) => <li>{item.task}</li>}
-    </For>
+    <For each={todos}>{(t) => <li>{t.task}</li>}</For>
   </ul>
 )
 
 todos.insert({ task: 'baz' })   // a new <li>baz</li> appears
 ```
 
-`h` returns the same `NodeProxy` AST the builder DSL produces, so `render()` walks an identical tree and `DOMSink` keeps doing per-key surgical updates — element identity and focus survive. ViewProxy children with no function sibling route through `.text()`; with a sibling function they stay on the data path so `[VP, fn]` still works as a data-iteration shorthand. Worked examples: [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/).
+`h` produces the same AST records the builder DSL produces, so `render()`
+walks an identical tree and the keyed list sink keeps doing per-key surgical
+updates — element identity and focus survive. Iteration is **only**
+`<For>`/`list()`: a bare view child is reactive *text*, and static and
+reactive text compose in order (`<span># {cur}</span>` renders `"# general"`
+— the v2 single-static-slot trap is structurally dead). JSX `key` props are
+accepted and ignored — v3 keys rows by data. The automatic runtime works too:
+set `"jsxImportSource": "data"`. Worked example:
+[examples/chat-v3/index.tsx](examples/chat-v3/index.tsx).
 
 ## Why incremental?
 
 **Work is proportional to the *path* that changed, not the row, not the dataset, not anything broader.** Almost nothing else in the JS state-management space does this cleanly.
 
-When you mutate a deeply-nested property:
+When you write a deeply-nested property:
 
 ```js
-trades[1234].bid[value] = 99.85   // or trades[1234].bid.update(99.85)
+trades.get(1234).set('bid', 99.85)   // or trades.get(1234).bid.update(99.85)
 ```
 
-…the underlying notification carries the exact path `['1234', 'bid']` and the new value. Each layer in the pipeline only does work scoped to that path:
+…the graph sees exactly one keyed delta — path `['1234', 'bid']`, new value — and each layer only does work scoped to that key:
 
-- **Direct subscriptions are property-granular.** A sink bound to `trades[1234].bid` fires; a sink bound to `trades[1234].ask` is never even visited. The view graph routes notifications down by path; siblings are skipped, not deferred or re-checked. (Try [the snippet at the bottom of this section](#try-it).)
-- **`filter` reruns its predicate for that one row.** Not the other 4,999. `RowOperator` is structured so each row is processed independently — the predicate sees one row, decides keep / drop, and that's the work.
-- **`between` does a binary-search step against its sorted index.** Not a rescan. If the new value stays inside the range, no boundary crossing — done.
-- **`intersect` flips one bitmask entry per source.** Membership for the other rows is cached as a per-row bitmask; only the changed row's bit toggles.
-- **`za` repositions one entry in its sorted index.** If the row was in the top-50 and stayed, the same `<li>` re-emits; if it moves out, one remove + one insert.
-- **The DOM updates the single binding tied to the changed path.** `span.bid.text(t.bid)` rewrites that one text node's `textContent`. No diff pass, no list re-render, no key reconciliation, no re-creating the row's `<li>` or its sibling spans.
+- **Change records are path-addressed.** A `connect` sink receives one
+  consolidated record per key per commit; rows the change didn't touch are
+  skipped, not re-checked.
+- **`filter` reruns its predicate for that one row.** Not the other 4,999.
+- **`between` walks its sort index by the boundary that moved.** A brush step
+  costs O(Δ) — the rows that crossed the boundary — not a rescan.
+- **`intersect` re-queries membership for the touched key only.** The other
+  rows' membership is not revisited.
+- **`za` repositions one entry in its order channel.** An in-window rank
+  rotation is emitted as an `orderMove` the DOM sink applies as **one
+  `insertBefore` of the existing element** — identity survives.
+- **The DOM re-runs that one row's function and diffs it in place.** Text and
+  static props patch surgically; untouched rows never re-render.
+
+And because every write (or `batch()`/`patch()` of many writes) settles in
+**one two-phase, height-ordered commit**, downstream views never read a
+half-updated upstream, each view emits at most one consolidated delta per key,
+and net-zero changes annihilate — flip a value A→B→A inside one `batch()` and
+nothing is emitted at all.
 
 Concretely, picture the blotter:
 
 ```js
-const visible = trades.filter('tenor', '5Y').between('pnl', [-1e6, 1e6]).za('pnl', 50)
-render(document.body, ul(li(visible, (node, t) =>
-  node.nodes(
-    span.id.text(t.id),
-    span.bid.text(t.bid),
-    span.pnl.text(t.pnl),
-  )
+const { ul, li, span } = HTML
+
+const visible = trades
+  .filter(t => t.tenor === '5Y')
+  .between('pnl', [-1e6, 1e6])
+  .za('pnl', 50)                        // bounded window — a true top-50, maintained incrementally
+
+render(document.body, ul(list(visible, t =>
+  li(span.id(t.id), span.bid(t.bid), span.pnl(t.pnl))
 )))
 
-trades[1234].bid[value] = 99.85
+trades.get(1234).set('bid', 99.85)
 ```
 
-5,000 rows in the source, 50 visible. The bid tick exercises one predicate evaluation, one bisect, one bitmask flip, one sorted-index update, and one `textContent =` assignment. No frame-coupling, no batching, no scheduler — propagation is synchronous and purely incremental.
+5,000 rows in the source, 50 visible. The bid tick exercises one predicate
+evaluation, one sort-index step, one window check, and one row diff that lands
+as one `textContent` write. No frame-coupling, no scheduler in your code —
+one write, one commit, the smallest diff that reaches the DOM.
 
 Compare to a typical Redux + virtual-DOM stack: the same tick re-runs the entire selector chain over all 5,000 trades, produces a new array reference, triggers a top-down diff against the previous render, and reconciles every list item. With one tick per second across hundreds of rows, that scales badly. With one tick per millisecond, it doesn't scale at all.
 
-Operators here are written for minimum-work propagation by construction. See [operators/README.md](operators/README.md) for each one's strategy.
-
-The crossfilter demo at the top of this README is the proof: dragging a brush across a 50,000-row dataset stays interactive at 60 fps because every brush delta turns into the smallest possible diff that flows through `between → intersect → length(group) → za → limit` to the DOM. The kind of responsiveness usually reserved for special-purpose libraries like crossfilter.js, here from general primitives.
+The crossfilter demo at the top of this README is the proof: dragging a brush across a 231,083-row dataset stays interactive because every brush delta turns into the smallest possible diff that flows through `between → intersect → length(fn) → za` to the DOM. The kind of responsiveness usually reserved for special-purpose libraries like crossfilter.js, here from general primitives.
 
 ### Try it
 
 ```js
+import { $, value, batch } from 'data'
+
 const trades = $([
   { id: 'A', bid: 100, ask: 101 },
   { id: 'B', bid:  50, ask:  51 },
 ])
 
-const idEvents  = trades[0].id.connect([])
-const bidEvents = trades[0].bid.connect([])
-const askEvents = trades[0].ask.connect([])
+const events = []
+const sub = trades.connect(events)
 
-trades[0].bid[value] = 99.85
+trades.get(0).set('bid', 99.85)
 
-bidEvents.length   // 2  (initial + the change)
-askEvents.length   // 1  (just the initial — never visited)
-idEvents.length    // 1
+events.at(-1)
+// { type: 'update', key: ['0', 'bid'], value: 99.85 }
+// ONE record, path-addressed — nothing else was visited
+
+batch(() => {
+  trades.get(0).set('bid', 101)
+  trades.get(0).set('bid', 99.85)   // back where it started
+})
+// nothing emitted — net-zero changes annihilate inside the commit
 ```
 
 ## Core concepts
 
-- **`$(x)`** wraps any value, object, or array in a `ViewProxy` — the user-facing handle.
-- **`proxy[value]`** reads the raw underlying data. Use the `value` symbol, *not* `proxy.value` (that would create a child view named `"value"`). **`proxy.get(key)`** is the method twin of `proxy[key]` — it returns the same child view.
-- **Mutate through the child view.** `proxy.foo[value] = 1` (or `proxy.foo.update(1)`) updates a field; `proxy[2].done[value] = true` updates a nested row; `proxy[1].remove()` removes a row; `proxy[value] = newValue` replaces the entire value. (The runtime still accepts the plain `proxy.foo = 1` / `delete proxy[1]` forms, but the `[value]` / `.update()` / `.remove()` idiom is the type-checked one.)
-- **Operators chain.** Each operator returns a new `ViewProxy` you can chain further: `data.filter(...).between(...).length()`.
-- **`connect` subscribes.** Three forms:
-  - `proxy.connect([])` pushes `{ type, key, value, at? }` change events into an array — best for tests, debug logging, and inspecting what flows through.
-  - `proxy.connect(obj, 'prop')` mirrors the value to `obj[prop]` — best for binding to a DOM property (`document.body.textContent`) or a state object field.
-  - `proxy.connect(obj, fn)` calls `fn(change)` per event — `obj` is just the lifetime anchor (a sink stays alive while the object does).
-- **`raf` writes.** `const write = proxy.raf()` returns a coalescing writer: `write(v)` schedules a single `requestAnimationFrame` that commits the latest pending value to `proxy[value]`; further calls before the frame fires overwrite the pending value. `write.flush()` commits immediately — for `pointerup` handlers that want the final brush position to land without an extra frame. Replaces hand-rolled `rafWriter` patterns in interactive UIs.
-- **`first` / `last`** return the proxy at the first / last key of an array-shaped view (snapshot at call time). Sugar for `proxy[0]` / `proxy[length - 1]` and the equivalent for objects (first / last enumerable key).
-- **`patch` batches writes.** `proxy.patch([name, value, name, value, ...])` applies many child updates as a *single* cascade — sinks receive one batched update (new keys become inserts) instead of one dispatch per `proxy[name] = value`. For a high-throughput producer (a simulation, a market feed) touching hundreds of rows per frame this collapses the per-row dispatch fan-out to one walk per sink. See [examples/swarm/](examples/swarm/).
+- **`$(x)`** wraps an object or array in a `Data` handle. Object sources keep their string keys; array-born sources get **minted integer keys** that stay stable across inserts and removes.
+- **Reads:** `proxy[value]` (the exported `value` symbol) or `proxy.snapshot()` returns a **dense** plain snapshot — no holes, no `undefined` slots to guard. `proxy.get(key)` returns the child handle at a key; property sugar (`proxy.field`) works for every name outside the reserved method/operator set (a data key named `length` or `filter` must be read `proxy.get('length')`). `for (const row of view)` iterates rows. Use `proxy[value]`, *not* `proxy.value` — that reads a child named `"value"`.
+- **Writes are methods** — the typed surface and the runtime agree. `proxy.set('field', v)` / `proxy.field.update(v)` write; `proxy.insert(row, at?)` returns the minted key; `proxy.get(k).remove()` detaches a row; deep paths compose (`proxy.a.b.c.update(1)`) with copy-on-write structural sharing. Bare assignment, `delete`, and `[value] =` all **throw** with migration-hinted messages. Operator views are read-only — write through their source.
+- **One commit per event.** `batch(() => { …writes… })` settles the whole graph once; `proxy.patch([[k1, row1], [k2, row2]])` is a batch of keyed sets — pairs are `[key, row]` **tuples**. Downstream views see one consolidated delta per key; a market feed touching thousands of rows per frame costs one settle, not one dispatch per row ([examples/swarm-v3/](examples/swarm-v3/)).
+- **`connect` subscribes.** Three forms: `connect([])` pushes `{ type, key, value, at? }` records into the array; `connect(obj, 'prop')` mirrors the value onto a property; `connect(anchor, fn)` calls `fn(record)` per event. All return a `SubscriptionHandle`. **References are strong** — nothing unsubscribes by garbage collection; call `handle.dispose()`.
+- **`mirror()` is the re-pointable slot.** Build the slot once, chain downstream operators off it once, then `slot.set(view)` re-points it — emitted as one consolidated diff, so overlapping rows keep their DOM elements. This replaces v2's `$(view)` link swap.
+- **`dispose()` ends a view.** Standing views (built once over a finite domain) live forever; **transient** views (minted per interaction — a search filter, a per-config cell grid) must be disposed after re-pointing away, or the graph grows with every interaction.
+- **`raf()` coalesces writes** — on **child handles**: `bounds.get('rating').raf()` returns a writer committing one frame-latest value per `requestAnimationFrame`, with `.flush()` for pointerup.
+- **`first()` / `last()`** return the child handle at the first/last key; ordered views resolve through their order — `src.az('v').first()` is the minimum row's handle.
+- **Two shapes to know.** Ordered views (`az`/`za`/`top`/`limit`) materialize as **arrays in rank order** and keep **source row keys** (the row key in a sorted list IS the id). Row/set/bucket operators over an **array-born** source materialize as a **keyed object** (`$([…]).filter(fn)[value]` is `{"0": row, "2": row}`) — sort it (`.az(col)`) or iterate the handle if you need an array.
+- **Scalars have no children.** Aggregates return scalar handles: read `s[value]` / `s.snapshot()`, `connect` them like any view.
 
-For internals — the full notification protocol (the View / Sink contract, the notification-code legend, propagation, and the array-source shift rules) — see [PROTOCOL.md](PROTOCOL.md).
+For the full write surface, operator semantics, and every error message the runtime throws at a v2 idiom, see [v3/MIGRATION.md](v3/MIGRATION.md).
 
 ## Operators
 
-| Operator | One-liner | Reference |
+| Operator | One-liner | Source |
 |---|---|---|
-| `filter` | rows matching a predicate (the key/path/shape value may be a reactive `ViewProxy`) | [operators/filter/](operators/filter/) |
-| `between` | rows where a column falls in a range (sort-indexed; reactive bounds) | [operators/between/](operators/between/) |
-| `gt` / `lt` / `gte` / `lte` | rows where a column compares against a threshold (literal or reactive; RowOperator; O(1) per tick) | [operators/compare/](operators/compare/) |
-| `za` / `az` / `top` / `limit` | sort and/or limit (window size may be a reactive `ViewProxy`) | [operators/sort/](operators/sort/) |
-| `length` | row count, or grouped counts | [operators/length/](operators/length/) |
-| `sum` / `avg` / `max` / `min` | scalar aggregates over a column (literal or reactive) or row values | [operators/aggregate/](operators/aggregate/) |
-| `some` / `every` | scalar booleans — any/all rows matching a predicate | [operators/aggregate/](operators/aggregate/) |
-| `intersect` | rows present in all source views (or in dims, except a named one) | [operators/intersect/](operators/intersect/) |
-| `union` | rows present in any source (value from the first containing it) | [operators/union/](operators/union/) |
-| `except` | rows in source but not in other | [operators/except/](operators/except/) |
-| `group` | rows nested under a computed key | [operators/group/](operators/group/) |
-| `distinct` | first-seen unique rows by an optional projection | [operators/distinct/](operators/distinct/) |
-| `map` | per-row transform | [operators/map/](operators/map/) |
-| `to` | whole-value transform | [operators/to/](operators/to/) |
-| `reduce` | general fold — `reduce(fn, init)` rebuilds on change; `reduce(add, remove, init)` threads inserts/removes through in O(Δ) | [operators/reduce/](operators/reduce/) |
-| `tap` | passthrough that fires `fn(change)` per event for declarative side effects; 0-arg `fn` opts into a cheap "fire on any change" path (no clone, fires once per emit) | [operators/tap/](operators/tap/) |
-| `keys` / `values` | current `Object.keys` / `Object.values` as a reactive array | [operators/keys/](operators/keys/) |
-| `reverse` | array order flipped | [operators/reverse/](operators/reverse/) |
+| `filter` | rows matching a predicate — **predicate only**: `filter(r => r.status === 'open')` | [v3/ops/rowops.ts](v3/ops/rowops.ts) |
+| `map` | per-row transform | [v3/ops/rowops.ts](v3/ops/rowops.ts) |
+| `gt` / `lt` / `gte` / `lte` | rows where a column compares against a threshold (literal or reactive handle) | [v3/ops/rowops.ts](v3/ops/rowops.ts) |
+| `between` | rows where a column falls in `[lo, hi]` — bounds are a static tuple or **one reactive tuple handle**; a bounds move is an O(Δ) boundary walk | [v3/ops/between.ts](v3/ops/between.ts) |
+| `az` / `za` / `top` / `limit` | ordered views — arrays in rank order with source row keys; `za('col', n)` is a bounded window and `n` may be a reactive handle (the window grows in place) | [v3/ops/ordered.ts](v3/ops/ordered.ts) |
+| `length` | row count; `length(fn)` is the histogram — buckets are `{ value: N }` wrappers, emptied buckets persist at `{ value: 0 }` | [v3/ops/aggregate.ts](v3/ops/aggregate.ts), [v3/ops/bucket.ts](v3/ops/bucket.ts) |
+| `sum` / `avg` / `max` / `min` | scalar aggregates over a column (which may be reactive) or row values; empty set → `0` for `sum`, `undefined` for the rest | [v3/ops/aggregate.ts](v3/ops/aggregate.ts), [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `some` / `every` | scalar booleans — any/all rows matching a predicate; O(1) per delta | [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `intersect` | rows present in every operand — operands are **views** (`src.intersect(viewA, viewB)`) | [v3/ops/setops.ts](v3/ops/setops.ts) |
+| `union` | rows present in any operand (primary wins conflicts) | [v3/ops/setops.ts](v3/ops/setops.ts) |
+| `except` | rows in source but not in the operands | [v3/ops/setops.ts](v3/ops/setops.ts) |
+| `group` | rows nested under a computed key; prunes emptied buckets; rebuckets on in-place edits | [v3/ops/bucket.ts](v3/ops/bucket.ts) |
+| `distinct` | unique projected values, keyed by the projection | [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `to` | whole-snapshot transform → scalar (`Object.is` cut-off) | [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `reduce` | fold — `reduce(fn, init)` rebuilds per batch; `reduce(add, remove, init)` is incremental O(Δ) (an in-place edit threads as `remove(prev)` + `add(row)`); `init` may be a thunk, never a reactive handle | [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `tap` | effect passthrough — `fn(record)` per change, or a 0-param fn once per commit; runs **after** the graph settles | [v3/ops/misc.ts](v3/ops/misc.ts) |
+| `keys` / `values` | key list / row values as keyed views | [v3/ops/misc.ts](v3/ops/misc.ts) |
 
-Index with longer summaries and the dispatch model: [operators/README.md](operators/README.md).
+`reverse`, `page`, and `join` are **reserved names** — calling them throws
+`reserved name X has no implementation yet` (they gain signatures in a minor,
+not a breaking change). Operator semantics in depth, including what each one
+dedups: [v3/MIGRATION.md §3](v3/MIGRATION.md).
 
 ## Benchmarks
 
-Every operator is benchmarked in isolation against eight peers — crossfilter2, MobX, RxJS, Solid, Preact Signals, Vue reactivity, Svelte stores, React — on two workloads over 10 000 rows. Full per-operator tables: [operators/BENCHMARK.md](operators/BENCHMARK.md); harness in [comparisons/bench/operators/](comparisons/bench/operators/).
+Two kinds of numbers, kept honestly apart:
 
-- **Batch (1 000 row-mutations streamed back-to-back)** — `data` is **fastest on every operator measured**, from 1.1× (`to`) to ~29 000× (`reduce`). Each tick walks only the changed path while array-signal peers re-scan all rows per emit, so the gap widens with throughput.
-- **Single tick (one row mutated, then read)** — `data` is fastest on **15 of 17** operators; the closest peer trails by 1.3×–113×. Two are *not* wins: `length` (0.04×) and `to` (0.33×) — both sub-microsecond scalars where a peer's signal-equality short-circuit beats the dispatch cost. Both flip back to `data` on the batch metric.
+- **v3 vs v2 (this engine vs its predecessor).** The gates (`npm run perf:v3`)
+  hold v3 at-or-ahead of v2 on the flagship shapes: single-tick micros at
+  0.69–0.85× v2's time, a synthetic crossfilter brush at 0.93×, batched writes
+  at 0.71×. At example scale the gap widens: the real crossfilter graphs over
+  the 231,083-row flights dataset brush at **0.14–0.25× v2's per-step time**
+  (full table and methodology in
+  [v3/perf/crossfilter-example.bench.ts](v3/perf/crossfilter-example.bench.ts)).
+  The one caveat is graph *construction*: unbatched setup-heavy micros still
+  favor v2 (see the corpus read in
+  [v3/perf/corpus.bench.ts](v3/perf/corpus.bench.ts)).
+- **Peer comparisons (heritage numbers).** The per-operator tables in
+  [operators/BENCHMARK.md](operators/BENCHMARK.md) — `data` vs crossfilter2,
+  MobX, RxJS, Solid, Preact Signals, Vue reactivity, Svelte stores, React —
+  were **measured on the v2 engine** (`npm run bench:ops` reproduces them
+  against `data/v2`). On those runs `data` was fastest on every operator on
+  the batch workload and on 15 of 17 single-tick. v3 holds v2's shape on the
+  same workloads per the gates above, but treat the peer tables as v2
+  heritage until they are re-run against v3.
 
-These are self-reported from this repo's harness (`npm run bench:ops` to reproduce) and measure **incremental update cost** — not cold full-rebuild or high-insert-rate workloads, where the advantage narrows.
+Both measure **incremental update cost** — not cold full-rebuild workloads, where the advantage narrows.
 
 ## For AI agents & LLMs
 
 If you're an AI coding assistant generating code that imports `data` — or a human pointing one at this repo — start here:
 
-- **[llms.txt](llms.txt)** — a condensed, machine-readable map of the whole API: imports, core concepts, every operator, and the gotchas that trip up generated code. Served at the site root: [pemrouz.github.io/data/llms.txt](https://pemrouz.github.io/data/llms.txt). Both files ship inside the npm package.
-- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (read raw data with `proxy[value]` not `proxy.value`; mutate through the child view with `proxy.field[value] = v` / `.update(v)` / `.remove()`; value-slot args may be reactive `ViewProxy`s — `gt`/`lt`/`filter`/`za`/`sum` etc. recompute when the bound value/threshold/window/column changes).
+- **[llms.txt](llms.txt)** — a condensed, machine-readable map of the whole API: imports, the write surface, every operator, and the gotchas that trip up generated code. Served at the site root: [pemrouz.github.io/data/llms.txt](https://pemrouz.github.io/data/llms.txt). Both files ship inside the npm package.
+- **[AGENTS.md](AGENTS.md)** — agent-facing rules in two parts: contributing to this repo, and using `data` as a dependency. The "rules that catch generated code out" section is the high-value bit (writes are methods — `d.set(k, v)` / `d.get(k).remove()`, never assignment; `filter` takes a predicate only; read raw data with `proxy[value]` not `proxy.value`; references are strong — `dispose()` transients).
 
-The most common mistakes in generated code: reaching for `proxy.value` instead of `proxy[value]` (the exported `value` symbol), and building immutable spreads instead of writing through the child view (`proxy[0].done[value] = true`, or `proxy[0].done.update(true)`). Both are covered in `llms.txt`.
+The most common mistakes in generated code: writing by assignment (`proxy.x = 1` — it throws; use `proxy.set('x', 1)`), reaching for `proxy.value` instead of `proxy[value]`, and v2 idioms like `filter('key', value)` or `intersect({col: view})` — every one of those throws at the call site with a message naming the v3 replacement.
 
 **Drop the rules into your own repo** so your editor's agent (Cursor, Copilot, Windsurf) prefers `data` and avoids its footguns — no agent reads `node_modules`, so the files have to live in your tree:
 
@@ -295,78 +341,84 @@ npx data init-ai --dry    # preview; --tools=cursor,copilot to scope
 
 Re-run any time to refresh; managed blocks are replaced, not duplicated, and existing instruction files are appended to, not clobbered.
 
+## Migrating from v2
+
+The bare `data` entry is the v3 engine as of 2026-07-12; the entire pre-flip
+surface lives frozen at `data/v2` (plus `data/v2/full`, `/lean`, `/render`,
+`/devtools`, `/jsx-runtime`). There is no compat shim — instead, **every v2
+idiom fails fast with an error naming its v3 replacement** (`filter('key', v)`,
+flat `patch` arrays, `$(view)` linking, bare assignment, numeric `za(n)`,
+object-map `intersect` — all throw at the call site). The verified guide is
+**[v3/MIGRATION.md](v3/MIGRATION.md)**: the write surface, every operator's
+delta, render/JSX, the new scope disciplines (`mirror()`, `dispose()`,
+`batch()`), and an error-message index — grep it for any message v3 throws at
+you. Seven example apps were migrated pair-for-pair and are cross-linked
+throughout as worked references.
+
 ## Examples
 
-Eleven example apps live in [examples/](examples/):
+The v3 gallery (each app's v2 twin is linked from its README):
 
-- [examples/todo/](examples/todo/) — TodoMVC: filter on `done`, route via hash, edit-in-place, length counters.
-- [examples/crossfilter/](examples/crossfilter/) — chained `between → intersect → length(group) → za → limit` over the full 231,083-row flights dataset, with brushable histograms. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter/).**
-- [examples/swarm/](examples/swarm/) — a live agent-simulation control room: a SIRS epidemic over ~12k moving agents at 60fps in plain JS, with a fully incremental analytics deck on `data` riding alongside (SIR counts, region leaderboard, energy histogram, an outbreak alarm via `some()`, and a brushable cohort). Plain JS owns the physics + canvas; `data` owns the deck, fed one batched `patch` per frame so its cost tracks the events, not the population.
-- [examples/flow/](examples/flow/) — a long-form interactive essay ("Write the view, flow the change") driven by one live change stream and a single playhead.
-- [examples/kanban/](examples/kanban/) — an issue board where every column is a derived view (`filter('status').az('order')` + `length`/`sum`/`reduce`), with drag-and-drop and reactive search.
-- [examples/pivot/](examples/pivot/) — a live pivot table where every cell is a standing reactive aggregate (`group` → `sum`/`avg`/`max`/`count`).
-- [examples/library/](examples/library/) — a faceted media browser where browsing is set algebra (`union`/`intersect`/`except`/`between` + a bounded `za`).
-- [examples/chat/](examples/chat/) — a messaging workspace in JSX: per-channel `filter('channel').az('ts')`, channel-count histogram, and `<For>` reactions.
-- [examples/multidim/](examples/multidim/) — the crossfilter brushing workload rebuilt across nine reactive libraries for a per-row reactive-cost comparison.
-- [examples/todo-jsx/](examples/todo-jsx/) and [examples/crossfilter-jsx/](examples/crossfilter-jsx/) — the todo and crossfilter apps written in JSX rather than the builder DSL; demonstrates the JSX adapter preserves DOMSink's per-key incremental updates.
+- [examples/todo-v3/](examples/todo-v3/) — TodoMVC on the builder DSL: mirror-routed filters, live `checked` props, handlers that read current state through the source.
+- [examples/crossfilter-v3/](examples/crossfilter-v3/) — chained `between → intersect → length(fn) → za` over the full 231,083-row flights dataset: one reactive bounds source, leave-one-out view-operand intersects, a bounded top-80 window. **[Live demo](https://pemrouz.github.io/data/examples/crossfilter-v3/).**
+- [examples/chat-v3/](examples/chat-v3/) — a messaging workspace in classic JSX: a `mirror()` slot with `az`/`length` chained once, a transient search filter `dispose()`d per re-point, nested path writes for reactions, a one-commit 200-row `patch`.
+- [examples/kanban-v3/](examples/kanban-v3/) — an issue board: per-status `filter → mirror → az` chains built once, drag-and-drop as one `batch()` commit, the 3-arg incremental `reduce` workload deck.
+- [examples/pivot-v3/](examples/pivot-v3/) — a live pivot table where every cell is a standing `filter → aggregate` scalar off one source, with transient disposal on config churn.
+- [examples/library-v3/](examples/library-v3/) — a faceted media browser where browsing is set algebra (`union`/`intersect`/`except`/`between`) over mirror slots, paged by a **reactive window size** (`za('rating', pageSize.get('n'))` — load-more grows the window in place).
+- [examples/swarm-v3/](examples/swarm-v3/) — a ~12k-agent epidemic simulation with a fully incremental analytics deck fed **one `patch` commit per frame** (organic frames: 0.26 ms median through the whole deck).
+- [examples/multidim/](examples/multidim/) — the crossfilter brushing workload rebuilt across nine reactive libraries for a per-row reactive-cost comparison; the `data` row runs the v3 engine.
+- [examples/flow/](examples/flow/) — a long-form interactive essay ("Write the view, flow the change") driven by one live change stream; still runs on the frozen `data/v2` pins until its own port lands.
+- The v2 twins (todo, crossfilter, chat, kanban, pivot, library, swarm, todo-jsx, crossfilter-jsx) remain in [examples/](examples/), pinned to `data/v2` — useful side-by-side reading with [v3/MIGRATION.md](v3/MIGRATION.md).
 
 Run them locally:
 
 ```bash
 npm run serve
-# then open http://127.0.0.1:3000/examples/todo/
-# and    http://127.0.0.1:3000/examples/crossfilter/
+# then open http://127.0.0.1:3000/examples/todo-v3/
+# and    http://127.0.0.1:3000/examples/crossfilter-v3/
 ```
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
-| `npm test` | Unit tests (`node --test`, runs `*.test.ts` directly via `--experimental-strip-types`) |
-| `npm run perf` | Perf assertions — median-of-5 timings with hard thresholds |
-| `npm run test:render` | Playwright e2e against the example apps |
-| `npm run test:all` | Both `test` and `test:render` |
+| `npm run test:v3` | The engine's unit tests (`node --test` over `v3/**/*.test.ts`, run directly via `--experimental-strip-types`) |
+| `npm run typecheck:v3` | Four `tsc` programs: the typed-surface fixtures, classic JSX, automatic JSX, and the PUBLIC gate (fixtures against the shipped [v3/types/public.d.ts](v3/types/public.d.ts) via the bare `data` specifier) |
+| `npm run perf:v3` | The m1/m2 perf gates (single-tick + brush/batch vs v2) — run locally, not in CI |
+| `npm test` | The frozen v2 engine's unit suite (stays green; v2 ships at `data/v2/*`) |
+| `npm run perf` | The v2 perf gate |
+| `npm run test:render` | Playwright e2e against the example apps (v3 and v2) |
+| `npm run test:all` | Unit + typecheck + e2e |
 | `npm run serve` | `tsup` + static server on `:3000` (examples need `dist/` to exist) |
-| `npm run build` | `tsup` bundle into `dist/` (ESM + per-entry types) |
+| `npm run build` | `tsup` bundle into `dist/` — v3 at the root (`dist/index.js`), v2 under `dist/v2/*` |
 
 ## Project layout
 
 ```
 .
-├── core.ts           — $, ViewProxy, View, Value, Sink (foundation)
-├── lean.ts           — `data/lean` entry: core re-exports only, no operator dispatch
-├── index.ts          — `data` entry (default): lean.ts + registers all operators
-├── full.ts           — `data/full` entry: index.ts + JSX helpers (h, Fragment, For)
-├── utils.ts          — small helpers
-├── row.ts            — RowOperator base class (used by filter, map)
-├── operators/
-│   ├── README.md     — operator index
-│   ├── filter/       — each operator: index.ts + tests + perf + README.md
-│   ├── between/
-│   ├── sort/         — covers za, az, top, limit
-│   ├── length/
-│   ├── intersect/
-│   ├── group/
-│   ├── map/
-│   └── to/
-├── render/
-│   ├── README.md     — render layer reference
-│   └── index.ts      — render(), HTML, SVG
-├── jsx/
-│   └── index.ts      — h, Fragment, For (JSX adapter over HTML/SVG)
-├── devtools/
-│   ├── README.md     — `data/devtools` reference
-│   ├── index.ts      — opt-in $.inspect/$.graph/$.fromDOM/$.highlight + $.trace/$.profile
-│   ├── walk.ts       — pure graph walk + iterRoots + summarize + classify
-│   ├── instrument.ts — View.prototype monkey-patch (gated by trace/profile)
-│   ├── events.ts     — trace dispatch + profile bucketing + re-entrancy depth
-│   └── panel/        — overlay UI: single-file panel (right-edge dock, Tree/DAG graph, Inspect/Events/Profile inspector, picker, Alt-hover)
-└── examples/
-    ├── todo/         and todo-jsx/         (same app, two authoring styles)
-    └── crossfilter/  and crossfilter-jsx/
+├── v3/                  — THE ENGINE behind the `data` entry
+│   ├── contract/        — the closed delta algebra, wire profiles, RESERVED names
+│   ├── conformance/     — legality checker, replay sink, cross-op differential fuzz
+│   ├── kernel/          — Store, SourceNode, Scope, Runtime (two-phase height-ordered commit)
+│   ├── ops/             — every operator family (rowops, between, ordered, aggregate,
+│   │                      setops, bucket, misc) + the registry + reactive value-slot args
+│   ├── api/             — $(), the non-callable handle, RESERVED dispatch, view dedup
+│   ├── render/          — render(), el/text/list/bind, the keyed list sink, mirror(),
+│   │                      component()/boundary()/onCleanup
+│   ├── jsx/             — h, Fragment, For, ErrorBoundary + the automatic runtime + intrinsics
+│   ├── devtools/        — $.inspect/$.graph/$.trace/$.profile + the overlay panel
+│   ├── compat/          — the permanent v2 ChangeRecord profile (what connect() emits)
+│   ├── seam/            — ingest(), fromAsync, source backings, exportContract()
+│   ├── types/           — the typed surface + public.d.ts (the SHIPPED declarations)
+│   ├── perf/            — the m1/m2 gates + the example-scale bench
+│   └── MIGRATION.md     — the verified v2 → v3 migration guide
+├── core.ts, operators/, render/, jsx/, devtools/
+│                        — the frozen v2 engine (ships at `data/v2/*`)
+├── bin/cli.mjs          — `npx data init-ai`
+└── examples/            — the *-v3 gallery on the flipped entry; v2 twins pinned to data/v2
 ```
 
-Tests and perf checks live next to the code they cover — `operators/filter/filter.test.ts`, `operators/filter/filter.perf.ts`, etc.
+Tests live next to the code they cover — `v3/ops/ordered.test.ts`, `v3/render/component.test.ts`, etc.
 
 ## License
 
