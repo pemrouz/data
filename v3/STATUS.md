@@ -33,7 +33,8 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M4.5b devtools panel port** — DOM seam (render registry + fromDOM/highlight) + the overlay panel (dock/graph/inspector/picker) + the `data/v3/devtools` entry | done | `688f378` `bbe1138` `0e37da4` `37115d3` | 239 tests; devtools-v3 spec 6/6; zero-subscriber leak audit; single-module-instance bundle proof |
 | **M4.5b component scopes** — `onCleanup` + deferred `component()` (JSX function tags defer to mount, invoked once under an owner Scope) + `boundary()`/`<ErrorBoundary>` (microtask-deferred effect-phase swaps) + the 18-finding pre-commit review fix round | done | `55d90f5`…`a8b95aa` | 272 tests (33 new); typecheck ×3; e2e 41/41 twice; m1 0.69/0.85, m2 0.93/0.71 PASS |
 | **THE FLIP, phase 1 (re-plumb)** — bare `data`/`dist/index.js` IS v3; v2 shifted whole to `data/v2`/`dist/v2/*`; `data/v3` kept as same-file aliases; every v2 surface pinned (11 importmaps + perf dashboard + 2 spec paths); shipped types = `v3/types/public.d.ts` on `exports["."]`; no v2-compat shim (error text repointed at `data/v2`) | done | `1ed17de`…`ca2b85e` + docs | unit 272+529; typecheck v2×4 + v3×4 (new public gate); FULL e2e suite; MIGRATION §6 flipped |
-| M5 rest / flip phases 2–3: landing + multidim → v3 (un-pin), flow port (or pin), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
+| **THE FLIP, phase 2 (showcase surfaces)** — the landing page (feed/demos/race + the API-visible HTML) and multidim's `data` row run the v3 engine, importmaps un-pinned; + the nested operator-view child-path fix the port surfaced | done | `70ea8ed`…`fc03b92` + build/docs | 273 v3 tests; typecheck ×8; phase-2 e2e 23/23 (race ×9 engines, demos-tap under GC, v3 devtools mount, multidim ×10 rows) |
+| M5 rest / flip phase 3: flow stays pinned (essay port is its own block), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
 
 Run everything: `npm run test:v3` (272 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -348,6 +349,42 @@ Eighth block (THE FLIP, phase 1 — the entry re-plumb, `1ed17de`…`ca2b85e` + 
 - **Decided: no v2-compat runtime shim** — the `[value] =` error now says
   "the pre-flip surface lives at data/v2" (MIGRATION §2/§3.12 quotes updated;
   §6 rewritten as the flipped entry table; intro imports say `from 'data'`).
+
+Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` + build/docs):
+
+- **The landing page runs v3**: [assets/feed.js](../assets/feed.js) (array-born
+  source, path writes, `lastTick` as a scalar-child handle), [assets/demos.js](../assets/demos.js)
+  (all 15 operator cards rebuilt in the v3 vocabulary — mirror()-slot chip
+  re-pointing with transient-filter dispose, list()/text()/bind() with plain
+  rows, the `dense()` helper + every undefined-guard DELETED, the tap WeakRef
+  DOM-anchor hack DELETED, `.reverse()` → `.values()`, rank via CSS counter
+  since orderMoves don't re-run row fns), [assets/race.js](../assets/race.js)
+  (the data engine coalesces each frame's ticks into ONE `patch` commit — the
+  swarm-v3 bridge), and [index.html](../index.html) (predicate `filter` sig,
+  flip entries block incl. `data/v2` + migration link, both quickstart snippets
+  on the v3 write/list forms, gallery retargeted to the -v3 twins with v2
+  fallback links, importmap → `dist/index.js` + `dist/devtools.js`).
+- **multidim's `data` row runs v3** ([examples/multidim/lib-data.js](../examples/multidim/lib-data.js)):
+  reactive `between` bounds off one filters source, explicit leave-one-out
+  `intersect`s, `length(fn)` histograms, bounded `za('delay', 5)` (the v2
+  pre-sort + `limit(5)` trick is obsolete — noted in its header). Deliberate
+  correctness change: bars tap the HISTOGRAM, not `max('value')` — v3 scalars
+  cut off no-change emissions, so tapping the max would starve bar redraws
+  whose peak didn't move.
+- **fix(v3/api) the port surfaced**: nested child reads on an OPERATOR VIEW
+  (`counts.get(tn).get('value')` — the length(fn)-bucket idiom) dropped the
+  parent path segment and SILENTLY read undefined; childState now extends the
+  path (childRead already walked deep paths via leafAt). Regression test in
+  api.test.ts.
+- **[tests/landing-devtools.spec.ts](../tests/landing-devtools.spec.ts)**
+  rewritten for the v3 mount path: the C6 cross-bundle regression it guarded
+  is closed STRUCTURALLY by the boundary-externalized devtools bundle (one
+  module instance by construction); the spec now asserts that end-to-end.
+- flow + the v2 example pages stay PINNED to `dist/v2/*` and green — the flow
+  essay port is its own future block.
+- Verified: v3 273 (the new api regression), v2 529, typecheck v2×4 + v3×4,
+  phase-2 e2e 23/23 (race ×9 engines, demos-tap under forced GC, the v3
+  devtools mount, multidim ×10 rows incl. the data-row brush loop).
 
 ## Known gaps / next work (M4.5b+)
 

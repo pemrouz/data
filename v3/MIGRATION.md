@@ -453,8 +453,8 @@ compositions must be disposed or they accumulate** — the v2 kanban
 | `proxy.raf()` on a whole view | child handles only |
 | whole-value hatch `proxy[value] = v` | not yet supported — the error text points at `data/v2`, where the pre-flip surface lives (decision at the flip: no compat shim) |
 | `$.debug` reduce drift warning | no counterpart yet |
-| `data/devtools` (`$.inspect`, panel, badges) | not on the `data/v3` entry; `v3/devtools/` has inspect/graph/trace/profile/cascades as a module, the panel port is M4.5b-rest (not started) |
-| `data/lean` / `data/full` / `data/render` sub-entries | one entry: `data/v3` ([§6](#6-entry-points-at-the-flip)) |
+| `data/devtools` (`$.inspect`, panel, badges) | SHIPPED — importing `data/devtools` attaches `$.inspect`/`$.graph`/`$.trace`/`$.profile`/`$.cascades`/`$.fromDOM` and auto-mounts the overlay panel (`?nopanel` opts out; `$.devtools.panel.{open, close, shell}`). One deliberate delta from v2: a single Alt-badge, not per-row badges |
+| `data/lean` / `data/full` / `data/render` sub-entries | one entry: `data` ([§6](#6-entry-points-flipped-2026-07-12)); the old sub-entries live under `data/v2/*` |
 | `createOperator` / `Operators` public registration | not exposed; v3 operators register via static module imports |
 | nested-field `remove()` | throws `not yet supported` — rewrite the parent row |
 | `connect()` on a child path | throws `not yet supported` — connect the view |
