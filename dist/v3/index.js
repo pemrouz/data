@@ -113,15 +113,35 @@ var Scope = class _Scope {
     }
     (this.disposers ??= []).push(fn);
   }
+  // Disposal COMPLETES even when a child dispose / cleanup throws: every
+  // remaining child and disposer still runs, then the failures rethrow as
+  // one AggregateError. Pre-fix, one throwing onCleanup aborted the walk and
+  // left the rest of the subtree's subscriptions live.
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     const owned = this.owned;
     this.owned = null;
-    for (const child of owned) child.dispose();
+    let errors = null;
+    for (const child of owned) {
+      try {
+        child.dispose();
+      } catch (e) {
+        (errors ??= []).push(e);
+      }
+    }
     const ds = this.disposers;
     this.disposers = null;
-    if (ds) for (let i = ds.length - 1; i >= 0; i--) ds[i]();
+    if (ds)
+      for (let i = ds.length - 1; i >= 0; i--) {
+        try {
+          ds[i]();
+        } catch (e) {
+          (errors ??= []).push(e);
+        }
+      }
+    if (errors !== null)
+      throw new AggregateError(errors, `data: ${errors.length} cleanup(s) failed during scope disposal`);
   }
   [Symbol.dispose]() {
     this.dispose();
@@ -139,6 +159,13 @@ function runInScope(s, fn) {
   } finally {
     current = prev;
   }
+}
+function onCleanup(fn) {
+  if (current === null)
+    throw new Error(
+      "data: onCleanup() called outside a scope \u2014 the cleanup would never run. Call it inside a component (a function tag / component()); row fns re-run on updates and are not a scope \u2014 wrap the row content in a component."
+    );
+  current.onDispose(fn);
 }
 
 // v3/kernel/node.ts
@@ -216,10 +243,12 @@ var DataNode = class {
     return this.snapshot().get(key);
   }
   connect(entry) {
+    entry.bornSeq = this.runtime.connectSeq();
     this.effects.push(entry);
     const self = this;
     const handle = {
       dispose() {
+        entry.dead = true;
         const i = self.effects.indexOf(entry);
         if (i >= 0) self.effects.splice(i, 1);
       }
@@ -235,6 +264,7 @@ var DataNode = class {
       if (i >= 0) p.children.splice(i, 1);
     }
     this.children.length = 0;
+    for (const e of this.effects) e.dead = true;
     this.effects.length = 0;
     this.scope?.delete(this);
   }
@@ -2491,6 +2521,17 @@ var Runtime = class {
   get midBatch() {
     return this.batchDepth > 0;
   }
+  // The seq to stamp on a subscription born NOW (DataNode.connect). During a
+  // commit's effect phase the subscriber's init snapshot ALREADY contains
+  // that commit (clause 4), so its entry must skip batch.seq === bornSeq —
+  // without this, a sink connected from inside an effect (a row built during
+  // an add whose template nests a list over another view that also changed
+  // this commit) double-applied the current batch. During a drain (a queued
+  // re-entrant write between commits) the snapshot predates the NEXT commit,
+  // so 0 (never matches — seq starts at 1) is correct.
+  connectSeq() {
+    return this.flushing && !this.draining ? this.seq : 0;
+  }
   register(node2) {
     this.registry.add(new WeakRef(node2));
   }
@@ -2594,6 +2635,7 @@ var Runtime = class {
   _emitN = [];
   _emitB = [];
   _agenda = [];
+  _fx = [];
   commitOnce(errors) {
     const seq = ++this.seq;
     const origin = this.currentOrigin ?? this.defaultOrigin;
@@ -2647,12 +2689,16 @@ var Runtime = class {
         }
       }
     }
+    const fx = this._fx;
     for (let i = 0; i < emitN.length; i++) {
       const effects = emitN[i].effects;
       if (effects.length === 0) continue;
       const batch2 = emitB[i];
-      for (let ei = 0; ei < effects.length; ei++) {
-        const entry = effects[ei];
+      fx.length = 0;
+      for (let ei = 0; ei < effects.length; ei++) fx.push(effects[ei]);
+      for (let ei = 0; ei < fx.length; ei++) {
+        const entry = fx[ei];
+        if (entry.dead === true || entry.bornSeq === seq) continue;
         if (entry.origin !== null && entry.origin === batch2.origin) continue;
         try {
           entry.apply(batch2);
@@ -2661,6 +2707,7 @@ var Runtime = class {
         }
       }
     }
+    fx.length = 0;
     emitN.length = 0;
     emitB.length = 0;
     agenda.length = 0;
@@ -3323,8 +3370,125 @@ function installReactive() {
   );
 }
 
-// v3/render/index.ts
+// v3/render/builders.ts
 var NODE2 = /* @__PURE__ */ Symbol.for("data.v3.node");
+function isViewLike(x) {
+  if (x instanceof DataNode) return true;
+  return x !== null && typeof x === "object" && x[NODE2] instanceof DataNode;
+}
+var VNODE_KINDS = /* @__PURE__ */ new Set(["el", "text", "rtext", "list", "component", "boundary"]);
+function isVNode(x) {
+  return x !== null && typeof x === "object" && VNODE_KINDS.has(x.kind);
+}
+function isBindShape(x) {
+  return x !== null && typeof x === "object" && x.kind === "bind" && "view" in x;
+}
+function isPropsObject(x) {
+  if (x === null || typeof x !== "object") return false;
+  if (Array.isArray(x)) return false;
+  if (x instanceof DataNode) return false;
+  if (x[NODE2] instanceof DataNode) return false;
+  if (isBindShape(x) || isVNode(x)) return false;
+  const proto = Object.getPrototypeOf(x);
+  return proto === Object.prototype || proto === null;
+}
+function normChildren(children) {
+  const out = [];
+  const push = (c) => {
+    if (c == null || typeof c === "boolean") return;
+    if (typeof c === "string" || typeof c === "number") {
+      out.push({ kind: "text", s: String(c) });
+      return;
+    }
+    if (Array.isArray(c)) {
+      for (const k of c) push(k);
+      return;
+    }
+    if (isViewLike(c)) {
+      out.push(text(c));
+      return;
+    }
+    if (isBindShape(c)) {
+      out.push(text(c.view, c.fn ?? void 0));
+      return;
+    }
+    if (isVNode(c)) {
+      out.push(c);
+      return;
+    }
+    throw new Error(
+      "data/render: unsupported child \u2014 expected a VNode, string/number, view/$ handle, bind(), or a nested array of those"
+    );
+  };
+  for (const c of children) push(c);
+  return out;
+}
+var EMPTY_DOT = { classes: [], id: null, attrs: {} };
+function addDot(dot, prop) {
+  if (prop.startsWith("#")) return { classes: dot.classes, id: prop.slice(1), attrs: dot.attrs };
+  const eq = prop.indexOf("=");
+  if (eq > 0)
+    return {
+      classes: dot.classes,
+      id: dot.id,
+      attrs: { ...dot.attrs, [prop.slice(0, eq)]: prop.slice(eq + 1) }
+      // FIRST '=' splits
+    };
+  return { classes: [...dot.classes, prop.replaceAll("_", "-")], id: dot.id, attrs: dot.attrs };
+}
+var toS = (x) => x == null ? "" : String(x);
+function elFrom(tag, dot, callProps, children) {
+  const dotClass = dot.classes.length > 0 ? dot.classes.join(" ") : null;
+  let props = null;
+  const hasDot = dotClass !== null || dot.id !== null || Object.keys(dot.attrs).length > 0;
+  const hasCall = callProps !== null && Object.keys(callProps).length > 0;
+  if (hasDot || hasCall) {
+    props = { ...dot.attrs };
+    if (dotClass !== null) props.class = dotClass;
+    if (dot.id !== null) props.id = dot.id;
+    if (callProps !== null) {
+      for (const k of Object.keys(callProps)) {
+        const v = callProps[k];
+        if (k === "class" && dotClass !== null) {
+          if (isViewLike(v)) props.class = bind(v, (x) => dotClass + " " + toS(x));
+          else if (isBindShape(v)) {
+            const f = v.fn;
+            props.class = bind(v.view, (x) => dotClass + " " + toS(f === null ? x : f(x)));
+          } else if (v != null && v !== false) props.class = dotClass + " " + String(v);
+        } else {
+          props[k] = v;
+        }
+      }
+    }
+  }
+  return el(tag, props, ...normChildren(children));
+}
+function makeBuilder(tag, dot) {
+  const call = (...args) => {
+    if (args.length > 0 && isPropsObject(args[0]))
+      return elFrom(tag, dot, args[0], args.slice(1));
+    return elFrom(tag, dot, null, args);
+  };
+  return new Proxy(call, {
+    get(t, prop) {
+      if (typeof prop !== "string") return t[prop];
+      return makeBuilder(tag, addDot(dot, prop));
+    }
+  });
+}
+function namespaceProxy() {
+  return new Proxy(/* @__PURE__ */ Object.create(null), {
+    get(_t, prop) {
+      if (typeof prop !== "string") return void 0;
+      return makeBuilder(prop.replaceAll("_", "-"), EMPTY_DOT);
+    }
+  });
+}
+var HTML = namespaceProxy();
+var SVG = namespaceProxy();
+
+// v3/render/index.ts
+var NODE3 = /* @__PURE__ */ Symbol.for("data.v3.node");
 var VALUE2 = /* @__PURE__ */ Symbol.for("data.v3.value");
 function bind(view, fn) {
   return { kind: "bind", view, fn: fn ?? null };
@@ -3344,9 +3508,21 @@ function text(view, fn) {
 function list(view, rowFn) {
   return { kind: "list", view, rowFn };
 }
+function component(fn, props) {
+  if (typeof fn !== "function")
+    throw new Error("data/render: component(fn, props?) expects a function \u2014 got " + typeof fn);
+  return { kind: "component", fn, props: props ?? {} };
+}
+function boundary(child, fallback) {
+  if (typeof fallback !== "function")
+    throw new Error(
+      "data/render: boundary(child, fallback) expects a fallback FUNCTION (err, reset) => vnode"
+    );
+  return { kind: "boundary", child, fallback };
+}
 function nodeOf(view) {
   if (view instanceof DataNode) return view;
-  const n = view?.[NODE2];
+  const n = view?.[NODE3];
   if (n instanceof DataNode) return n;
   throw new Error("data/render: expected a view \u2014 a DataNode or a $ handle");
 }
@@ -3357,7 +3533,7 @@ function readerOf(view) {
       "data/render: text() over a raw collection node \u2014 pass a scalar view (sum/avg/\u2026/to) or a handle"
     );
   }
-  if (view != null && view[NODE2] instanceof DataNode) return () => view[VALUE2];
+  if (view != null && view[NODE3] instanceof DataNode) return () => view[VALUE2];
   throw new Error("data/render: text() expects a scalar view or a $ handle");
 }
 function toText(v) {
@@ -3369,7 +3545,7 @@ function isBindProp(x) {
 }
 function isView(x) {
   if (x instanceof DataNode) return true;
-  return x !== null && typeof x === "object" && x[NODE2] instanceof DataNode;
+  return x !== null && typeof x === "object" && x[NODE3] instanceof DataNode;
 }
 function normAttr(v) {
   return v == null || v === false ? null : v === true ? "" : String(v);
@@ -3387,22 +3563,32 @@ function applyAttr(dom, name, next) {
   if (next === null) dom.removeAttribute(name);
   else dom.setAttribute(name, next);
 }
-function bindAttr(dom, name, view, fn, scope) {
+function bindAttr(dom, name, view, fn, scope, boundary2) {
   const read = readerOf(view);
   const compute = () => normAttr(fn === null ? read() : fn(read()));
   let last = compute();
   if (last !== null || name === "checked" || name === "value") applyAttr(dom, name, last);
+  const run = () => {
+    const next = compute();
+    if (next === last) return;
+    last = next;
+    applyAttr(dom, name, next);
+  };
   const sub = nodeOf(view).connect({
     wantsOrder: false,
     origin: null,
-    apply() {
-      const next = compute();
-      if (next === last) return;
-      last = next;
-      applyAttr(dom, name, next);
-    }
+    // Guarded closure ONLY under a boundary — the no-boundary path is the
+    // plain closure, zero added cost.
+    apply: boundary2 === null ? run : () => guarded(run, boundary2)
   });
   scope.add(sub);
+}
+function guarded(fn, boundary2) {
+  try {
+    fn();
+  } catch (e) {
+    boundary2.handle(e);
+  }
 }
 function materialize2(v, ctx) {
   switch (v.kind) {
@@ -3414,13 +3600,15 @@ function materialize2(v, ctx) {
       const fmt = v.fn;
       const read = fmt === null ? raw : () => fmt(raw());
       const tn = ctx.doc.createTextNode(toText(read()));
+      const run = () => {
+        const s = toText(read());
+        if (s !== tn.textContent) tn.textContent = s;
+      };
+      const b = ctx.boundary;
       const sub = n.connect({
         wantsOrder: false,
         origin: null,
-        apply() {
-          const s = toText(read());
-          if (s !== tn.textContent) tn.textContent = s;
-        }
+        apply: b === null ? run : () => guarded(run, b)
       });
       ctx.scope.add(sub);
       return { vnode: v, dom: tn, children: null };
@@ -3428,7 +3616,7 @@ function materialize2(v, ctx) {
     case "el": {
       const ns = v.tag === "svg" ? SVG_NS : ctx.ns;
       const dom = ns === null ? ctx.doc.createElement(v.tag) : ctx.doc.createElementNS(ns, v.tag);
-      const kidCtx = ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns };
+      const kidCtx = ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns, boundary: ctx.boundary };
       if (v.props !== null) {
         for (const k of Object.keys(v.props)) {
           const pv = v.props[k];
@@ -3437,31 +3625,63 @@ function materialize2(v, ctx) {
             dom.addEventListener(evt, pv);
             ctx.scope.onDispose(() => dom.removeEventListener(evt, pv));
           } else if (isView(pv)) {
-            bindAttr(dom, k, pv, null, ctx.scope);
+            bindAttr(dom, k, pv, null, ctx.scope, ctx.boundary);
           } else if (isBindProp(pv)) {
-            bindAttr(dom, k, pv.view, pv.fn, ctx.scope);
+            bindAttr(dom, k, pv.view, pv.fn, ctx.scope, ctx.boundary);
           } else if (pv != null && pv !== false) {
             dom.setAttribute(k, pv === true ? "" : String(pv));
           }
         }
       }
       const kids = [];
-      for (const c of v.children) {
-        if (c.kind === "list") {
-          const binding = new ListBinding(dom, c, kidCtx);
-          ctx.scope.add(binding);
-          kids.push({ vnode: c, dom: binding.anchor, children: null });
-        } else {
-          const m = materialize2(c, kidCtx);
-          dom.appendChild(m.dom);
-          kids.push(m);
-        }
-      }
+      for (const c of v.children) kids.push(mountChild(dom, c, kidCtx));
       return { vnode: v, dom, children: kids };
     }
     case "list":
-      throw new Error("data/render: internal \u2014 list must be materialized by its host");
+    case "component":
+    case "boundary":
+      throw new Error("data/render: internal \u2014 " + v.kind + " must be mounted by its host");
   }
+}
+function mountChild(host, c, ctx) {
+  if (c.kind === "list") {
+    const binding = new ListBinding(host, c, ctx);
+    ctx.scope.add(binding);
+    return { vnode: c, dom: binding.anchor, children: null };
+  }
+  if (c.kind === "component") return mountComponent(host, c, ctx);
+  if (c.kind === "boundary") {
+    const slot = new BoundarySlot(host, c, ctx);
+    ctx.scope.add(slot);
+    return { vnode: c, dom: slot.anchor, children: null };
+  }
+  const m = materialize2(c, ctx);
+  host.appendChild(m.dom);
+  return m;
+}
+function mountComponent(host, c, ctx) {
+  const compScope = new Scope(ctx.scope);
+  const kids = [];
+  try {
+    const out = runInScope(compScope, () => c.fn(c.props));
+    const kidCtx = { doc: ctx.doc, scope: compScope, ns: ctx.ns, boundary: ctx.boundary };
+    for (const k of normChildren([out])) kids.push(mountChild(host, k, kidCtx));
+  } catch (e) {
+    ctx.scope.delete(compScope);
+    compScope.dispose();
+    const doms = [];
+    for (const m of kids) collectDoms(m, doms);
+    for (const d of doms) d.remove();
+    throw e;
+  }
+  return { vnode: c, dom: null, children: kids };
+}
+function collectDoms(m, out) {
+  if (m.dom !== null) {
+    out.push(m.dom);
+    return;
+  }
+  if (m.children !== null) for (const k of m.children) collectDoms(k, out);
 }
 function staticProp(x) {
   return typeof x !== "function" && !isView(x) && !isBindProp(x);
@@ -3505,10 +3725,211 @@ function patchRow(m, v) {
     m.vnode = v;
     return true;
   }
+  if (v.kind === "component") {
+    const prev = m.vnode;
+    return prev.fn === v.fn && propsEq(prev.props, v.props);
+  }
+  if (v.kind === "boundary") {
+    const prev = m.vnode;
+    return prev.fallback === v.fallback && vnodeEq(prev.child, v.child);
+  }
   return true;
 }
+function vnodeEq(a, b) {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!vnodeEq(a[i], b[i])) return false;
+    return true;
+  }
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (a instanceof DataNode || b instanceof DataNode) return false;
+  if (a[NODE3] instanceof DataNode || b[NODE3] instanceof DataNode) return false;
+  const ka = a.kind;
+  if (ka !== b.kind) return false;
+  switch (ka) {
+    case "text":
+      return a.s === b.s;
+    case "el": {
+      const ea = a;
+      const eb = b;
+      return ea.tag === eb.tag && propsEq(ea.props, eb.props) && vnodeEq(ea.children, eb.children);
+    }
+    case "rtext":
+      return a.view === b.view && a.fn === b.fn;
+    case "bind":
+      return a.view === b.view && a.fn === b.fn;
+    case "list":
+      return a.view === b.view && a.rowFn === b.rowFn;
+    case "component":
+      return a.fn === b.fn && propsEq(a.props, b.props);
+    case "boundary":
+      return a.fallback === b.fallback && vnodeEq(a.child, b.child);
+  }
+  return false;
+}
+function propsEq(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    if (!(k in b)) return false;
+    if (!vnodeEq(a[k], b[k])) return false;
+  }
+  return true;
+}
+function hostBefore(host, anchor) {
+  return {
+    appendChild: (n) => host.insertBefore(n, anchor),
+    insertBefore: (n, ref) => host.insertBefore(n, ref ?? anchor)
+  };
+}
+var BoundarySlot = class {
+  constructor(host, vnode, ctx) {
+    this.host = host;
+    this.doc = ctx.doc;
+    this.ns = ctx.ns;
+    this.vnode = vnode;
+    this.outer = ctx.boundary;
+    this.scope = null;
+    this.doms = [];
+    this.broken = false;
+    this.disposed = false;
+    this.anchor = ctx.doc.createTextNode("");
+    host.appendChild(this.anchor);
+    try {
+      this.mountTry();
+    } catch (e) {
+      this.disposed = true;
+      this.anchor.remove();
+      throw e;
+    }
+  }
+  // Materialize vs before the anchor under a fresh subtree scope. Runs the
+  // whole mount inside runInScope(scope): connect()'s ambient-scope
+  // registration must land on THIS scope, not on whatever scope was ambient
+  // at mount time — pre-fix, the enclosing mount scope also caught every
+  // subtree subscription handle and retained the torn-down subtree until
+  // unmount. On a mount-phase throw the partials (scope + already-placed
+  // doms) are torn down and the error rethrows to the caller.
+  mountInto(vs, asBoundary) {
+    const scope = new Scope(null);
+    const doms = [];
+    const ctx = { doc: this.doc, scope, ns: this.ns, boundary: asBoundary };
+    const facade = hostBefore(this.host, this.anchor);
+    try {
+      runInScope(scope, () => {
+        for (const v of vs) collectDoms(mountChild(facade, v, ctx), doms);
+      });
+    } catch (e) {
+      scope.dispose();
+      for (const d of doms) d.remove();
+      throw e;
+    }
+    this.scope = scope;
+    this.doms = doms;
+  }
+  mountTry() {
+    try {
+      this.mountInto(normChildren([this.vnode.child]), this);
+    } catch (e) {
+      this.scope = null;
+      this.doms = [];
+      this.showFallback(e);
+    }
+  }
+  // The fallback mounts with ctx.boundary = the OUTER boundary: its own
+  // errors escalate outward. A fallback that throws while MOUNTING also
+  // escalates (or rethrows at the top — an unhandled broken fallback should
+  // be loud, not blank).
+  showFallback(err) {
+    try {
+      const out = (0, this.vnode.fallback)(err, () => this.reset());
+      this.mountInto(normChildren([out]), this.outer);
+    } catch (e) {
+      this.scope = null;
+      this.doms = [];
+      if (this.outer !== null) this.outer.handle(e);
+      else throw e;
+    }
+  }
+  // Effect-phase entry point (guarded closures + the list sink route here).
+  handle(err) {
+    if (this.broken || this.disposed) return;
+    this.broken = true;
+    this.queueSwap(() => this.showFallback(err));
+  }
+  // Re-mount the try child (the fallback's retry hook). Deferred like
+  // handle() — reset may be invoked from inside an effect.
+  reset() {
+    if (this.broken || this.disposed) return;
+    this.broken = true;
+    this.queueSwap(() => this.mountTry());
+  }
+  queueSwap(run) {
+    queueMicrotask(() => {
+      if (this.disposed) return;
+      try {
+        this.teardown();
+        run();
+      } finally {
+        this.broken = false;
+      }
+    });
+  }
+  // DOM removal proceeds even when a cleanup throws (Scope.dispose completes
+  // its walk and rethrows an AggregateError at the end).
+  teardown() {
+    const scope = this.scope;
+    this.scope = null;
+    const doms = this.doms;
+    this.doms = [];
+    try {
+      scope?.dispose();
+    } finally {
+      for (const d of doms) d.remove();
+    }
+  }
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    try {
+      this.teardown();
+    } finally {
+      this.anchor.remove();
+    }
+  }
+};
 var domLinks = /* @__PURE__ */ new WeakMap();
 var liveLists = /* @__PURE__ */ new Set();
+function materializeRowRoot(v, ctx) {
+  if (v.kind === "boundary")
+    throw new Error(
+      'data/render: a row fn returned boundary() as the row ROOT \u2014 the keyed list sink places one stable element per row and a swap would replace it. Wrap it in an element: el("div", null, boundary(\u2026))'
+    );
+  if (v.kind === "list")
+    throw new Error(
+      'data/render: a row fn returned list()/<For> as the row ROOT \u2014 the keyed list sink places one stable element per row. Nest it inside an element: el("div", null, list(\u2026))'
+    );
+  if (v.kind === "component") {
+    const compScope = new Scope(ctx.scope);
+    const out = runInScope(compScope, () => v.fn(v.props));
+    const kids = normChildren([out]);
+    if (kids.length !== 1)
+      throw new Error(
+        `data/render: a component used as a row ROOT must return exactly ONE root vnode \u2014 got ${kids.length}. The keyed list sink places one stable element per row.`
+      );
+    const inner = materializeRowRoot(kids[0], {
+      doc: ctx.doc,
+      scope: compScope,
+      ns: ctx.ns,
+      boundary: ctx.boundary
+    });
+    return { vnode: v, dom: inner.dom, children: [inner] };
+  }
+  return materialize2(v, ctx);
+}
 var ListBinding = class {
   constructor(host, vnode, ctx) {
     this.host = host;
@@ -3517,6 +3938,7 @@ var ListBinding = class {
     this.rowFn = vnode.rowFn;
     this.view = nodeOf(vnode.view);
     this.recs = /* @__PURE__ */ new Map();
+    this.boundary = ctx.boundary;
     this.disposed = false;
     this.anchor = ctx.doc.createTextNode("");
     host.appendChild(this.anchor);
@@ -3524,30 +3946,63 @@ var ListBinding = class {
     const ord = this.view.currentOrder();
     this.order = ord === null ? null : ord.slice();
     const keys = ord ?? [...snap.keys()];
-    for (const k of keys) {
-      const rec = this.buildRow(k, snap.get(k));
-      this.recs.set(k, rec);
-      this.host.insertBefore(rec.el, this.anchor);
+    try {
+      for (const k of keys) {
+        const rec = this.buildRow(k, snap.get(k));
+        this.recs.set(k, rec);
+        this.host.insertBefore(rec.el, this.anchor);
+      }
+    } catch (e) {
+      for (const rec of this.recs.values()) {
+        rec.scope.dispose();
+        rec.el.remove();
+      }
+      this.recs.clear();
+      this.anchor.remove();
+      throw e;
     }
+    const b = this.boundary;
     this.sub = this.view.connect({
       wantsOrder: true,
       origin: null,
-      apply: (b) => this.apply(b)
+      apply: b === null ? (batch2) => this.apply(batch2) : (batch2) => {
+        try {
+          this.apply(batch2);
+        } catch (e) {
+          b.handle(e);
+        }
+      }
     });
     ctx.scope.add(this.sub);
     liveLists.add(this);
   }
   // Each row owns a child Scope: its rtext/bind subscriptions and listeners
   // are registered there and die with the row (removeEventListener, finally).
+  // The row FN runs under runInScope(null, …) — it re-runs on updates, so it
+  // is not a scope; onCleanup() inside one throws (wrap in a component).
   buildRow(key, row) {
-    return this.buildRowFrom(this.rowFn(row, key), key);
+    return this.buildRowFrom(
+      runInScope(null, () => this.rowFn(row, key)),
+      key
+    );
   }
   buildRowFrom(vnode, key) {
     const rowScope = new Scope(null);
-    const mounted = runInScope(
-      rowScope,
-      () => materialize2(vnode, { doc: this.doc, scope: rowScope, ns: this.ns })
-    );
+    let mounted;
+    try {
+      mounted = runInScope(
+        rowScope,
+        () => materializeRowRoot(vnode, {
+          doc: this.doc,
+          scope: rowScope,
+          ns: this.ns,
+          boundary: this.boundary
+        })
+      );
+    } catch (e) {
+      rowScope.dispose();
+      throw e;
+    }
     domLinks.set(mounted.dom, { view: this.view, key });
     return { key, el: mounted.dom, scope: rowScope, mounted };
   }
@@ -3575,7 +4030,7 @@ var ListBinding = class {
         case "update": {
           const rec = this.recs.get(d.key);
           if (rec === void 0) break;
-          const next = this.rowFn(d.row, d.key);
+          const next = runInScope(null, () => this.rowFn(d.row, d.key));
           if (!patchRow(rec.mounted, next)) {
             const fresh = this.buildRowFrom(next, d.key);
             this.host.insertBefore(fresh.el, rec.el);
@@ -3650,18 +4105,15 @@ function render(host, ast, _runtime) {
     throw new Error("data/render: no global document \u2014 a DOM (or the test mock) must be installed");
   const mount = new Scope(null);
   const tops = [];
-  const ctx = { doc, scope: mount, ns: null };
+  const ctx = { doc, scope: mount, ns: null, boundary: null };
   runInScope(mount, () => {
     const vs = Array.isArray(ast) ? ast : [ast];
-    for (const v of vs) {
-      if (v.kind === "list") {
-        const binding = new ListBinding(host, v, ctx);
-        mount.add(binding);
-      } else {
-        const m = materialize2(v, ctx);
-        host.appendChild(m.dom);
-        tops.push(m.dom);
-      }
+    try {
+      for (const v of vs) collectDoms(mountChild(host, v, ctx), tops);
+    } catch (e) {
+      mount.dispose();
+      for (const t of tops) t.remove();
+      throw e;
     }
   });
   return {
@@ -3862,10 +4314,10 @@ function raf(target) {
 }
 
 // v3/seam/index.ts
-var NODE3 = /* @__PURE__ */ Symbol.for("data.v3.node");
+var NODE4 = /* @__PURE__ */ Symbol.for("data.v3.node");
 function resolveSource(target) {
   if (target instanceof SourceNode) return target;
-  const n = target !== null && (typeof target === "object" || typeof target === "function") ? target[NODE3] : void 0;
+  const n = target !== null && (typeof target === "object" || typeof target === "function") ? target[NODE4] : void 0;
   if (n instanceof SourceNode) return n;
   throw new Error(
     "data: ingest() target must be a source \u2014 pass the api handle of a $() source or a raw SourceNode (operator views are read-only projections)"
@@ -4068,123 +4520,6 @@ function exportContract() {
   return { SCHEMA_VERSION, reserved: [...RESERVED], operators };
 }
 
-// v3/render/builders.ts
-var NODE4 = /* @__PURE__ */ Symbol.for("data.v3.node");
-function isViewLike(x) {
-  if (x instanceof DataNode) return true;
-  return x !== null && typeof x === "object" && x[NODE4] instanceof DataNode;
-}
-var VNODE_KINDS = /* @__PURE__ */ new Set(["el", "text", "rtext", "list"]);
-function isVNode(x) {
-  return x !== null && typeof x === "object" && VNODE_KINDS.has(x.kind);
-}
-function isBindShape(x) {
-  return x !== null && typeof x === "object" && x.kind === "bind" && "view" in x;
-}
-function isPropsObject(x) {
-  if (x === null || typeof x !== "object") return false;
-  if (Array.isArray(x)) return false;
-  if (x instanceof DataNode) return false;
-  if (x[NODE4] instanceof DataNode) return false;
-  if (isBindShape(x) || isVNode(x)) return false;
-  const proto = Object.getPrototypeOf(x);
-  return proto === Object.prototype || proto === null;
-}
-function normChildren(children) {
-  const out = [];
-  const push = (c) => {
-    if (c == null || typeof c === "boolean") return;
-    if (typeof c === "string" || typeof c === "number") {
-      out.push({ kind: "text", s: String(c) });
-      return;
-    }
-    if (Array.isArray(c)) {
-      for (const k of c) push(k);
-      return;
-    }
-    if (isViewLike(c)) {
-      out.push(text(c));
-      return;
-    }
-    if (isBindShape(c)) {
-      out.push(text(c.view, c.fn ?? void 0));
-      return;
-    }
-    if (isVNode(c)) {
-      out.push(c);
-      return;
-    }
-    throw new Error(
-      "data/render: unsupported child \u2014 expected a VNode, string/number, view/$ handle, bind(), or a nested array of those"
-    );
-  };
-  for (const c of children) push(c);
-  return out;
-}
-var EMPTY_DOT = { classes: [], id: null, attrs: {} };
-function addDot(dot, prop) {
-  if (prop.startsWith("#")) return { classes: dot.classes, id: prop.slice(1), attrs: dot.attrs };
-  const eq = prop.indexOf("=");
-  if (eq > 0)
-    return {
-      classes: dot.classes,
-      id: dot.id,
-      attrs: { ...dot.attrs, [prop.slice(0, eq)]: prop.slice(eq + 1) }
-      // FIRST '=' splits
-    };
-  return { classes: [...dot.classes, prop.replaceAll("_", "-")], id: dot.id, attrs: dot.attrs };
-}
-var toS = (x) => x == null ? "" : String(x);
-function elFrom(tag, dot, callProps, children) {
-  const dotClass = dot.classes.length > 0 ? dot.classes.join(" ") : null;
-  let props = null;
-  const hasDot = dotClass !== null || dot.id !== null || Object.keys(dot.attrs).length > 0;
-  const hasCall = callProps !== null && Object.keys(callProps).length > 0;
-  if (hasDot || hasCall) {
-    props = { ...dot.attrs };
-    if (dotClass !== null) props.class = dotClass;
-    if (dot.id !== null) props.id = dot.id;
-    if (callProps !== null) {
-      for (const k of Object.keys(callProps)) {
-        const v = callProps[k];
-        if (k === "class" && dotClass !== null) {
-          if (isViewLike(v)) props.class = bind(v, (x) => dotClass + " " + toS(x));
-          else if (isBindShape(v)) {
-            const f = v.fn;
-            props.class = bind(v.view, (x) => dotClass + " " + toS(f === null ? x : f(x)));
-          } else if (v != null && v !== false) props.class = dotClass + " " + String(v);
-        } else {
-          props[k] = v;
-        }
-      }
-    }
-  }
-  return el(tag, props, ...normChildren(children));
-}
-function makeBuilder(tag, dot) {
-  const call = (...args) => {
-    if (args.length > 0 && isPropsObject(args[0]))
-      return elFrom(tag, dot, args[0], args.slice(1));
-    return elFrom(tag, dot, null, args);
-  };
-  return new Proxy(call, {
-    get(t, prop) {
-      if (typeof prop !== "string") return t[prop];
-      return makeBuilder(tag, addDot(dot, prop));
-    }
-  });
-}
-function namespaceProxy() {
-  return new Proxy(/* @__PURE__ */ Object.create(null), {
-    get(_t, prop) {
-      if (typeof prop !== "string") return void 0;
-      return makeBuilder(prop.replaceAll("_", "-"), EMPTY_DOT);
-    }
-  });
-}
-var HTML = namespaceProxy();
-var SVG = namespaceProxy();
-
 // v3/jsx/index.ts
 var NODE5 = /* @__PURE__ */ Symbol.for("data.v3.node");
 function isViewLike2(x) {
@@ -4213,7 +4548,10 @@ function normComponentChildren(children) {
 function h(tag, props, ...children) {
   if (typeof tag === "function") {
     const p = children.length > 0 ? { ...props ?? {}, children: normComponentChildren(children) } : { children: [], ...props ?? {} };
-    return tag(p);
+    delete p.key;
+    if (tag === Fragment || tag === For || tag === ErrorBoundary)
+      return tag(p);
+    return component(tag, p);
   }
   if (props !== null && props !== void 0 && "key" in props) {
     const { key: _key, ...rest } = props;
@@ -4224,6 +4562,15 @@ function h(tag, props, ...children) {
 function Fragment(props) {
   const c = props?.children;
   return Array.isArray(c) ? c : c == null ? [] : [c];
+}
+function ErrorBoundary(props) {
+  const fb = props?.fallback;
+  if (typeof fb !== "function")
+    throw new Error(
+      "data/jsx: <ErrorBoundary> requires fallback={(err, reset) => vnode} \u2014 the child to show when the subtree errors"
+    );
+  const c = props?.children;
+  return boundary(c ?? [], fb);
 }
 function For(props) {
   const each = props?.each;
@@ -4537,6 +4884,6 @@ function handleFor(n) {
   return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() });
 }
 
-export { $, DataNode, For, Fragment, HTML, InMemoryBacking, Runtime, SVG, batch, bind, domLinks, el, exportContract, fromAsync, h, handleFor, jsx, jsxDEV, jsxs, list, liveLists, materialize, node, normChildren, render, runtime, text, value };
+export { $, DataNode, ErrorBoundary, For, Fragment, HTML, InMemoryBacking, Runtime, SVG, batch, bind, boundary, component, domLinks, el, exportContract, fromAsync, h, handleFor, jsx, jsxDEV, jsxs, list, liveLists, materialize, node, normChildren, onCleanup, render, runtime, text, value };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
