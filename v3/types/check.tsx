@@ -8,7 +8,7 @@
 // (a directive that goes quiet fails as TS2578 "Unused '@ts-expect-error'").
 // Never executed — compile-only, the v2 types/check.tsx idiom carried to v3.
 
-import { h, Fragment, For, bind, text } from './jsx-surface.ts'
+import { h, Fragment, For, bind, text, onCleanup, component, boundary, ErrorBoundary } from './jsx-surface.ts'
 import { typedDollar as $ } from './surface.ts'
 void h; void Fragment // resolved by the emitted classic transform, not called directly
 
@@ -93,6 +93,38 @@ void chart
 const direct = h('div', { class: 'x' }, 'static', text(todos.t1.title))
 void direct
 
+// ── components: props type-check through the function tag; deferral is a
+// runtime property, the TYPE surface is unchanged h<P> inference ─────────────
+function Badge(props: { label: string; count: number; children?: unknown }) {
+  return <span class="badge">{props.label}</span>
+}
+const badge = <Badge label="open" count={3} />
+void badge
+
+// ── onCleanup: the component-lifecycle hook types as () => void ──────────────
+function Timer() {
+  onCleanup(() => {})
+  return <div class="timer" />
+}
+const timer = <Timer />
+void timer
+
+// ── ErrorBoundary: fallback REQUIRED, err/reset flow into the fallback ────────
+const guarded = (
+  <ErrorBoundary fallback={(err, reset) => <button onClick={() => reset()}>{String(err)}</button>}>
+    <Badge label="x" count={1} />
+  </ErrorBoundary>
+)
+void guarded
+
+// ── the builder-DSL twins: component() / boundary() ──────────────────────────
+const comp = component((p: { n: number }) => <i>{String(p.n)}</i>, { n: 1 })
+const bnd = boundary(<div />, (err, reset) => {
+  void err
+  return <button onClick={() => reset()}>retry</button>
+})
+void comp; void bnd
+
 // ── negatives: each marked line MUST error ───────────────────────────────────
 // @ts-expect-error — a function child under a STRING tag mirrors normChildren's runtime throw (iteration is ONLY <For>)
 const fnChild = <div>{() => 1}</div>
@@ -108,4 +140,13 @@ const badRow = <For each={todos}>{(row) => <li>{row.nope}</li>}</For>
 const badClass = <div class={{ done: true }} />
 // @ts-expect-error — style is a plain attr STRING in v3: no style objects
 const badStyle = <div style={{ color: 'red' }} />
+// @ts-expect-error — a component's REQUIRED prop is missing (count)
+const badBadge = <Badge label="open" />
+// @ts-expect-error — <ErrorBoundary> REQUIRES fallback (the runtime throws eagerly without it)
+const badEB = <ErrorBoundary><div /></ErrorBoundary>
+// @ts-expect-error — onCleanup takes a FUNCTION
+const badCleanup = onCleanup(123)
+// @ts-expect-error — boundary's fallback is a FUNCTION (the runtime throws otherwise)
+const badBoundary = boundary(<div />, 'oops')
 void fnChild; void badChecked; void noEach; void badKids; void badRow; void badClass; void badStyle
+void badBadge; void badEB; void badCleanup; void badBoundary

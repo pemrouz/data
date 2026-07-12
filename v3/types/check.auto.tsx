@@ -9,7 +9,7 @@
 // the declaration facades. Positives must compile; every @ts-expect-error
 // line must NOT (a quiet directive fails as TS2578). Never executed.
 
-import { For, bind, text } from './jsx-surface.ts'
+import { For, bind, text, onCleanup, ErrorBoundary } from './jsx-surface.ts'
 import { typedDollar as $ } from './surface.ts'
 
 const todos = $({
@@ -89,6 +89,19 @@ const chart = (
 )
 void chart
 
+// ── components + ErrorBoundary narrow identically under the AUTOMATIC transform
+function Badge(props: { label: string; count: number; children?: unknown }) {
+  onCleanup(() => {})
+  return <span class="badge">{props.label}</span>
+}
+const badge = <Badge label="open" count={3} />
+const guarded = (
+  <ErrorBoundary fallback={(err, reset) => <button onClick={() => reset()}>{String(err)}</button>}>
+    <Badge label="x" count={1} />
+  </ErrorBoundary>
+)
+void badge; void guarded
+
 // ── negatives: each marked line MUST error ───────────────────────────────────
 // @ts-expect-error — a function child under a STRING tag mirrors normChildren's runtime throw (iteration is ONLY <For>)
 const fnChild = <div>{() => 1}</div>
@@ -104,4 +117,9 @@ const badRow = <For each={todos}>{(row) => <li>{row.nope}</li>}</For>
 const badClass = <div class={{ done: true }} />
 // @ts-expect-error — style is a plain attr STRING in v3: no style objects
 const badStyle = <div style={{ color: 'red' }} />
+// @ts-expect-error — a component's REQUIRED prop is missing (count)
+const badBadge = <Badge label="open" />
+// @ts-expect-error — <ErrorBoundary> REQUIRES fallback (the runtime throws eagerly without it)
+const badEB = <ErrorBoundary><div /></ErrorBoundary>
 void fnChild; void badChecked; void noEach; void badKids; void badRow; void badClass; void badStyle
+void badBadge; void badEB

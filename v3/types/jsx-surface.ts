@@ -57,3 +57,31 @@ export declare function bind<V>(view: View<V>, fn?: (v: V) => unknown): I.BindLi
 
 // text — a reactive TEXT child (render/index.ts's RTextNode); same inference.
 export declare function text<V>(view: View<V>, fn?: (v: V) => unknown): I.VNodeLike
+
+// ── the component-scope surface (M4.5b component scopes) ─────────────────────
+
+// onCleanup — registers a cleanup on the AMBIENT scope (a component
+// invocation, a render mount); kernel/scope.ts throws outside one.
+export declare function onCleanup(fn: () => void): void
+
+// component — the deferred component record (render/index.ts): fn is invoked
+// ONCE at mount under its own child Scope. The builder-DSL twin of a JSX
+// function tag (h routes function tags here).
+export declare function component<P extends Record<string, unknown>>(
+  fn: (props: P) => unknown,
+  props?: P | null,
+): I.VNodeLike
+
+// boundary — the error-boundary record: child mounts under a slot-owned
+// scope; an error swaps in fallback(err, reset).
+export declare function boundary(
+  child: unknown,
+  fallback: (err: unknown, reset: () => void) => unknown,
+): I.VNodeLike
+
+// ErrorBoundary — the JSX form. fallback is REQUIRED (the runtime throws
+// eagerly at construction without it — mirror that in the type).
+export declare function ErrorBoundary(props: {
+  fallback: (err: unknown, reset: () => void) => unknown
+  children?: unknown
+}): I.Element
