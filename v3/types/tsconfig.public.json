@@ -1,0 +1,27 @@
+{
+  // The SHIPPED-types gate: `npx tsc -p v3/types/tsconfig.public.json`
+  // compiles check.public.ts (positives + @ts-expect-error negatives) against
+  // public.d.ts — resolved through the REAL bare specifier 'data' via the
+  // paths map, exactly as an npm consumer's tsc resolves the exports["."]
+  // .types target. Modeled on the sibling tsconfig.json (the surface.ts gate);
+  // differences: the paths map, and skipLibCheck is OFF so public.d.ts itself
+  // is fully checked (it IS the artifact under test — a .d.ts would otherwise
+  // be skipped), with "types": [] keeping stray @types out of the program.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noCheck": false,
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": false,
+    "types": [],
+    "paths": {
+      "data": ["./public.d.ts"]
+    }
+  },
+  "include": ["check.public.ts"]
+}
