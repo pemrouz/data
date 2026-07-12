@@ -105,8 +105,17 @@ function childState(parent: HandleState, name: string): HandleState {
   if (parent.source !== null) {
     return { node: parent.node, source: parent.source, path: [...parent.path, name], children: new Map(), dedup: new Map() }
   }
-  // child of an operator view: readable snapshot projection, writes throw
-  return { node: parent.node, source: null, path: [name], children: new Map(), dedup: new Map() }
+  // child of an operator view: readable snapshot projection, writes throw.
+  // The path EXTENDS the parent's — a nested read (counts.get(tn).get('value'),
+  // the length(fn)-bucket idiom) used to drop the parent segment and silently
+  // read undefined; childRead already walks deep paths via leafAt.
+  return {
+    node: parent.node,
+    source: null,
+    path: [...parent.path, name],
+    children: new Map(),
+    dedup: new Map(),
+  }
 }
 
 function childRead(state: HandleState): unknown {

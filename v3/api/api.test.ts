@@ -228,3 +228,16 @@ test('scalar connect(): aggregates support the v2 change-stream capture forms', 
   d.set('e', { region: 'east', val: 5 })
   same(seen.map((r) => r.value), [3, 4]) // initial + the insert's delta
 })
+
+test('REVIEW FIX (flip phase 2): nested child reads on an OPERATOR VIEW extend the path — counts.get(k).get("value") reads the bucket count', () => {
+  const d = $({ a: { tenor: '5Y', pnl: 10 }, b: { tenor: '5Y', pnl: -3 }, c: { tenor: '1Y', pnl: 7 } })
+  const counts = d.length((r: any) => r.tenor)
+  // one level: the { value: N } wrapper
+  same(counts.get('5Y')[value], { value: 2 })
+  // two levels: the count itself — pre-fix childState dropped the parent
+  // segment (path became ['value']) and this SILENTLY read undefined
+  same(counts.get('5Y').get('value')[value], 2)
+  // and it tracks: a rebucketing write moves both reads
+  d.get('c').set('tenor', '5Y')
+  same(counts.get('5Y').get('value')[value], 3)
+})
