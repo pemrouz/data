@@ -179,7 +179,7 @@
 
     <div class="catalogue">
       <details class="cat-item" open>
-        <summary class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><code class="cat-sig">trades.filter('tenor', '5Y')</code><span class="cat-x">1671×</span></summary>
+        <summary class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><code class="cat-sig">trades.filter(t =&gt; t.tenor === '5Y')</code><span class="cat-x">1671×</span></summary>
         <div class="cat-demo" data-demo-for="filter">
           <div class="demo-chips" id="filter-chips"></div>
           <div class="demo-panel" id="filter-result"></div>
@@ -238,7 +238,7 @@
         <div class="cat-demo" data-demo-for="tap"><div class="demo-panel" id="tap-result"></div></div>
       </details>
       <details class="cat-item">
-        <summary class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">7621×</span></summary>
+        <summary class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values</a><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">7621×</span></summary>
         <div class="cat-demo" data-demo-for="keys"><div class="demo-panel" id="keys-result"></div></div>
       </details>
     </div>
@@ -251,16 +251,16 @@
     <button class="install" type="button" data-copy="npm install data" title="click to copy" aria-label="Copy install command: npm install data"><span class="dim" aria-hidden="true">$</span> npm install data</button>
 
     <div class="entries">
-      <div class="entry"><code>data</code><span>lean core — <code>$</code>, <code>render</code>, <code>HTML</code>, <code>SVG</code></span></div>
-      <div class="entry"><code>data/full</code><span>core + every operator + JSX helpers</span></div>
-      <div class="entry"><code>data/render</code><span>just the DOM render layer</span></div>
+      <div class="entry"><code>data</code><span>everything — <code>$</code>, every operator, <code>render</code>, <code>HTML</code>/<code>SVG</code>, JSX</span></div>
+      <div class="entry"><code>data/jsx-runtime</code><span>automatic JSX (<code>jsxImportSource: "data"</code>)</span></div>
       <div class="entry"><code>data/devtools</code><span>opt-in reactive-graph inspector</span></div>
+      <div class="entry"><code>data/v2</code><span>the pre-flip engine, frozen — <a href="./v3/MIGRATION.md">migration guide →</a></span></div>
     </div>
 
     <div class="snips">
       <div class="snip">
         <h3>a collection</h3>
-<pre class="code">import { $ } from 'data/full'
+<pre class="code">import { $ } from 'data'
 
 const trades = $(rows)
 const top = trades
@@ -268,17 +268,17 @@ const top = trades
   .filter(t =&gt; t.spread &gt; 0.10)
   .za('spread', 10)
 
-trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
+trades.get(42).set('bid', 99.5)   // O(1) + O(1) + O(log N)</pre>
       </div>
       <div class="snip">
         <h3>bound to the DOM</h3>
-<pre class="code">import { $, render, HTML } from 'data'
+<pre class="code">import { $, render, list, HTML } from 'data'
 const { ul, li } = HTML
 
 const todos = $([{ task: 'foo' }, { task: 'bar' }])
 
 render(document.body,
-  ul(todos, (node, item) =&gt; node.text(item.task))
+  ul(list(todos, item =&gt; li(item.task)))
 )
 
 todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
@@ -335,21 +335,21 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
       </div>
       <div class="gcard">
         <span class="gcard-tag">analytics · live</span>
-        <h3><a href="./examples/crossfilter/">Crossfilter dashboard</a></h3>
-        <p>Brushable charts over flight records: <code>between → intersect → length(group) → za → limit</code>, every brush incremental.</p>
-        <span class="gcard-links"><a href="./examples/crossfilter/">open →</a><a href="./examples/crossfilter-jsx/">jsx</a><a href="./examples/crossfilter-jsx/?devtools">?devtools</a></span>
+        <h3><a href="./examples/crossfilter-v3/">Crossfilter dashboard</a></h3>
+        <p>Brushable charts over 231k flight records: reactive <code>between</code> bounds → leave-one-out <code>intersect</code> → <code>length(group)</code> histograms → a bounded <code>za</code> top-K, every brush one incremental commit.</p>
+        <span class="gcard-links"><a href="./examples/crossfilter-v3/">open →</a><a href="./examples/crossfilter/">v2</a></span>
       </div>
       <div class="gcard">
         <span class="gcard-tag">messaging · jsx</span>
-        <h3><a href="./examples/chat/">Chat workspace</a></h3>
-        <p>A messaging app in JSX: the open channel is <code>filter('channel', c).az('ts')</code>, channel counts a per-channel <code>length</code> histogram, and reactions a <code>&lt;For&gt;</code> over a nested object that mutates in place. A bot streams messages and <strong>blast 200</strong> inserts a batch via <code>patch</code> — new rows append while existing rows keep DOM identity.</p>
-        <span class="gcard-links"><a href="./examples/chat/">open →</a><a href="./examples/chat/?devtools">?devtools</a></span>
+        <h3><a href="./examples/chat-v3/">Chat workspace</a></h3>
+        <p>A messaging app in JSX: the open channel is a <code>mirror()</code> slot over per-channel <code>filter</code> views with <code>az('ts')</code> and a per-channel <code>length</code> histogram; reactions are a <code>&lt;For&gt;</code> over a nested object written by path. A bot streams messages and <strong>blast 200</strong> inserts a batch via <code>patch</code> — one commit; new rows append while existing rows keep DOM identity.</p>
+        <span class="gcard-links"><a href="./examples/chat-v3/">open →</a><a href="./examples/chat/">v2</a></span>
       </div>
       <div class="gcard">
         <span class="gcard-tag">basics · live</span>
-        <h3><a href="./examples/todo/">To-do</a></h3>
-        <p>The smallest end-to-end: mutate an array, derive <code>filter</code> + <code>length</code>, and watch <code>render</code> do per-key surgical DOM updates that keep focus.</p>
-        <span class="gcard-links"><a href="./examples/todo/">open →</a><a href="./examples/todo-jsx/">jsx</a><a href="./examples/todo-jsx/?devtools">?devtools</a></span>
+        <h3><a href="./examples/todo-v3/">To-do</a></h3>
+        <p>The smallest end-to-end: method writes on one source, derive <code>filter</code> + <code>length</code>, and watch <code>render</code> do per-key surgical DOM updates that keep focus.</p>
+        <span class="gcard-links"><a href="./examples/todo-v3/">open →</a><a href="./examples/todo/">v2</a></span>
       </div>
     </div>
     <p class="cat-foot muted">Each lives under <code>examples/</code> — <code>npm run serve</code> and open any of them.</p>
@@ -369,10 +369,8 @@ todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
 
 <script type="importmap">
 { "imports": {
-    "data":          "./dist/v2/index.js",
-    "data/full":     "./dist/v2/full.js",
-    "data/render":   "./dist/v2/render/index.js",
-    "data/devtools": "./dist/v2/devtools/index.js",
+    "data":          "./dist/index.js",
+    "data/devtools": "./dist/devtools.js",
     "mobx":          "https://esm.sh/mobx@6.15.3",
     "solid-js":      "https://esm.sh/solid-js@1.9.12",
     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",

@@ -1,18 +1,22 @@
-/* Shared reactive feed for the landing page.
+/* Shared reactive feed for the landing page — on the v3 engine (the flip).
  *
- * One `$(trades)` proxy, one streaming engine. Every live panel on the page —
+ * One `$(trades)` source, one streaming engine. Every live panel on the page —
  * the operator gallery, the "this page runs on data" counter — derives from
  * this single source, so the whole site is itself a `data` graph. Imported by
- * operators.js and landing.js; the hero (hero.js) keeps its own larger graph.
+ * demos.js and landing.js; the race (race.js) keeps its own larger graph.
+ *
+ * v3 notes: the source is array-born (minted integer keys 0–9); field ticks
+ * are PATH WRITES (`row.get(f).update(v)` — copy-on-write, one commit each);
+ * `lastTick` is a child handle on a tiny scalar source (v3 sources wrap
+ * objects/arrays, so a lone scalar lives at `$({ v }).get('v')`).
  *
  * Hand-written `.js` with no `.ts` sibling (see CLAUDE.md). */
 
-import { $, value, render, HTML, SVG } from 'data/full'
+import { $, value, render, list, text, bind, HTML, SVG } from 'data'
 
-export { $, value, render, HTML, SVG }
+export { $, value, render, list, text, bind, HTML, SVG }
 
 export const { div, span, ul, li, b } = HTML
-export const { svg: svgEl, rect, line, text, circle, g } = SVG
 
 export const $$ = (sel, root = document) => root.querySelector(sel)
 
@@ -57,8 +61,10 @@ export const trades = $(TRADE_DEFS.map(({ id, tenor }) => {
   }
 }))
 
-/* Path of the most recent mutation, surfaced in the hero/explainer captions. */
-export const lastTick = $('—')
+/* Path of the most recent mutation, surfaced in the demo captions.
+ * A child handle — read it with text(lastTick), write with .update(). */
+const tick = $({ v: '—' })
+export const lastTick = tick.get('v')
 
 /* ---------- streaming engine ---------- */
 
@@ -71,11 +77,11 @@ const tickListeners = new Set()
 export function onTick (fn) { tickListeners.add(fn); return () => tickListeners.delete(fn) }
 
 export function mutateOnce () {
-  const N = trades[value].length
+  const snap = trades[value]
+  const N = snap.length
   const i = (Math.random() * N) | 0
   const f = NUM_FIELDS[(Math.random() * NUM_FIELDS.length) | 0]
-  const row = trades[i]
-  const cur = row[f][value]
+  const cur = snap[i][f]
   const fmt = f === 'pnl' ? fmtPnl : fmt2
   let next
   if (f === 'pnl') {
@@ -85,12 +91,12 @@ export function mutateOnce () {
     const raw = cur + (Math.random() - 0.5) * 0.08
     next = +Math.max(0.5, raw).toFixed(2)
   }
-  // Skip if the formatted display wouldn't change — reactive .to() already
-  // dedupes the DOM text update, so flashing here would be noise.
+  // Skip if the formatted display wouldn't change — the renderer's string
+  // cutoff already dedupes the DOM write, so flashing here would be noise.
   if (fmt(cur) === fmt(next)) return
-  row[f].update(next)
-  lastTick[value] = `trades[${i}].${f} = ${fmt(next)}`
-  const id = row.id[value]
+  trades.get(i).set(f, next) // path write: copy-on-write row, one commit
+  lastTick.update(`trades.get(${i}).set('${f}', ${fmt(next)})`)
+  const id = snap[i].id
   for (const fn of tickListeners) fn({ row: i, field: f, id })
 }
 

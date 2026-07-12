@@ -7,8 +7,9 @@
  * The honest bit — every engine settles ONCE PER FRAME (the real render
  * cadence), not once per tick:
  *   • data — incremental operators (length(bucket)×2, filter→length, avg).
- *     ingest is O(1) per tick; settle is a no-op read of already-maintained
- *     results. Runs as the baseline on every frame (it's basically free).
+ *     ingest coalesces the frame's ticks into a pending map; settle commits
+ *     them as ONE batched patch, and the operators walk only that delta.
+ *     Runs as the baseline on every frame (it's basically free).
  *   • the eight peers — a version signal + four derivations that re-walk all
  *     N rows. We mutate plain state per tick (cheap) and fire the recompute
  *     exactly once per frame, so each peer pays one O(N) walk per frame. A
@@ -29,7 +30,7 @@
  *
  * Hand-written `.js`, no `.ts` sibling (see CLAUDE.md). */
 
-import { $, value } from 'data/full'
+import { $, value } from 'data'
 import { PRICE_BINS, PRICE_LO, PRICE_HI, priceBucket, setupOrderbook, renderOrderbook, makeWave, fmtRatio } from './race-views.js'
 
 const N = 150000
@@ -40,7 +41,7 @@ const MID_TARGET = 75
 // is the log10 slider value to snap to on load (lower for the O(N)/frame
 // libraries so the first frames don't stall).
 const LIBS = [
-  { id: 'data',        label: 'data',           ver: '0.x',    tag: 'length(bucket)×2 · filter→length · avg — O(1)/tick', defRate: 3.3 },
+  { id: 'data',        label: 'data',           ver: '3.x',    tag: 'length(bucket)×2 · filter→length · avg — one patch commit/frame', defRate: 3.3 },
   { id: 'mobx',        label: 'MobX',           ver: '6.15.3', tag: 'observable.box + 4 computed · O(N)/frame',         defRate: 2.8 },
   { id: 'solid',       label: 'Solid',          ver: '1.9.12', tag: 'createSignal + 4 createMemo · O(N)/frame',         defRate: 2.8 },
   { id: 'preact',      label: 'Preact signals', ver: '1.14.1', tag: 'signal + 4 computed · O(N)/frame',                 defRate: 2.8 },
@@ -107,7 +108,12 @@ function makeWorkload (seed = 7) {
   return { initial, nextTick }
 }
 
-/* ---------- data engine (incremental, O(1)/tick) ---------- */
+/* ---------- data engine (incremental — one patch commit per frame) ---------- */
+// v3: ingest ACCUMULATES the frame's ticks in a plain Map (last write per row
+// wins, exactly the coalescing the book needs); settle commits them as ONE
+// `patch` — the whole deck (filter→length, avg, 2× length-bucket histograms)
+// settles in a single batched commit per frame. This is the swarm-v3 bridge
+// discipline: the graph pays one delta walk per frame, not one per tick.
 function makeDataEngine (initial) {
   const trades = $(structuredClone(initial))
   const liquid = trades.filter(t => t.ask - t.bid > THRESHOLD).length()
@@ -115,9 +121,16 @@ function makeDataEngine (initial) {
   const bids = trades.length(t => priceBucket(t.bid))
   const asks = trades.length(t => priceBucket(t.ask))
   const flat = o => { const a = new Array(PRICE_BINS).fill(0); for (const k in o) { const b = o[k]; if (b) a[k] = b.value } return a }
+  let pending = new Map()
   return {
-    ingest (t) { const cur = trades[t.idx][value]; trades[t.idx].update({ ...cur, [t.field]: t.newValue }) },
-    settle () { void liquid[value]; void avgBid[value]; void bids[value]; void asks[value] },
+    ingest (t) {
+      const key = String(t.idx)
+      const cur = pending.get(key) ?? trades.get(key)[value]
+      pending.set(key, { ...cur, [t.field]: t.newValue })
+    },
+    settle () {
+      if (pending.size > 0) { trades.patch([...pending]); pending = new Map() }
+    },
     view () { return { bids: flat(bids[value] || {}), asks: flat(asks[value] || {}), liquid: liquid[value] || 0, avg: avgBid[value] || 0 } },
   }
 }
