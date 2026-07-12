@@ -80,36 +80,39 @@ test('jsx/jsxs produce the exact h()/el() records; props (incl. bind() values) p
 
 // ── components ───────────────────────────────────────────────────────────────
 
-test('component parity: jsx calls the component with { ...props, children } exactly like h', () => {
+test('component parity: jsx and h produce IDENTICAL deferred component records', () => {
   const Card = (p: { title: string; children: unknown[] }) =>
     h('div', { class: 'card', title: p.title }, p.children)
-  same(
-    jsxs(Card as any, { title: 't', children: ['x', jsx('i', { children: 'y' })] }),
-    h(Card as any, { title: 't' }, 'x', h('i', null, 'y')),
-  )
-  same(
-    jsxs(Card as any, { title: 't', children: ['x', jsx('i', { children: 'y' })] }),
-    el('div', { class: 'card', title: 't' }, 'x', el('i', null, 'y')),
-  )
+  const auto: any = jsxs(Card as any, { title: 't', children: ['x', jsx('i', { children: 'y' })] })
+  same(auto, h(Card as any, { title: 't' }, 'x', h('i', null, 'y')))
+  // the record is a DEFERRED component — fn untouched, children normalized
+  eq(auto.kind, 'component')
+  eq(auto.fn, Card)
+  same(auto.props.children, [{ kind: 'text', s: 'x' }, el('i', null, 'y')])
   // a single (non-array) props.children arrives as the one child — same record
   same(jsx(Card as any, { title: 't', children: 'x' }), h(Card as any, { title: 't' }, 'x'))
   // a component with NO children gets children: [] (h's no-args default)
-  let seen: unknown
-  const Probe = (p: any) => ((seen = p.children), el('b'))
-  jsx(Probe as any, {})
-  same(seen, [])
+  same((jsx(Card as any, { title: 't' }) as any).props.children, [])
+  // and at MOUNT the fn is invoked with those props and its output renders
+  const hst = host()
+  render(hst, auto)
+  eq(hst.children[0].attrs['class'], 'card')
+  eq(hst.children[0].attrs['title'], 't')
+  eq(hst.text, 'xy')
 })
 
 test('static-string component children produce IDENTICAL records classic vs automatic (one normComponentChildren path)', () => {
   const Wrap = (p: { children: unknown[] }) => h('p', null, p.children)
-  const auto = jsx(Wrap as any, { children: 'hello' })
+  const auto: any = jsx(Wrap as any, { children: 'hello' })
   same(auto, h(Wrap as any, null, 'hello'))
-  same(auto, el('p', null, 'hello'))
   // the string is normalized BEFORE the component sees it — a text RECORD,
-  // not a raw string, on both routes
-  const Probe = (p: any) => p.children
-  same(jsx(Probe as any, { children: 'x' }), h(Probe as any, null, 'x'))
-  same(jsx(Probe as any, { children: 'x' }), [{ kind: 'text', s: 'x' }])
+  // not a raw string, in the deferred record's props, on both routes
+  same(auto.props.children, [{ kind: 'text', s: 'hello' }])
+  // a children-echoing component mounts those normalized records
+  const hst = host()
+  render(hst, auto)
+  eq(hst.children[0].tag, 'p')
+  eq(hst.text, 'hello')
 })
 
 // ── For — the automatic shape ────────────────────────────────────────────────
@@ -198,11 +201,14 @@ test('key is ignored: identical records with/without, and no key prop leaks into
   eq((jsx('li', { children: 't' }, 42) as any).props, null)
   // and a nonempty props record never grows a 'key' entry
   ok(!('key' in ((jsx('div', { id: 'a', children: 'x' }, 'k') as any).props as object)))
-  // component form: key does not reach the component's props either
-  let keys: string[] = []
-  const Probe = (p: any) => ((keys = Object.keys(p)), el('b'))
-  jsx(Probe as any, { title: 't', children: 'c' }, 'k')
-  same(keys.sort(), ['children', 'title'])
+  // component form: key does not reach the component's props either — on the
+  // automatic route (separate arg, dropped) AND the classic route (stripped
+  // from the props object before the deferred record is minted)
+  const Probe = (_p: any) => el('b')
+  const auto: any = jsx(Probe as any, { title: 't', children: 'c' }, 'k')
+  same(Object.keys(auto.props).sort(), ['children', 'title'])
+  const classic: any = h(Probe as any, { title: 't', key: 'k' }, 'c')
+  same(Object.keys(classic.props).sort(), ['children', 'title'])
 })
 
 // ── jsxDEV ───────────────────────────────────────────────────────────────────

@@ -31,9 +31,12 @@ import { ingest as seamIngest } from '../seam/index.ts'
 
 installReactive() // reactive value-slot args on gt/lt/gte/lte/za/az/top/limit/sum/avg
 
-export { render, el, text, list, bind } from '../render/index.ts'
+export { render, el, text, list, bind, component, boundary } from '../render/index.ts'
 export { HTML, SVG, normChildren } from '../render/builders.ts'
-export { h, Fragment, For } from '../jsx/index.ts'
+export { h, Fragment, For, ErrorBoundary } from '../jsx/index.ts'
+// The component-lifecycle hook: registers a cleanup on the AMBIENT scope
+// (a component invocation, a render mount) — see kernel/scope.ts.
+export { onCleanup } from '../kernel/scope.ts'
 // The automatic-runtime verbs live on the MAIN entry too: dist/v3/jsx-runtime.js
 // is a thin re-export of this bundle (see tsup.config.ts), so these names must
 // exist here for that entry to forward — and classic/automatic interop shares

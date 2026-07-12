@@ -97,20 +97,31 @@ test('a fragment at the ROOT renders (render() accepts VNode[]); empty fragment 
 
 // ── components ───────────────────────────────────────────────────────────────
 
-test('function component: called with { ...props, children }, its output renders', () => {
-  const Card = (p: { title: string; children: unknown[] }) =>
-    h('div', { class: 'card', title: p.title }, p.children)
-  // record level: the component call IS the el() record it delegates to
-  same(
-    h(Card as any, { title: 't' }, 'x', h('i', null, 'y')),
-    el('div', { class: 'card', title: 't' }, 'x', el('i', null, 'y')),
+test('function component: DEFERRED to mount — h returns a component record, fn invoked once with { ...props, children }', () => {
+  let calls = 0
+  const Card = (p: { title: string; children: unknown[] }) => (
+    calls++, h('div', { class: 'card', title: p.title }, p.children)
   )
-  // a component returning a FRAGMENT (VNode[]) flattens into its parent
-  const Pair = () => h(Fragment, null, h('i', null, 'a'), h('i', null, 'b'))
+  // record level: a DEFERRED component record — fn untouched, children
+  // normalized; the fn is NOT invoked at h() time.
+  const rec: any = h(Card as any, { title: 't' }, 'x', h('i', null, 'y'))
+  eq(rec.kind, 'component')
+  eq(rec.fn, Card)
+  same(rec.props.children, [{ kind: 'text', s: 'x' }, el('i', null, 'y')])
+  eq(calls, 0)
+  // mount: invoked ONCE, output renders in place
   const hst = host()
-  render(hst, h('div', null, h(Pair as any, null)) as any)
-  eq(hst.text, 'ab')
-  eq(hst.children[0].children.length, 2) // both <i> directly under the div
+  render(hst, rec)
+  eq(calls, 1)
+  eq(hst.children[0].attrs['class'], 'card')
+  eq(hst.children[0].attrs['title'], 't')
+  eq(hst.text, 'xy')
+  // a component returning a FRAGMENT (VNode[]) expands into its parent
+  const Pair = () => h(Fragment, null, h('i', null, 'a'), h('i', null, 'b'))
+  const hst2 = host()
+  render(hst2, h('div', null, h(Pair as any, null)) as any)
+  eq(hst2.text, 'ab')
+  eq(hst2.children[0].children.length, 2) // both <i> directly under the div
 })
 
 // ── For — the ONLY iteration form ────────────────────────────────────────────

@@ -18,23 +18,23 @@
 //   text to iteration (the v2 hasRowFn discriminator and its whole bug family
 //   — text-vs-data path flips, element-sibling exclusions — do not exist here).
 //
-// Components: a FUNCTION tag is called as tag({ ...props, children }) and its
-// return value (a VNode or VNode[]) is used directly. Component children are
-// normalized with the SAME vocabulary as element children EXCEPT a function
-// child passes through raw — the render-prop protocol For itself relies on.
-// Fragment is just such a component: it returns its children array, and
-// normChildren's array-flattening makes it disappear into any parent
-// (render() accepts a VNode[] at the root).
+// Components: a FUNCTION tag becomes component(tag, { ...props, children }) —
+// DEFERRED to mount, where the render layer invokes it ONCE under its own
+// child Scope (onCleanup(), transient views, and raf() writers inside it die
+// with its DOM). Component children are normalized with the SAME vocabulary
+// as element children EXCEPT a function child passes through raw — the
+// render-prop protocol For itself relies on. The STRUCTURAL builtins stay
+// EAGER (identity-checked): Fragment returns its children array (normChildren
+// flattening makes it disappear into any parent), For validates and returns a
+// ListNode at construction, ErrorBoundary returns a boundary() record.
 //
 // The automatic runtime (jsx / jsxs / jsxDEV) lives in ./runtime.ts — a thin
 // normalizer onto this module's h, so classic and automatic transforms can
 // never produce different records. Per-tag intrinsic types live in
 // ./intrinsics.ts (shared by ./jsx.d.ts's global namespace for the classic
 // transform and runtime.ts's exported namespace for the automatic one).
-// DEFERRED (rest of M4.5b+): components with scoped onCleanup / error
-// boundaries.
 
-import { el, list } from '../render/index.ts'
+import { el, list, component, boundary } from '../render/index.ts'
 import type { VNode, ListNode } from '../render/index.ts'
 import { normChildren } from '../render/builders.ts'
 import { DataNode } from '../kernel/node.ts'
@@ -45,7 +45,9 @@ import type { RowKey } from '../contract/delta.ts'
 // child-path dispatch and may throw).
 const NODE = Symbol.for('data.v3.node')
 
-export type Component = (props: any) => VNode | VNode[]
+// A component may return the full child vocabulary (a VNode, an array,
+// reactive-text sources, null) — the mount normalizes it via normChildren.
+export type Component = (props: any) => unknown
 
 function isViewLike(x: unknown): boolean {
   if (x instanceof DataNode) return true
@@ -91,7 +93,16 @@ export function h(
       children.length > 0
         ? { ...(props ?? {}), children: normComponentChildren(children) }
         : { children: [], ...(props ?? {}) }
-    return tag(p)
+    // key never reaches a component (v3 keys rows by DATA identity) — the
+    // automatic runtime already drops it (separate arg); strip the classic
+    // path's props entry so both routes hand the component identical props.
+    delete p.key
+    // Structural builtins stay EAGER (Fragment flattens; For/ErrorBoundary
+    // validate at construction). Any OTHER function tag is a component —
+    // deferred to mount, invoked once under its own scope.
+    if (tag === Fragment || tag === For || tag === ErrorBoundary)
+      return tag(p as any) as VNode | VNode[]
+    return component(tag, p)
   }
   // `key` is accepted-and-IGNORED (v3 keys rows by DATA identity) — strip it
   // here or the renderer would forward it as a literal key="…" DOM attribute.
@@ -108,6 +119,23 @@ export function h(
 export function Fragment(props: { children?: unknown }): VNode[] {
   const c = props?.children
   return (Array.isArray(c) ? c : c == null ? [] : [c]) as VNode[]
+}
+
+// ── ErrorBoundary — <ErrorBoundary fallback={(err, reset) => vnode}>…</ErrorBoundary>
+// Eager (structural): returns the boundary() record at construction, so a
+// missing fallback throws where the JSX is written, not at mount.
+
+export function ErrorBoundary(props: {
+  fallback?: unknown
+  children?: unknown
+}): VNode {
+  const fb = props?.fallback
+  if (typeof fb !== 'function')
+    throw new Error(
+      'data/jsx: <ErrorBoundary> requires fallback={(err, reset) => vnode} — the child to show when the subtree errors',
+    )
+  const c = props?.children
+  return boundary(c ?? [], fb as (err: unknown, reset: () => void) => unknown)
 }
 
 // ── For — THE iteration form: <For each={view}>{(row, key) => vnode}</For> ──
