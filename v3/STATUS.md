@@ -1,10 +1,10 @@
 # v3 rewrite — status
 
-*Updated 2026-07-12 (ninth block: **THE FLIP, phase 2** — the landing page +
-multidim's data row run the v3 engine. Phase 1 (eighth block) re-plumbed the
-entries: bare `data` IS v3, v2 frozen at `data/v2`. Phase 3 remains: the
-README/llms/AGENTS/CLI docs sweep, the PR to main; the flow essay port is its
-own future block).
+*Updated 2026-07-12 (tenth block: **THE FLIP IS COMPLETE AND PUBLISHED** —
+phases 1–3 (entry re-plumb / showcase migration / docs sweep) plus the flow
+essay coda are all committed; branch `v3` is pushed and **PR #1 to main is
+open**: https://github.com/pemrouz/data/pull/1. Every showcase surface runs
+the v3 engine; the v2 gallery pages stay intentionally on `data/v2`).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -35,7 +35,9 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M4.5b component scopes** — `onCleanup` + deferred `component()` (JSX function tags defer to mount, invoked once under an owner Scope) + `boundary()`/`<ErrorBoundary>` (microtask-deferred effect-phase swaps) + the 18-finding pre-commit review fix round | done | `55d90f5`…`a8b95aa` | 272 tests (33 new); typecheck ×3; e2e 41/41 twice; m1 0.69/0.85, m2 0.93/0.71 PASS |
 | **THE FLIP, phase 1 (re-plumb)** — bare `data`/`dist/index.js` IS v3; v2 shifted whole to `data/v2`/`dist/v2/*`; `data/v3` kept as same-file aliases; every v2 surface pinned (11 importmaps + perf dashboard + 2 spec paths); shipped types = `v3/types/public.d.ts` on `exports["."]`; no v2-compat shim (error text repointed at `data/v2`) | done | `1ed17de`…`ca2b85e` + docs | unit 272+529; typecheck v2×4 + v3×4 (new public gate); FULL e2e suite; MIGRATION §6 flipped |
 | **THE FLIP, phase 2 (showcase surfaces)** — the landing page (feed/demos/race + the API-visible HTML) and multidim's `data` row run the v3 engine, importmaps un-pinned; + the nested operator-view child-path fix the port surfaced | done | `70ea8ed`…`fc03b92` + build/docs | 273 v3 tests; typecheck ×8; phase-2 e2e 23/23 (race ×9 engines, demos-tap under GC, v3 devtools mount, multidim ×10 rows) |
-| M5 rest / flip phase 3: flow stays pinned (essay port is its own block), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
+| **THE FLIP, phase 3 (docs sweep + publish)** — README/llms/AGENTS/CLI-guidance/context7 teach the v3 API (executed-snippet verified); branch `v3` PUSHED, **PR #1 open** | done | `01ebc86`…`8f4c568` | node --check + init-ai --dry; every non-DOM snippet executed against dist |
+| **THE FLIP, coda: the flow essay un-pins** — the last v2-showcase surface runs v3 (the record duality survives via the permanent compat profile; the scrub hatch becomes a batched keyed diff) | done | `7f0aed4` | flow.spec 9/9 twice (route-intercepted smoke + installed files) |
+| Remaining: corpus perf hotspots (gap 8, optional); npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2` | | | |
 
 Run everything: `npm run test:v3` (273 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
