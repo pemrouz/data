@@ -43,7 +43,7 @@ function isViewLike(x: unknown): boolean {
   return x !== null && typeof x === 'object' && (x as any)[NODE] instanceof DataNode
 }
 
-const VNODE_KINDS = new Set(['el', 'text', 'rtext', 'list'])
+const VNODE_KINDS = new Set(['el', 'text', 'rtext', 'list', 'component', 'boundary'])
 
 function isVNode(x: unknown): x is VNode {
   return x !== null && typeof x === 'object' && VNODE_KINDS.has((x as any).kind)

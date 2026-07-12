@@ -52,9 +52,33 @@
 //   list position, old row scope disposed, fresh element). Shape-stable rows
 //   keep element identity exactly as before.
 //
-// Deliberately still NOT here (rest of M4.5): the full HTML.*/SVG.* DSL, JSX,
-// components, SSR targets. The AST shape is extensible (each kind is a tagged
-// record) so those land as new kinds/props handling, not a rewrite.
+// M4.5b component layer (the last M4.5b slice — component scopes):
+// - COMPONENTS: `component(fn, props)` — a 'component' VNode. The fn is
+//   invoked ONCE, at MOUNT, under its own child Scope (owned by the enclosing
+//   scope — a row's component dies with the row, a mount's with the mount).
+//   onCleanup() / node creation / raf() inside the fn land on that scope; the
+//   output is normalized with the full child vocabulary (arrays flatten, null
+//   renders nothing, a handle is reactive text). The JSX layer routes
+//   function tags here, so `<MyComp/>` defers to mount.
+// - ERROR BOUNDARIES: `boundary(child, fallback)` — a slot owning its
+//   subtree's scope. Mount-phase errors (a component fn / binding read
+//   throwing during materialization) are caught synchronously; EFFECT-phase
+//   errors (a binding or row fn throwing inside a subscription callback)
+//   route to the nearest enclosing boundary via ctx.boundary, and the swap is
+//   deferred ONE MICROTASK — disposing/connecting subscriptions mid-effect-
+//   iteration would splice the very effects array the kernel is walking.
+//   fallback(err, reset) materializes with ctx.boundary = the OUTER boundary,
+//   so a broken fallback escalates outward instead of looping. With no
+//   boundary the kernel contract is unchanged (effect errors collect into the
+//   commit's AggregateError); bindings only take the guarded closure when a
+//   boundary encloses them — zero cost otherwise.
+// - Row fns are deliberately NOT a scope: the list sink re-runs them on row
+//   updates (re-run-to-patch), so lifecycle registrations would accumulate.
+//   They run under runInScope(null, …), so onCleanup() in a bare row fn
+//   throws deterministically — wrap row content in a component instead.
+//
+// Deliberately still NOT here: SSR targets. The AST shape is extensible (each
+// kind is a tagged record) so that lands as new kinds, not a rewrite.
 
 import type {
   CommitBatch, OrderDelta, OriginToken, RowDelta, RowKey,
@@ -63,6 +87,9 @@ import { DataNode, SourceNode, reheight } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import type { Runtime } from '../kernel/runtime.ts'
 import { Scope, currentScope, runInScope } from '../kernel/scope.ts'
+// Benign module cycle: builders.ts imports el/text from here — both sides
+// only use the other's exports at CALL time (function declarations, hoisted).
+import { normChildren } from './builders.ts'
 
 // The versioned handle symbols (Symbol.for — shared with api/index.ts without
 // importing it, so the render layer stays kernel-only and layering is clean).
@@ -91,7 +118,17 @@ export interface ListNode {
   readonly view: unknown // collection view: DataNode or handle
   readonly rowFn: (row: any, key: RowKey) => VNode
 }
-export type VNode = ElNode | TextNode | RTextNode | ListNode
+export interface ComponentNode {
+  readonly kind: 'component'
+  readonly fn: (props: any) => unknown // invoked ONCE at mount, under an owner Scope
+  readonly props: Readonly<Record<string, unknown>>
+}
+export interface BoundaryNode {
+  readonly kind: 'boundary'
+  readonly child: unknown // VNode | VNode[] — normalized (normChildren) at mount
+  readonly fallback: (err: unknown, reset: () => void) => unknown
+}
+export type VNode = ElNode | TextNode | RTextNode | ListNode | ComponentNode | BoundaryNode
 
 // A reactive PROP value: `el('path', { d: bind(view, fn) })` — subscribes to
 // the view, recomputes fn(read()) per commit, writes the attribute only when
@@ -127,6 +164,32 @@ export function text(view: unknown, fn?: (v: any) => unknown): RTextNode {
 
 export function list(view: unknown, rowFn: (row: any, key: RowKey) => VNode): ListNode {
   return { kind: 'list', view, rowFn }
+}
+
+// A component: fn is deferred to MOUNT and invoked once under its own child
+// Scope — the home for onCleanup(), transient views, and raf() writers whose
+// lifetime is "this piece of UI". The JSX layer routes function tags here.
+export function component(
+  fn: (props: any) => unknown,
+  props?: Record<string, unknown> | null,
+): ComponentNode {
+  if (typeof fn !== 'function')
+    throw new Error('data/render: component(fn, props?) expects a function — got ' + typeof fn)
+  return { kind: 'component', fn, props: props ?? {} }
+}
+
+// An error boundary: child mounts under a scope this slot owns; an error from
+// the subtree (mount-phase or effect-phase) tears it down and mounts
+// fallback(err, reset) in its place. reset() re-mounts the try child.
+export function boundary(
+  child: unknown,
+  fallback: (err: unknown, reset: () => void) => unknown,
+): BoundaryNode {
+  if (typeof fallback !== 'function')
+    throw new Error(
+      'data/render: boundary(child, fallback) expects a fallback FUNCTION (err, reset) => vnode',
+    )
+  return { kind: 'boundary', child, fallback }
 }
 
 // ── view unwrapping ──────────────────────────────────────────────────────────
@@ -201,22 +264,36 @@ function bindAttr(
   view: unknown,
   fn: ((v: any) => unknown) | null,
   scope: Scope,
+  boundary: BoundarySlot | null,
 ): void {
   const read = readerOf(view)
   const compute = () => normAttr(fn === null ? read() : fn(read()))
   let last = compute()
   if (last !== null || name === 'checked' || name === 'value') applyAttr(dom, name, last)
+  const run = () => {
+    const next = compute()
+    if (next === last) return // normalized-string cutoff — no redundant DOM writes
+    last = next
+    applyAttr(dom, name, next)
+  }
   const sub = nodeOf(view).connect({
     wantsOrder: false,
     origin: null,
-    apply() {
-      const next = compute()
-      if (next === last) return // normalized-string cutoff — no redundant DOM writes
-      last = next
-      applyAttr(dom, name, next)
-    },
+    // Guarded closure ONLY under a boundary — the no-boundary path is the
+    // plain closure, zero added cost.
+    apply: boundary === null ? run : () => guarded(run, boundary),
   })
   scope.add(sub)
+}
+
+// Effect-phase error routing: run fn; a throw goes to the boundary instead of
+// escaping into the kernel's commit-error collection.
+function guarded(fn: () => void, boundary: BoundarySlot): void {
+  try {
+    fn()
+  } catch (e) {
+    boundary.handle(e)
+  }
 }
 
 // ── materialization ──────────────────────────────────────────────────────────
@@ -225,6 +302,7 @@ interface Ctx {
   readonly doc: any
   readonly scope: Scope
   readonly ns: string | null // element namespace — children inherit (SVG)
+  readonly boundary: BoundarySlot | null // nearest enclosing error boundary
 }
 
 interface Mounted {
@@ -243,13 +321,15 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
       const fmt = v.fn
       const read = fmt === null ? raw : () => fmt(raw())
       const tn = ctx.doc.createTextNode(toText(read()))
+      const run = () => {
+        const s = toText(read())
+        if (s !== tn.textContent) tn.textContent = s
+      }
+      const b = ctx.boundary
       const sub = n.connect({
         wantsOrder: false,
         origin: null,
-        apply() {
-          const s = toText(read())
-          if (s !== tn.textContent) tn.textContent = s
-        },
+        apply: b === null ? run : () => guarded(run, b),
       })
       ctx.scope.add(sub) // idempotent if the ambient scope already caught it
       return { vnode: v, dom: tn, children: null }
@@ -258,7 +338,8 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
       // Namespace: <svg> switches to the SVG namespace; children inherit.
       const ns = v.tag === 'svg' ? SVG_NS : ctx.ns
       const dom = ns === null ? ctx.doc.createElement(v.tag) : ctx.doc.createElementNS(ns, v.tag)
-      const kidCtx = ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns }
+      const kidCtx =
+        ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns, boundary: ctx.boundary }
       if (v.props !== null) {
         for (const k of Object.keys(v.props)) {
           const pv = v.props[k]
@@ -269,32 +350,79 @@ function materialize(v: VNode, ctx: Ctx): Mounted {
           } else if (isView(pv)) {
             // checked BEFORE isBindProp: probing .kind on a handle would
             // route through its proxy (a scalar handle throws on child reads)
-            bindAttr(dom, k, pv, null, ctx.scope)
+            bindAttr(dom, k, pv, null, ctx.scope, ctx.boundary)
           } else if (isBindProp(pv)) {
-            bindAttr(dom, k, pv.view, pv.fn, ctx.scope)
+            bindAttr(dom, k, pv.view, pv.fn, ctx.scope, ctx.boundary)
           } else if (pv != null && pv !== false) {
             dom.setAttribute(k, pv === true ? '' : String(pv))
           }
         }
       }
       const kids: Mounted[] = []
-      for (const c of v.children) {
-        if (c.kind === 'list') {
-          const binding = new ListBinding(dom, c, kidCtx)
-          ctx.scope.add(binding)
-          kids.push({ vnode: c, dom: binding.anchor, children: null })
-        } else {
-          const m = materialize(c, kidCtx)
-          dom.appendChild(m.dom)
-          kids.push(m)
-        }
-      }
+      for (const c of v.children) kids.push(mountChild(dom, c, kidCtx))
       return { vnode: v, dom, children: kids }
     }
     case 'list':
-      // handled by the 'el' branch and by render() at the root
-      throw new Error('data/render: internal — list must be materialized by its host')
+    case 'component':
+    case 'boundary':
+      // handled by mountChild (the 'el' child loop and render() at the root)
+      throw new Error('data/render: internal — ' + v.kind + ' must be mounted by its host')
   }
+}
+
+// Mount one child VNode into host. Lists, components, and boundaries own
+// their placement (host-mounted); everything else materializes then appends.
+function mountChild(host: any, c: VNode, ctx: Ctx): Mounted {
+  if (c.kind === 'list') {
+    const binding = new ListBinding(host, c, ctx)
+    ctx.scope.add(binding)
+    return { vnode: c, dom: binding.anchor, children: null }
+  }
+  if (c.kind === 'component') return mountComponent(host, c, ctx)
+  if (c.kind === 'boundary') {
+    const slot = new BoundarySlot(host, c, ctx)
+    ctx.scope.add(slot)
+    return { vnode: c, dom: slot.anchor, children: null }
+  }
+  const m = materialize(c, ctx)
+  host.appendChild(m.dom)
+  return m
+}
+
+// Invoke the component fn ONCE under its own child Scope (owned by the outer
+// scope, so it disposes with its surroundings — row removal, boundary swap,
+// render-handle dispose). The output is normalized with the full child
+// vocabulary and mounted in place; a multi-root return (an array) expands.
+// Exception-safe: a throw (from the fn or a later sibling's mount) disposes
+// the component scope and removes the roots already placed in the host —
+// otherwise an enclosing boundary's swap would leave ghost DOM and live
+// subscriptions it cannot reach.
+function mountComponent(host: any, c: ComponentNode, ctx: Ctx): Mounted {
+  const compScope = new Scope(ctx.scope)
+  const kids: Mounted[] = []
+  try {
+    const out = runInScope(compScope, () => c.fn(c.props))
+    const kidCtx: Ctx = { doc: ctx.doc, scope: compScope, ns: ctx.ns, boundary: ctx.boundary }
+    for (const k of normChildren([out])) kids.push(mountChild(host, k, kidCtx))
+  } catch (e) {
+    ctx.scope.delete(compScope)
+    compScope.dispose()
+    const doms: any[] = []
+    for (const m of kids) collectDoms(m, doms)
+    for (const d of doms) d.remove()
+    throw e
+  }
+  return { vnode: c, dom: null, children: kids }
+}
+
+// Top-level DOM nodes of a mounted subtree (a component Mounted has dom null
+// and expands through its children).
+function collectDoms(m: Mounted, out: any[]): void {
+  if (m.dom !== null) {
+    out.push(m.dom)
+    return
+  }
+  if (m.children !== null) for (const k of m.children) collectDoms(k, out)
 }
 
 // Row-update patching: re-run the row's TEXT bindings and STATIC props
@@ -354,7 +482,242 @@ function patchRow(m: Mounted, v: VNode): boolean {
     m.vnode = v
     return true
   }
+  if (v.kind === 'component') {
+    // Identical fn + STRUCTURALLY-equal props → the mounted instance stands
+    // (its bindings self-update). Anything else is a structural mismatch: a
+    // fresh invocation under a fresh scope (row rebuild) is the correct
+    // lifecycle, not a patch. Structural (not reference) equality matters
+    // because a rowFn re-mints its records every update — a component whose
+    // INPUTS didn't change must not rebuild the row (`<Chip>static</Chip>`
+    // survives; `<Chip>{row.t}</Chip>` rebuilds only when row.t moved). A
+    // component whose props embed the row (fresh reference per update) still
+    // rebuilds — the fn consumed that row. Hot rows that must patch
+    // surgically stay on plain elements + bindings.
+    const prev = m.vnode as ComponentNode
+    return prev.fn === v.fn && propsEq(prev.props, v.props)
+  }
+  if (v.kind === 'boundary') {
+    // Same structural rule; the fallback compares by REFERENCE — hoist it
+    // out of the rowFn (a fresh closure per update would rebuild the row and
+    // silently reset a displayed fallback to the try child).
+    const prev = m.vnode as BoundaryNode
+    return prev.fallback === v.fallback && vnodeEq(prev.child, v.child)
+  }
   return true // rtext / list: self-updating
+}
+
+// Structural VNode-record equality for the component/boundary patch decision.
+// Records compare by shape; functions and views/handles must be REFERENCE-
+// equal (a fresh closure means fresh inputs). Handles are identity-only and
+// probed via the NODE symbol FIRST — reading .kind on a handle proxy would
+// route through its child-path dispatch.
+function vnodeEq(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) if (!vnodeEq(a[i], b[i])) return false
+    return true
+  }
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (a instanceof DataNode || b instanceof DataNode) return false // identity checked above
+  if ((a as any)[NODE] instanceof DataNode || (b as any)[NODE] instanceof DataNode) return false
+  const ka = (a as any).kind
+  if (ka !== (b as any).kind) return false
+  switch (ka) {
+    case 'text':
+      return (a as TextNode).s === (b as TextNode).s
+    case 'el': {
+      const ea = a as ElNode
+      const eb = b as ElNode
+      return ea.tag === eb.tag && propsEq(ea.props, eb.props) && vnodeEq(ea.children, eb.children)
+    }
+    case 'rtext':
+      return (a as RTextNode).view === (b as RTextNode).view && (a as RTextNode).fn === (b as RTextNode).fn
+    case 'bind':
+      return (a as BindProp).view === (b as BindProp).view && (a as BindProp).fn === (b as BindProp).fn
+    case 'list':
+      return (a as ListNode).view === (b as ListNode).view && (a as ListNode).rowFn === (b as ListNode).rowFn
+    case 'component':
+      return (a as ComponentNode).fn === (b as ComponentNode).fn && propsEq((a as ComponentNode).props, (b as ComponentNode).props)
+    case 'boundary':
+      return (a as BoundaryNode).fallback === (b as BoundaryNode).fallback && vnodeEq((a as BoundaryNode).child, (b as BoundaryNode).child)
+  }
+  return false // plain objects (e.g. a row passed as a prop): identity only
+}
+
+function propsEq(
+  a: Readonly<Record<string, unknown>> | null,
+  b: Readonly<Record<string, unknown>> | null,
+): boolean {
+  if (a === b) return true
+  if (a === null || b === null) return false
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  for (const k of ka) {
+    if (!(k in b)) return false
+    if (!vnodeEq(a[k], b[k])) return false // covers children arrays + nested records
+  }
+  return true
+}
+
+// ── error boundary slot ──────────────────────────────────────────────────────
+// Owns the current subtree's Scope + top-level DOM nodes; anchored so a swap
+// lands at the boundary's position even with later siblings. handle()/reset()
+// defer the swap one microtask (see the module header for why); the initial
+// mount catches synchronously (its partials' subscriptions were created in
+// this same tick — disposing them only trims effects-array tails, never an
+// entry a mid-flight effect iteration has yet to reach).
+
+// A host facade redirecting appendChild to insertBefore(anchor): swap-time
+// content (and any descendant list/boundary anchors) lands BEFORE the
+// boundary anchor rather than at the end of the host.
+function hostBefore(host: any, anchor: any): any {
+  return {
+    appendChild: (n: any) => host.insertBefore(n, anchor),
+    insertBefore: (n: any, ref: any) => host.insertBefore(n, ref ?? anchor),
+  }
+}
+
+class BoundarySlot {
+  declare host: any
+  declare doc: any
+  declare ns: string | null
+  declare anchor: any
+  declare vnode: BoundaryNode
+  declare outer: BoundarySlot | null
+  declare scope: Scope | null // the CURRENT subtree's scope (try or fallback)
+  declare doms: any[] // the current subtree's top-level DOM nodes
+  declare broken: boolean // a swap is queued — further errors no-op until it lands
+  declare disposed: boolean
+
+  constructor(host: any, vnode: BoundaryNode, ctx: Ctx) {
+    this.host = host
+    this.doc = ctx.doc
+    this.ns = ctx.ns
+    this.vnode = vnode
+    this.outer = ctx.boundary
+    this.scope = null
+    this.doms = []
+    this.broken = false
+    this.disposed = false
+    this.anchor = ctx.doc.createTextNode('')
+    host.appendChild(this.anchor)
+    try {
+      this.mountTry()
+    } catch (e) {
+      // Only reachable when the TRY child threw and the fallback ALSO failed
+      // with no outer boundary — the slot is stillborn; it isn't registered
+      // on any scope yet, so it must self-clean its anchor.
+      this.disposed = true
+      this.anchor.remove()
+      throw e
+    }
+  }
+
+  // Materialize vs before the anchor under a fresh subtree scope. Runs the
+  // whole mount inside runInScope(scope): connect()'s ambient-scope
+  // registration must land on THIS scope, not on whatever scope was ambient
+  // at mount time — pre-fix, the enclosing mount scope also caught every
+  // subtree subscription handle and retained the torn-down subtree until
+  // unmount. On a mount-phase throw the partials (scope + already-placed
+  // doms) are torn down and the error rethrows to the caller.
+  private mountInto(vs: VNode[], asBoundary: BoundarySlot | null): void {
+    const scope = new Scope(null)
+    const doms: any[] = []
+    const ctx: Ctx = { doc: this.doc, scope, ns: this.ns, boundary: asBoundary }
+    const facade = hostBefore(this.host, this.anchor)
+    try {
+      runInScope(scope, () => {
+        for (const v of vs) collectDoms(mountChild(facade, v, ctx), doms)
+      })
+    } catch (e) {
+      scope.dispose()
+      for (const d of doms) d.remove()
+      throw e
+    }
+    this.scope = scope
+    this.doms = doms
+  }
+
+  private mountTry(): void {
+    try {
+      this.mountInto(normChildren([this.vnode.child]), this)
+    } catch (e) {
+      this.scope = null
+      this.doms = []
+      this.showFallback(e)
+    }
+  }
+
+  // The fallback mounts with ctx.boundary = the OUTER boundary: its own
+  // errors escalate outward. A fallback that throws while MOUNTING also
+  // escalates (or rethrows at the top — an unhandled broken fallback should
+  // be loud, not blank).
+  private showFallback(err: unknown): void {
+    try {
+      const out = (0, this.vnode.fallback)(err, () => this.reset())
+      this.mountInto(normChildren([out]), this.outer)
+    } catch (e) {
+      this.scope = null
+      this.doms = []
+      if (this.outer !== null) this.outer.handle(e)
+      else throw e
+    }
+  }
+
+  // Effect-phase entry point (guarded closures + the list sink route here).
+  handle(err: unknown): void {
+    if (this.broken || this.disposed) return
+    this.broken = true
+    this.queueSwap(() => this.showFallback(err))
+  }
+
+  // Re-mount the try child (the fallback's retry hook). Deferred like
+  // handle() — reset may be invoked from inside an effect.
+  reset(): void {
+    if (this.broken || this.disposed) return
+    this.broken = true
+    this.queueSwap(() => this.mountTry())
+  }
+
+  private queueSwap(run: () => void): void {
+    queueMicrotask(() => {
+      if (this.disposed) return
+      try {
+        this.teardown()
+        run()
+      } finally {
+        // broken resets even when the swap body rethrows (a failing cleanup,
+        // a top-level fallback error) — otherwise the slot bricked while
+        // callers still held a live reset handle.
+        this.broken = false
+      }
+    })
+  }
+
+  // DOM removal proceeds even when a cleanup throws (Scope.dispose completes
+  // its walk and rethrows an AggregateError at the end).
+  private teardown(): void {
+    const scope = this.scope
+    this.scope = null
+    const doms = this.doms
+    this.doms = []
+    try {
+      scope?.dispose()
+    } finally {
+      for (const d of doms) d.remove()
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    try {
+      this.teardown()
+    } finally {
+      this.anchor.remove()
+    }
+  }
 }
 
 // ── devtools registry (zero-cost when unobserved) ────────────────────────────
@@ -368,6 +731,43 @@ export const domLinks: WeakMap<object, { view: DataNode<any>; key: RowKey }> = n
 export const liveLists: Set<{ view: DataNode<any>; recs: Map<RowKey, { el: any }> }> = new Set()
 
 // ── the keyed list sink ──────────────────────────────────────────────────────
+
+// A row ROOT must resolve to ONE element — the keyed sink's unit of placement
+// and identity (rec.el is inserted/moved/removed as the row). A component
+// root is invoked here (own scope, owned by the row's) and must yield exactly
+// one root; a boundary root can't keep rec.el stable across swaps, so it must
+// be wrapped in an element.
+function materializeRowRoot(v: VNode, ctx: Ctx): Mounted {
+  if (v.kind === 'boundary')
+    throw new Error(
+      'data/render: a row fn returned boundary() as the row ROOT — the keyed list sink ' +
+        'places one stable element per row and a swap would replace it. ' +
+        'Wrap it in an element: el("div", null, boundary(…))',
+    )
+  if (v.kind === 'list')
+    throw new Error(
+      'data/render: a row fn returned list()/<For> as the row ROOT — the keyed list sink ' +
+        'places one stable element per row. Nest it inside an element: el("div", null, list(…))',
+    )
+  if (v.kind === 'component') {
+    const compScope = new Scope(ctx.scope)
+    const out = runInScope(compScope, () => v.fn(v.props))
+    const kids = normChildren([out])
+    if (kids.length !== 1)
+      throw new Error(
+        `data/render: a component used as a row ROOT must return exactly ONE root vnode — ` +
+          `got ${kids.length}. The keyed list sink places one stable element per row.`,
+      )
+    const inner = materializeRowRoot(kids[0], {
+      doc: ctx.doc,
+      scope: compScope,
+      ns: ctx.ns,
+      boundary: ctx.boundary,
+    })
+    return { vnode: v, dom: inner.dom, children: [inner] }
+  }
+  return materialize(v, ctx)
+}
 
 interface RowRec {
   key: RowKey
@@ -386,6 +786,7 @@ class ListBinding {
   declare recs: Map<RowKey, RowRec>
   declare order: RowKey[] | null // mirror of the view's order channel
   declare sub: SubscriptionHandle
+  declare boundary: BoundarySlot | null // nearest enclosing error boundary
   declare disposed: boolean
 
   constructor(host: any, vnode: ListNode, ctx: Ctx) {
@@ -395,6 +796,7 @@ class ListBinding {
     this.rowFn = vnode.rowFn
     this.view = nodeOf(vnode.view)
     this.recs = new Map()
+    this.boundary = ctx.boundary
     this.disposed = false
     this.anchor = ctx.doc.createTextNode('')
     host.appendChild(this.anchor)
@@ -405,15 +807,40 @@ class ListBinding {
     const ord = this.view.currentOrder()
     this.order = ord === null ? null : ord.slice()
     const keys = ord ?? [...snap.keys()]
-    for (const k of keys) {
-      const rec = this.buildRow(k, snap.get(k))
-      this.recs.set(k, rec)
-      this.host.insertBefore(rec.el, this.anchor)
+    try {
+      for (const k of keys) {
+        const rec = this.buildRow(k, snap.get(k))
+        this.recs.set(k, rec)
+        this.host.insertBefore(rec.el, this.anchor)
+      }
+    } catch (e) {
+      // Exception-safe construction: a mount-phase rowFn throw must leave no
+      // ghosts — already-built rows (elements IN the real host, bindings in
+      // the views' effects arrays) and the anchor are torn down before the
+      // error reaches an enclosing boundary's catch, which cannot see them
+      // (the binding was never registered on ctx.scope).
+      for (const rec of this.recs.values()) {
+        rec.scope.dispose()
+        rec.el.remove()
+      }
+      this.recs.clear()
+      this.anchor.remove()
+      throw e
     }
+    const b = this.boundary
     this.sub = this.view.connect({
       wantsOrder: true,
       origin: null,
-      apply: (b: CommitBatch<any>) => this.apply(b),
+      apply:
+        b === null
+          ? (batch: CommitBatch<any>) => this.apply(batch)
+          : (batch: CommitBatch<any>) => {
+              try {
+                this.apply(batch)
+              } catch (e) {
+                b.handle(e)
+              }
+            },
     })
     ctx.scope.add(this.sub)
     liveLists.add(this)
@@ -421,15 +848,35 @@ class ListBinding {
 
   // Each row owns a child Scope: its rtext/bind subscriptions and listeners
   // are registered there and die with the row (removeEventListener, finally).
+  // The row FN runs under runInScope(null, …) — it re-runs on updates, so it
+  // is not a scope; onCleanup() inside one throws (wrap in a component).
   private buildRow(key: RowKey, row: any): RowRec {
-    return this.buildRowFrom(this.rowFn(row, key), key)
+    return this.buildRowFrom(
+      runInScope(null, () => this.rowFn(row, key)),
+      key,
+    )
   }
 
   private buildRowFrom(vnode: VNode, key: RowKey): RowRec {
     const rowScope = new Scope(null)
-    const mounted = runInScope(rowScope, () =>
-      materialize(vnode, { doc: this.doc, scope: rowScope, ns: this.ns }),
-    )
+    let mounted: Mounted
+    try {
+      mounted = runInScope(rowScope, () =>
+        materializeRowRoot(vnode, {
+          doc: this.doc,
+          scope: rowScope,
+          ns: this.ns,
+          boundary: this.boundary,
+        }),
+      )
+    } catch (e) {
+      // rowScope is unowned (Scope(null)) — a mid-build throw would orphan
+      // the bindings already connected (they'd fire into a detached subtree
+      // forever, and a guarded one could re-tear a healthy fallback). The
+      // row element itself is still detached, so scope disposal suffices.
+      rowScope.dispose()
+      throw e
+    }
     domLinks.set(mounted.dom, { view: this.view, key })
     return { key, el: mounted.dom, scope: rowScope, mounted }
   }
@@ -460,7 +907,11 @@ class ListBinding {
         case 'update': {
           const rec = this.recs.get(d.key)
           if (rec === undefined) break
-          const next = this.rowFn(d.row, d.key)
+          // Same null-scope discipline as buildRow: without it, an update
+          // arriving while some scope is ambient (a write issued from inside
+          // a component fn) would let a row fn's onCleanup register silently
+          // on that foreign scope instead of throwing.
+          const next = runInScope(null, () => this.rowFn(d.row, d.key))
           if (!patchRow(rec.mounted, next)) {
             // Structural change — rebuild the row IN PLACE (same list
             // position); the old row's scope (listeners, bindings) disposes.
@@ -554,24 +1005,26 @@ export function render(host: any, ast: VNode | readonly VNode[], _runtime?: Runt
     throw new Error('data/render: no global document — a DOM (or the test mock) must be installed')
   const mount = new Scope(null) // one Scope per mount — owns everything below
   const tops: any[] = []
-  const ctx: Ctx = { doc, scope: mount, ns: null }
+  const ctx: Ctx = { doc, scope: mount, ns: null, boundary: null }
   runInScope(mount, () => {
     const vs = Array.isArray(ast) ? (ast as readonly VNode[]) : [ast as VNode]
-    for (const v of vs) {
-      if (v.kind === 'list') {
-        const binding = new ListBinding(host, v, ctx)
-        mount.add(binding)
-      } else {
-        const m = materialize(v, ctx)
-        host.appendChild(m.dom)
-        tops.push(m.dom)
-      }
+    try {
+      for (const v of vs) collectDoms(mountChild(host, v, ctx), tops)
+    } catch (e) {
+      // Exception-safe mount: an unboundaried throw (a component fn, a
+      // binding's initial read) must not leave live subscriptions or
+      // partially-mounted DOM behind — the caller gets no handle to dispose.
+      mount.dispose()
+      for (const t of tops) t.remove()
+      throw e
     }
   })
   return {
     scope: mount,
     dispose() {
       mount.dispose() // subscriptions, listeners, row scopes, list bindings
+      // tops includes list/boundary anchors already removed by their owner's
+      // dispose — .remove() on a detached node is a no-op.
       for (const t of tops) t.remove()
     },
   }
