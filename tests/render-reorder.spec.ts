@@ -19,7 +19,7 @@ test('render — za list DOM order tracks the sorted view across rotations', asy
   await page.goto('/', { waitUntil: 'domcontentloaded' })
 
   const result = await page.evaluate(async () => {
-    const { $, render, HTML, value } = await import('/dist/full.js' as any)
+    const { $, render, HTML, value } = await import('/dist/v2/full.js' as any)
     const { div, span } = HTML
     const host = document.createElement('div')
     document.body.appendChild(host)

@@ -4,15 +4,15 @@ import { test, expect, type Page } from '@playwright/test'
 // attachment, the overlay panel shell, graph + inspector selection, the
 // fromDOM/rowElements/highlight DOM bridge, ?nopanel suppression, and the
 // close/reopen lifecycle. Driven against examples/todo-v3/, which does NOT
-// import devtools itself — every test injects dist/v3/devtools.js into the
+// import devtools itself — every test injects dist/devtools.js into the
 // already-running page, the exact drop-into-a-live-app workflow the bundle
 // is built for.
 //
 // Single-module-instance premise (asserted, not assumed, by the graph test):
-// the app's importmap maps 'data/v3' → ../../dist/v3/index.js, which from
-// /examples/todo-v3/ resolves to /dist/v3/index.js — the SAME url the
+// the app's importmap maps 'data/v3' → ../../dist/index.js, which from
+// /examples/todo-v3/ resolves to /dist/index.js — the SAME url the
 // devtools bundle's externalized core import ('./index.js' beside
-// /dist/v3/devtools.js) hits. One resolved url = one module instance, so the
+// /dist/devtools.js) hits. One resolved url = one module instance, so the
 // injected layer shares the app's $ and runtime, and the injected graph()
 // must see the app's own chain (the spec builds zero nodes of its own).
 //
@@ -21,8 +21,8 @@ import { test, expect, type Page } from '@playwright/test'
 // $.devtools.panel.shell — exposed for exactly this.
 
 const url = 'http://127.0.0.1:3000/examples/todo-v3/'
-const DT = '/dist/v3/devtools.js' // the injected devtools bundle
-const API = '/dist/v3/index.js' // the main bundle — the app's own module instance
+const DT = '/dist/devtools.js' // the injected devtools bundle
+const API = '/dist/index.js' // the main bundle — the app's own module instance
 
 // Three rows so the list has real row elements for the DOM bridge; the keys
 // are the row ids fromDOM must hand back.
