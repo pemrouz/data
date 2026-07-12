@@ -4641,7 +4641,13 @@ function childState(parent, name) {
   if (parent.source !== null) {
     return { node: parent.node, source: parent.source, path: [...parent.path, name], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() };
   }
-  return { node: parent.node, source: null, path: [name], children: /* @__PURE__ */ new Map(), dedup: /* @__PURE__ */ new Map() };
+  return {
+    node: parent.node,
+    source: null,
+    path: [...parent.path, name],
+    children: /* @__PURE__ */ new Map(),
+    dedup: /* @__PURE__ */ new Map()
+  };
 }
 function childRead(state) {
   if (state.source !== null) return readAt(state);
