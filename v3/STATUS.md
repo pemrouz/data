@@ -32,7 +32,8 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **v2 perf-corpus re-baseline** — corpus.bench.ts (64 paired cases over all 19 workloads.ts exports, checksummed equivalence, adversarial fairness pass) + the full-sweep table | done | `8e0da82` + results commit | geomean 1.569× on UNBATCHED write-for-write micros (see the header's read: setup-dominated; single-writes at parity or v3-faster; realistic batched shapes all favor v3 — m1 0.74×, m2 0.78–0.97×, examples 0.14–0.25×) |
 | **M4.5b devtools panel port** — DOM seam (render registry + fromDOM/highlight) + the overlay panel (dock/graph/inspector/picker) + the `data/v3/devtools` entry | done | `688f378` `bbe1138` `0e37da4` `37115d3` | 239 tests; devtools-v3 spec 6/6; zero-subscriber leak audit; single-module-instance bundle proof |
 | **M4.5b component scopes** — `onCleanup` + deferred `component()` (JSX function tags defer to mount, invoked once under an owner Scope) + `boundary()`/`<ErrorBoundary>` (microtask-deferred effect-phase swaps) + the 18-finding pre-commit review fix round | done | `55d90f5`…`a8b95aa` | 272 tests (33 new); typecheck ×3; e2e 41/41 twice; m1 0.69/0.85, m2 0.93/0.71 PASS |
-| M5 rest: flow/multidim + landing, the flip decision (perf evidence now complete) | not started | | |
+| **THE FLIP, phase 1 (re-plumb)** — bare `data`/`dist/index.js` IS v3; v2 shifted whole to `data/v2`/`dist/v2/*`; `data/v3` kept as same-file aliases; every v2 surface pinned (11 importmaps + perf dashboard + 2 spec paths); shipped types = `v3/types/public.d.ts` on `exports["."]`; no v2-compat shim (error text repointed at `data/v2`) | done | `1ed17de`…`ca2b85e` + docs | unit 272+529; typecheck v2×4 + v3×4 (new public gate); FULL e2e suite; MIGRATION §6 flipped |
+| M5 rest / flip phases 2–3: landing + multidim → v3 (un-pin), flow port (or pin), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
 
 Run everything: `npm run test:v3` (272 tests). Types gate: `npm run typecheck:v3` —
 THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -320,6 +321,30 @@ Seventh block (component scopes — the LAST M4.5b item, `55d90f5`…`a8b95aa`):
   programs (facades + negatives for onCleanup/component/boundary/
   ErrorBoundary), e2e 41/41 twice (pre- and post-review-fixes), v2 untouched
   (529), m1/m2 PASS twice.
+
+Eighth block (THE FLIP, phase 1 — the entry re-plumb, `1ed17de`…`ca2b85e` + docs):
+
+- **The renames**: tsup emits v3 at `dist/index.js` / `dist/devtools.js` /
+  `dist/jsx-runtime.js` and the WHOLE v2 surface under `dist/v2/*` (entry keys
+  carry the prefix, so v2 devtools' relative `./panel/index.js` lazy import
+  survives). package.json: `main`/`module`/`exports["."]` → v3;
+  `./jsx-runtime` + `./jsx-dev-runtime` → the one thin runtime file;
+  `./devtools` → the v3 panel bundle; `./v3/*` kept as SAME-FILE transitional
+  aliases (one module instance — never duplicate bundles); `./v2/*` carries
+  the old surface with its generated d.ts. sideEffects updated to the new
+  paths.
+- **Nothing broke at the seams**: the 7 v3 examples' importmaps repointed
+  (key `data/v3` kept, value → `../../dist/index.js` — zero source edits);
+  the 11 v2 surfaces (gallery examples, flow, multidim, todo-jsx/crossfilter-
+  jsx, the landing page, the perf dashboard) pinned to `dist/v2/*` until each
+  migrates; 2 spec files' hardcoded dist paths updated.
+- **Types ship**: `exports["."].types` → [types/public.d.ts](types/public.d.ts),
+  a SELF-CONTAINED declaration mirror of surface.ts (npm `files` carries it),
+  gated by a fourth typecheck:v3 program ([types/tsconfig.public.json](types/tsconfig.public.json)
+  → check.public.ts fixtures against the `data` specifier).
+- **Decided: no v2-compat runtime shim** — the `[value] =` error now says
+  "the pre-flip surface lives at data/v2" (MIGRATION §2/§3.12 quotes updated;
+  §6 rewritten as the flipped entry table; intro imports say `from 'data'`).
 
 ## Known gaps / next work (M4.5b+)
 

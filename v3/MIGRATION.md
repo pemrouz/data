@@ -13,7 +13,7 @@ app; they are cross-linked throughout and tabulated in
 Imports in every snippet below:
 
 ```js
-import { $, value, batch, render, list, text, bind, HTML, SVG, h, Fragment, For } from 'data/v3'
+import { $, value, batch, render, list, text, bind, HTML, SVG, h, Fragment, For } from 'data'
 ```
 
 ---
@@ -79,7 +79,7 @@ old form (all strings verified by execution).
 | v2 idiom | v3 replacement | what v3 does with the old form |
 |---|---|---|
 | `proxy.field = v` | `d.set('field', v)` or `d.get('field').update(v)` (sugar: `d.field.update(v)`) | throws `data: bare assignment (.field =) is not the write surface — use .get("field").update(v) / .set("field", v) (types and runtime agree in v3)` |
-| `proxy.field[value] = v` | `d.get('field').update(v)` | throws `data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch() (data/v2-compat restores it)` |
+| `proxy.field[value] = v` | `d.get('field').update(v)` | throws `data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch(); the pre-flip surface lives at data/v2` |
 | `proxy[value] = newValue` (whole-value hatch) | no direct equivalent — per-key writes, `patch(pairs)`, or `batch(() => …)` | same `[value] whole-view assignment` error; `d.update(v)` on a source root also throws `data: whole-source update — write [value] semantics not yet supported; use per-key writes or batch()` |
 | `delete proxy.field` | `d.get('field').remove()` (sugar: `d.field.remove()`) | throws `data: delete is not the write surface — use .get("field").remove()` |
 | `proxy.field.remove()` (v2 typed surface) | unchanged — works | — |
@@ -451,7 +451,7 @@ compositions must be disposed or they accumulate** — the v2 kanban
 | WeakRef auto-unsubscription | gone — strong refs, explicit `dispose()` |
 | `$(view)` LinkedView / `linked[value] = view` re-point | `mirror()` / `slot.set(view)`; `$(handle)` throws, pointing at `mirror()` / a `structuredClone` fork ([§2](#2-the-write-surface)) |
 | `proxy.raf()` on a whole view | child handles only |
-| whole-value hatch `proxy[value] = v` | not yet supported (`data/v2-compat restores it` per the error text; that compat lens is not shipped at the flip) |
+| whole-value hatch `proxy[value] = v` | not yet supported — the error text points at `data/v2`, where the pre-flip surface lives (decision at the flip: no compat shim) |
 | `$.debug` reduce drift warning | no counterpart yet |
 | `data/devtools` (`$.inspect`, panel, badges) | not on the `data/v3` entry; `v3/devtools/` has inspect/graph/trace/profile/cascades as a module, the panel port is M4.5b-rest (not started) |
 | `data/lean` / `data/full` / `data/render` sub-entries | one entry: `data/v3` ([§6](#6-entry-points-at-the-flip)) |
@@ -668,29 +668,31 @@ proxies across entries" rule survives in spirit: one entry, one runtime, one
 
 ---
 
-## 6. Entry points at the flip
+## 6. Entry points (FLIPPED, 2026-07-12)
 
-Today (branch `v3`, pre-flip):
+The flip landed: **`data` — the bare specifier and `dist/index.js` — IS the
+v3 engine.** v2 moved whole to `data/v2/*`, frozen but green.
 
 | specifier | file | contents |
 |---|---|---|
-| `data/v3` | `dist/v3/index.js` | everything: `$`, `value`, `node`, `batch`, `runtime`, `handleFor`, `render`/`el`/`text`/`list`/`bind`, `HTML`/`SVG`/`normChildren`, `h`/`Fragment`/`For`, `jsx`/`jsxs`/`jsxDEV`, `fromAsync`/`exportContract`/`InMemoryBacking` |
-| `data/v3/jsx-runtime` | `dist/v3/jsx-runtime.js` | thin re-export of the main bundle (`jsx`/`jsxs`/`jsxDEV`/`Fragment`) — **one module instance** across entries, so the v2 "self-contained bundles per entry → don't mix proxies across entries" trap is structurally closed. Set `"jsxImportSource": "data/v3"` for the automatic transform; classic uses `jsxFactory: h` imported from `data/v3`. |
+| `data` | `dist/index.js` | everything: `$`, `value`, `node`, `batch`, `runtime`, `handleFor`, `render`/`el`/`text`/`list`/`bind`, `component`/`boundary`/`onCleanup`, `HTML`/`SVG`/`normChildren`, `h`/`Fragment`/`For`/`ErrorBoundary`, `jsx`/`jsxs`/`jsxDEV`, `fromAsync`/`exportContract`/`InMemoryBacking` |
+| `data/jsx-runtime`, `data/jsx-dev-runtime` | `dist/jsx-runtime.js` | thin re-export of the main bundle — **one module instance** across entries (the v2 "self-contained bundles per entry → don't mix proxies across entries" trap is structurally closed). Set `"jsxImportSource": "data"` for the automatic transform; classic uses `jsxFactory: h` imported from `data`. |
+| `data/devtools` | `dist/devtools.js` | the v3 inspection layer + overlay panel (every cross-boundary import externalized to `./index.js` — same single-instance rule) |
+| `data/v3`, `data/v3/jsx-runtime`, `data/v3/devtools` | same three files | **transitional aliases** — same files, same module instance; pre-flip consumers keep working. Prefer the bare names in new code. |
+| `data/v2` (+ `/lean` `/full` `/render` `/devtools` `/devtools/panel` `/jsx-runtime` `/jsx-dev-runtime`) | `dist/v2/*` | the whole pre-flip v2 surface, shifted — the v2 gallery examples, flow/multidim, and the landing page stay pinned here until each migrates |
 
-Examples load via importmap: `{ "data/v3": "../../dist/v3/index.js" }`.
-There are no v3 `lean`/`full`/`render`/`devtools` sub-entries — one bundle,
-operators installed by static imports (tree-shakers keep them via the
-`./v3/ops/*.ts` entries in package.json `sideEffects`). TypeScript consumers:
-the exports map carries **no `types` keys yet**; the typed surface lives in
-[v3/types/surface.ts](types/surface.ts) (`typedDollar`, `Data<T>`,
-`ReadonlyData<T>`).
+Examples load via importmap: `{ "data/v3": "../../dist/index.js" }` (the key
+kept the transitional alias so no example source changed at the flip).
+There are no v3 `lean`/`full`/`render` sub-entries — one bundle, operators
+installed by static imports (tree-shakers keep them via the `./v3/ops/*.ts`
+entries in package.json `sideEffects`). TypeScript consumers: `exports["."]`
+carries `types` → [v3/types/public.d.ts](types/public.d.ts), the shipped
+self-contained declaration mirror of [v3/types/surface.ts](types/surface.ts)
+(gated by `tsc -p v3/types/tsconfig.public.json`).
 
-> **TODO (decided at flip time, deliberately not pre-committed):** the flip
-> renames — whether `data` (the bare specifier) becomes this entry and v2
-> moves to `data/v2`(-compat), what `data/jsx-runtime` points at, whether a
-> `data/v2-compat` lens (the `[value] =` restoration the error message
-> promises) ships alongside, and the `types` exports wiring. Update this
-> table and the error-message text together when that lands.
+Decided at the flip: **no `data/v2-compat` runtime shim** — the fail-fast
+errors + this guide carry porters; the `[value] =` error text points at
+`data/v2` instead.
 
 ---
 
