@@ -6,7 +6,7 @@
 // graphs by construction.
 
 import type { CommitBatch, OriginToken } from '../contract/delta.ts'
-import type { DataNode, SourceNode } from './node.ts'
+import type { DataNode, EffectEntry, SourceNode } from './node.ts'
 
 export interface CommitInfo {
   readonly seq: number
@@ -42,6 +42,18 @@ export class Runtime {
   // recompute pure (flush-on-read) rather than trust materialized state.
   get midBatch(): boolean {
     return this.batchDepth > 0
+  }
+
+  // The seq to stamp on a subscription born NOW (DataNode.connect). During a
+  // commit's effect phase the subscriber's init snapshot ALREADY contains
+  // that commit (clause 4), so its entry must skip batch.seq === bornSeq —
+  // without this, a sink connected from inside an effect (a row built during
+  // an add whose template nests a list over another view that also changed
+  // this commit) double-applied the current batch. During a drain (a queued
+  // re-entrant write between commits) the snapshot predates the NEXT commit,
+  // so 0 (never matches — seq starts at 1) is correct.
+  connectSeq(): number {
+    return this.flushing && !this.draining ? this.seq : 0
   }
 
   register(node: DataNode<any>): void {
@@ -161,6 +173,7 @@ export class Runtime {
   private _emitN: DataNode<any>[] = []
   private _emitB: CommitBatch<any>[] = []
   private _agenda: DataNode<any>[] = []
+  private _fx: EffectEntry<any>[] = []
 
   private commitOnce(errors: unknown[]): void {
     const seq = ++this.seq
@@ -225,13 +238,22 @@ export class Runtime {
     }
 
     // Effect phase: after ALL operator state is settled (clause 4), in
-    // topological order, exception-isolated.
+    // topological order, exception-isolated. Each node's effects run off a
+    // SNAPSHOT (reused scratch): an effect that disposes a sibling
+    // subscription splices the live array, and pre-snapshot that shifted the
+    // cursor so the next sink silently skipped the commit. Tombstoned
+    // (dead) entries are skipped; entries born THIS commit (bornSeq === seq)
+    // are skipped too — their init snapshot already contains it.
+    const fx = this._fx
     for (let i = 0; i < emitN.length; i++) {
       const effects = emitN[i].effects
       if (effects.length === 0) continue
       const batch = emitB[i]
-      for (let ei = 0; ei < effects.length; ei++) {
-        const entry = effects[ei]
+      fx.length = 0
+      for (let ei = 0; ei < effects.length; ei++) fx.push(effects[ei])
+      for (let ei = 0; ei < fx.length; ei++) {
+        const entry = fx[ei]
+        if (entry.dead === true || entry.bornSeq === seq) continue
         if (entry.origin !== null && entry.origin === batch.origin) continue // echo suppression
         try {
           entry.apply(batch)
@@ -240,6 +262,7 @@ export class Runtime {
         }
       }
     }
+    fx.length = 0
     emitN.length = 0
     emitB.length = 0
     agenda.length = 0

@@ -402,3 +402,74 @@ test('batch() issued INSIDE an effect defers as a next commit (queue-shape regre
   same(src.get('b')!.val, 777)
   same(src.get('c')!.val, 888)
 })
+
+// ── review fixes (2026-07-12, the component-scopes adversarial review) ───────
+// Effect-phase hardening the boundary machinery leaned on: snapshot iteration
+// (a disposal below the cursor silently skipped the next sink) and bornSeq
+// (a sink born mid-commit double-applied the commit its snapshot contained).
+
+test('REVIEW FIX: disposing an EARLIER same-node subscription from inside an effect does not skip the next sink', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows())
+  const got: string[] = []
+  const s1 = src.connect({ wantsOrder: false, origin: null, apply: () => got.push('s1') })
+  src.connect({
+    wantsOrder: false,
+    origin: null,
+    apply: () => {
+      got.push('s2')
+      s1.dispose() // splices below the live cursor — pre-fix, s3 was skipped
+    },
+  })
+  src.connect({ wantsOrder: false, origin: null, apply: () => got.push('s3') })
+  src.write('d', [], { region: 'east', val: 5 })
+  same(got, ['s1', 's2', 's3'])
+})
+
+test('REVIEW FIX: a sink connected from inside an effect skips the commit it was born in (bornSeq — its init snapshot already contains it)', () => {
+  const rt = new Runtime()
+  const a = new SourceNode<Row>(rt, rows())
+  const b = new SourceNode<Row>(rt, rows())
+  const late: CommitBatch<Row>[] = []
+  let done = false
+  a.connect({
+    wantsOrder: false,
+    origin: null,
+    apply: () => {
+      if (done) return
+      done = true
+      // b settles in the SAME commit and its effects run AFTER a's — the new
+      // sink is in b.effects before b's iteration, so only bornSeq saves it
+      // from double-applying the batch its snapshot already contains.
+      b.connect({ wantsOrder: false, origin: null, apply: (batch: CommitBatch<Row>) => late.push(batch) })
+    },
+  })
+  rt.batch(() => {
+    a.write('d', [], { region: 'east', val: 5 })
+    b.write('e', [], { region: 'west', val: 6 })
+  })
+  same(late.length, 0)
+  b.write('f', [], { region: 'north', val: 7 }) // the NEXT commit arrives normally
+  same(late.length, 1)
+  same(late[0].rows[0].key, 'f')
+})
+
+test('REVIEW FIX: Scope.dispose completes past a throwing cleanup — siblings still run, failures rethrow as one AggregateError', () => {
+  const s = scope(null)
+  const ran: string[] = []
+  s.onDispose(() => ran.push('first'))
+  s.onDispose(() => {
+    throw new Error('bad-cleanup')
+  })
+  s.onDispose(() => ran.push('last'))
+  let err: unknown
+  try {
+    s.dispose()
+  } catch (e) {
+    err = e
+  }
+  same(ran, ['last', 'first']) // LIFO, and the walk continued past the throw
+  assert.ok(err instanceof AggregateError)
+  same((err as AggregateError).errors.length, 1)
+  same(((err as AggregateError).errors[0] as Error).message, 'bad-cleanup')
+})

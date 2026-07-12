@@ -17,6 +17,16 @@ export interface EffectEntry<T> {
   readonly wantsOrder: boolean
   readonly origin: OriginToken | null // for echo suppression; null = never suppress
   apply(batch: CommitBatch<T>): void
+  // Runtime-managed (stamped by connect/dispose — callers never set these):
+  // bornSeq — the commit a mid-flush connect was born in. Its init snapshot
+  // ALREADY contains that commit (clause 4: effects run after all operator
+  // state settles), so the effect loop skips batch.seq === bornSeq or the
+  // sink would double-apply (a nested list built during an add duplicated
+  // rows). dead — set by dispose(); the effect loop iterates a SNAPSHOT of
+  // the effects array, so a disposal mid-phase must tombstone, not just
+  // splice, to stop the already-snapshotted entry from firing.
+  bornSeq?: number
+  dead?: boolean
 }
 
 export interface SubscriptionHandle {
@@ -111,10 +121,12 @@ export abstract class DataNode<Out> {
   }
 
   connect(entry: EffectEntry<Out>): SubscriptionHandle {
+    entry.bornSeq = this.runtime.connectSeq()
     this.effects.push(entry)
     const self = this
     const handle: SubscriptionHandle = {
       dispose() {
+        entry.dead = true // tombstone: a snapshot iteration mid-phase must skip it
         const i = self.effects.indexOf(entry)
         if (i >= 0) self.effects.splice(i, 1)
       },
@@ -131,6 +143,7 @@ export abstract class DataNode<Out> {
       if (i >= 0) p.children.splice(i, 1)
     }
     this.children.length = 0
+    for (const e of this.effects) e.dead = true // see connect() — snapshot iterations
     this.effects.length = 0
     this.scope?.delete(this)
   }
