@@ -1,9 +1,10 @@
 # v3 rewrite — status
 
-*Updated 2026-07-12 (eighth block: **THE FLIP, phase 1** — the bare `data`
-entry IS v3; v2 shifted whole to `data/v2`; every pre-flip surface pinned and
-green. Phases 2–3 remain: landing/multidim un-pin, flow port-or-pin, the docs
-sweep, the PR to main. Seventh block: component scopes — M4.5b COMPLETE).
+*Updated 2026-07-12 (ninth block: **THE FLIP, phase 2** — the landing page +
+multidim's data row run the v3 engine. Phase 1 (eighth block) re-plumbed the
+entries: bare `data` IS v3, v2 frozen at `data/v2`. Phase 3 remains: the
+README/llms/AGENTS/CLI docs sweep, the PR to main; the flow essay port is its
+own future block).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -36,7 +37,7 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **THE FLIP, phase 2 (showcase surfaces)** — the landing page (feed/demos/race + the API-visible HTML) and multidim's `data` row run the v3 engine, importmaps un-pinned; + the nested operator-view child-path fix the port surfaced | done | `70ea8ed`…`fc03b92` + build/docs | 273 v3 tests; typecheck ×8; phase-2 e2e 23/23 (race ×9 engines, demos-tap under GC, v3 devtools mount, multidim ×10 rows) |
 | M5 rest / flip phase 3: flow stays pinned (essay port is its own block), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
 
-Run everything: `npm run test:v3` (272 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (273 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
