@@ -1,8 +1,9 @@
 # v3 rewrite — status
 
-*Updated 2026-07-10 (sixth "continue building v3" block: the devtools panel port —
-M4.5b is now component-scopes-only. Fifth block: the v2 perf-corpus re-baseline —
-the flip's perf evidence is complete).
+*Updated 2026-07-12 (seventh "continue building v3" block: component scopes —
+onCleanup / deferred components / error boundaries. **M4.5b is COMPLETE**; what
+remains before the flip is flip-work itself: flow/multidim + landing, entry
+renames, the decision. Sixth block: the devtools panel port).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -30,10 +31,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **Migration hardening** — the fix series the MIGRATION.md verification surfaced | done | `313e575`…`3f93655` | 233 tests; m1/m2 PASS; see the session section |
 | **v2 perf-corpus re-baseline** — corpus.bench.ts (64 paired cases over all 19 workloads.ts exports, checksummed equivalence, adversarial fairness pass) + the full-sweep table | done | `8e0da82` + results commit | geomean 1.569× on UNBATCHED write-for-write micros (see the header's read: setup-dominated; single-writes at parity or v3-faster; realistic batched shapes all favor v3 — m1 0.74×, m2 0.78–0.97×, examples 0.14–0.25×) |
 | **M4.5b devtools panel port** — DOM seam (render registry + fromDOM/highlight) + the overlay panel (dock/graph/inspector/picker) + the `data/v3/devtools` entry | done | `688f378` `bbe1138` `0e37da4` `37115d3` | 239 tests; devtools-v3 spec 6/6; zero-subscriber leak audit; single-module-instance bundle proof |
-| M4.5b rest: component scopes (onCleanup / error boundaries) | not started | | |
+| **M4.5b component scopes** — `onCleanup` + deferred `component()` (JSX function tags defer to mount, invoked once under an owner Scope) + `boundary()`/`<ErrorBoundary>` (microtask-deferred effect-phase swaps) + the 18-finding pre-commit review fix round | done | `55d90f5`…`a8b95aa` | 272 tests (33 new); typecheck ×3; e2e 41/41 twice; m1 0.69/0.85, m2 0.93/0.71 PASS |
 | M5 rest: flow/multidim + landing, the flip decision (perf evidence now complete) | not started | | |
 
-Run everything: `npm run test:v3` (222 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (272 tests). Types gate: `npm run typecheck:v3` —
 THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -251,10 +252,80 @@ Sixth block (the devtools panel port, `688f378` `bbe1138` `0e37da4` `37115d3`):
   boundary import to './index.js' (one kernel instance, spec-proven: the injected
   bundle's graph() sees the app's nodes).
 
+Seventh block (component scopes — the LAST M4.5b item, `55d90f5`…`a8b95aa`):
+
+- **`onCleanup(fn)`** ([kernel/scope.ts](kernel/scope.ts)): registers on the
+  AMBIENT scope; THROWS outside one (a cleanup that would never run is a leak,
+  not a no-op). Exported from `data/v3`.
+- **Deferred components** ([render/index.ts](render/index.ts)): `component(fn,
+  props)` is a new VNode kind — fn invoked ONCE at MOUNT under its own child
+  Scope (owned by the enclosing scope: a row's component dies with the row).
+  onCleanup / node creation / raf() inside the fn land on that scope; output
+  normalized via the full child vocabulary (arrays expand — multi-root OK; a
+  component as a row ROOT must resolve to exactly one element). JSX function
+  tags now DEFER here (`h` routes them to `component()`; Fragment / For /
+  ErrorBoundary stay eager — structural). Contract change from the old eager
+  invocation: invocation moves from h() time to mount; the 4 jsx tests
+  asserting eagerness were rewritten to pin deferral. `key` is now stripped
+  from component props on BOTH transforms (classic used to leak it).
+- **Error boundaries**: `boundary(child, fallback)` /
+  `<ErrorBoundary fallback={(err, reset) => …}>` — a BoundarySlot owns its
+  subtree's Scope + top-level doms behind a text anchor. MOUNT-phase errors
+  are caught synchronously; EFFECT-phase errors (a binding / row fn throwing
+  inside a subscription callback) route to the nearest boundary via
+  ctx.boundary — bindings take a guarded closure ONLY under a boundary (zero
+  cost otherwise) — and the swap is deferred ONE MICROTASK, because
+  disposing/connecting mid-effect-iteration would splice the very effects
+  array the kernel is walking. The fallback mounts with ctx.boundary = the
+  OUTER boundary (a broken fallback escalates outward, never loops); reset()
+  re-mounts the try child. Without a boundary the kernel contract is
+  unchanged (effect errors → the commit's AggregateError).
+- **Row fns are NOT a scope** (they re-run on updates — registrations would
+  accumulate): ListBinding invokes them under runInScope(null, …), so
+  onCleanup in a bare row fn throws deterministically on BOTH the initial and
+  the add path (it used to silently land on the mount scope at init). A row
+  needing lifecycle wraps its content in a component; a component child with
+  changed props rebuilds the row in place (fresh scope — correct lifecycle,
+  not a patch).
+- **The pre-commit adversarial review bit hard** — a 5-dimension workflow
+  (flush protocol / scope ownership / JSX contract / list sink / surface
+  drift; 49 agents, 2 refuters per finding) confirmed 18 findings, all fixed
+  same-block with regression tests:
+  - **Exception-safe mounts** (4 majors): a throw mid-build used to leak
+    already-connected subscriptions + ghost DOM a boundary's teardown could
+    not reach — buildRowFrom, the ListBinding constructor, mountComponent,
+    and render()'s root loop now tear their partials down before rethrowing.
+  - **mountInto runs under runInScope(subtree scope)** — boundary subtrees
+    used to double-register every subscription handle on the AMBIENT (mount)
+    scope, retaining the whole torn-down try subtree until unmount.
+  - **Kernel effect-phase hardening** (2 majors, pre-existing gaps the
+    boundary machinery widened): the effect loop now iterates a SNAPSHOT
+    (disposing a sibling subscription from inside an effect spliced below the
+    live cursor — the next sink silently skipped the commit; entries are
+    tombstoned via `dead`), and connect() stamps `bornSeq` so a sink born
+    mid-commit skips the batch its init snapshot already contains (a nested
+    list built during an add duplicated rows).
+  - **Structural patch equality** (vnodeEq/propsEq): component/boundary
+    records re-minted per rowFn run compare by SHAPE, not reference — a
+    `<Chip>static</Chip>` row child survives updates; one embedding `row.t`
+    rebuilds only when it moves (pre-fix: whole-row rebuild EVERY update —
+    focus/identity loss). Functions/views compare by reference: hoist
+    fallbacks out of row fns.
+  - **Scope.dispose completes past a throwing cleanup** (failures aggregate);
+    the update-path rowFn runs under runInScope(null) like the build path;
+    queueSwap resets `broken` in a finally; a list-as-row-root gets a real
+    error instead of the internal one.
+- Verified: 30-test [render/component.test.ts](render/component.test.ts) +
+  3 kernel review-fix tests (suite 272), types fixtures in all three gate
+  programs (facades + negatives for onCleanup/component/boundary/
+  ErrorBoundary), e2e 41/41 twice (pre- and post-review-fixes), v2 untouched
+  (529), m1/m2 PASS twice.
+
 ## Known gaps / next work (M4.5b+)
 
-1. **M4.5b rest**: component scopes (onCleanup / error boundaries) — the LAST
-  M4.5b item. ~~devtools panel port~~ — DONE 2026-07-10 (`688f378`…`37115d3`).
+1. ~~**M4.5b rest**: component scopes (onCleanup / error boundaries)~~ — DONE
+  2026-07-12 (`55d90f5`…`a8b95aa`; see the seventh-block section). **M4.5b is COMPLETE.**
+  ~~devtools panel port~~ — DONE 2026-07-10 (`688f378`…`37115d3`).
   ~~automatic jsx-runtime, per-tag intrinsic types~~ — DONE 2026-07-06
   (`f8f326e` `2811cf5` `d86e014`).
 2. **v2-recorded-stream byte parity** — capture real v2 streams from the examples and

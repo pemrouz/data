@@ -489,8 +489,9 @@ props** — no literal `key="…"` DOM attribute lands, and key-only props
 collapse to `null` for byte-parity with a keyless call (verified:
 `h('li', {key:'k1', class:'row'}, 'x')` deep-equals
 `el('li', {class:'row'}, 'x')`; the automatic runtime inherits the strip
-through its `h` delegation). Components still receive `key` in their props.
-Leaving keys in migrated JSX is harmless; deleting them is tidier.
+through its `h` delegation). `key` never reaches a COMPONENT's props either —
+stripped on both transforms. Leaving keys in migrated JSX is harmless;
+deleting them is tidier.
 
 ### 4.2 Row functions receive PLAIN rows
 
@@ -636,8 +637,15 @@ row), `raf()` writers auto-cancel with their ambient scope, and nodes created
 during a mount register with it. What you interact with at the flip is just
 the two verbs — `view.dispose()` and `renderHandle.dispose()` (plus
 `subscription.dispose()` from `connect`). The Scope class itself is not
-exported from `data/v3`; component-level scopes (onCleanup, error boundaries)
-are M4.5b-rest and not shipped. The practical delta from v2: **nothing
+exported from `data/v3`; the component-level surface is: **`component(fn,
+props)`** (a JSX function tag defers to it) invokes `fn` once at MOUNT under
+its own child scope, **`onCleanup(fn)`** registers a cleanup on that ambient
+scope (it THROWS outside one: `data: onCleanup() called outside a scope`),
+and **`boundary(child, fallback)` / `<ErrorBoundary fallback={(err, reset) =>
+…}>`** owns its subtree's scope and swaps in the fallback when the subtree
+errors (mount-phase synchronously; effect-phase one microtask later). Row fns
+are NOT a scope (they re-run on row updates) — `onCleanup` in one throws;
+wrap row content in a component. The practical delta from v2: **nothing
 unsubscribes by garbage collection anymore** — if you connected it or minted
 it transiently, something must dispose it.
 
