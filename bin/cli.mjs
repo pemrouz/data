@@ -20,24 +20,26 @@ import { dirname } from 'node:path'
 // shape an agent can follow without re-deriving it.
 const GUIDANCE = `When writing code that uses the \`data\` reactive library, follow these rules:
 
-- **Import from \`data\`** (the default entry) — it registers every operator, so \`proxy.filter(...)\` chaining works on import. Use \`data/full\` only for JSX authoring; \`data/lean\` only to tree-shake (calling \`.filter\` on a lean proxy throws).
-- **Read the raw value with \`proxy[value]\`** using the exported \`value\` symbol — never \`proxy.value\`, which creates a child view named "value".
-- **Mutate by assignment**, including nested paths: \`proxy.foo = 1\`, \`proxy[0].done = true\`, \`delete proxy[1]\`, \`proxy[value] = next\`. Do NOT build immutable spreads — assignment triggers the right incremental cascade.
-- **Operators return new reactive views** and never mutate in place. Chain them: \`rows.filter(d => d.active).between('val', [0, 100]).length()\`.
-- **\`gt\`/\`lt\`/\`gte\`/\`lte\` take literal bounds only.** For a moving threshold use \`between(col, [lo, hi])\` with ViewProxy bounds, or derive a fresh view.
-- **\`length(fn)\` stores each bucket as \`{ value: count }\`** — read a bucket count via \`counts[key].value\`, not \`counts[key]\` (which stringifies to \`[object Object]\`).
-- **\`between\`/\`intersect\`/\`union\`/\`except\` leave excluded slots as explicit \`undefined\`.** When binding a row template directly to such a view, densify (\`vp.to(arr => arr.filter(r => r !== undefined))\`) or write the bindings defensively.
-- **\`connect\` has three forms:** \`connect([])\` pushes change events into an array; \`connect(obj, 'prop')\` mirrors the value onto a property; \`connect(obj, fn)\` calls \`fn(change)\` per event. There is no single-argument \`connect(fn)\` — it throws.
-- **Render with \`render(el, HTML.div(...))\`** (builder DSL) or JSX via the \`data/full\` entry and the shared \`h\` factory.
-- **Built-ins (not operators):** \`proxy.raf()\` returns a coalescing rAF writer; \`proxy.patch([name, value, ...])\` applies many child updates as one batched cascade; \`first()\`/\`last()\` snapshot the edge child.
+- **Import from \`data\`** — the one entry: \`$\`, every operator (registered on import), \`render\`, the \`HTML\`/\`SVG\` builders, and JSX (\`h\`, \`Fragment\`, \`For\`). \`data/devtools\` is the opt-in inspector; \`data/v2/*\` is the frozen pre-flip engine — never mix v2 and v3 handles.
+- **Read the raw value with \`d[value]\`** (the exported \`value\` symbol) or \`d.snapshot()\` — never \`d.value\`, which reads a child named "value". Snapshots are DENSE plain data: no holes, no \`undefined\` slots to guard. Use \`d.get(key)\` for computed keys and for data keys that collide with method names (\`length\`, \`filter\`, …).
+- **Writes are METHODS — never assignment**: \`d.set('field', v)\`, \`d.field.update(v)\`, \`d.insert(row)\` (returns the minted key), \`d.get(k).remove()\`, \`d.patch([[k1, row1], [k2, row2]])\` (pairs are \`[key, row]\` TUPLES). Bare assignment (\`d.x = v\`), \`delete d.x\`, and \`d[value] = v\` all THROW with a message naming the replacement. No immutable spreads — deep method writes (\`d.a.b.c.update(1)\`) cascade correctly.
+- **\`filter\` takes a predicate only**: \`rows.filter(r => r.status === 'open')\`. The v2 \`filter('key', value)\` / \`filter({key: value})\` forms throw at construction.
+- **Operator views are read-only** — write through the source. Chain: \`rows.filter(r => r.active).between('val', [0, 100]).length()\`.
+- **Reactive value-slot args are handles**: \`between('col', bounds.get('col'))\` (ONE tuple handle holding \`[lo, hi]\`), \`gt\`/\`lt\`/\`gte\`/\`lte('col', cfg.get('t'))\`, \`za('col', pageSize.get('n'))\`, \`sum(cfg.get('col'))\`. A function arg closing over reactive state is captured once and is NOT reactive — for reactive re-selection use a transient filter + \`mirror()\` + \`dispose()\`. Prefer \`between\` over \`gt\`/\`lt\` for a fast-moving bound (O(Δ) vs O(N) per move).
+- **\`length(fn)\` buckets are \`{ value: N }\` wrappers** — read a count via \`counts.get(k)[value].value\`, or bind \`text(counts.get(k), b => b?.value ?? 0)\`. Emptied buckets persist at \`{ value: 0 }\`.
+- **Set algebra takes VIEW operands**: \`src.intersect(viewA, viewB)\` / \`union\` / \`except\`. The v2 \`intersect({col: view})\` object-map form throws.
+- **References are STRONG — nothing unsubscribes by GC.** \`connect([])\` / \`connect(obj, 'prop')\` / \`connect(anchor, fn)\` return a \`SubscriptionHandle\` you must \`.dispose()\`; dispose transient views after re-pointing away; \`mirror()\` is the re-pointable slot (\`slot.set(view)\`); \`render()\` returns a handle whose \`.dispose()\` unmounts.
+- **Know the two shapes**: ordered views (\`az\`/\`za\`/\`top\`/\`limit\`) materialize as ARRAYS in rank order with source row keys; row/set/bucket operators over an ARRAY-born source materialize as a KEYED OBJECT (\`$([...]).filter(fn)[value]\` is \`{"0": row}\`) — sort (\`.az(col)\`) or iterate the handle for an array.
+- **DOM**: \`render(host, HTML.ul(list(view, row => HTML.li(row.task))))\` or JSX \`<For each={view}>{(row, key) => ...}</For>\` — iteration is ONLY \`list()\`/\`<For>\`, kept the SOLE child of its container (a bare view child is reactive text). Row fns receive PLAIN rows; listeners bind once, so handlers read current state through the source (\`items.get(id)[value]\`). Use literal \`class\`/\`for\`/\`style\` string props (no \`className\`, no style objects).
+- **Batch multi-row writes**: \`batch(() => { ...writes })\` or \`patch(pairs)\` — one commit per event, one settle per view; net-zero changes annihilate.
 
 \`\`\`js
-import { $, value, render, HTML } from 'data'
+import { $, value } from 'data'
 
 const rows = $([{ id: 1, done: false }, { id: 2, done: true }])
-const open = rows.filter(d => !d.done).length()   // derived reactive view
-rows[0].done = true                                // mutate by assignment
-console.log(open[value])                           // read raw value via the symbol
+const open = rows.filter(r => !r.done).length()   // derived reactive scalar
+rows.get(0).set('done', true)                     // writes are methods
+console.log(open[value])                          // read raw via the symbol
 \`\`\`
 `
 

@@ -1,54 +1,60 @@
 # data
 
-> A small, dependency-free reactive data library for TypeScript/JavaScript. Wrap any value or collection in `$()` to get a reactive proxy; derive views with chainable operators; bind them to the DOM with `render`. Like crossfilter's incremental aggregation with Solid-style fine-grained DOM updates. Work is proportional to the path that changed, not the size of the data.
+> A small, dependency-free reactive data library for TypeScript/JavaScript. Wrap any object or array in `$()` to get a reactive handle; derive views with chainable operators; bind them to the DOM with `render`. Like crossfilter's incremental aggregation with Solid-style fine-grained DOM updates. Every row has a stable key, every change is a keyed delta, and every write settles the graph in one commit. Work is proportional to the path that changed, not the size of the data.
 
 ## Quick start
 
 Install: `npm install data`
 
 ```js
-import { $, value, render, HTML } from 'data'   // default entry: operators registered
+import { $, value } from 'data'                 // the one entry: operators registered on import
 
 const rows = $([{ name: 'a', n: 1 }, { name: 'b', n: 9 }])
-const big  = rows.filter(d => d.n > 3)          // derived reactive view
-console.log(big[value])                         // read raw value with the `value` symbol
-rows[0].n = 10                                  // mutate by assignment; views update incrementally
+const big  = rows.filter(r => r.n > 3)          // derived reactive view (predicate only)
+console.log(big[value])                         // read raw with the `value` symbol — a dense snapshot
+rows.get(0).set('n', 10)                        // writes are METHODS; views update incrementally
 ```
 
-## Imports (pick one entry)
+## Imports
 
-- `data` — default. Core + `render`/`HTML`/`SVG` + every operator registered. Use this unless you have a reason not to.
-- `data/full` — `data` plus JSX authoring (`h`, `Fragment`, `For`, `jsx`). Use when writing views in JSX.
-- `data/lean` — registration-free core, for tree-shaking. Calling `.filter(...)` here throws; register operators onto `Operators` yourself.
-- `data/render` — just the DOM render layer.
-- `data/devtools` — opt-in inspection helpers + overlay panel (side-effecting import).
+- `data` — THE entry: `$`, `value`, `batch`, every operator, `render`/`el`/`text`/`list`/`bind`, `HTML`/`SVG` builders, JSX (`h`, `Fragment`, `For`, `ErrorBoundary`), `component`/`onCleanup`/`boundary`, and the seam (`fromAsync`, `exportContract`, `InMemoryBacking`). Use this.
+- `data/jsx-runtime` / `data/jsx-dev-runtime` — automatic JSX (`"jsxImportSource": "data"`); thin re-exports of the main bundle (one module instance).
+- `data/devtools` — opt-in inspection helpers + overlay panel (side-effecting import; `?nopanel` opts out).
+- `data/v3`, `data/v3/jsx-runtime`, `data/v3/devtools` — transitional aliases for the same files; prefer the bare names.
+- `data/v2` (+ `/lean`, `/full`, `/render`, `/devtools`, `/jsx-runtime`) — the frozen pre-flip v2 engine. Never mix `data` and `data/v2` handles: different engines, different `value` symbols.
 
 ## Core API
 
-- `$(value)` → a `ViewProxy`. Read the raw value with `proxy[value]` (the `value` symbol), NOT `proxy.value`.
-- Mutate by assignment: `proxy.foo = 1`, `proxy[2].done = true`, `delete proxy[1]`, `proxy[value] = next`. Nested mutation (`a.b.c = 1`) works and triggers the right update — no immutable spreads needed.
-- `proxy.connect(arr)` pushes change events into `arr`; `proxy.connect(obj, 'prop')` mirrors the value; `proxy.connect(obj, fn)` calls `fn(change)`.
-- `render(el, template)` binds a view to the DOM; build templates with `HTML.div(...)`, `SVG.path(...)`.
+- `$(objectOrArray)` → a `Data` handle. Read raw with `proxy[value]` (the exported `value` symbol) or `proxy.snapshot()` — NOT `proxy.value` (a child named "value"). Snapshots are DENSE (no holes, no `undefined` slots).
+- `proxy.get(key)` → the child handle (collision-free; a data key named `length`/`filter` must use `get`). Property sugar works for non-reserved names. `for (const row of view)` iterates rows.
+- Writes are METHODS: `set(key, v)`, `child.update(v)`, `insert(row, at?)` (returns the minted key), `child.remove()`, `patch([[k1, row1], [k2, row2]])` ([key, row] TUPLE pairs, one commit). Bare assignment (`proxy.x = v`), `delete proxy.x`, and `proxy[value] = v` all THROW with a message naming the replacement. Deep paths compose: `proxy.a.b.c.update(1)`.
+- `batch(() => { ...writes })` — N writes, ONE commit; net-zero changes annihilate.
+- `proxy.connect(arr)` pushes `{ type, key, value, at? }` records; `connect(obj, 'prop')` mirrors; `connect(anchor, fn)` calls `fn(record)`. All return a `SubscriptionHandle` — references are STRONG, call `.dispose()`.
+- `view.mirror()` → a re-pointable slot: chain downstream ops off it once, `slot.set(otherView)` re-points as one consolidated diff. `view.dispose()` detaches a view permanently — dispose transients.
+- `child.raf()` (child handles only) → coalescing writer, one commit per frame, `.flush()` on pointerup. `first()`/`last()` → the edge child handle.
+- `render(el, ast)` → a `RenderHandle` (`.dispose()`). Build with `HTML.div(...)`/`SVG.path(...)` builders or JSX. Reactive text is `text(view, fn?)`; reactive props are `bind(view, fn?)`; iteration is ONLY `list(view, (row, key) => ...)` / `<For each={view}>{(row, key) => ...}</For>`, kept the sole child of its container. Row fns receive PLAIN rows; listeners bind once — handlers read current state through the source (`items.get(id)[value]`). Props use literal `class`/`for`/`style` strings (no `className`, no style objects).
 
-## Operators (chain off any proxy)
+## Operators (chain off any handle; derived views are read-only)
 
-- Filter: `filter(fn | 'key', val | {k:v})`, `between('col', [lo, hi])`, `gt`/`lt`/`gte`/`lte('col', n)`.
-- Sort/limit: `az`/`za('col'?)` (ascending/descending), `top(n)`, `limit(n)`, `reverse`. (There is no `.sort()` method — use `az`/`za`.)
-- Aggregate (scalar): `length(fn?)`, `sum`/`avg`/`max`/`min(col?)`, `some`/`every(fn)`.
-- Transform: `map(fn)`, `to(fn)`, `reduce(fn, init)` or incremental `reduce(add, remove, init)`, `group(fn)`, `distinct(fn?)`.
-- Set algebra: `intersect`, `union`, `except`.
-- Misc: `keys`, `values`, `tap(fn)`.
-- Built-ins (not operators): `first()`, `last()`, `raf()` (coalescing writer).
+- Filter: `filter(fn)` — PREDICATE ONLY; `between('col', [lo, hi])` or `between('col', bounds.get('col'))` (one reactive tuple handle; O(Δ) brush walk); `gt`/`lt`/`gte`/`lte('col', n)` (threshold may be a reactive handle).
+- Sort/limit (ordered views — materialize as ARRAYS in rank order, row keys are source keys): `az`/`za('col' | cmpFn, n?)` (bounded window; `n` may be reactive — the window resizes in place), `top(n)`, `limit(n)`. `za`/`az` REQUIRE a column or comparator — numeric `za(5)` throws; use `top(5)`/`limit(5)`. No `reverse`/`page`/`join` (reserved, throw).
+- Aggregate (scalar handles — no children): `length()`, `sum`/`avg`/`max`/`min(col?)` (col may be reactive), `some`/`every(fn)`. Empty set: `sum` → 0, `avg`/`max`/`min` → undefined.
+- Histogram/buckets: `length(fn)` → `{ value: N }` buckets (emptied buckets persist at `{ value: 0 }`); `group(fn)` → member objects (prunes empties); `distinct(fn?)` → unique projected values.
+- Transform: `map(fn)`, `to(fn)` (whole-snapshot → scalar), `reduce(fn, init)` or incremental `reduce(add, remove, init)` (init may be a thunk, never a reactive handle — throws).
+- Set algebra: `intersect`/`union`/`except(...views)` — operands are VIEWS (`src.intersect(viewA, viewB)`), not object maps.
+- Misc: `tap(fn)` (effects run after the graph settles), `keys()`, `values()`.
 
 ## Docs
 
-- [README.md](README.md): full usage, API, operator table, philosophy.
-- [operators/README.md](operators/README.md): operator catalog + how dispatch works.
-- [CLAUDE.md](CLAUDE.md): contributor/agent guide for working inside the repo.
-- [devtools/README.md](devtools/README.md): inspection helpers and the overlay panel.
+- [README.md](README.md): full usage, API, operator table, benchmarks.
+- [v3/MIGRATION.md](v3/MIGRATION.md): the verified v2 → v3 guide + an index of every error message the runtime throws at a v2 idiom.
+- [AGENTS.md](AGENTS.md): agent-facing rules for generating code with `data`.
+- [CLAUDE.md](CLAUDE.md): contributor guide for working inside the repo.
 
 ## Common gotchas
 
-- Use `proxy[value]` (the symbol), not `proxy.value`, to read raw data — `proxy.value` makes a child view named "value".
-- `gt`/`lt`/`gte`/`lte` take literal bounds only; for a moving threshold use `between` with reactive bounds.
-- Awaiting a proxy resolves to its current snapshot (synchronous sugar, not real async sequencing).
+- **Writes are methods only.** `proxy.set('x', 1)` / `proxy.x.update(1)` / `proxy.get(k).remove()` / `patch([[k, row], ...])`. Bare assignment, `delete`, and `[value] =` throw (the error names the replacement). Read raw with `proxy[value]`, never `proxy.value`.
+- **`filter` takes a predicate only.** `filter(r => r.status === 'open')`. The v2 `filter('key', v)` / `filter({k: v})` forms throw at construction. For a reactive threshold use `gt`/`lt`/`gte`/`lte`/`between` (those take reactive handles); for reactive re-selection use a transient filter + `mirror()` + `dispose()`.
+- **`length(fn)` buckets are `{ value: N }` wrappers.** Read a count via `counts.get(k)[value].value` or `counts.get(k).get('value')[value]`; in a binding, `text(counts.get(k), b => b?.value ?? 0)`. Emptied buckets persist at `{ value: 0 }`.
+- **References are strong — nothing unsubscribes by GC.** `connect` returns a `SubscriptionHandle` you must `.dispose()`; dispose transient views after re-pointing away from them; `mirror()` is the re-pointable slot (`slot.set(view)`); `render()` returns a disposable handle.
+- **Know the two shapes.** Ordered views (`az`/`za`/`top`/`limit`) materialize as arrays in rank order; row/set/bucket operators over an ARRAY-born source materialize as a KEYED OBJECT (`$([...]).filter(fn)[value]` is `{"0": row, "2": row}`) — sort (`.az(col)`) or iterate the handle if you need an array.
