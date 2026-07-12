@@ -1,4 +1,4 @@
-/* The essay's protagonist: the change log, and the folds over it.
+/* The essay's protagonist: the change log, and the folds over it. (v3 port)
  *
  * Everything you see on the page is a window onto ONE model built here:
  *
@@ -6,7 +6,8 @@
  *                  itself emits. We capture it straight off the source via
  *                  `connect`, so these are the runtime's REAL records
  *                  ({ type, key, value, at? } — a path-addressed delta),
- *                  not a hand-rolled imitation.
+ *                  not a hand-rolled imitation. (v3 emits the permanent
+ *                  v2-shaped record profile from connect — same fields.)
  *   • `display`  — a `$()` source whose value is the fold of `log[0..head]`.
  *                  Move the playhead and we re-fold into it; the derived
  *                  views below re-derive for free.
@@ -25,7 +26,7 @@
  * Hand-written .js, no .ts sibling (see CLAUDE.md).
  */
 
-import { $, value } from 'data/full'
+import { $, value, batch } from 'data'
 
 export const REGIONS = ['north', 'south', 'east', 'west']
 export const FOLDS = ['orders', 'active', 'perRegion', 'avg']
@@ -49,18 +50,21 @@ export function createLog (seed) {
 
   /* capture the runtime's real records — but only while we're appending, so a
    * scrub's wholesale re-fold doesn't pollute history. The two-arg
-   * `connect(anchor, fn)` form attaches a FunctionSink and pins it to `anchor`
-   * so the WeakRef sink survives GC (CLAUDE.md gotcha). */
+   * `connect(anchor, fn)` form attaches a record sink; in v3 it returns a
+   * SubscriptionHandle (references are strong — no WeakRef pinning needed),
+   * kept below in `subs` as the disposal manifest. */
   const anchor = {}
-  display.connect(anchor, c => { if (capturing) log.push(cloneRecord(c)) })
+  const subDisplay = display.connect(anchor, c => { if (capturing) log.push(cloneRecord(c)) })
 
   /* …and capture the SAME change as `active` re-emits it downstream, so every
    * source record carries the change its filter handed on (§5 — the edge). */
   const actAnchor = {}
-  active.connect(actAnchor, c => { if (capturing) actBuf.push(cloneRecord(c)) })
+  const subActive = active.connect(actAnchor, c => { if (capturing) actBuf.push(cloneRecord(c)) })
 
-  /* pin every view + sink so nothing is collected mid-session. */
-  const keep = { display, active, perRegion, avg, anchor, actAnchor }
+  /* the disposal manifest: v3 subscriptions are strong-referenced and live
+   * until disposed, so keep the handles (plus every standing view) here. */
+  const subs = { display: subDisplay, active: subActive }
+  const keep = { display, active, perRegion, avg, anchor, actAnchor, subs }
   globalThis.__flowKeep = keep
 
   function cloneRecord (c) {
@@ -89,11 +93,28 @@ export function createLog (seed) {
     return { acc, visits }
   }
 
+  /* write a whole reconstructed state into `display`. v3 has no whole-value
+   * hatch (`display[value] = acc` throws — MIGRATION §2), so this is a keyed
+   * diff inside ONE batch(): remove the keys the target lacks, set every key
+   * whose row differs. One consolidated commit; unchanged rows emit nothing.
+   * A viewing aid only — `capturing` is off, so none of this enters the log. */
+  function writeState (acc) {
+    batch(() => {
+      const cur = display[value]
+      for (const k of Object.keys(cur)) if (!(k in acc)) display.get(k).remove()
+      for (const [k, row] of Object.entries(acc)) {
+        if (!(k in cur) || JSON.stringify(cur[k]) !== JSON.stringify(row)) {
+          display.set(k, clone(row))
+        }
+      }
+    })
+  }
+
   /* re-fold log[0..k] into `display`. The folds re-derive automatically. */
   function scrubTo (k) {
     head = Math.max(0, Math.min(log.length, k | 0))
     const { acc } = foldPlain(log, head)
-    display[value] = acc
+    writeState(acc)
     return head
   }
 
@@ -102,7 +123,7 @@ export function createLog (seed) {
   function snap () {
     return {
       active: JSON.stringify(Object.values(active[value] || {}).filter(Boolean).map(r => [r.id, r.region, r.value])),
-      region: REGIONS.map(r => perRegion[r]?.value?.[value] ?? 0).join(','),
+      region: REGIONS.map(r => perRegion.get(r).get('value')[value] ?? 0).join(','),
       avg: avg[value],
     }
   }
@@ -114,7 +135,7 @@ export function createLog (seed) {
   function append (mutate) {
     if (head !== log.length) {           // fast-forward silently to the live end
       const { acc } = foldPlain(log, log.length)
-      display[value] = acc
+      writeState(acc)
     }
     const before = log.length
     const pre = snap()
@@ -143,29 +164,30 @@ export function createLog (seed) {
 
   /* ---- the reader's verbs — each appends exactly one record, tagged with
    * the row id + field it touched so the timeline chips can label themselves
-   * without re-folding the log. ---- */
+   * without re-folding the log. (v3 writes are methods: set / update / remove
+   * at a key path — MIGRATION §2.) ---- */
   const actions = {
     insert () {
       const id = nextId++
       const region = REGIONS[(id - 1) % REGIONS.length]
       const v = 40 + ((id * 37) % 80)
-      return tag(append(d => { d[id].update({ id, active: id % 2 === 1, region, value: v }) }), { rid: id, field: 'row' })
+      return tag(append(d => { d.set(id, { id, active: id % 2 === 1, region, value: v }) }), { rid: id, field: 'row' })
     },
     toggle () {
       const ks = presentKeys(); if (!ks.length) return []   // nothing to toggle → no-op, not an insert
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { d[k].active.update(!d[k].active[value]) }), { rid, field: 'active' })
+      return tag(append(d => { d.get(k).active.update(!d.get(k).active[value]) }), { rid, field: 'active' })
     },
     bump () {
       const ks = presentKeys().filter(k => display[value][k].active)
       if (!ks.length) return actions.toggle()   // no active row to bump → toggle one on (still an update, never an insert)
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { d[k].value.update(d[k].value[value] + 15) }), { rid, field: 'value' })
+      return tag(append(d => { d.get(k).get('value').update(d.get(k).get('value')[value] + 15) }), { rid, field: 'value' })
     },
     remove () {
       const ks = presentKeys(); if (!ks.length) return []
       const k = pick(ks); const rid = display[value][k].id
-      return tag(append(d => { d[k].remove() }), { rid, field: 'row' })
+      return tag(append(d => { d.get(k).remove() }), { rid, field: 'row' })
     },
   }
 
@@ -177,7 +199,7 @@ export function createLog (seed) {
    * make §3 cost, §4 dots, and §5's edge disagree on the opening records.) */
   for (const r of seed) {
     const id = nextId++; r.id = id
-    const recs = append(d => { d[id].update(r) })
+    const recs = append(d => { d.set(id, r) })
     for (const rec of recs) { rec.rid = id; rec.field = 'row' }
   }
   head = log.length

@@ -7,14 +7,16 @@
  *   §5 edge / §7 dom    : one change handed view-to-view; one change → one DOM instruction.
  *
  * The table and derived-view panels are ordinary `render()` calls off the model's
- * views, so they update for free. Only the chrome (records list, playhead, meters)
- * is wired by hand. Scrubbing reconstructs an earlier state for display only — the
- * library itself never re-folds; it always moves forward.
+ * views (v3: iteration is `list(view, row => …)`, reactive text is `text()`,
+ * reactive attrs are `bind()`; row fns receive PLAIN rows), so they update for
+ * free. Only the chrome (records list, playhead, meters) is wired by hand.
+ * Scrubbing reconstructs an earlier state for display only — the library itself
+ * never re-folds; it always moves forward.
  *
  * Hand-written .js, no .ts sibling (see CLAUDE.md).
  */
 
-import { render, HTML } from 'data/full'
+import { render, list, text, bind, HTML } from 'data'
 import { createLog, REGIONS } from './log.js'
 
 const { div, span } = HTML
@@ -28,41 +30,41 @@ const SEED = [
   { active: true,  region: 'west',  value: 74 },
 ]
 const model = createLog(SEED)
-const countView = r => model.perRegion[r].value
+const countView = r => model.perRegion.get(r).get('value')   // the bucket's {value:N} count, as a path handle
 
 /* ====================================================================== *
  * the four fold panels — declarative, off the model's views
  * ====================================================================== */
 function mountFolds () {
   // §1 duality — the orders table on the right is a live render() sink.
-  render(document.getElementById('dz-rows'), div['.flist'](
-    div(model.display, (n, row) => n.frow.attr('data-id', row.id).nodes(
-      span.fr_id.text(row.id.to(id => '#' + id)),
-      span.fr_reg.text(row.region),
-      span.fr_val.text(row.value),
+  render(document.getElementById('dz-rows'), div.flist(
+    list(model.display, row => div.frow({ 'data-id': row.id },
+      span.fr_id('#' + row.id),
+      span.fr_reg(row.region),
+      span.fr_val(row.value),
     )),
   ))
 
-  render(document.getElementById('fold-active'), div['.flist'](
-    div(model.active, (n, row) => n.frow.attr('data-id', row.id).nodes(
-      span.fr_id.text(row.id.to(id => '#' + id)),
-      span.fr_reg.text(row.region),
-      span.fr_val.text(row.value),
+  render(document.getElementById('fold-active'), div.flist(
+    list(model.active, row => div.frow({ 'data-id': row.id },
+      span.fr_id('#' + row.id),
+      span.fr_reg(row.region),
+      span.fr_val(row.value),
     )),
   ))
 
-  render(document.getElementById('fold-perRegion'), div['.flist'](
-    ...REGIONS.map(r => div.rbar.nodes(
+  render(document.getElementById('fold-perRegion'), div.flist(
+    REGIONS.map(r => div.rbar(
       span.rb_k(r),
-      div.rb_track.nodes(
-        div.rb_fill.style('width', countView(r).to(n => Math.min(100, (n || 0) * 18) + '%')),
+      div.rb_track(
+        div.rb_fill({ style: bind(countView(r), n => `width:${Math.min(100, (n || 0) * 18)}%`) }),
       ),
-      span.rb_n.text(countView(r).to(n => String(n || 0))),
+      span.rb_n(text(countView(r), n => String(n || 0))),
     )),
   ))
 
-  render(document.getElementById('fold-avg'), div['.flist'](
-    span.avg_scalar.text(model.avg.to(v => v == null ? '—' : String(Math.round(v)))),
+  render(document.getElementById('fold-avg'), div.flist(
+    span.avg_scalar(text(model.avg, v => v == null ? '—' : String(Math.round(v)))),
     span.avg_unit('mean value, all orders'),
   ))
 }
@@ -385,8 +387,8 @@ function mountCost () {
 /* ====================================================================== *
  * §5 — the change at every edge: the change `orders` sees becomes the change
  * `active` hands on. The model captures active's OWN delta for every record
- * (log.js → actDeltas), so this figure just reads the head record. The button
- * appends a toggle to the SAME stream; scrubbing the rail drives it too.
+ * (log.js → actDeltas), so this figure just reads the head record. The
+ * button appends a toggle to the SAME stream; scrubbing the rail drives it too.
  * ====================================================================== */
 function mountEdge () {
   const srcEl = document.getElementById('edge-src')
@@ -410,7 +412,8 @@ function mountEdge () {
  * §7 — the DOM is the last derivation: render() is one more sink on the same
  * changes. This list is a SECOND render() pointed at the very SAME source as
  * the §1 table, so a button updates both from the one change — and each record
- * maps to exactly one DOM instruction, read off the head record.
+ * maps to one DOM op read off the head (insert→`appendChild`, update→one text
+ * write, remove→`node.remove()`).
  * ====================================================================== */
 function mountDomFold () {
   const listEl = document.getElementById('dom-list')
@@ -418,11 +421,11 @@ function mountDomFold () {
   const opEl = document.getElementById('dom-op')
   if (!listEl) return
 
-  render(listEl, div['.flist'](
-    div(model.display, (n, row) => n.dl_row.attr('data-id', row.id).nodes(
-      span.dl_id.text(row.id.to(id => '#' + id)),
-      span.dl_reg.text(row.region),
-      span.dl_val.text(row.value),
+  render(listEl, div.flist(
+    list(model.display, row => div.dl_row({ 'data-id': row.id },
+      span.dl_id('#' + row.id),
+      span.dl_reg(row.region),
+      span.dl_val(row.value),
     )),
   ))
 

@@ -332,7 +332,7 @@ const perRegion = active.length(o =&gt; o.region)   // a derivation of a derivat
           <pre><code>const active    = orders.filter(o =&gt; o.active)
 const perRegion = active.length(o =&gt; o.region)
 
-render(el, perRegion, …)
+render(el, list(perRegion, …))
 
 
 // the change-handling is the runtime's job.</code></pre>
@@ -356,7 +356,7 @@ render(el, perRegion, …)
   <section id="dom-fold">
     <div class="hd"><span class="hno">07</span><h2>The DOM is the last derivation</h2></div>
     <p>
-      The screen is just the last view in the chain. <code>render(el, orders, …)</code>
+      The screen is just the last view in the chain. <code>render(el, list(orders, …))</code>
       is not special — it's one more sink reading the same changes. In fact the list
       below is a <em>second</em> <code>render()</code> pointed at the very same
       <code>orders</code> source as the table at the top of the page; press a button
@@ -374,7 +374,7 @@ render(el, perRegion, …)
           <div class="domfold-op" id="dom-op">↳ the one DOM instruction it becomes</div>
         </div>
         <div class="domfold-side">
-          <div class="domfold-h"><code>render(el, orders, …)</code> — a sink like any other</div>
+          <div class="domfold-h"><code>render(el, list(orders, …))</code> — a sink like any other</div>
           <div class="domfold-list" id="dom-list"></div>
         </div>
       </div>
@@ -392,7 +392,7 @@ render(el, perRegion, …)
     <pre class="code"><code>// Three sinks, one set of changes.
 orders.tap(change => console.log(change))    // into a console
 orders.connect(myArray)                      // into an array
-render(el, HTML.ul(orders, (li, row) => …))  // into the DOM</code></pre>
+render(el, HTML.ul(list(orders, row => …)))  // into the DOM</code></pre>
   </section>
 
   <!-- ===================================================================
@@ -435,9 +435,7 @@ render(el, HTML.ul(orders, (li, row) => …))  // into the DOM</code></pre>
 
 <script type="importmap">
 { "imports": {
-    "data":          "../../dist/v2/index.js",
-    "data/full":     "../../dist/v2/full.js",
-    "data/render":   "../../dist/v2/render/index.js"
+    "data":          "../../dist/index.js"
 } }
 </script>
 <script type="module" src="./main.js"></script>
