@@ -1,9 +1,9 @@
 # v3 rewrite — status
 
-*Updated 2026-07-12 (seventh "continue building v3" block: component scopes —
-onCleanup / deferred components / error boundaries. **M4.5b is COMPLETE**; what
-remains before the flip is flip-work itself: flow/multidim + landing, entry
-renames, the decision. Sixth block: the devtools panel port).
+*Updated 2026-07-12 (eighth block: **THE FLIP, phase 1** — the bare `data`
+entry IS v3; v2 shifted whole to `data/v2`; every pre-flip surface pinned and
+green. Phases 2–3 remain: landing/multidim un-pin, flow port-or-pin, the docs
+sweep, the PR to main. Seventh block: component scopes — M4.5b COMPLETE).
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 [plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
 
@@ -36,12 +36,15 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | M5 rest / flip phases 2–3: landing + multidim → v3 (un-pin), flow port (or pin), README/llms/AGENTS/CLI docs sweep, PR to main | not started | | |
 
 Run everything: `npm run test:v3` (272 tests). Types gate: `npm run typecheck:v3` —
-THREE programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
+FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
-check.auto.tsx under `jsxImportSource: "data/v3"` via a paths-mapped decl shim). Perf
-gates: `npm run perf:v3` (m1 + m2 — LOCAL, not CI; noisy-runner policy). CI runs
-test:v3 + typecheck:v3. v2's `npm test` is untouched and green (v2 files unmodified).
+check.auto.tsx under `jsxImportSource: "data/v3"` via a paths-mapped decl shim), and
+PUBLIC ([types/tsconfig.public.json](types/tsconfig.public.json) → check.public.ts
+against the SHIPPED [types/public.d.ts](types/public.d.ts) via the bare `data`
+specifier). Perf gates: `npm run perf:v3` (m1 + m2 — LOCAL, not CI; noisy-runner
+policy). CI runs test:v3 + typecheck:v3. v2's `npm test` is untouched and green
+(v2 sources unmodified; its dist lives at `dist/v2/*` since the flip).
 
 ## Layout
 
