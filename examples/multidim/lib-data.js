@@ -1,23 +1,22 @@
-// `data` row — incremental aggregation over brushable filters.
-// `between` builds a sorted index over each dimension; mutating a filter
-// triggers a delta-only walk (rows entering/leaving the window) rather
-// than a full O(N) re-aggregate. `intersect(dims, name)` is the dimension's
-// view with all *other* filters applied (the crossfilter idiom). `length(fn)`
-// is incremental too — adds/removes one bucket count per delta.
+// `data` row — the v3 engine: one reactive graph, and brushing is just a write.
+// Each dimension is `between(col, filters.get(col))` — the bounds arg is a live
+// child of ONE `filters` source, so a brush move is a single
+// `filters.get(name).update(range)` and the update is an O(Δ) boundary walk
+// (rows entering/leaving the window), never a re-aggregate. Each chart's
+// histogram is an EXPLICIT leave-one-out `intersect(...otherDims)` — v3
+// set-ops take view operands; the v2 `intersect(dimsObject, name)` object-map
+// form throws at construction (v3/MIGRATION.md §3.8) — chained into
+// `length(fn)`, which buckets incrementally into `{ value: N }` wrappers.
 //
-// Top-K shape: za the source by `delay` once at mount (231k rows pre-sorted
-// — paid once, never again because the source never mutates), then
-// `intersect(dims).limit(5)` is what runs per filter change. limit's per-
-// delta cost is O(1) amortised; if a row in the visible top-5 leaves the
-// active set, it walks `nextAfter` until it finds the next survivor and
-// emits one BR1A + one BI0A. The tempting alternative —
-// `intersect(dims).za('delay', 5)` — runs a sorted-index splice on every
-// row delta and is O(active-set) per delta because the za bookkeeping
-// re-keys all entries past the splice point. With ~1000 rows transitioning
-// per pointermove against an active set of ~100k, that path was O(N²) per
-// move and froze the page after a few brushes.
+// Top-K shape: `active.za('delay', 5)` — a BOUNDED sort window maintained
+// incrementally (v3/MIGRATION.md §3.4). The v2 file's trick — pre-sort the
+// whole source by delay once at mount (`za('delay', Infinity)`) so that a
+// cheap `intersect(dims).limit(5)` could read survivors off the front,
+// because an unbounded za respliced O(active-set) per delta — is obsolete:
+// v3's ordered maintenance keeps a bounded window in O(Δ), so the
+// straightforward chain IS the fast chain.
 
-import { $, value } from 'data/full'
+import { $, value } from 'data' // bare entry = the v3 engine (v3/MIGRATION.md §6)
 import { createChart } from './chart.js'
 import { renderTopList } from './top-list.js'
 
@@ -40,14 +39,21 @@ const CHART_DEFS = [
 
 export default {
   name: 'data',
-  version: '1.0.0',
-  tag: 'incremental — between + intersect + length + limit',
+  version: '3.0.0',
+  tag: 'incremental — reactive between bounds + leave-one-out intersect + length(fn) + bounded za',
 
   mount(chartsRoot, rawFlights, tracker, statsEls) {
-    // Sort by delay desc once. Source never mutates so this is a pure
-    // setup cost; downstream operators see a sorted index of indices, and
-    // `limit(5)` reads the highest-delay survivors directly off the front.
-    const source = $(rawFlights).za('delay', Infinity)
+    // Array-born source: rows get minted integer keys that flow through every
+    // derivation — which is what lets the leave-one-out intersects match rows
+    // across dims (v3 set algebra is by key, v3/MIGRATION.md §3.8). No
+    // pre-sort — see the header; the bounded za below windows itself.
+    const source = $(rawFlights)
+
+    // One filter tuple per dimension, all in one reactive source; [] means
+    // unfiltered. Each `between` takes `filters.get(name)` — a live child
+    // handle — as its bounds, so brushing writes to `filters` and nothing
+    // else. (The crossfilter-v3 idiom: examples/crossfilter-v3/main.js,
+    // v3/MIGRATION.md §3.2.)
     const filters = $({
       delay:    [],
       distance: [],
@@ -55,68 +61,94 @@ export default {
       date:     [],
     })
     const dims = {
-      delay:    source.between('delay',    filters.delay),
-      distance: source.between('distance', filters.distance),
-      date:     source.between('date',     filters.date),
-      time:     source.between('time',     filters.time),
+      delay:    source.between('delay',    filters.get('delay')),
+      distance: source.between('distance', filters.get('distance')),
+      date:     source.between('date',     filters.get('date')),
+      time:     source.between('time',     filters.get('time')),
     }
 
-    // Tap chains anchor on the receiver — drop the chain and tap unsubscribes
-    // (see operators/tap/index.ts). Stash the tapped views on the row so the
-    // chains live as long as the mounted row does.
+    // A chart counts flights passing every OTHER dimension's filter (so its
+    // own brush never empties its own bars) — classic crossfilter, composed
+    // explicitly from view operands (crossfilter-v3's `withoutDim`).
+    const withoutDim = name =>
+      Object.entries(dims).filter(([dim]) => dim !== name).map(([, view]) => view)
+
+    // v3 references are STRONG — nothing unsubscribes by GC any more
+    // (v3/MIGRATION.md §5.4). Stash every standing tap view and
+    // SubscriptionHandle on the row so a future unmount can walk this and
+    // dispose() the lot: a disposal manifest now, NOT the v2 WeakRef
+    // GC-anchor hack this slot used to be.
     const chains = chartsRoot._chains = []
 
     for (const def of CHART_DEFS) {
       const chart = createChart(chartsRoot, def)
-      const histogram = source.intersect(dims, def.name).length(def.group)
+      const histogram = source.intersect(...withoutDim(def.name)).length(def.group)
+      // y-scale: max over the `{ value: N }` bucket wrappers. Chaining an
+      // aggregate directly over length(fn)'s buckets is the swarm-v3
+      // precedent (its `some()` rides the same wrappers).
       const maxV = histogram.max('value')
 
       chart.onMarkInput = () => tracker.markInput()
       chart.onUpdate    = () => tracker.markUpdate()
-      // Sync filter write. We *could* `filters[def.name].raf()` to coalesce
-      // a burst of pointermoves into one cascade per frame — the cross-
-      // filter example does, because its histogram-as-source approach has
-      // a heavier per-cascade cost. Here the cascade is between (O(Δ))
-      // + intersect (O(Δ)) + length(fn) (O(Δ)) + max (O(buckets)) + tap
-      // (O(1) bare), typically ~2-5ms for a brush move. Running it on
-      // every pointermove costs roughly the same as the rAF version
-      // (browser only paints at vsync anyway, so extra cascades between
-      // vsyncs are overwritten) and removes the per-input rAF wait that
-      // would otherwise show up in the latency tracker as 5-10ms of
-      // "delay" that the user doesn't actually perceive.
-      chart.onRangeChange = (range) => { filters[def.name][value] = range }
+      // Sync filter write — `.update()` on the bounds child is the v3 write
+      // surface (v3/MIGRATION.md §2; the v2 `filters[name][value] = range`
+      // form throws). We *could* coalesce with the child-handle writer
+      // `filters.get(def.name).raf()` — crossfilter-v3 does, while dragging —
+      // but each write here is ONE consolidated commit: between's O(Δ)
+      // boundary walk + intersect O(Δ) + length(fn) O(Δ) + max over a few
+      // hundred buckets + one post-settle tap effect, typically ~2-5ms.
+      // The browser only paints at vsync, so extra commits between vsyncs
+      // are overwritten anyway, and skipping the rAF wait keeps 5-10ms of
+      // queueing "delay" out of the latency tracker that the user doesn't
+      // actually perceive.
+      chart.onRangeChange = (range) => { filters.get(def.name).update(range) }
 
       const update = () => {
-        const buckets = histogram[value]
-        if (!buckets) return chart.setBars({}, 0)
+        const buckets = histogram[value] || {}
         const flat = {}
         for (const k in buckets) flat[k] = buckets[k].value
         chart.setBars(flat, maxV[value] || 0)
       }
-      // Tap on max — max republishes on every histogram change, so a single
-      // tap covers both the bars and the y-scale.
-      chains.push(maxV.tap(update))
-      update()
+      // Tap the HISTOGRAM — not maxV, as the v2 row did. v3 scalars cut off
+      // no-change emissions, so a brush that moves bars without moving the
+      // peak would never republish maxV and the bars would go stale. A
+      // parameterless tap fn fires ONCE per settled batch, as an effect
+      // AFTER all operator state settles (v3/MIGRATION.md §3.10) — so the
+      // maxV[value] read inside is already current, the same can't-lag-by-a-
+      // commit guarantee crossfilter-v3 gets by deriving its peak inside
+      // `to()`. tap also fires once at construction, so the bars seed
+      // themselves — no manual first call.
+      chains.push(histogram.tap(update))
 
-      // Seed the brush from the initial filter (the date filter starts populated).
-      const initial = filters[def.name][value]
+      // Seed the brush from the initial filter, if one starts populated.
+      const initial = filters.get(def.name)[value]
       if (initial && initial.length === 2) chart.setRangeSilent(initial)
     }
 
-    // Selected count + top-5: shared upstream `source.intersect(dims)` so the
-    // intersect dispatch dedups (matches() compares the dims arg) and one
-    // membership-update cascade feeds both views.
-    const active = source.intersect(dims).length()
+    // Selected count + top-5 share ONE full intersect — built once, chained
+    // twice. (Explicit sharing through a const, the crossfilter-v3 `active`
+    // idiom — no reliance on v2's matches() dedup.)
+    const active = source.intersect(...Object.values(dims))
+    const activeCount = active.length()
     const total = source.length()
-    const top5  = source.intersect(dims).limit(5)
+    // Bounded top-5 by delay, maintained incrementally; [value] materializes
+    // the window as an array in rank order (v3/MIGRATION.md §3.4) — exactly
+    // the shape renderTopList wants.
+    const top5 = active.za('delay', 5)
 
     const renderCount = () => {
-      if (statsEls.activeEl) statsEls.activeEl.textContent = (active[value] ?? 0).toLocaleString()
+      if (statsEls.activeEl) statsEls.activeEl.textContent = (activeCount[value] ?? 0).toLocaleString()
       if (statsEls.totalEl) statsEls.totalEl.textContent = (total[value] ?? 0).toLocaleString()
     }
-    chains.push(active.tap(renderCount))
-    chains.push(total.tap(renderCount))
+    // connect(anchor, fn) is the verified scalar subscription (v3/MIGRATION.md
+    // §3.5) — the anchor arg survives from v2's two-arg form but is only the
+    // form discriminator now; lifetime belongs to the returned
+    // SubscriptionHandle, which joins the disposal manifest. The sink emits
+    // an initial whole-value record at connect time, so the counters seed
+    // themselves too. (`total` never changes — the source never mutates —
+    // but connecting it keeps the v2 row's shape.)
+    chains.push(activeCount.connect(statsEls, renderCount))
+    chains.push(total.connect(statsEls, renderCount))
     chains.push(top5.tap(() => renderTopList(statsEls.topListEl, top5[value] || [])))
-    renderCount()
   },
 }
