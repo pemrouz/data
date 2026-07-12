@@ -1,4 +1,4 @@
-import { D as Data, c as RowOf } from '../core-B6UvChJ_.js';
+import { D as Data, c as RowOf } from '../../core-B6UvChJ_.js';
 
 declare const NODE: unique symbol;
 /**

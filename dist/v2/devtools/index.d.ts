@@ -1,4 +1,4 @@
-export { $ } from '../core-B6UvChJ_.js';
+export { $ } from '../../core-B6UvChJ_.js';
 
 declare module '../core.ts' {
     interface Dollar {

@@ -329,7 +329,7 @@ function wrap(state: HandleState): any {
     },
     set(_t, prop, _v) {
       if (prop === value)
-        throw new Error('data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch() (data/v2-compat restores it)')
+        throw new Error('data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch(); the pre-flip surface lives at data/v2')
       throw new Error(
         `data: bare assignment (.${String(prop)} =) is not the write surface — use .get(${JSON.stringify(String(prop))}).update(v) / .set(${JSON.stringify(String(prop))}, v) (types and runtime agree in v3)`,
       )

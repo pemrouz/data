@@ -1,15 +1,20 @@
 import { defineConfig } from 'tsup'
 import path from 'node:path'
 
-// Eight entries that line up with the "exports" map in package.json:
-//   data                  → ./dist/index.js              (default: core + render + all operators registered)
-//   data/lean             → ./dist/lean.js               (registration-free core, for tree-shaking)
-//   data/full             → ./dist/full.js               (data + JSX authoring layer)
-//   data/render           → ./dist/render/index.js
-//   data/devtools         → ./dist/devtools/index.js     (opt-in inspection helpers)
-//   data/devtools/panel   → ./dist/devtools/panel/index.js (overlay UI)
-//   data/jsx-runtime      → ./dist/jsx-runtime.js         (automatic JSX runtime)
-//   data/jsx-dev-runtime  → ./dist/jsx-dev-runtime.js     (dev-mode auto runtime)
+// THE FLIP (2026-07-12): v3 is the library. The bare `data` specifier — and
+// dist/index.js — is the v3 bundle; v2 moved WHOLE to ./dist/v2/* (frozen but
+// green: the v2 gallery examples, flow/multidim, and the landing page still
+// run on it via pinned importmaps until each surface migrates).
+//
+//   data                  → ./dist/index.js               (v3: $, ops, render, builders, JSX, seam)
+//   data/jsx-runtime      → ./dist/jsx-runtime.js         (v3 automatic runtime — thin re-export)
+//   data/jsx-dev-runtime  → ./dist/jsx-runtime.js         (same file; it exports jsxDEV)
+//   data/devtools         → ./dist/devtools.js            (v3 inspection layer + panel)
+//   data/v3[...]          → transitional ALIASES of the three above (same files,
+//                           same module instance) so pre-flip consumers keep working
+//   data/v2               → ./dist/v2/index.js            (the frozen v2 default entry)
+//   data/v2/lean|full|render|devtools|devtools/panel|jsx-runtime|jsx-dev-runtime
+//                         → ./dist/v2/*                   (the whole old surface, shifted)
 // `splitting: false`: each entry is a self-contained bundle, no shared chunks.
 //
 // The previous chunked layout (`splitting: true`) emitted `import './chunk-*.js'`
@@ -38,17 +43,20 @@ import path from 'node:path'
 //
 // ESM-only for now. Add 'cjs' to `format` later if a real consumer asks.
 export default defineConfig([
+  // v2 — the whole pre-flip surface, shifted under dist/v2/. Entry KEYS carry
+  // the v2/ prefix so relative structure (devtools → ./panel/index.js lazy
+  // import) is preserved; the sources are untouched.
   {
-    entry: [
-      'index.ts',
-      'lean.ts',
-      'full.ts',
-      'render/index.ts',
-      'devtools/index.ts',
-      'devtools/panel/index.ts',
-      'jsx-runtime.ts',
-      'jsx-dev-runtime.ts',
-    ],
+    entry: {
+      'v2/index': 'index.ts',
+      'v2/lean': 'lean.ts',
+      'v2/full': 'full.ts',
+      'v2/render/index': 'render/index.ts',
+      'v2/devtools/index': 'devtools/index.ts',
+      'v2/devtools/panel/index': 'devtools/panel/index.ts',
+      'v2/jsx-runtime': 'jsx-runtime.ts',
+      'v2/jsx-dev-runtime': 'jsx-dev-runtime.ts',
+    },
     format: ['esm'],
     dts: true,
     splitting: false,
@@ -57,13 +65,12 @@ export default defineConfig([
     target: 'es2022',
     treeshake: true,
   },
-  // The v3 rewrite (branch v3): one self-contained browser bundle so the
-  // migrated examples can import it via their importmaps ("data/v3" →
-  // ../../dist/v3/index.js). dts deliberately off — v3's typed surface is the
-  // fixture-gated v3/types (npx tsc -p v3/types), not generated declarations.
+  // v3 — THE main bundle at dist/index.js. Generated dts stays off; the
+  // shipped types are the hand-maintained v3/types/public.d.ts (wired via
+  // the exports map), gated by tsc -p v3/types/tsconfig.public.json.
   // clean: false so this config doesn't wipe the first config's output.
   {
-    entry: { 'v3/index': 'v3/api/index.ts' },
+    entry: { index: 'v3/api/index.ts' },
     format: ['esm'],
     dts: false,
     splitting: false,
@@ -72,20 +79,20 @@ export default defineConfig([
     target: 'es2022',
     treeshake: true,
   },
-  // data/v3/jsx-runtime — the automatic JSX runtime entry, emitted as a THIN
-  // re-export over dist/v3/index.js rather than a self-contained bundle. A
+  // data/jsx-runtime — the automatic JSX runtime entry, emitted as a THIN
+  // re-export over dist/index.js rather than a self-contained bundle. A
   // duplicate bundle would carry its own kernel classes (instanceof breaks
   // across the boundary — the v2 single-entry trap); the rewrite plugin
   // externalizes the jsx-layer import and points it at the sibling main
   // bundle, so both entries share one module instance. The main bundle
   // exports jsx/jsxs/jsxDEV/Fragment for exactly this reason (v3/api/index.ts).
-  // data/v3/devtools — the inspection layer + panel. Bundles v3/devtools/**
+  // data/devtools — the inspection layer + panel. Bundles v3/devtools/**
   // ONLY; every import that resolves OUTSIDE v3/devtools/ is externalized to
   // the sibling main bundle (single module instance — same rule as the
   // jsx-runtime entry; the api entry re-exports the value-level internals the
   // devtools layer needs: DataNode, Runtime, materialize, domLinks, liveLists).
   {
-    entry: { 'v3/devtools': 'v3/devtools/entry.ts' },
+    entry: { devtools: 'v3/devtools/entry.ts' },
     format: ['esm'],
     dts: false,
     splitting: false,
@@ -107,7 +114,7 @@ export default defineConfig([
     ],
   },
   {
-    entry: { 'v3/jsx-runtime': 'v3/api/jsx-runtime.ts' },
+    entry: { 'jsx-runtime': 'v3/api/jsx-runtime.ts' },
     format: ['esm'],
     dts: false,
     splitting: false,

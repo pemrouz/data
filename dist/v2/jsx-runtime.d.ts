@@ -1,5 +1,5 @@
-export { a as Fragment, j as jsx, c as jsxs } from './index-B3iJB87-.js';
-import './core-B6UvChJ_.js';
+export { a as Fragment, j as jsx, c as jsxs } from '../index-B3iJB87-.js';
+import '../core-B6UvChJ_.js';
 
 type AnyVP = ((...a: any[]) => any) & {
     [k: string | symbol]: any;

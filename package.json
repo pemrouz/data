@@ -5,64 +5,79 @@
   "type": "module",
   "sideEffects": [
     "./register.ts",
-    "./dist/index.js",
-    "./dist/full.js",
-    "./dist/devtools/index.js",
     "./v3/ops/*.ts",
-    "./dist/v3/index.js"
+    "./dist/index.js",
+    "./dist/v2/index.js",
+    "./dist/v2/full.js",
+    "./dist/v2/devtools/index.js"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./v3/types/public.d.ts",
   "bin": {
     "data": "./bin/cli.mjs"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./v3/types/public.d.ts",
       "import": "./dist/index.js"
     },
-    "./lean": {
-      "types": "./dist/lean.d.ts",
-      "import": "./dist/lean.js"
-    },
-    "./full": {
-      "types": "./dist/full.d.ts",
-      "import": "./dist/full.js"
-    },
-    "./render": {
-      "types": "./dist/render/index.d.ts",
-      "import": "./dist/render/index.js"
-    },
-    "./devtools": {
-      "types": "./dist/devtools/index.d.ts",
-      "import": "./dist/devtools/index.js"
-    },
-    "./devtools/panel": {
-      "types": "./dist/devtools/panel/index.d.ts",
-      "import": "./dist/devtools/panel/index.js"
-    },
     "./jsx-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
       "import": "./dist/jsx-runtime.js"
     },
     "./jsx-dev-runtime": {
-      "types": "./dist/jsx-dev-runtime.d.ts",
-      "import": "./dist/jsx-dev-runtime.js"
+      "import": "./dist/jsx-runtime.js"
+    },
+    "./devtools": {
+      "import": "./dist/devtools.js"
     },
     "./v3": {
-      "import": "./dist/v3/index.js"
+      "types": "./v3/types/public.d.ts",
+      "import": "./dist/index.js"
     },
     "./v3/jsx-runtime": {
-      "import": "./dist/v3/jsx-runtime.js"
+      "import": "./dist/jsx-runtime.js"
     },
     "./v3/devtools": {
-      "import": "./dist/v3/devtools.js"
+      "import": "./dist/devtools.js"
+    },
+    "./v2": {
+      "types": "./dist/v2/index.d.ts",
+      "import": "./dist/v2/index.js"
+    },
+    "./v2/lean": {
+      "types": "./dist/v2/lean.d.ts",
+      "import": "./dist/v2/lean.js"
+    },
+    "./v2/full": {
+      "types": "./dist/v2/full.d.ts",
+      "import": "./dist/v2/full.js"
+    },
+    "./v2/render": {
+      "types": "./dist/v2/render/index.d.ts",
+      "import": "./dist/v2/render/index.js"
+    },
+    "./v2/devtools": {
+      "types": "./dist/v2/devtools/index.d.ts",
+      "import": "./dist/v2/devtools/index.js"
+    },
+    "./v2/devtools/panel": {
+      "types": "./dist/v2/devtools/panel/index.d.ts",
+      "import": "./dist/v2/devtools/panel/index.js"
+    },
+    "./v2/jsx-runtime": {
+      "types": "./dist/v2/jsx-runtime.d.ts",
+      "import": "./dist/v2/jsx-runtime.js"
+    },
+    "./v2/jsx-dev-runtime": {
+      "types": "./dist/v2/jsx-dev-runtime.d.ts",
+      "import": "./dist/v2/jsx-dev-runtime.js"
     }
   },
   "files": [
     "dist",
     "bin",
+    "v3/types/public.d.ts",
     "README.md",
     "AGENTS.md",
     "llms.txt",
@@ -107,7 +122,7 @@
     "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
     "test": "node --experimental-strip-types --no-warnings --test core.test.ts entry.test.ts index.test.ts differential.test.ts operators/*/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
     "test:v3": "node --experimental-strip-types --no-warnings --test v3/**/*.test.ts",
-    "typecheck:v3": "tsc -p v3/types && tsc -p v3/types/tsconfig.jsx.json && tsc -p v3/types/tsconfig.auto.json",
+    "typecheck:v3": "tsc -p v3/types && tsc -p v3/types/tsconfig.jsx.json && tsc -p v3/types/tsconfig.auto.json && tsc -p v3/types/tsconfig.public.json",
     "perf:v3": "node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc v3/perf/m2-gate.ts",
     "perf": "node perf/run-gate.mjs",
     "perf:report": "node perf/_run.mjs",
