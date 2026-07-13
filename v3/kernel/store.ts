@@ -110,6 +110,11 @@ export class Store<T> {
     yield* this.keySlot.keys()
   }
 
+  // No-allocation full pass — the hot path for operator construction.
+  each(fn: (key: RowKey, row: T) => void): void {
+    for (const [k, s] of this.keySlot) fn(k, this.slots[s] as T)
+  }
+
   snapshot(): Map<RowKey, T> {
     const m = new Map<RowKey, T>()
     for (const [k, s] of this.keySlot) m.set(k, this.slots[s] as T)

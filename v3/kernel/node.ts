@@ -101,6 +101,25 @@ export abstract class DataNode<Out> {
     return null
   }
 
+  // Read-only full row pass — the NO-COPY counterpart of snapshot() for
+  // one-pass consumers (construction-time seeding, settle-time rebuilds).
+  // A callback visitor rather than an iterator: V8 inlines the callback and
+  // elides all iterator machinery, ~5× faster than copy-then-iterate at 10k
+  // rows (and generators are barely better than the copy). The base
+  // delegates to snapshot(), which is midBatch-correct for every node;
+  // materialized nodes override with a direct view pass behind the same
+  // midBatch fallback, and SourceNode iterates its store (current even
+  // mid-batch). Contract: do NOT mutate this node inside fn.
+  each(fn: (key: RowKey, row: Out) => void): void {
+    for (const [k, v] of this.snapshot()) fn(k, v)
+  }
+
+  // Live row count — O(1) on nodes with a materialized view or store,
+  // snapshot().size (O(N)) as the universal fallback.
+  rowCount(): number {
+    return this.snapshot().size
+  }
+
   // ── membership / row lookup protocol ────────────────────────────────────
   // Per-key access for multi-parent operators: set algebra queries its
   // parents per touched key instead of mirroring every parent's rows (the
@@ -255,6 +274,16 @@ export class SourceNode<T> extends DataNode<T> {
 
   snapshot(): Map<RowKey, T> {
     return this.store.snapshot()
+  }
+
+  // The store applies writes inline (read-your-writes), so these are current
+  // even mid-batch — no midBatch fallback needed.
+  each(fn: (key: RowKey, row: T) => void): void {
+    this.store.each(fn)
+  }
+
+  rowCount(): number {
+    return this.store.size
   }
 
   get(key: RowKey): T | undefined {
