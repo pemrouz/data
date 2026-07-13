@@ -618,27 +618,51 @@ export class TapNode<T> extends DataNode<T> {
 //
 // Whole-value projection scalar: every parent batch collapses to
 // fn(dense plain snapshot, prevResult) — object-born parents materialize as a
-// plain object, array-born as a dense array in display order. O(N) rebuild
-// per batch; the base ScalarNode Object.is cut-off preserves v2's
-// reference-equality short-circuit contract (an fn returning the same
-// instance every time is a no-op subscription).
+// plain object, array-born as a dense array in display order. The base
+// ScalarNode Object.is cut-off preserves v2's reference-equality
+// short-circuit contract (an fn returning the same instance every time is a
+// no-op subscription).
+//
+// UNORDERED parents (object-born — the common .to() shape) hand fn an
+// incrementally-maintained plain MIRROR instead of a per-batch
+// snapshot()+materialize rebuild: applyDelta patches the mirror O(Δ), so a
+// single write costs Δ + fn, not 2×O(N) copies + fn (the corpus to/* hotspot,
+// STATUS gap 8). fn receives the SAME object instance every call, mutated in
+// place between calls — exactly v2's exposure (v2 passed the live underlying
+// value); treat it as read-only inside fn. ORDERED parents (a display order
+// exists — arrays, sorts) keep the materialize path: order deltas can
+// rearrange the dense array arbitrarily, so it is rebuilt per batch. The
+// mirror is maintained through ordered phases too, because a mirror() parent
+// can repoint between ordered and unordered views — the read path is chosen
+// per read, and repoints emit honest per-row diffs so the mirror stays exact.
 export class ToValueNode<In> extends ScalarNode<In> {
   declare fn: (plain: any, prev?: unknown) => unknown
+  declare mirror: Record<string, unknown>
 
   constructor(runtime: Runtime, parent: DataNode<In>, fn: (plain: any, prev?: unknown) => unknown) {
     super(runtime, parent, 'to')
     this.fn = fn
-    this.cur = fn(materialize(parent.snapshot(), parent.currentOrder()), undefined)
+    const m: Record<string, unknown> = {}
+    for (const [k, v] of parent.snapshot()) m[String(k)] = v
+    this.mirror = m
+    const order = parent.currentOrder()
+    this.cur = fn(order === null ? m : materialize(parent.snapshot(), order), undefined)
   }
 
-  protected applyDelta(): void {}
+  protected applyDelta(d: RowDelta<In>): void {
+    if (d.op === 'remove') delete this.mirror[String(d.key)]
+    else this.mirror[String(d.key)] = d.row
+  }
 
   protected read(): unknown {
     const p = this.parents[0]
-    return this.fn(materialize(p.snapshot(), p.currentOrder()), this.cur)
+    const order = p.currentOrder()
+    if (order === null) return this.fn(this.mirror, this.cur)
+    return this.fn(materialize(p.snapshot(), order), this.cur)
   }
 
   protected recompute(snap: Map<RowKey, unknown>): unknown {
+    // midBatch flush-on-read — pure from the parent, never touches the mirror
     return this.fn(materialize(snap, this.parents[0].currentOrder()), this.cur)
   }
 }

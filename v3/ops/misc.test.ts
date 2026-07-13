@@ -658,3 +658,58 @@ test('registry: all misc operators registered with value-identity dedup keys', (
   same(registry.get('keys')!.dedupKey!(), 'keys')
   same(registry.get('values')!.dedupKey!(), 'values')
 })
+
+// ── toValue: the incremental plain mirror (STATUS gap 8 perf rework) ─────────
+//
+// Regression guard for the ToValueNode mirror: unordered parents hand fn an
+// incrementally-maintained plain object instead of a per-batch
+// snapshot()+materialize rebuild. Pins (1) exactness through add/update/
+// remove, (2) the SAME-INSTANCE contract (v2 passed the live underlying
+// value — fn must see one object mutated in place, not per-call copies),
+// (3) correctness across mirror() repoints, including a repoint to an
+// ORDERED (array-born) parent and back — the mirror is maintained through
+// the ordered phase via the repoint's honest per-row diffs.
+test('toValue: incremental mirror — writes, same-instance contract, mirror() repoints across ordered/unordered', async () => {
+  const { mirror } = await import('../render/index.ts')
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows())
+  const slot = mirror<Row>(src)
+
+  const seen: unknown[] = []
+  const tv = toValue(slot, (v: any) => {
+    seen.push(v)
+    return Array.isArray(v)
+      ? v.join('-')
+      : Object.keys(v)
+          .sort()
+          .map((k) => `${k}:${v[k].val}`)
+          .join(',')
+  })
+  conformScalar(tv)
+  same(tv.value(), 'a:10,b:20,c:30')
+
+  src.write('d', [], { region: 'east', val: 40 })
+  same(tv.value(), 'a:10,b:20,c:30,d:40')
+  src.write('a', ['val'], 11)
+  same(tv.value(), 'a:11,b:20,c:30,d:40')
+  src.remove('b')
+  same(tv.value(), 'a:11,c:30,d:40')
+
+  // same-instance contract: every unordered call saw ONE object, mutated
+  // in place between calls (the v2 exposure — never per-call copies)
+  ok(seen.length >= 4)
+  for (const v of seen) ok(v === seen[0])
+
+  // repoint at an ORDERED parent: fn now gets the dense array in display order
+  const arr = new SourceNode<number>(rt, [1, 2, 3])
+  slot.set(arr)
+  same(tv.value(), '1-2-3')
+  arr.insert(9, 1)
+  same(tv.value(), '1-9-2-3')
+
+  // repoint BACK: the object mirror stayed exact through the ordered phase
+  slot.set(src)
+  same(tv.value(), 'a:11,c:30,d:40')
+  src.write('c', ['val'], 31)
+  same(tv.value(), 'a:11,c:31,d:40')
+})
