@@ -495,3 +495,60 @@ test('SCHEDULE 2b: mid-batch snapshot() recomputes pure from the parent; no effe
   same(effects, 1)
   same(lb.snapshot().get('north'), { value: 3 })
 })
+
+// ── the maintained canonical order + O(1) changed-detector (STATUS gap 8) ────
+//
+// Regression guard for the group build rework: per-bucket key lists are
+// MAINTAINED in own-property-enumeration order (index keys ascending, then
+// strings sorted — cmpKeys) instead of re-sorted per touch, and a
+// membership-size change short-circuits the O(B) sameBucket compare. Pins:
+// (1) enumeration order of emitted buckets stays canonical through
+//     out-of-order incremental inserts (index keys before string keys);
+// (2) a SAME-SIZE cross-bucket swap still emits both updates (the size
+//     short-circuit must fall through to the content compare, not suppress);
+// (3) a batch whose net content is unchanged stays silent (no phantom).
+test('group: canonical enumeration order under incremental inserts; same-size swap emits; net no-op stays silent', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    '0': { region: 'north', val: 0 },
+    '10': { region: 'north', val: 10 },
+    '2': { region: 'north', val: 2 },
+    b: { region: 'south', val: 1 },
+  })
+  const g = group(src, byRegion)
+  conform(g)
+  const batches = capture(g)
+
+  // construction: index keys ascend numerically, then string keys
+  same(Object.keys(g.snapshot().get('north') as object), ['0', '2', '10'])
+
+  // out-of-numeric-order inserts keep the maintained order canonical
+  src.write('5', [], { region: 'north', val: 5 })
+  src.write('1', [], { region: 'north', val: 1 })
+  src.write('x', [], { region: 'north', val: 99 })
+  same(Object.keys(g.snapshot().get('north') as object), ['0', '1', '2', '5', '10', 'x'])
+  assertOracle(g, () => groupOracle(src.snapshot(), byRegion))
+
+  // same-size swap: north/south sizes are unchanged but content moved —
+  // the size short-circuit must NOT suppress these updates
+  batches.length = 0
+  rt.batch(() => {
+    src.write('b', ['region'], 'north')
+    src.write('x', ['region'], 'south')
+  })
+  same(batches.length, 1)
+  const swapped = new Map(batches[0].rows.map((d) => [d.key, d.op]))
+  same(swapped.get('north'), 'update')
+  same(swapped.get('south'), 'update')
+  assertOracle(g, () => groupOracle(src.snapshot(), byRegion))
+
+  // net no-op: remove + re-add of the same row consolidates to an update
+  // carrying identical content — no phantom bucket emission
+  const rowB = src.snapshot().get('b') as Row
+  batches.length = 0
+  rt.batch(() => {
+    src.remove('b')
+    src.write('b', [], rowB)
+  })
+  same(batches.length, 0)
+})

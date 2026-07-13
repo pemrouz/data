@@ -53,6 +53,51 @@ export interface BucketOptions {
   readonly counts: boolean // bucket value is { value: N } instead of member rows
 }
 
+// Canonical bucket-key order = JS OWN-PROPERTY ENUMERATION order: array-index
+// keys ascending numerically first, then the rest sorted lexicographically.
+// Filling a plain object in this exact order matters twice over:
+// (1) observable — Object.keys(bucket) equals the fill order, and JS reorders
+//     integer-like keys numerically REGARDLESS of insertion order, so a
+//     lexicographic fill produced the very same enumeration anyway (the
+//     emitted objects are byte-identical to the old sort()-based build);
+// (2) performance — numeric-like string keys inserted OUT of numeric order
+//     push V8 into dictionary-mode elements, which made both the per-touch
+//     object fill and Object.keys() the group/insert hotspot. Ascending fill
+//     stays on the fast-elements path.
+const IDX_RE = /^(0|[1-9][0-9]*)$/
+const isIndexKey = (s: string) => IDX_RE.test(s) && Number(s) <= 4294967294 // 2^32 - 2
+
+function cmpKeys(a: string, b: string): number {
+  const ia = isIndexKey(a)
+  const ib = isIndexKey(b)
+  if (ia && ib) return Number(a) - Number(b)
+  if (ia) return -1
+  if (ib) return 1
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+function binaryInsert(arr: string[], s: string): void {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (cmpKeys(arr[mid], s) < 0) lo = mid + 1
+    else hi = mid
+  }
+  arr.splice(lo, 0, s)
+}
+
+function binaryRemove(arr: string[], s: string): void {
+  let lo = 0
+  let hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (cmpKeys(arr[mid], s) < 0) lo = mid + 1
+    else hi = mid
+  }
+  if (arr[lo] === s) arr.splice(lo, 1)
+}
+
 export type GroupBucket<T> = Record<string, T>
 export interface CountBucket {
   readonly value: number
@@ -70,6 +115,16 @@ export class BucketNode<T, B> extends DataNode<B> {
   declare bucketOf: Map<RowKey, string>
   // Materialized output: bucket key → the exact object we last emitted.
   declare view: Map<RowKey, B>
+  // group mode only (null in counts mode): per-bucket MAINTAINED sorted
+  // String(rowKey) list + sk→row map, so rebuilding a touched bucket is one
+  // O(B) object fill instead of a String() pass + sort + temp Map per touch
+  // (the corpus group/insert hotspot, STATUS gap 8). emittedSize is the
+  // sorted length at the last view write — an O(1) changed-detector (a size
+  // change IS a content change, so the O(B) sameBucket compare only runs on
+  // same-size batches, e.g. two rows swapping buckets). Assumes sk uniqueness
+  // per bucket — a parent emitting BOTH 5 and '5' as live keys collapsed in
+  // the emitted object before this too (String key space).
+  declare skOf: Map<string, { sorted: string[]; bySk: Map<string, T>; emittedSize: number }> | null
 
   constructor(
     runtime: Runtime,
@@ -85,21 +140,36 @@ export class BucketNode<T, B> extends DataNode<B> {
     this.members = new Map()
     this.bucketOf = new Map()
     this.view = new Map()
-    for (const [k, row] of parent.snapshot()) this.enter(k, row)
-    for (const [bk, mem] of this.members) this.view.set(bk, this.build(mem))
+    this.skOf = opts.counts ? null : new Map()
+    // Bulk load: enter() skips per-row binary insertion, then each bucket's
+    // sorted list is built with ONE sort (same O(B log B) the old build paid).
+    parent.each((k, row) => this.enter(k, row, true))
+    if (this.skOf)
+      for (const sk of this.skOf.values()) {
+        sk.sorted = [...sk.bySk.keys()].sort(cmpKeys)
+        sk.emittedSize = sk.sorted.length
+      }
+    for (const [bk, mem] of this.members) this.view.set(bk, this.build(mem, bk))
   }
 
   // ── membership bookkeeping ──────────────────────────────────────────────────
 
-  private enter(key: RowKey, row: T): string {
+  private enter(key: RowKey, row: T, bulk = false): string {
     const bk = String(this.fn(row, key))
     let mem = this.members.get(bk)
     if (mem === undefined) {
       mem = new Map()
       this.members.set(bk, mem)
+      if (this.skOf) this.skOf.set(bk, { sorted: [], bySk: new Map(), emittedSize: 0 })
     }
     mem.set(key, row)
     this.bucketOf.set(key, bk)
+    if (this.skOf) {
+      const sk = this.skOf.get(bk)!
+      const s = String(key)
+      if (!bulk && !sk.bySk.has(s)) binaryInsert(sk.sorted, s)
+      sk.bySk.set(s, row)
+    }
     return bk
   }
 
@@ -107,15 +177,35 @@ export class BucketNode<T, B> extends DataNode<B> {
     const bk = this.bucketOf.get(key) as string
     this.members.get(bk)!.delete(key)
     this.bucketOf.delete(key)
+    if (this.skOf) {
+      const sk = this.skOf.get(bk)!
+      const s = String(key)
+      sk.bySk.delete(s)
+      binaryRemove(sk.sorted, s)
+    }
     return bk
   }
 
   // Fresh bucket value — NEVER mutate a previously emitted object (prev must
   // remain the pre-change object for every downstream consumer). Group bucket
-  // properties are emitted in SORTED key order: deterministic and
-  // history-independent (v2's bucket order depended on arrival history; a
-  // canonical order makes replay/oracle comparison exact byte-for-byte).
-  private build(mem: Map<RowKey, T>): B {
+  // properties are emitted in CANONICAL order (own-property enumeration
+  // order — see cmpKeys): deterministic and history-independent (v2's bucket
+  // order depended on arrival history; a canonical order makes replay/oracle
+  // comparison exact byte-for-byte).
+  // Settle-path build: reads the bucket's MAINTAINED sorted list (skOf) —
+  // one O(B) object fill, no String() pass, no sort, no temp Map.
+  private build(mem: Map<RowKey, T>, bk: string): B {
+    if (this.counts) return { value: mem.size } as unknown as B
+    const sk = this.skOf!.get(bk)!
+    const o: Record<string, T> = {}
+    for (const s of sk.sorted) o[s] = sk.bySk.get(s) as T
+    return o as unknown as B
+  }
+
+  // Pure build from an ARBITRARY membership map — the midBatch flush-on-read
+  // path recomputes membership locally from the parent (skOf reflects settled
+  // state, not mid-batch state), so it pays the String+sort here.
+  private buildFresh(mem: Map<RowKey, T>): B {
     if (this.counts) return { value: mem.size } as unknown as B
     const keys: string[] = []
     const byKey = new Map<string, T>()
@@ -124,7 +214,7 @@ export class BucketNode<T, B> extends DataNode<B> {
       keys.push(sk)
       byKey.set(sk, v)
     }
-    keys.sort()
+    keys.sort(cmpKeys)
     const o: Record<string, T> = {}
     for (const sk of keys) o[sk] = byKey.get(sk) as T
     return o as unknown as B
@@ -158,14 +248,14 @@ export class BucketNode<T, B> extends DataNode<B> {
         mem.set(k, row)
       }
       const out = new Map<RowKey, B>()
-      for (const [bk, mem] of members) out.set(bk, this.build(mem))
+      for (const [bk, mem] of members) out.set(bk, this.buildFresh(mem))
       if (!this.prune) {
         // Persisted zero buckets are HISTORY, not derivable from the parent:
         // every bucket live before this batch stays live at { value: 0 }.
         // (Known corner: a bucket created AND emptied by writes inside the
         // still-open batch is invisible to this pure read; settle will emit
         // its add { value: 0 } when the batch closes.)
-        for (const bk of this.view.keys()) if (!out.has(bk)) out.set(bk, this.build(new Map()))
+        for (const bk of this.view.keys()) if (!out.has(bk)) out.set(bk, this.buildFresh(new Map()))
       }
       return out
     }
@@ -180,6 +270,16 @@ export class BucketNode<T, B> extends DataNode<B> {
   rowAt(key: RowKey): B | undefined {
     if (this.runtime.midBatch) return super.rowAt(key)
     return this.view.get(key)
+  }
+
+  each(fn: (key: RowKey, row: B) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
   }
 
   // ── settle ──────────────────────────────────────────────────────────────────
@@ -212,6 +312,7 @@ export class BucketNode<T, B> extends DataNode<B> {
           const newBk = String(this.fn(d.row, d.key))
           if (oldBk === newBk) {
             this.members.get(oldBk)!.set(d.key, d.row)
+            if (this.skOf) this.skOf.get(oldBk)!.bySk.set(String(d.key), d.row)
             // counts: same bucket ⇒ count unchanged ⇒ inert (v2's per-counter
             // quiet on non-key edits). group: bucket content changed ⇒ touch.
             if (!this.counts && !touched.has(oldBk)) touched.set(oldBk, this.view.get(oldBk))
@@ -231,7 +332,10 @@ export class BucketNode<T, B> extends DataNode<B> {
     for (const [bk, prev] of touched) {
       const mem = this.members.get(bk) as Map<RowKey, T>
       const emptied = mem.size === 0
-      if (this.prune && emptied) this.members.delete(bk)
+      if (this.prune && emptied) {
+        this.members.delete(bk)
+        if (this.skOf) this.skOf.delete(bk)
+      }
       const liveNow = this.prune ? !emptied : true // counts buckets persist once created
       const wasLive = prev !== undefined
       if (!liveNow) {
@@ -243,12 +347,20 @@ export class BucketNode<T, B> extends DataNode<B> {
         }
         continue
       }
-      const next = this.build(mem)
+      const next = this.build(mem, bk)
+      const sk = this.skOf === null ? undefined : this.skOf.get(bk)
       if (!wasLive) {
         this.view.set(bk, next)
+        if (sk !== undefined) sk.emittedSize = sk.sorted.length
         out.push({ op: 'add', key: bk, row: next })
-      } else if (!this.sameBucket(prev as B, next)) {
+      } else if (
+        // group mode O(1) short-circuit first: a membership-size change IS a
+        // content change — the O(B) sameBucket compare only runs same-size
+        (sk !== undefined && sk.emittedSize !== sk.sorted.length) ||
+        !this.sameBucket(prev as B, next)
+      ) {
         this.view.set(bk, next)
+        if (sk !== undefined) sk.emittedSize = sk.sorted.length
         out.push({ op: 'update', key: bk, row: next, prev: prev as B, path: [] })
       }
       // else: net no-op for this bucket (e.g. two rows swapped buckets) —
