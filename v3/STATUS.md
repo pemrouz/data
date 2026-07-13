@@ -37,9 +37,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **THE FLIP, phase 2 (showcase surfaces)** — the landing page (feed/demos/race + the API-visible HTML) and multidim's `data` row run the v3 engine, importmaps un-pinned; + the nested operator-view child-path fix the port surfaced | done | `70ea8ed`…`fc03b92` + build/docs | 273 v3 tests; typecheck ×8; phase-2 e2e 23/23 (race ×9 engines, demos-tap under GC, v3 devtools mount, multidim ×10 rows) |
 | **THE FLIP, phase 3 (docs sweep + publish)** — README/llms/AGENTS/CLI-guidance/context7 teach the v3 API (executed-snippet verified); branch `v3` PUSHED, **PR #1 open** | done | `01ebc86`…`8f4c568` | node --check + init-ai --dry; every non-DOM snippet executed against dist |
 | **THE FLIP, coda: the flow essay un-pins** — the last v2-showcase surface runs v3 (the record duality survives via the permanent compat profile; the scrub hatch becomes a batched keyed diff) | done | `7f0aed4` | flow.spec 9/9 twice (route-intercepted smoke + installed files) |
-| Remaining: corpus perf hotspots (gap 8, optional); npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2` | | | |
+| **Corpus hotspot pass (gap 8)** — the named per-write outliers CLOSED: group/insert 10.96×→2.45×, to/insert 4.77×→1.14×, to/batch 6.20×→0.99×, reduce/batch 1.80×→0.55×; geomean 1.569×→1.338×; setups reduced via the each()/rowCount() no-copy read protocol (residual = eager $() store ingestion → M6) | done | this session (local, NOT pushed) | 275 v3 tests (+2 regressions); typecheck:v3 ×4; m1 0.65/0.71, m2 brush 1.06 / batch 0.80; full REPS=5 sweep 2026-07-13, eq ALL EQUAL |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user | | | |
 
-Run everything: `npm run test:v3` (273 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (275 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -415,12 +416,29 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   (DONE — [perf/corpus.bench.ts](perf/corpus.bench.ts), table + read in its header),
   ~~MIGRATION.md~~ (drafted + verified; flip-time renames still TODO in its §6), the
   flip. fero Phase 0.5 items on the v2 side remain undone.
-8. **Corpus hotspots** (from the re-baseline table — follow-up perf levers, none
-  flip-blocking): graph-construction/setup overhead is the systematic slow class
-  (tap/setup 13.2×, to/setup 6.5×, filter/setup 5.1× — node + param-source minting);
-  group/insert 10.96× and to/* 4.8–6.2× are the named per-write outliers;
-  reduce/batch 1.8×, between/remove 3.8×. Single-write parity and the batched
-  flagship shapes are already at-or-ahead of v2.
+8. **Corpus hotspots** — the 2026-07-13 hotspot pass CLOSED the named per-write
+  outliers (full-sweep to full-sweep, eq ALL EQUAL; table + narrative in
+  [perf/corpus.bench.ts](perf/corpus.bench.ts)): group/insert 10.96× → 2.45×
+  (maintained enumeration-order bucket key lists — numeric-ascending object
+  fills stay on V8 fast elements, escaping dictionary-mode — plus an O(1)
+  membership-size changed-detector before the O(B) sameBucket compare; the ~2×
+  residual is the fresh-immutable-bucket emission contract vs v2's in-place
+  mutation, inherent); to/insert 4.77× → 1.14× and to/batch 6.20× → 0.99×
+  (ToValueNode hands fn an incrementally-maintained plain mirror — same-instance
+  v2 exposure — instead of snapshot()+materialize per batch; ordered parents
+  keep the rebuild); reduce/insert 1.30× → 0.43× and reduce/batch 1.80× → 0.55×
+  (2-arg fold via the no-copy pass). Setup class reduced but still the slow
+  class (tap 10.0×, to 7.8×, filter 3.2×): the kernel gained an
+  each(fn)/rowCount() NO-COPY read protocol (callback visitor — V8 inlines it;
+  ~5× faster than copy-then-iterate, and generators lose to both) that operator
+  constructors seed from; the residual is EAGER STORE INGESTION at $() + node
+  minting — the M6 columnar/lazy-ingest item is the structural lever (a lazy
+  key-index was assessed and rejected: it mostly MOVES the cost to first
+  write). Remaining named rows for a future pass: distinct/batch 3.91×,
+  except/remove-other 3.03×, between/remove 2.81×, group/churn 2.78×,
+  union/intersect churn ~2.2–2.3× — set-op/bucket write paths. Geomean
+  1.569× → 1.338× over 64 rows; single-write parity and the batched flagship
+  shapes remain at-or-ahead of v2 (m1 0.65/0.71, m2 brush 1.06 / batch 0.80).
 7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
   per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
   crossfilter-shaped micro). What remains per-node: map's output cache, each between's
