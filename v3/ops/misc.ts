@@ -304,23 +304,43 @@ export class ReduceNode<In> extends ScalarNode<In> {
     assertPlainInit(init)
     this.fn = fn
     this.init = init
-    this.cur = this.recompute(parent.snapshot())
+    this.cur = this.fold()
   }
 
   protected applyDelta(): void {}
 
+  // Unordered parents fold via the no-copy each() pass; ordered parents need
+  // keyed access in display order, so they keep the snapshot read.
+  private fold(): unknown {
+    const p = this.parents[0]
+    const order = p.currentOrder()
+    if (order !== null) return this.foldOrdered(p.snapshot(), order)
+    let acc = this.seedAcc()
+    p.each((k, row) => {
+      acc = this.fn(acc, row as In, k)
+    })
+    return acc
+  }
+
+  private seedAcc(): unknown {
+    return this.init !== null && typeof this.init === 'object' ? structuredClone(this.init) : this.init
+  }
+
+  private foldOrdered(snap: Map<RowKey, unknown>, order: readonly RowKey[]): unknown {
+    let acc = this.seedAcc()
+    for (const k of order) if (snap.has(k)) acc = this.fn(acc, snap.get(k) as In, k)
+    return acc
+  }
+
   protected read(): unknown {
-    return this.recompute(this.parents[0].snapshot())
+    return this.fold()
   }
 
   protected recompute(snap: Map<RowKey, unknown>): unknown {
-    let acc = this.init !== null && typeof this.init === 'object' ? structuredClone(this.init) : this.init
     const order = this.parents[0].currentOrder()
-    if (order !== null) {
-      for (const k of order) if (snap.has(k)) acc = this.fn(acc, snap.get(k) as In, k)
-    } else {
-      for (const [k, row] of snap) acc = this.fn(acc, row as In, k)
-    }
+    if (order !== null) return this.foldOrdered(snap, order)
+    let acc = this.seedAcc()
+    for (const [k, row] of snap) acc = this.fn(acc, row as In, k)
     return acc
   }
 }
