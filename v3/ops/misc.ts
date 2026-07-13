@@ -54,13 +54,13 @@ abstract class TrackedScalarNode<In> extends ScalarNode<In> {
       return x === undefined || x === null ? undefined : x
     }
     this.tracked = new Map()
-    for (const [k, row] of parent.snapshot()) {
+    parent.each((k, row) => {
       const x = this.projFn(row)
       if (x !== undefined) {
         this.tracked.set(k, x)
         this.delta(undefined, x)
       }
-    }
+    })
     this.cur = this.read()
   }
 
@@ -354,7 +354,7 @@ export class ReduceIncrementalNode<In> extends ScalarNode<In> {
     this.removeFn = removeFn
     this.init = init
     let acc = this.seed()
-    for (const [k, row] of parent.snapshot()) acc = addFn(acc, row as In, k)
+    parent.each((k, row) => { acc = addFn(acc, row as In, k) })
     this.acc = acc
     this.cur = this.publishable()
   }
@@ -438,7 +438,7 @@ export class DistinctNode<T> extends DataNode<unknown> {
     this.holders = new Map()
     this.view = new Map()
     this.counter = 0
-    for (const [k, row] of parent.snapshot()) this._admit(k, row)
+    parent.each((k, row) => this._admit(k, row))
     for (const dk of this.holders.keys()) this.view.set(dk, this._exposed(dk))
   }
 
@@ -643,7 +643,7 @@ export class ToValueNode<In> extends ScalarNode<In> {
     super(runtime, parent, 'to')
     this.fn = fn
     const m: Record<string, unknown> = {}
-    for (const [k, v] of parent.snapshot()) m[String(k)] = v
+    parent.each((k, v) => { m[String(k)] = v })
     this.mirror = m
     const order = parent.currentOrder()
     this.cur = fn(order === null ? m : materialize(parent.snapshot(), order), undefined)
@@ -677,7 +677,7 @@ export class KeysNode<T> extends DataNode<string> {
   constructor(runtime: Runtime, parent: DataNode<T>) {
     super(runtime, 'operator', 'keys', [parent])
     this.view = new Map()
-    for (const k of parent.snapshot().keys()) this.view.set(k, String(k))
+    parent.each((k) => this.view.set(k, String(k)))
   }
 
   snapshot(): Map<RowKey, string> {

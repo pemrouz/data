@@ -1064,6 +1064,16 @@ export class MirrorNode<T> extends DataNode<T> {
     return this.view.get(key)
   }
 
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
+  }
+
   currentOrder(): readonly RowKey[] | null {
     if (this.runtime.midBatch) return this.parents[0].currentOrder()
     return this.order

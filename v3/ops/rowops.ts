@@ -19,16 +19,26 @@ export class FilterNode<T> extends DataNode<T> {
     super(runtime, 'operator', name, [parent])
     this.pred = pred
     this.view = new Map()
-    for (const [k, row] of parent.snapshot()) if (pred(row, k)) this.view.set(k, row)
+    parent.each((k, row) => { if (pred(row, k)) this.view.set(k, row) })
   }
 
   snapshot(): Map<RowKey, T> {
     if (this.runtime.midBatch) {
       const m = new Map<RowKey, T>()
-      for (const [k, row] of this.parents[0].snapshot()) if (this.pred(row as T, k)) m.set(k, row as T)
+      this.parents[0].each((k, row) => { if (this.pred(row as T, k)) m.set(k, row as T) })
       return m
     }
     return new Map(this.view)
+  }
+
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
   }
 
   hasRow(key: RowKey): boolean {
@@ -90,16 +100,26 @@ export class MapNode<T, Out> extends DataNode<Out> {
     super(runtime, 'operator', 'map', [parent])
     this.fn = fn
     this.view = new Map()
-    for (const [k, row] of parent.snapshot()) this.view.set(k, fn(row, k))
+    parent.each((k, row) => this.view.set(k, fn(row, k)))
   }
 
   snapshot(): Map<RowKey, Out> {
     if (this.runtime.midBatch) {
       const m = new Map<RowKey, Out>()
-      for (const [k, row] of this.parents[0].snapshot()) m.set(k, this.fn(row as T, k))
+      this.parents[0].each((k, row) => m.set(k, this.fn(row as T, k)))
       return m
     }
     return new Map(this.view)
+  }
+
+  each(fn: (key: RowKey, row: Out) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
   }
 
   hasRow(key: RowKey): boolean {

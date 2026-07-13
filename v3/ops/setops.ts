@@ -215,6 +215,16 @@ export class SetOpNode<T> extends DataNode<T> {
     return this.view.get(key)
   }
 
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
+  }
+
   // Flush-on-read: recompute PURE from parents (whose snapshots are
   // themselves mid-batch-consistent), touching none of this node's state.
   private recomputePure(): Map<RowKey, T> {

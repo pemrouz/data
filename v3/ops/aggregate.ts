@@ -62,13 +62,13 @@ abstract class ProjectionAggregate<In> extends ScalarNode<In> {
     super(runtime, parent, name)
     this.col = col
     this.tracked = new Map()
-    for (const [k, row] of parent.snapshot()) {
+    parent.each((k, row) => {
       const x = proj(col, row)
       if (x !== undefined) {
         this.tracked.set(k, x)
         this.delta(undefined, x)
       }
-    }
+    })
     this.cur = this.read()
   }
 
@@ -171,7 +171,7 @@ export class LengthNode<In> extends ScalarNode<In> {
 
   constructor(runtime: Runtime, parent: DataNode<In>) {
     super(runtime, parent, 'length')
-    this.count = parent.snapshot().size
+    this.count = parent.rowCount()
     this.cur = this.count
   }
 

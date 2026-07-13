@@ -163,10 +163,10 @@ export class OrderedView<T> extends DataNode<T> {
     this.rows = new Map()
     this.tie = new Map()
     this.tieSeq = 0
-    for (const [k, row] of parent.snapshot()) {
+    parent.each((k, row) => {
       this.rows.set(k, row)
       this.tie.set(k, this.tieSeq++)
-    }
+    })
     this.index = new OrderIndex((a, b) => {
       const c = this.userCmp(this.rows.get(a) as T, this.rows.get(b) as T)
       return c !== 0 ? c : (this.tie.get(a) as number) - (this.tie.get(b) as number)
@@ -195,6 +195,16 @@ export class OrderedView<T> extends DataNode<T> {
     const m = new Map<RowKey, T>()
     for (const k of this.window) m.set(k, this.rows.get(k) as T)
     return m
+  }
+
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const k of this.window) fn(k, this.rows.get(k) as T)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.window.length
   }
 
   hasRow(key: RowKey): boolean {
