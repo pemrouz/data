@@ -73,8 +73,14 @@ interface HandleState {
   // path[0] is the row key; deeper entries address into the row.
   source: SourceNode<any> | null
   path: Path
-  children: Map<string, any> // one wrapper per (state, name) — stable identity
-  dedup: Map<string, any> // scope-owned operator dedup cache (deterministic)
+  // All three caches are LAZY (null until first use): a leaf handle minted for
+  // one get(k).remove() allocates none of them. Minting used to cost ~30
+  // allocations (eager method suite + per-handle Proxy handler + two Maps) —
+  // the dominant per-write term on every fresh-key get(k) path (the corpus
+  // remove-side hotspots, STATUS gap 8 pass 2).
+  children: Map<string, any> | null // one wrapper per (state, name) — stable identity
+  dedup: Map<string, any> | null // scope-owned operator dedup cache (deterministic)
+  methods: Record<string, any> | null // per-verb closures, minted on first access
 }
 
 const HANDLE = Symbol('data.v3.handle')
@@ -100,10 +106,10 @@ function childState(parent: HandleState, name: string): HandleState {
     throw new Error(`data: scalar views have no children (reading .${name})`)
   if (parent.source === null && parent.path.length === 0 && parent.node instanceof SourceNode) {
     // root source handle
-    return { node: parent.node, source: parent.node, path: [name], children: new Map(), dedup: new Map() }
+    return { node: parent.node, source: parent.node, path: [name], children: null, dedup: null, methods: null }
   }
   if (parent.source !== null) {
-    return { node: parent.node, source: parent.source, path: [...parent.path, name], children: new Map(), dedup: new Map() }
+    return { node: parent.node, source: parent.source, path: [...parent.path, name], children: null, dedup: null, methods: null }
   }
   // child of an operator view: readable snapshot projection, writes throw.
   // The path EXTENDS the parent's — a nested read (counts.get(tn).get('value'),
@@ -113,8 +119,9 @@ function childState(parent: HandleState, name: string): HandleState {
     node: parent.node,
     source: null,
     path: [...parent.path, name],
-    children: new Map(),
-    dedup: new Map(),
+    children: null,
+    dedup: null,
+    methods: null,
   }
 }
 
@@ -139,241 +146,282 @@ function coerceKey(state: HandleState, name: string): RowKey {
   return name
 }
 
+const EMPTY_PATH: Path = Object.freeze([]) as unknown as Path
+
 function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; sub: Path } {
   if (state.source === null || state.path.length === 0)
     throw new Error(
       'data: this view is a derived projection — write through its source (operator views are read-only)',
     )
-  return { src: state.source, key: state.path[0] as RowKey, sub: state.path.slice(1) }
+  return {
+    src: state.source,
+    key: state.path[0] as RowKey,
+    sub: state.path.length === 1 ? EMPTY_PATH : state.path.slice(1),
+  }
 }
 
 // ── the built-in method surface (everything non-operator in RESERVED) ────────
+//
+// Methods are minted ONE AT A TIME on first access (the get trap caches them
+// per state, so h.set === h.set and extraction keeps working) instead of as an
+// eager 14-closure suite per handle — a leaf handle used once for
+// get(k).remove() allocates exactly one closure.
 
-function makeMethods(state: HandleState, self: () => any): Record<string, (...args: any[]) => any> {
-  const m: Record<string, (...args: any[]) => any> = {
-    get(k: string | number) {
-      return childHandle(state, String(k))
-    },
-    snapshot() {
-      return readAt(state)
-    },
-    update(v: unknown) {
-      if (state.path.length === 0 && state.node instanceof SourceNode)
-        throw new Error('data: whole-source update — write [value] semantics not yet supported; use per-key writes or batch()')
-      const { src, key, sub } = writeTarget(state)
-      src.write(key, sub, v)
-    },
-    set(k: unknown, v?: unknown) {
-      // mirror repoint: mirrorHandle.set(otherViewHandle) — single object arg
-      if (state.node instanceof MirrorNode && state.path.length === 0 && v === undefined && k !== null && typeof k === 'object') {
-        state.node.set((k as any)[node] ?? k)
-        return
+const BUILTIN = new Set([
+  'get', 'snapshot', 'update', 'set', 'insert', 'remove', 'patch', 'connect',
+  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest',
+])
+
+function doUpdate(state: HandleState, v: unknown): void {
+  if (state.path.length === 0 && state.node instanceof SourceNode)
+    throw new Error('data: whole-source update — write [value] semantics not yet supported; use per-key writes or batch()')
+  const { src, key, sub } = writeTarget(state)
+  src.write(key, sub, v)
+}
+
+function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
+  switch (name) {
+    case 'get':
+      return (k: string | number) => childHandle(state, String(k))
+    case 'snapshot':
+      return () => readAt(state)
+    case 'update':
+      return (v: unknown) => doUpdate(state, v)
+    case 'set':
+      return (k: unknown, v?: unknown) => {
+        // mirror repoint: mirrorHandle.set(otherViewHandle) — single object arg
+        if (state.node instanceof MirrorNode && state.path.length === 0 && v === undefined && k !== null && typeof k === 'object') {
+          state.node.set((k as any)[node] ?? k)
+          return
+        }
+        if (state.source !== null && state.path.length === 0) {
+          state.source.write(coerceKey(state, String(k)), [], v)
+          return
+        }
+        const { src, key, sub } = writeTarget(state)
+        src.write(key, [...sub, String(k)], v)
       }
-      if (state.source !== null && state.path.length === 0) {
-        state.source.write(coerceKey(state, String(k)), [], v)
-        return
+    case 'insert':
+      return (v: unknown, at?: number) => {
+        if (!(state.node instanceof SourceNode) || state.path.length > 0)
+          throw new Error('data: insert() applies to a source root')
+        return state.node.insert(v, at)
       }
-      const { src, key, sub } = writeTarget(state)
-      src.write(key, [...sub, String(k)], v)
-    },
-    insert(v: unknown, at?: number) {
-      if (!(state.node instanceof SourceNode) || state.path.length > 0)
-        throw new Error('data: insert() applies to a source root')
-      return state.node.insert(v, at)
-    },
-    remove() {
-      const { src, key, sub } = writeTarget(state)
-      if (sub.length > 0) throw new Error('data: remove() detaches a row — nested field removal not yet supported')
-      src.remove(key)
-    },
-    patch(pairs: readonly (readonly [string | number, unknown])[]) {
-      if (!(state.node instanceof SourceNode) || state.path.length > 0)
-        throw new Error('data: patch() applies to a source root')
-      // Tuple-shape fail-fast BEFORE any write. v2's flat form
-      // patch(['k1', v1, 'k2', v2]) is worse than a clean throw here: strings
-      // are iterable, so destructuring a string element commits a GARBAGE row
-      // char-wise ({ s:'t', o:'p' }) — silently for 2-char-key shapes.
-      for (const p of pairs)
-        if (!Array.isArray(p) || p.length !== 2)
-          throw new Error(
-            "data: patch() takes [key, row] TUPLE pairs — patch([[k1, v1], [k2, v2]]); v2's flat [k1, v1, k2, v2] array form is gone",
-          )
-      const src = state.node
-      src.runtime.batch(() => {
-        for (const [k, v] of pairs) src.write(coerceKey(state, String(k)), [], v)
-      })
-    },
-    connect(a: unknown, b?: unknown): SubscriptionHandle {
-      const n = state.node
-      if (state.path.length > 0) throw new Error('data: connect() on child paths not yet supported — connect the view')
-      if (Array.isArray(a) && b === undefined) {
-        const sink = new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r))
-        return n.connect(sink)
+    case 'remove':
+      return () => {
+        const { src, key, sub } = writeTarget(state)
+        if (sub.length > 0) throw new Error('data: remove() detaches a row — nested field removal not yet supported')
+        src.remove(key)
       }
-      if (typeof a === 'object' && a !== null && typeof b === 'function') {
-        const sink = new V2RecordSink(n, b as (r: ChangeRecordV2) => void)
-        return n.connect(sink)
-      }
-      if (typeof a === 'object' && a !== null && typeof b === 'string') {
-        const obj = a as Record<string, unknown>
-        obj[b] = readAt(state)
-        return n.connect({
-          wantsOrder: false,
-          origin: null,
-          apply: () => {
-            obj[b] = readAt(state)
-          },
+    case 'patch':
+      return (pairs: readonly (readonly [string | number, unknown])[]) => {
+        if (!(state.node instanceof SourceNode) || state.path.length > 0)
+          throw new Error('data: patch() applies to a source root')
+        // Tuple-shape fail-fast BEFORE any write. v2's flat form
+        // patch(['k1', v1, 'k2', v2]) is worse than a clean throw here: strings
+        // are iterable, so destructuring a string element commits a GARBAGE row
+        // char-wise ({ s:'t', o:'p' }) — silently for 2-char-key shapes.
+        for (const p of pairs)
+          if (!Array.isArray(p) || p.length !== 2)
+            throw new Error(
+              "data: patch() takes [key, row] TUPLE pairs — patch([[k1, v1], [k2, v2]]); v2's flat [k1, v1, k2, v2] array form is gone",
+            )
+        const src = state.node as SourceNode<any>
+        src.runtime.batch(() => {
+          for (const [k, v] of pairs) src.write(coerceKey(state, String(k)), [], v)
         })
       }
-      throw new Error(
-        'data: connect(fn) is not a valid sink — use connect(anchor, fn) for records, connect([]) for an array, or connect(obj, prop) to mirror',
-      )
-    },
-    dispose() {
-      state.node.dispose()
-    },
-    mirror() {
-      if (state.path.length > 0) throw new Error('data: mirror() applies to a view, not a child path')
-      return handleFor(makeMirror(state.node))
-    },
-    raf() {
-      return rafWriter((v: unknown) => m.update(v))
-    },
-    first() {
-      if (state.path.length > 0) throw new Error('data: first() applies to a view, not a child path')
-      const n = state.node
-      const order = n.currentOrder()
-      const k = order ? order[0] : n.snapshot().keys().next().value
-      return childHandle(state, String(k ?? 0))
-    },
-    last() {
-      if (state.path.length > 0) throw new Error('data: last() applies to a view, not a child path')
-      const n = state.node
-      const order = n.currentOrder()
-      let k: RowKey | undefined
-      if (order) k = order[order.length - 1]
-      else for (k of n.snapshot().keys());
-      return childHandle(state, String(k ?? 0))
-    },
-    ingest(records: unknown, opts?: unknown) {
-      if (!(state.node instanceof SourceNode) || state.path.length > 0)
-        throw new Error('data: ingest() applies to a source root')
-      seamIngest(state.node, records as any, opts as any)
-    },
+    case 'connect':
+      return (a: unknown, b?: unknown): SubscriptionHandle => {
+        const n = state.node
+        if (state.path.length > 0) throw new Error('data: connect() on child paths not yet supported — connect the view')
+        if (Array.isArray(a) && b === undefined) {
+          const sink = new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r))
+          return n.connect(sink)
+        }
+        if (typeof a === 'object' && a !== null && typeof b === 'function') {
+          const sink = new V2RecordSink(n, b as (r: ChangeRecordV2) => void)
+          return n.connect(sink)
+        }
+        if (typeof a === 'object' && a !== null && typeof b === 'string') {
+          const obj = a as Record<string, unknown>
+          obj[b] = readAt(state)
+          return n.connect({
+            wantsOrder: false,
+            origin: null,
+            apply: () => {
+              obj[b] = readAt(state)
+            },
+          })
+        }
+        throw new Error(
+          'data: connect(fn) is not a valid sink — use connect(anchor, fn) for records, connect([]) for an array, or connect(obj, prop) to mirror',
+        )
+      }
+    case 'dispose':
+      return () => state.node.dispose()
+    case 'mirror':
+      return () => {
+        if (state.path.length > 0) throw new Error('data: mirror() applies to a view, not a child path')
+        return handleFor(makeMirror(state.node))
+      }
+    case 'raf':
+      return () => rafWriter((v: unknown) => doUpdate(state, v))
+    case 'first':
+      return () => {
+        if (state.path.length > 0) throw new Error('data: first() applies to a view, not a child path')
+        const n = state.node
+        const order = n.currentOrder()
+        const k = order ? order[0] : n.snapshot().keys().next().value
+        return childHandle(state, String(k ?? 0))
+      }
+    case 'last':
+      return () => {
+        if (state.path.length > 0) throw new Error('data: last() applies to a view, not a child path')
+        const n = state.node
+        const order = n.currentOrder()
+        let k: RowKey | undefined
+        if (order) k = order[order.length - 1]
+        else for (k of n.snapshot().keys());
+        return childHandle(state, String(k ?? 0))
+      }
+    case 'ingest':
+      return (records: unknown, opts?: unknown) => {
+        if (!(state.node instanceof SourceNode) || state.path.length > 0)
+          throw new Error('data: ingest() applies to a source root')
+        seamIngest(state.node, records as any, opts as any)
+      }
   }
-  void self
-  return m
+  throw new Error(`data: makeMethod(${name}) — not a builtin`) // unreachable: gated by BUILTIN
 }
 
 // ── the proxy ────────────────────────────────────────────────────────────────
+//
+// ONE shared handler for every handle: the traps read the HandleState off the
+// proxy TARGET (stamped at wrap time), so minting a handle allocates just the
+// target + Proxy — no per-handle handler object or trap closures. Behavior is
+// byte-identical to the per-handle handler it replaces.
+
+function operatorCall(state: HandleState, prop: string, def: any): (...args: any[]) => any {
+  return (...rawArgs: unknown[]) => {
+    // Unwrap ROOT-view handle args to their nodes (set-ops take view
+    // operands). CHILD handles pass through intact — a path-addressed
+    // reactive param ("cfg.t") must keep its path; reactiveArg reads
+    // the leaf through the handle's [value].
+    const args = rawArgs.map((a) => {
+      if (a === null || typeof a !== 'object') return a
+      const st = (a as any)[HANDLE] as HandleState | undefined
+      if (st !== undefined && st.path.length === 0 && (a as any)[node] instanceof DataNode)
+        return (a as any)[node]
+      return a
+    })
+    // length(fn) routes to the histogram (v2's length(fn) contract)
+    const def2 = prop === 'length' && typeof args[0] === 'function' ? registry.get('lengthBuckets')! : def
+    const key = def2.dedupKey ? def2.dedupKey(...args) : null
+    if (key !== null && state.dedup !== null) {
+      const hit = state.dedup.get(key)
+      if (hit !== undefined) {
+        // A disposed node is detached and frozen forever — handing it
+        // back would silently return stale reads (the pivot-v3
+        // dispose-then-rerequest footgun). Evict lazily and mint fresh.
+        if (((hit as any)[node] as DataNode<any>).disposed) state.dedup.delete(key)
+        else return hit
+      }
+    }
+    const out = wrap({
+      node: def2.create(state.node, ...args),
+      source: null,
+      path: [],
+      children: null,
+      dedup: null,
+      methods: null,
+    })
+    if (key !== null) (state.dedup ??= new Map()).set(key, out)
+    return out
+  }
+}
+
+const SHARED_HANDLER: ProxyHandler<Record<string | symbol, unknown>> = {
+  get(t, prop, _r) {
+    const state = t[HANDLE] as HandleState
+    if (prop === value) return state.source !== null || state.path.length > 0 ? childRead(state) : readAt(state)
+    if (prop === node) return state.node
+    if (prop === HANDLE) return state
+    if (prop === Symbol.toPrimitive || prop === 'toString')
+      return () => `[data ${state.node.opName}#${state.node.id}${state.path.length ? ' .' + state.path.join('.') : ''}]`
+    if (prop === 'toJSON') return () => readAt(state)
+    if (prop === Symbol.iterator) {
+      const snap = readAt(state)
+      if (Array.isArray(snap)) return snap[Symbol.iterator].bind(snap)
+      return function* () {
+        if (snap && typeof snap === 'object') yield* Object.values(snap)
+      }
+    }
+    // NOT thenable, NOT callable — a key literally named 'then' is data.
+    if (typeof prop !== 'string') return undefined
+    if (reserved(prop)) {
+      if (BUILTIN.has(prop)) {
+        const m = (state.methods ??= Object.create(null) as Record<string, any>)
+        return (m[prop] ??= makeMethod(state, prop))
+      }
+      const def = registry.get(prop)
+      if (def) {
+        if (state.path.length > 0)
+          throw new Error(
+            `data: .${prop}(...) on a child path would operate on the OWNING view — chain operators off the view itself (child handles are addresses, not views)`,
+          )
+        return operatorCall(state, prop, def)
+      }
+      throw new Error(`data: reserved name ${prop} has no implementation yet`)
+    }
+    return childHandle(state, prop)
+  },
+  set(t, prop, _v) {
+    if (prop === value)
+      throw new Error('data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch(); the pre-flip surface lives at data/v2')
+    throw new Error(
+      `data: bare assignment (.${String(prop)} =) is not the write surface — use .get(${JSON.stringify(String(prop))}).update(v) / .set(${JSON.stringify(String(prop))}, v) (types and runtime agree in v3)`,
+    )
+  },
+  deleteProperty(t, prop) {
+    throw new Error(`data: delete is not the write surface — use .get(${JSON.stringify(String(prop))}).remove()`)
+  },
+  has(t, prop) {
+    const state = t[HANDLE] as HandleState
+    if (typeof prop !== 'string') return prop === value || prop === node
+    if (reserved(prop)) return true
+    const snap = readAt(state)
+    return snap != null && typeof snap === 'object' ? prop in (snap as object) : false
+  },
+  ownKeys(t) {
+    const state = t[HANDLE] as HandleState
+    const snap = readAt(state)
+    return snap != null && typeof snap === 'object' ? Reflect.ownKeys(snap as object) : []
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    const state = t[HANDLE] as HandleState
+    if (typeof prop !== 'string') return undefined
+    const snap = readAt(state)
+    if (snap != null && typeof snap === 'object' && prop in (snap as object))
+      return { configurable: true, enumerable: true, value: (snap as any)[prop] }
+    return undefined
+  },
+}
 
 function wrap(state: HandleState): any {
-  const methods = makeMethods(state, () => proxy)
   const target = Object.create(null) as Record<string | symbol, unknown>
-  const proxy: any = new Proxy(target, {
-    get(_t, prop, _r) {
-      if (prop === value) return state.source !== null || state.path.length > 0 ? childRead(state) : readAt(state)
-      if (prop === node) return state.node
-      if (prop === HANDLE) return state
-      if (prop === Symbol.toPrimitive || prop === 'toString')
-        return () => `[data ${state.node.opName}#${state.node.id}${state.path.length ? ' .' + state.path.join('.') : ''}]`
-      if (prop === 'toJSON') return () => readAt(state)
-      if (prop === Symbol.iterator) {
-        const snap = readAt(state)
-        if (Array.isArray(snap)) return snap[Symbol.iterator].bind(snap)
-        return function* () {
-          if (snap && typeof snap === 'object') yield* Object.values(snap)
-        }
-      }
-      // NOT thenable, NOT callable — a key literally named 'then' is data.
-      if (typeof prop !== 'string') return undefined
-      if (reserved(prop)) {
-        const builtin = methods[prop]
-        if (builtin) return builtin
-        const def = registry.get(prop)
-        if (def) {
-          if (state.path.length > 0)
-            throw new Error(
-              `data: .${prop}(...) on a child path would operate on the OWNING view — chain operators off the view itself (child handles are addresses, not views)`,
-            )
-          return (...rawArgs: unknown[]) => {
-            // Unwrap ROOT-view handle args to their nodes (set-ops take view
-            // operands). CHILD handles pass through intact — a path-addressed
-            // reactive param ("cfg.t") must keep its path; reactiveArg reads
-            // the leaf through the handle's [value].
-            const args = rawArgs.map((a) => {
-              if (a === null || typeof a !== 'object') return a
-              const st = (a as any)[HANDLE] as HandleState | undefined
-              if (st !== undefined && st.path.length === 0 && (a as any)[node] instanceof DataNode)
-                return (a as any)[node]
-              return a
-            })
-            // length(fn) routes to the histogram (v2's length(fn) contract)
-            const def2 = prop === 'length' && typeof args[0] === 'function' ? registry.get('lengthBuckets')! : def
-            const key = def2.dedupKey ? def2.dedupKey(...args) : null
-            if (key !== null) {
-              const hit = state.dedup.get(key)
-              if (hit !== undefined) {
-                // A disposed node is detached and frozen forever — handing it
-                // back would silently return stale reads (the pivot-v3
-                // dispose-then-rerequest footgun). Evict lazily and mint fresh.
-                if (((hit as any)[node] as DataNode<any>).disposed) state.dedup.delete(key)
-                else return hit
-              }
-            }
-            const out = wrap({
-              node: def2.create(state.node, ...args),
-              source: null,
-              path: [],
-              children: new Map(),
-              dedup: new Map(),
-            })
-            if (key !== null) state.dedup.set(key, out)
-            return out
-          }
-        }
-        throw new Error(`data: reserved name ${prop} has no implementation yet`)
-      }
-      return childHandle(state, prop)
-    },
-    set(_t, prop, _v) {
-      if (prop === value)
-        throw new Error('data: [value] whole-view assignment is a v2 idiom — use update()/set()/patch(); the pre-flip surface lives at data/v2')
-      throw new Error(
-        `data: bare assignment (.${String(prop)} =) is not the write surface — use .get(${JSON.stringify(String(prop))}).update(v) / .set(${JSON.stringify(String(prop))}, v) (types and runtime agree in v3)`,
-      )
-    },
-    deleteProperty(_t, prop) {
-      throw new Error(`data: delete is not the write surface — use .get(${JSON.stringify(String(prop))}).remove()`)
-    },
-    has(_t, prop) {
-      if (typeof prop !== 'string') return prop === value || prop === node
-      if (reserved(prop)) return true
-      const snap = readAt(state)
-      return snap != null && typeof snap === 'object' ? prop in (snap as object) : false
-    },
-    ownKeys() {
-      const snap = readAt(state)
-      return snap != null && typeof snap === 'object' ? Reflect.ownKeys(snap as object) : []
-    },
-    getOwnPropertyDescriptor(_t, prop) {
-      if (typeof prop !== 'string') return undefined
-      const snap = readAt(state)
-      if (snap != null && typeof snap === 'object' && prop in (snap as object))
-        return { configurable: true, enumerable: true, value: (snap as any)[prop] }
-      return undefined
-    },
-  })
-  return proxy
+  target[HANDLE] = state
+  return new Proxy(target, SHARED_HANDLER)
 }
 
 function childHandle(state: HandleState, name: string): any {
-  let child = state.children.get(name)
+  const cache = (state.children ??= new Map())
+  let child = cache.get(name)
   if (child === undefined) {
     const cs = childState(state, name)
     if (cs.source !== null && cs.path.length === 1) cs.path = [coerceKey(state, name)]
     child = wrap(cs)
-    state.children.set(name, child)
+    cache.set(name, child)
   }
   return child
 }
@@ -392,10 +440,10 @@ export function $<T extends object>(v: T | unknown[]): any {
     )
   const src = new SourceNode(defaultRuntime, v as any)
   void currentScope() // nodes self-register with the ambient scope in their ctor
-  return wrap({ node: src, source: src, path: [], children: new Map(), dedup: new Map() })
+  return wrap({ node: src, source: src, path: [], children: null, dedup: null, methods: null })
 }
 
 // Handles for raw nodes (used by tests / the render layer).
 export function handleFor(n: DataNode<any>): any {
-  return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: new Map(), dedup: new Map() })
+  return wrap({ node: n, source: n instanceof SourceNode ? n : null, path: [], children: null, dedup: null, methods: null })
 }
