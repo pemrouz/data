@@ -229,8 +229,12 @@ export const group: Spec = {
   workloads(this: any, n = this.N) {
     const mk = () => { const s: any = $(this.source(n)); const g = s.group((d: any) => d.cat); return { s, g } }
     const ins = mk(); let i = n
-    // limit→group churn: each delete is limit BR1A (pop) + BI0A (refill) that
-    // group translates into one per-bucket splice (the array-source restructure)
+    // limit→group churn — NB: `removed` starts at 100, so every deleted key
+    // sits OUTSIDE the limit(100) window (an object source's first 100 keys
+    // in iteration order never leave). What this case measures is the
+    // remove-MISSES-window path through limit — group never sees a delta.
+    // (The original comment claimed a BR1A pop + BI0A refill per delete;
+    // that was never true of this key range.)
     const cs: any = $(this.source(n)); const cg = cs.limit(100).group((d: any) => d.cat); let removed = 100
     return {
       setup: { gate: 500, run: () => { const s: any = $(this.source(n)); s.group((d: any) => d.cat) } },

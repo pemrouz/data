@@ -246,6 +246,10 @@ export class OrderedView<T> extends DataNode<T> {
     const removedIdx: RowKey[] = [] // keys leaving the index (removes + re-ranks)
     const pendingRow = new Map<RowKey, T>() // re-ranked updates: applied after index removal
     const pendingDel: RowKey[] = [] // removes: cache deletion deferred past index ops
+    // Window-touch tracking for the early-out below: any delta on an
+    // in-window key, or any index operation at a rank inside the window,
+    // means the reconcile must run.
+    let winTouched = false
 
     // Phase A — classify. Row-cache writes a lookup bisect could observe are
     // DEFERRED: a key's removal bisect must see the row it was ranked under
@@ -253,6 +257,7 @@ export class OrderedView<T> extends DataNode<T> {
     // unchanged-under-cmp (v2 _batchUpdate discipline, made structural).
     for (const d of input.rows as readonly RowDelta<T>[]) {
       dmap.set(d.key, d)
+      if (!winTouched && preSet.has(d.key)) winTouched = true
       switch (d.op) {
         case 'add':
           this.rows.set(d.key, d.row) // not yet indexed — no bisect can see it
@@ -293,18 +298,40 @@ export class OrderedView<T> extends DataNode<T> {
     // applying pending rows (each removal bisect sees the ranked-under row);
     // the batch path filters by membership (no comparisons), so row currency
     // only matters for the merge — where inserts carry their new rows.
+    let ranksKnown = false
     if (removedIdx.length + toInsert.length > 32) {
       for (const [k, row] of pendingRow) this.rows.set(k, row)
       this.index.reconcile(removedIdx.length > 0 ? new Set(removedIdx) : null, toInsert)
     } else {
-      for (const k of removedIdx) this.index.remove(k)
+      // Per-key path returns exact ranks — track whether any operation landed
+      // inside the window prefix (a rank ≥ window length can never mutate the
+      // first |window| entries; a missing key is conservatively "touched").
+      ranksKnown = true
+      for (const k of removedIdx) {
+        const at = this.index.remove(k)
+        if (at < 0 || at < preWindow.length) winTouched = true
+      }
       for (const [k, row] of pendingRow) this.rows.set(k, row)
-      for (const k of toInsert) this.index.insert(k)
+      for (const k of toInsert) {
+        const at = this.index.insert(k)
+        if (at < preWindow.length) winTouched = true
+      }
     }
     for (const k of pendingDel) {
       this.rows.delete(k)
       this.tie.delete(k)
     }
+
+    // Window-untouched early-out (the single-write churn shape: removes/
+    // inserts on a big source that never graze the window): no touched key
+    // was in the window, every index operation landed past the prefix, and
+    // the window length is unchanged — the reconcile below would provably
+    // produce empty out AND orderOut, so skip its O(w) slice + Set build +
+    // five window-length scans and return the same null. Unbounded views
+    // (n = Infinity) fail the length check on any add/remove and the preSet
+    // check on any update, so they always reconcile — behavior unchanged.
+    if (ranksKnown && !winTouched && this.winLen(this.index.keys.length) === preWindow.length)
+      return null
 
     // The once-per-batch window reconcile (v2 _window, generalized): diff the
     // old window keyset against the new one. Evictions are honest removes
