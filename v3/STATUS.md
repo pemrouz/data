@@ -38,9 +38,11 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **THE FLIP, phase 3 (docs sweep + publish)** — README/llms/AGENTS/CLI-guidance/context7 teach the v3 API (executed-snippet verified); branch `v3` PUSHED, **PR #1 open** | done | `01ebc86`…`8f4c568` | node --check + init-ai --dry; every non-DOM snippet executed against dist |
 | **THE FLIP, coda: the flow essay un-pins** — the last v2-showcase surface runs v3 (the record duality survives via the permanent compat profile; the scrub hatch becomes a batched keyed diff) | done | `7f0aed4` | flow.spec 9/9 twice (route-intercepted smoke + installed files) |
 | **Corpus hotspot pass (gap 8)** — the named per-write outliers CLOSED: group/insert 10.96×→2.45×, to/insert 4.77×→1.14×, to/batch 6.20×→0.99×, reduce/batch 1.80×→0.55×; geomean 1.569×→1.338×; setups reduced via the each()/rowCount() no-copy read protocol (residual = eager $() store ingestion → M6) | done | this session (local, NOT pushed) | 275 v3 tests (+2 regressions); typecheck:v3 ×4; m1 0.65/0.71, m2 brush 1.06 / batch 0.80; full REPS=5 sweep 2026-07-13, eq ALL EQUAL |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user | | | |
+| **Corpus hotspot pass 2** — distinct/batch 3.91×→1.29×, union/churn 2.23×→1.42×, group/churn →2.00×, between/remove →2.42×, except/remove-other →2.61× via distinct cut-offs + setops fast path + ordered early-out + the API handle de-fat; geomean 1.338×→1.223× (67 rows) | done | `a134649`…`11a271d` (local, NOT pushed) | 278 tests; typecheck ×4; m1/m2 pass; 2026-07-27 sweep eq ALL EQUAL |
+| **Gap-5 niceties** — `reverse` lands (reversed arrival order + unbounded single-delta fast path: reverse/insert 28×→1.04×, reverse/batch 0.008×, sort/insert →0.98×); `SourceNode.move()` + seam move ingress (diffOrder rotation gap closed); ProjectionAggregate exported; rest deferred with rationale | done | `b43db87` `f4b320d` `ebaf182` (local, NOT pushed) | 278 tests; corpus reverse mirror eq green; public types + fixtures |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 columnar backing is the open engineering arc | | | |
 
-Run everything: `npm run test:v3` (275 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (278 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -404,19 +406,42 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   ~~Wrap max/min in installReactive~~ — DONE 2026-07-06 (`ce6b9d3`). Type fixtures
   for `between(col, handle)` + `bind()`/`text(view, fn)` should still follow.
 4. ~~Wire the gates into package.json/CI~~ — DONE 2026-07-06 (`9906424`).
-5. Kernel niceties flagged by agents: reparent()/adoptParent() helpers (mirror/reactive
-  cast into parents today); ~~height re-propagation after repoint~~ — DONE 2026-07-06
-  (`92b920f`, kernel reheight() called from MirrorNode.set; regression in api.test.ts);
-  a ScalarSource cell primitive; SourceNode.move() for ingest's deferred 'move' records;
-  export ProjectionAggregate; deep-scalar emission mode; per-path connect(); positional
-  limit(); page().
+5. Kernel niceties flagged by agents — 2026-07-27 pass landed the substantive
+  ones: ~~height re-propagation after repoint~~ (DONE 2026-07-06, `92b920f`);
+  ~~`reverse`~~ (DONE `b43db87` — reversed ARRIVAL order via an OrderedView tie
+  DIRECTION, + the unbounded single-delta fast path that made it shippable:
+  reverse/insert 28× → 1.04×, sort/insert 1.47× → 0.98×; corpus mirror added,
+  eq green); ~~SourceNode.move()~~ (DONE `f4b320d` — order-channel reposition
+  settled as an order diff; fixed the latent diffOrder rotation gap; BOTH seam
+  ingest profiles route move records now — the deferred-move throw is gone);
+  ~~export ProjectionAggregate~~ (DONE `ebaf182`). DEFERRED with rationale:
+  ScalarSource cell (`$({v}).get('v')` is the documented idiom in all seven
+  migrations — no consumer pressure); positional limit()/page() (offset windows
+  need new reconcile semantics; nothing pages yet — `page`/`join` stay reserved
+  names that throw); reparent()/adoptParent() (mirror() covers the shipped
+  need); deep-scalar emission mode; per-path connect().
 6. **M5**: remaining example migrations (SEVEN done: crossfilter, todo, chat, kanban,
   pivot, library, swarm; flow/multidim + the landing page remain — all three are
   v2-showcase surfaces, likely flip-time decisions), ~~v2 perf corpus re-baseline~~
   (DONE — [perf/corpus.bench.ts](perf/corpus.bench.ts), table + read in its header),
   ~~MIGRATION.md~~ (drafted + verified; flip-time renames still TODO in its §6), the
   flip. fero Phase 0.5 items on the v2 side remain undone.
-8. **Corpus hotspots** — the 2026-07-13 hotspot pass CLOSED the named per-write
+8. **Corpus hotspots** — TWO passes done; geomean 1.569× → 1.338× → **1.223×**
+  (67 rows, 2026-07-27 sweep, eq ALL EQUAL on 44 — the current table + narrative
+  live in [perf/corpus.bench.ts](perf/corpus.bench.ts)). **Pass 2 (2026-07-27,
+  `a134649`…`11a271d`; diagnosis by a read-only agent panel):** distinct/batch
+  3.91× → 1.29× (settle-time touched cut-offs — non-projection updates and
+  occupied-bucket admits provably can't move the exposed value, so the
+  O(holders) rescan is skipped); union/churn 2.23× → 1.42× + intersect/churn
+  → 1.85× (setops single-delta fast path — suppressed outcomes allocate
+  NOTHING — + scratch reuse + each() seeding); group/churn 2.78× → 2.00×
+  (ordered window-untouched early-out on exact ranks); between/remove → 2.42×
+  and except/remove-other → 2.61× (the API handle de-fat: shared proxy handler
+  + lazy per-verb methods + lazy caches — a fresh-key get(k).remove() dropped
+  from ~30 allocations to ~6-8); between settle scratch. The remove-side
+  residuals measure a full two-phase commit against v2's bare
+  delete-plus-dirty-flag — the honest per-commit floor at the unbatched
+  framing. **Pass 1 (2026-07-13)** CLOSED the named per-write
   outliers (full-sweep to full-sweep, eq ALL EQUAL; table + narrative in
   [perf/corpus.bench.ts](perf/corpus.bench.ts)): group/insert 10.96× → 2.45×
   (maintained enumeration-order bucket key lists — numeric-ascending object

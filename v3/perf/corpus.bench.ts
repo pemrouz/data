@@ -34,123 +34,130 @@
 //                    v2 closures hard-code absolute key ranges auto-skip below
 //                    their minimum N — see the child's MIN_N table).
 //
-// ── RESULTS 2026-07-13 (full sweep, quiet box, REPS=5, N=10,000, node v26.1.0) ─
+// ── RESULTS 2026-07-27 (full sweep, quiet box, REPS=5, N=10,000, node v26.1.0) ─
 //
 // READ THIS WITH THE WORKLOAD SHAPE IN MIND: the corpus is deliberately
 // UNBATCHED write-for-write parity (1000 bare writes = 1000 v3 commits, where
 // v2 dispatches each write directly) — the WORST framing for v3's
 // commit/settle architecture, chosen because it is the apples-to-apples
 // per-write comparison. The pattern inside the geomean:
-// - SETUP is the remaining slow class (tap 10.0x, to 7.8x, map 3.4x,
-//   filter 3.2x ...) — one-time graph-construction costs. The 2026-07-13
-//   hotspot pass removed the per-operator snapshot() Map copies (the
-//   each()/rowCount() no-copy read protocol); the residual is EAGER STORE
-//   INGESTION at $() (v2 lazily wraps a proxy; v3 builds the keyed store
-//   up front) plus node minting — the M6 columnar/lazy-ingest item is the
-//   structural lever, not more constructor shaving.
-// - SINGLE-WRITE cases sit at parity or FAVOR v3: filter/single 1.12x,
-//   map/insert 0.89x, length/insert 0.79x, gt-insert 0.75x, max-insert
-//   0.50x, sum-insert 0.94x, keys 1.00x, to/insert 1.14x.
-// - v3's structural wins are large where v2 is architecturally worse:
-//   sort/brush 0.18x, values/batch 0.006x (identity passthrough — documented
-//   inherent difference), between/setup 0.45x, min-batch 0.43x,
-//   reduce/insert 0.43x, reduce/batch 0.55x, sum-column-move 0.66x.
-// - THE 2026-07-13 HOTSPOT PASS (STATUS gap 8) closed the named per-write
-//   outliers of the 2026-07-10 baseline: group/insert 10.96x → 2.45x
-//   (maintained enumeration-order bucket key lists — numeric-ascending
-//   object fills stay on V8 fast elements — plus an O(1) membership-size
-//   changed-detector before the O(B) compare); to/insert 4.77x → 1.14x and
-//   to/batch 6.20x → 0.99x (ToValueNode hands fn an incrementally-maintained
-//   plain mirror instead of snapshot()+materialize per batch); reduce/batch
-//   1.80x → 0.55x and reduce/insert 1.30x → 0.43x (the 2-arg fold folds via
-//   the no-copy each() pass). The ~2x group residual is the v3 emission
-//   contract itself: fresh immutable bucket objects per touch vs v2's
-//   in-place bucket mutation — inherent, not a defect.
-// - Remaining named rows for a future pass: distinct/batch 3.91x,
-//   except/remove-other 3.03x, between/remove 2.81x, group/churn 2.78x,
-//   union/intersect churn ~2.2-2.3x — all set-op/bucket write paths.
+// - SETUP is the remaining slow class (tap 12.5x, to 9.9x, reverse 5.4x,
+//   length(fn) 4.3x ...) — one-time graph construction; v3 ABSOLUTES kept
+//   improving across the two hotspot passes while v2's sub-ms denominators
+//   shrank faster on a quiet box, so the RATIOS read worse than the trend.
+//   The residual is EAGER STORE INGESTION at $() plus node minting — the M6
+//   columnar/lazy-ingest item is the structural lever.
+// - SINGLE-WRITE cases sit at parity or FAVOR v3: filter/single 1.17x,
+//   map/insert 0.88x, length/insert 0.91x, gt-insert 0.73x, max-insert
+//   0.50x, sum-insert 0.87x, tap/insert 1.00x, distinct/insert 0.97x,
+//   sort/insert 0.98x, keys 1.05x.
+// - v3's structural wins: sort/brush 0.14x, values/batch 0.006x,
+//   reverse/batch 0.008x (v2 rebuilds the whole reversed array per update;
+//   v3 forwards cmp-blind updates O(1)), min-batch 0.30x, reduce/insert
+//   0.32x, reduce/batch 0.52x, sum-column-move 0.63x, between/setup 0.50x.
+// - THE 2026-07-27 HOTSPOT PASS 2 (STATUS gap 8, second round — diagnosis by
+//   a read-only agent panel, fixes commit a134649..11a271d): distinct/batch
+//   3.91x → 1.29x (settle-time touched cut-offs — a non-projection update or
+//   an occupied-bucket admit provably can't move the exposed value, so the
+//   O(holders) _exposed rescan is skipped); union/churn 2.23x → 1.42x and
+//   intersect/churn 2.28x → 1.85x (setops single-delta fast path — a
+//   suppressed outcome allocates nothing — plus scratch reuse and each()
+//   seeding); group/churn 2.78x → 2.00x (ordered window-untouched early-out);
+//   between/remove 2.81x → 2.42x and except/remove-other 3.03x → 2.61x (the
+//   API handle de-fat: shared proxy handler + lazy per-verb methods + lazy
+//   caches took a fresh-key get(k).remove() from ~30 allocations to ~6-8).
+//   sort/insert 1.47x → 0.98x came free from the reverse work (the unbounded
+//   single-delta fast path, commit b43db87).
+// - What remains, and why: group/insert 2.39x is the fresh-immutable-bucket
+//   emission contract vs v2's in-place mutation (inherent, documented);
+//   the remove-side residuals (between/remove 2.42x, except/remove-other
+//   2.61x, group/churn 2.00x) measure a full two-phase commit against v2's
+//   bare delete-plus-dirty-flag dispatch — the honest per-commit floor at
+//   this framing; setup rows are the M6 class above.
 // - REALISTIC (batched, re-reading) shapes are the m1/m2 gates and the
-//   example benches, which all favor v3: m1 chain 0.71x, m2 brush ~1.06x /
-//   batch ~0.80x, crossfilter example 0.25x/0.14x, swarm frames 0.26 ms.
+//   example benches, which all favor v3: m1 chain ~0.70x, m2 brush ~1.05x /
+//   batch ~0.72x, crossfilter example 0.25x/0.14x, swarm frames 0.26 ms.
 //   Flip evidence = this table AND those, together.
 //
 // ### operator perf corpus — v2 vs v3 (informational)
 //
 // N=10,000 · 5 replicate(s) (ABAB, one engine per process) · inner sampling: benchMeasure (1 warmup + gc, median of each case's reps) · node v26.1.0
-// cross-engine end-state equivalence: 42 case(s) compared at EQ_N=10,000 (2 write-sequence run(s)/case) — ALL EQUAL
+// cross-engine end-state equivalence: 44 case(s) compared at EQ_N=10,000 (2 write-sequence run(s)/case) — ALL EQUAL
 //
 // | operator | case | v2 median | v3 median | ratio (v3/v2) |
 // |---|---|---|---|---|
-// | filter | setup | 1.55 ms | 5.15 ms | 3.184× |
-// | filter | single | 0.1160 ms | 0.1348 ms | 1.124× |
-// | filter | batch | 2.55 ms | 2.74 ms | 1.136× |
-// | map | setup | 1.61 ms | 5.48 ms | 3.392× |
-// | map | insert | 0.1177 ms | 0.1045 ms | 0.890× |
-// | to | setup | 0.5351 ms | 4.86 ms | 7.772× |
-// | to | insert | 0.3837 ms | 0.3680 ms | 1.138× |
-// | to | batch | 166.8 ms | 170.7 ms | 0.992× |
-// | length | insert | 0.0803 ms | 0.0637 ms | 0.793× |
-// | length(fn) | setup | 1.92 ms | 5.84 ms | 2.597× |
-// | keys | setup | 1.53 ms | 4.81 ms | 3.059× |
-// | keys | insert | 0.0853 ms | 0.0868 ms | 0.996× |
-// | values | setup | 1.10 ms | 3.90 ms | 2.968× |
-// | values | batch | 58.17 ms | 0.3535 ms | 0.006× |
-// | tap | setup | 0.2994 ms | 3.87 ms | 10.001× |
-// | tap | insert | 0.1355 ms | 0.1494 ms | 1.050× |
-// | tap | batch | 3.32 ms | 4.11 ms | 1.371× |
-// | tap | bare | 2.21 ms | 2.43 ms | 1.184× |
-// | distinct | setup | 4.40 ms | 7.98 ms | 1.700× |
-// | distinct | insert | 0.0909 ms | 0.1106 ms | 1.180× |
-// | distinct | batch | 0.2256 ms | 0.9559 ms | 3.908× |
-// | group | setup | 4.99 ms | 9.72 ms | 1.947× |
-// | group | insert | 0.1157 ms | 0.2796 ms | 2.448× |
-// | group | churn | 0.0788 ms | 0.2140 ms | 2.777× |
-// | compare | gt-setup | 1.91 ms | 5.03 ms | 2.351× |
-// | compare | gt-insert | 0.0964 ms | 0.0753 ms | 0.749× |
-// | compare | gt-batch | 2.90 ms | 2.73 ms | 0.942× |
-// | compare | gt-threshold-move | 4.20 ms | 5.05 ms | 1.166× |
-// | compare | lt-setup | 1.86 ms | 5.08 ms | 2.672× |
-// | compare | gte-setup | 2.17 ms | 5.08 ms | 2.364× |
-// | compare | lte-setup | 2.04 ms | 5.11 ms | 2.503× |
-// | between | setup | 13.86 ms | 6.61 ms | 0.446× |
-// | between | narrow | 3.53 ms | 5.61 ms | 1.656× |
-// | between | insert | 2.42 ms | 3.09 ms | 1.469× |
-// | between | remove | 1.28 ms | 3.67 ms | 2.811× |
-// | sort | setup | 16.49 ms | 23.59 ms | 1.269× |
-// | sort | insert | 0.1454 ms | 0.2119 ms | 1.468× |
-// | sort | rotate | 0.1519 ms | 0.2504 ms | 1.459× |
-// | sort | brush | 67.10 ms | 14.82 ms | 0.179× |
-// | sort | window-move | 0.3106 ms | 0.4145 ms | 1.329× |
-// | aggregate | sum-setup | 4.48 ms | 7.19 ms | 1.535× |
-// | aggregate | sum-insert | 0.1013 ms | 0.1031 ms | 0.935× |
-// | aggregate | avg-batch | 2.49 ms | 3.41 ms | 1.362× |
-// | aggregate | max-setup | 6.29 ms | 6.02 ms | 0.843× |
-// | aggregate | max-insert | 0.1796 ms | 0.0972 ms | 0.501× |
-// | aggregate | min-batch | 1.52 ms | 0.6285 ms | 0.425× |
-// | aggregate | some-setup | 4.67 ms | 5.70 ms | 1.212× |
-// | aggregate | every-batch | 2.39 ms | 3.00 ms | 1.223× |
-// | aggregate | sum-column-move | 7.61 ms | 4.47 ms | 0.661× |
-// | union | setup | 12.04 ms | 20.43 ms | 1.696× |
-// | union | churn | 2.72 ms | 5.81 ms | 2.233× |
-// | union | insert | 1.75 ms | 3.04 ms | 1.821× |
-// | intersect | setup | 10.38 ms | 10.44 ms | 0.947× |
-// | intersect | churn | 2.42 ms | 5.06 ms | 2.282× |
-// | except | setup | 2.30 ms | 7.33 ms | 3.255× |
-// | except | insert-other | 1.58 ms | 2.22 ms | 1.406× |
-// | except | remove-other | 1.15 ms | 3.41 ms | 3.029× |
-// | reduce | setup | 1.84 ms | 4.14 ms | 2.431× |
-// | reduce | insert | 1.14 ms | 0.5145 ms | 0.428× |
-// | reduce | batch | 62.45 ms | 35.03 ms | 0.551× |
-// | reduce | inc-setup | 4.18 ms | 4.19 ms | 1.126× |
-// | reduce | inc-insert | 0.1015 ms | 0.0989 ms | 0.931× |
-// | reduce | inc-overwrite | 0.2250 ms | 0.3582 ms | 1.412× |
-// | reduce | inc-remove | 0.2629 ms | 0.3969 ms | 1.560× |
+// | filter | setup | 1.25 ms | 4.59 ms | 3.340× |
+// | filter | single | 0.0870 ms | 0.1339 ms | 1.173× |
+// | filter | batch | 1.97 ms | 2.28 ms | 1.112× |
+// | map | setup | 1.44 ms | 5.50 ms | 4.029× |
+// | map | insert | 0.0987 ms | 0.0852 ms | 0.881× |
+// | to | setup | 0.4628 ms | 4.40 ms | 9.859× |
+// | to | insert | 0.3371 ms | 0.3690 ms | 1.168× |
+// | to | batch | 144.7 ms | 152.3 ms | 1.068× |
+// | length | insert | 0.0673 ms | 0.0619 ms | 0.911× |
+// | length(fn) | setup | 1.14 ms | 4.92 ms | 4.346× |
+// | keys | setup | 1.32 ms | 4.22 ms | 4.012× |
+// | keys | insert | 0.0736 ms | 0.0822 ms | 1.045× |
+// | values | setup | 0.9658 ms | 3.06 ms | 3.340× |
+// | values | batch | 51.81 ms | 0.3174 ms | 0.006× |
+// | tap | setup | 0.2421 ms | 3.32 ms | 12.475× |
+// | tap | insert | 0.1296 ms | 0.1290 ms | 0.995× |
+// | tap | batch | 3.17 ms | 3.57 ms | 1.126× |
+// | tap | bare | 1.76 ms | 1.86 ms | 1.054× |
+// | reverse | setup | 1.10 ms | 6.34 ms | 5.422× |
+// | reverse | insert | 0.0965 ms | 0.1727 ms | 1.776× |
+// | reverse | batch | 44.77 ms | 0.3756 ms | 0.008× |
+// | distinct | setup | 4.55 ms | 7.53 ms | 1.684× |
+// | distinct | insert | 0.0898 ms | 0.0715 ms | 0.965× |
+// | distinct | batch | 0.2395 ms | 0.3124 ms | 1.292× |
+// | group | setup | 4.50 ms | 8.23 ms | 1.938× |
+// | group | insert | 0.1116 ms | 0.2673 ms | 2.392× |
+// | group | churn | 0.0690 ms | 0.1312 ms | 2.001× |
+// | compare | gt-setup | 1.56 ms | 5.22 ms | 2.997× |
+// | compare | gt-insert | 0.0925 ms | 0.0674 ms | 0.729× |
+// | compare | gt-batch | 2.22 ms | 2.16 ms | 1.013× |
+// | compare | gt-threshold-move | 3.75 ms | 4.59 ms | 1.250× |
+// | compare | lt-setup | 1.71 ms | 4.53 ms | 2.496× |
+// | compare | gte-setup | 1.94 ms | 4.45 ms | 2.293× |
+// | compare | lte-setup | 1.73 ms | 5.41 ms | 2.539× |
+// | between | setup | 12.36 ms | 6.36 ms | 0.498× |
+// | between | narrow | 2.20 ms | 4.98 ms | 2.277× |
+// | between | insert | 2.23 ms | 3.23 ms | 1.450× |
+// | between | remove | 1.10 ms | 2.69 ms | 2.420× |
+// | sort | setup | 13.11 ms | 18.91 ms | 1.456× |
+// | sort | insert | 0.1242 ms | 0.1129 ms | 0.984× |
+// | sort | rotate | 0.1247 ms | 0.2140 ms | 1.663× |
+// | sort | brush | 62.57 ms | 9.29 ms | 0.141× |
+// | sort | window-move | 0.2804 ms | 0.3649 ms | 1.202× |
+// | aggregate | sum-setup | 4.12 ms | 5.07 ms | 1.250× |
+// | aggregate | sum-insert | 0.0964 ms | 0.0817 ms | 0.874× |
+// | aggregate | avg-batch | 2.52 ms | 2.75 ms | 1.052× |
+// | aggregate | max-setup | 5.12 ms | 5.04 ms | 0.958× |
+// | aggregate | max-insert | 0.1625 ms | 0.0819 ms | 0.504× |
+// | aggregate | min-batch | 2.01 ms | 0.5105 ms | 0.301× |
+// | aggregate | some-setup | 4.68 ms | 5.39 ms | 1.112× |
+// | aggregate | every-batch | 2.18 ms | 2.56 ms | 1.100× |
+// | aggregate | sum-column-move | 6.62 ms | 4.39 ms | 0.627× |
+// | union | setup | 10.65 ms | 16.55 ms | 1.435× |
+// | union | churn | 2.71 ms | 3.66 ms | 1.420× |
+// | union | insert | 1.56 ms | 2.47 ms | 1.580× |
+// | intersect | setup | 4.65 ms | 8.54 ms | 1.756× |
+// | intersect | churn | 2.05 ms | 3.92 ms | 1.849× |
+// | except | setup | 2.04 ms | 5.93 ms | 2.870× |
+// | except | insert-other | 1.40 ms | 1.95 ms | 1.394× |
+// | except | remove-other | 0.9687 ms | 2.52 ms | 2.606× |
+// | reduce | setup | 1.54 ms | 3.79 ms | 2.555× |
+// | reduce | insert | 1.02 ms | 0.3366 ms | 0.320× |
+// | reduce | batch | 55.51 ms | 28.37 ms | 0.520× |
+// | reduce | inc-setup | 3.68 ms | 3.55 ms | 0.965× |
+// | reduce | inc-insert | 0.0901 ms | 0.0795 ms | 0.919× |
+// | reduce | inc-overwrite | 0.2174 ms | 0.2408 ms | 1.160× |
+// | reduce | inc-remove | 0.2278 ms | 0.2698 ms | 1.262× |
 //
-// summary: geometric-mean ratio **1.338×** over 64 rows · v3 faster on 18 (<1.0×), slower on 46 (>1.0×)
-// worst 3 (v3/v2): tap/setup 10.00× · to/setup 7.77× · distinct/batch 3.91×
+// summary: geometric-mean ratio **1.223×** over 67 rows · v3 faster on 19 (<1.0×), slower on 48 (>1.0×)
+// worst 3 (v3/v2): tap/setup 12.47× · to/setup 9.86× · reverse/setup 5.42×
 //
 // skipped (no v3 counterpart / under-sized N):
-// - reverse/*: v3 reserves `reverse` (unimplemented at the flip — throws "reserved name reverse has no implementation yet"); no counterpart to time
 // - filter/value-move: v2's reactive equality-value filter('active', $(bool)) has no v3 operator counterpart — the v3 idiom (transient filter + mirror() + dispose(), MIGRATION §3.1/§5.2) is a structurally different graph, not comparable 1:1
 //
 
