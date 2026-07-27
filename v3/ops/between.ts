@@ -84,6 +84,7 @@ export class BetweenNode<T> extends DataNode<T> {
   // side). undefined = recompute lazily at the next walk (??= bisect).
   declare loIdx: number | undefined
   declare hiIdx: number | undefined
+  declare pendScratch: Map<RowKey, RowDelta<T>> | undefined // settle scratch — reused per commit
 
   constructor(
     runtime: Runtime,
@@ -198,16 +199,22 @@ export class BetweenNode<T> extends DataNode<T> {
       return { seq, origin, rows, order: undefined, scalar: undefined }
     }
 
-    const pending = new Map<RowKey, RowDelta<T>>()
-    const emit = (d: RowDelta<T>) => this.pend(pending, d)
+    // Persistent scratch (settle runs at most once per node per commit — the
+    // settledSeq guard — and rows are copied out before the clear below), so
+    // the pure-data path allocates no Map and no closure per commit. A delta
+    // left in the scratch would replay next commit: clear on EVERY exit.
+    const pending = (this.pendScratch ??= new Map<RowKey, RowDelta<T>>())
     if (dataBatch !== null) this.applyData(dataBatch.rows as readonly RowDelta<T>[], pending)
     if (boundsBatch !== null) {
+      const emit = (d: RowDelta<T>) => this.pend(pending, d)
       for (const d of boundsBatch.rows) {
         if (d.op === 'update' || d.op === 'add') this.applyBounds(d.row as Bounds, emit)
       }
     }
     if (pending.size === 0) return null
-    const rows = [...pending.values()]
+    const rows =
+      pending.size === 1 ? [pending.values().next().value as RowDelta<T>] : [...pending.values()]
+    pending.clear()
     return { seq, origin, rows, order: undefined, scalar: undefined }
   }
 
