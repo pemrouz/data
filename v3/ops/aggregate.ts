@@ -54,7 +54,10 @@ function proj(col: string | undefined, row: any): unknown {
   return x === undefined || x === null ? undefined : x
 }
 
-abstract class ProjectionAggregate<In> extends ScalarNode<In> {
+// Exported for extension: the tracked-projection scalar base (sum/avg here,
+// max/min/some/every replicate it in misc.ts) — a custom incremental
+// aggregate supplies delta(old, new) over normalized projections.
+export abstract class ProjectionAggregate<In> extends ScalarNode<In> {
   declare col: string | undefined
   declare tracked: Map<RowKey, unknown>
 
