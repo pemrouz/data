@@ -713,3 +713,53 @@ test('toValue: incremental mirror — writes, same-instance contract, mirror() r
   src.write('c', ['val'], 31)
   same(tv.value(), 'a:11,c:31,d:40')
 })
+
+// ── distinct: the O(holders)-rescan cut-offs (STATUS gap 8, pass 2) ──────────
+//
+// Regression guard for the settle-time touched-set cut-offs: a non-projection
+// update (same distinct key, Object.is-equal projected value) and an admit
+// into an already-occupied holder set both provably cannot change the exposed
+// value, so neither may mark the distinct key touched (phase 2's _exposed
+// rescan is O(holders) per touched key). The cut-offs must NOT suppress the
+// cases that DO change the view: a projection change on the representative,
+// an admit into a NEW bucket, and the batch(remove-representative + add
+// same-dk) interleaving (the expel touches the dk even though the add skips).
+test('distinct: non-projection updates and occupied-bucket admits stay silent; rep changes still emit', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, rows()) // a/b/c: north(10), south(20), north(30)
+  const d = distinct(src, (r: Row) => r.region)
+  conform(d)
+  const batches: CommitBatch<unknown>[] = []
+  d.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<unknown>) => batches.push(b) })
+
+  // non-projection edit: same dk, same projected value → NO emission
+  src.write('a', ['val'], 99)
+  same(batches.length, 0)
+
+  // admit into an occupied bucket ('north' already has a, c) → NO emission
+  src.write('d', [], { region: 'north', val: 40 })
+  same(batches.length, 0)
+  // admit into a NEW bucket → add
+  src.write('e', [], { region: 'east', val: 50 })
+  same(batches.length, 1)
+  same(batches[0].rows, [{ op: 'add', key: 'east', row: 'east' }])
+
+  // remove the representative + re-add a same-dk row in ONE batch: the expel
+  // touches 'north', the diff sees an Object.is-equal exposure → silent
+  batches.length = 0
+  rt.batch(() => {
+    src.remove('a')
+    src.write('f', [], { region: 'north', val: 60 })
+  })
+  same(batches.length, 0)
+
+  // projection change ON the representative (string vs number projections
+  // share a dk only when String() collides — here move a rep to a new value):
+  // 'east' rep (e) moves to 'west' → remove east + add west
+  batches.length = 0
+  src.write('e', ['region'], 'west')
+  same(batches.length, 1)
+  const ops = new Map(batches[0].rows.map((r) => [r.key, r.op]))
+  same(ops.get('east'), 'remove')
+  same(ops.get('west'), 'add')
+})

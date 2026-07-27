@@ -525,9 +525,16 @@ export class DistinctNode<T> extends DataNode<unknown> {
     const touched = new Set<string>()
     for (const d of input.rows as readonly RowDelta<T>[]) {
       switch (d.op) {
-        case 'add':
-          touched.add(this._admit(d.key, d.row))
+        case 'add': {
+          const dk = this._admit(d.key, d.row)
+          // A key admitted into an ALREADY-OCCUPIED holder set carries the
+          // largest arrival counter (misc.ts _admit), so it can never displace
+          // the min-position representative — the exposed value can't change,
+          // and phase 2's _exposed rescan is O(holders) per touched key. A
+          // same-batch expel/move of a prior holder touches the dk itself.
+          if (this.holders.get(dk)!.size === 1) touched.add(dk)
           break
+        }
         case 'remove':
           touched.add(this._expel(d.key))
           break
@@ -535,10 +542,17 @@ export class DistinctNode<T> extends DataNode<unknown> {
           const oldDk = this.dkOf.get(d.key)!
           const v = this.fn(d.row)
           const dk = String(v)
-          touched.add(oldDk)
           if (dk === oldDk) {
+            // Same distinct key: only mark touched when the projected value
+            // itself changed — an update that leaves the projection alone
+            // (the common non-projection field edit) cannot change anything
+            // this view exposes, and phase 2's _exposed rescan is O(holders)
+            // per touched key (the corpus distinct/batch hotspot).
+            const oldV = this.projOf.get(d.key)
             this.projOf.set(d.key, v)
+            if (!Object.is(oldV, v)) touched.add(oldDk)
           } else {
+            touched.add(oldDk)
             // Projection moved buckets; the key KEEPS its arrival position
             // (source insertion order is a property of the key, not the value).
             touched.add(dk)
