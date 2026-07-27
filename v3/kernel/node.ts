@@ -223,12 +223,29 @@ export function pathCopy<T>(row: T, path: Path, value: unknown): T {
 // never reorder survivors): removes at descending pre-batch indices (each
 // index is valid at application time), then inserts at ascending final
 // indices. TODO(M2): OrderedView emits real orderMove for rank rotations.
+// Legal order script pre → post (SCHEDULE clause 8): removes at DESCENDING
+// pre indices, then orderMove per SURVIVING key whose relative rank rotated
+// (against the survivor array — each move valid at application time), then
+// inserts at ASCENDING final indices. The rotation pass was inert until
+// SourceNode.move() existed (insert/remove splices never rotate survivors),
+// so pre-move consumers see byte-identical scripts.
 export function diffOrder(pre: readonly RowKey[], post: readonly RowKey[]): OrderDelta[] {
   const postSet = new Set(post)
   const preSet = new Set(pre)
   const out: OrderDelta[] = []
   for (let i = pre.length - 1; i >= 0; i--) {
     if (!postSet.has(pre[i])) out.push({ op: 'orderRemove', key: pre[i], index: i })
+  }
+  const cur: RowKey[] = []
+  for (const k of pre) if (postSet.has(k)) cur.push(k)
+  const surv: RowKey[] = []
+  for (const k of post) if (preSet.has(k)) surv.push(k)
+  for (let i = 0; i < surv.length; i++) {
+    if (cur[i] === surv[i]) continue
+    const j = cur.indexOf(surv[i], i)
+    out.push({ op: 'orderMove', key: surv[i], index: i, from: j })
+    cur.splice(j, 1)
+    cur.splice(i, 0, surv[i])
   }
   for (let i = 0; i < post.length; i++) {
     if (!preSet.has(post[i])) out.push({ op: 'orderInsert', key: post[i], index: i })
@@ -349,6 +366,32 @@ export class SourceNode<T> extends DataNode<T> {
     }
     if (!this.store.has(key)) return
     this.applyRemove(key)
+    rt.written(this)
+  }
+
+  // Reposition a live key in the order channel — array-born sources only
+  // (object-born sources are unordered; there is no position to move). No
+  // row delta is recorded: the change is purely positional, and settle's
+  // diffOrder(preBatchOrder, order) synthesizes the legal orderMove. This is
+  // the ingress for the seam's 'move' wire records (previously deferred).
+  move(key: RowKey, to: number): void {
+    const rt = this.runtime
+    if (!rt.canWriteNow()) {
+      rt.queueWrite(() => this.move(key, to))
+      return
+    }
+    if (this.order === null)
+      throw new Error(
+        'data: move() repositions the order channel — this source is object-born (unordered); moves only apply to array-born sources',
+      )
+    if (!this.store.has(key)) return // idempotent, like remove
+    const from = this.order.indexOf(key)
+    if (from < 0) return
+    const t = to < 0 ? 0 : to >= this.order.length ? this.order.length - 1 : to
+    if (from === t) return
+    this.snapPreOrder()
+    this.order.splice(from, 1)
+    this.order.splice(t, 0, key)
     rt.written(this)
   }
 

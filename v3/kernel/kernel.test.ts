@@ -473,3 +473,46 @@ test('REVIEW FIX: Scope.dispose completes past a throwing cleanup — siblings s
   same((err as AggregateError).errors.length, 1)
   same(((err as AggregateError).errors[0] as Error).message, 'bad-cleanup')
 })
+
+// ── SourceNode.move() (STATUS gap 5) ─────────────────────────────────────────
+//
+// A pure order-channel reposition: no row delta; settle emits the rotation
+// as a legal orderMove script (diffOrder's survivor-rotation pass — inert
+// for insert/remove-only commits, which never rotate survivors). Composes
+// with data writes in one batch(); object-born sources reject loudly.
+test('SourceNode.move(): order-only emission, batch composition, clamping, object-born rejects', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ v: number }>(rt, [{ v: 1 }, { v: 2 }, { v: 3 }, { v: 4 }])
+  conform(src)
+  const batches: CommitBatch<{ v: number }>[] = []
+  src.connect({ wantsOrder: true, origin: null, apply: (b) => batches.push(b) })
+
+  src.move(0, 3)
+  same(src.currentOrder(), [1, 2, 3, 0])
+  same(batches.length, 1)
+  same(batches[0].rows, [])
+  assert.ok(batches[0].order!.length > 0)
+
+  // move + data write in ONE batch → one commit carrying both channels
+  batches.length = 0
+  rt.batch(() => {
+    src.move(0, 0)
+    src.write(2, ['v'], 30)
+  })
+  same(batches.length, 1)
+  same(src.currentOrder(), [0, 1, 2, 3])
+  same(batches[0].rows.length, 1)
+  same(batches[0].rows[0].op, 'update')
+  assert.ok(batches[0].order!.length > 0)
+
+  // clamping + no-ops: same position and missing key emit nothing
+  batches.length = 0
+  src.move(0, 0)
+  src.move(999, 2)
+  same(batches.length, 0)
+  src.move(1, -5) // clamps to front
+  same(src.currentOrder(), [1, 0, 2, 3])
+
+  const osrc = new SourceNode<{ v: number }>(rt, { a: { v: 1 } })
+  assert.throws(() => osrc.move('a', 0), /object-born/)
+})

@@ -6,7 +6,7 @@
 // (positional v2 keys resolve through currentOrder() at application time),
 // the one-batch guarantee + consolidation, the live-key add (LWW) tolerance,
 // origin echo suppression round-trip (source AND derived sinks), move
-// deferral, full v2 record-stream round-trips (capture from A, replay into
+// ingress (both profiles), full v2 record-stream round-trips (capture from A, replay into
 // B), fromAsync (promise + async generator, status transitions, chunk
 // batching, downstream filter/sum consistency, microtask coalescing,
 // dispose-cancels, error surfacing), InMemoryBacking's load/apply/subscribe
@@ -120,13 +120,33 @@ test('ingest unwraps an api handle through the [node] symbol (no api import in t
   assert.throws(() => ingest(h.filter(() => true), [{ t: 'remove', k: 'a' }]), /must be a source/)
 })
 
-test('ingest wire: move records are deferred with a clear error (both profiles)', () => {
+test('ingest: move records reposition the order channel (both profiles); object-born sources reject', () => {
   const rt = new Runtime()
-  const src = new SourceNode<{ v: number }>(rt, [{ v: 1 }, { v: 2 }])
+  const src = new SourceNode<{ v: number }>(rt, [{ v: 1 }, { v: 2 }, { v: 3 }])
   conform(src)
-  assert.throws(() => ingest(src, [{ t: 'move', k: 0, from: 0, to: 1 }]), /does not support move records yet/)
-  assert.throws(() => ingest(src, [{ type: 'move', from: 0, to: 1 }]), /does not support move records yet/)
-  same(src.currentOrder(), [0, 1]) // untouched
+  const batches = captureBatches(src)
+
+  // wire profile: key-addressed, `from` advisory
+  ingest(src, [{ t: 'move', k: 0, from: 0, to: 2 }])
+  same(src.currentOrder(), [1, 2, 0])
+  same(batches.length, 1)
+  same(batches[0].rows, []) // purely positional — no row deltas
+  assert.ok(batches[0].order !== undefined && batches[0].order!.length > 0)
+  same(src.snapshot().get(0), { v: 1 }) // rows untouched
+
+  // v2 profile: positional both ends — from resolves through currentOrder()
+  ingest(src, [{ type: 'move', from: 2, to: 0 }]) // key 0 back to the front
+  same(src.currentOrder(), [0, 1, 2])
+
+  // clamping + idempotence: out-of-range `to` clamps; missing key is silent
+  ingest(src, [{ t: 'move', k: 1, from: 0, to: 99 }])
+  same(src.currentOrder(), [0, 2, 1])
+  ingest(src, [{ t: 'move', k: 777, from: 0, to: 0 }])
+  same(src.currentOrder(), [0, 2, 1])
+
+  // object-born: no order channel — loud
+  const osrc = new SourceNode<{ v: number }>(rt, { a: { v: 1 } })
+  assert.throws(() => ingest(osrc, [{ t: 'move', k: 'a', from: 0, to: 0 }]), /object-born/)
 })
 
 // ── ingest: v2 profile ───────────────────────────────────────────────────────

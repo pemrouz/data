@@ -66,8 +66,9 @@ const NODE = Symbol.for('data.v3.node')
 //   - an `update` with a NON-empty path for a non-live key stays LOUD
 //     (SourceNode.write throws — a deep write cannot invent a row).
 //
-// Deferred: `move` records (both profiles) throw — the order-splice ingress
-// lands with the render/ordered seam work.
+// `move` records (both profiles) route through SourceNode.move(): a pure
+// order-channel reposition settled as an order diff (array-born sources
+// only; the v2 profile resolves its positional `from` to a key first).
 
 export type IngestRecord = WireRecord | ChangeRecordV2
 
@@ -120,9 +121,11 @@ function applyWire(src: SourceNode<any>, r: WireRecord): void {
       src.remove(r.k) // silent for non-live keys — idempotent redelivery
       return
     case 'move':
-      throw new Error(
-        'data: ingest() does not support move records yet — order splice ingress lands with the render/ordered seam (deferred)',
-      )
+      // Positional reposition — SourceNode.move validates (array-born only)
+      // and settles the change as an order diff; `from` is advisory (the
+      // key addresses the row; redelivery after a drift stays correct).
+      src.move(r.k, r.to)
+      return
   }
 }
 
@@ -143,10 +146,16 @@ function v2RowKey(src: SourceNode<any>, name: string): RowKey | undefined {
 }
 
 function applyV2(src: SourceNode<any>, r: ChangeRecordV2): void {
-  if (r.type === 'move')
-    throw new Error(
-      'data: ingest() does not support move records yet — order splice ingress lands with the render/ordered seam (deferred)',
-    )
+  if (r.type === 'move') {
+    // v2 BMV1 wire shape: { type:'move', from, to } — positional both ends.
+    // Resolve `from` through the current order to the row KEY, then move it.
+    const ord = src.currentOrder()
+    if (ord === null)
+      throw new Error('data: ingest() v2 move record targets an object-born (unordered) source')
+    const k = ord[(r as any).from as number]
+    if (k !== undefined) src.move(k, (r as any).to as number)
+    return
+  }
   if (r.type === 'insert') {
     if (src.currentOrder() !== null) {
       src.insert(r.value, typeof r.at === 'number' ? r.at : undefined)
