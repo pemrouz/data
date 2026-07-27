@@ -118,6 +118,7 @@ export class SetOpNode<T> extends DataNode<T> {
   declare view: Map<RowKey, T> // materialized output, updated at settle
   declare othersMask: number // except only: OR of the *others* args' bits (bit i = parents[i])
   declare sharedProvenance: boolean // parents share ≥1 root source
+  declare touchedScratch: Map<RowKey, Path | null> | undefined // settle scratch — reused per commit
 
   constructor(runtime: Runtime, variant: SetVariant, primary: DataNode<T>, others: readonly DataNode<T>[]) {
     // Operands validate + dedup BEFORE attach (validatedOperands throws on a
@@ -145,16 +146,16 @@ export class SetOpNode<T> extends DataNode<T> {
     if (variant === 'union') {
       const seen = new Set<RowKey>()
       for (const p of unique) {
-        for (const k of p.snapshot().keys()) {
-          if (seen.has(k)) continue
+        p.each((k) => {
+          if (seen.has(k)) return
           seen.add(k)
           if (this.live(k)) this.view.set(k, this.exposed(k) as T)
-        }
+        })
       }
     } else {
-      for (const k of unique[0].snapshot().keys()) {
+      unique[0].each((k) => {
         if (this.live(k)) this.view.set(k, this.exposed(k) as T)
-      }
+      })
     }
   }
 
@@ -267,14 +268,28 @@ export class SetOpNode<T> extends DataNode<T> {
   settle(seq: number, origin: OriginToken): CommitBatch<T> | null {
     if (this.in0 === null) return null
 
+    // Single-delta fast path — the bare-write churn shape (one commit per
+    // write). Skips the touched-Map fold entirely; a suppressed outcome
+    // (the common union-churn case) allocates NOTHING. Gate on inMore
+    // LENGTH, not null: clearInputs keeps the array once allocated, so a
+    // null-only gate would silently disable this path after the first
+    // multi-parent commit.
+    const b0 = this.in0 as CommitBatch<T>
+    if ((this.inMore === null || this.inMore.length === 0) && b0.rows.length === 1) {
+      const d = b0.rows[0]
+      const delta = this.settleKey(d.key, d.op === 'update' ? d.path : null)
+      return delta === null ? null : { seq, origin, rows: [delta], order: undefined, scalar: undefined }
+    }
+
     // Phase 1: collect the touched keys across every parent batch — no state
     // folding: liveness/exposure in phase 2 query the (already-settled)
     // parents directly. `touched` also carries the update-path candidate: the
     // path if every delta seen for the key this commit was an update with
     // the SAME path (two derived parents echoing one source write), else
-    // null (→ whole-row path []).
-    const touched = new Map<RowKey, Path | null>()
-    this.fold(this.in0 as CommitBatch<T>, touched)
+    // null (→ whole-row path []). The Map is a persistent scratch (settle
+    // runs at most once per commit and never re-enters) — cleared on exit.
+    const touched = (this.touchedScratch ??= new Map<RowKey, Path | null>())
+    this.fold(b0, touched)
     if (this.inMore !== null)
       for (const { batch } of this.inMore) this.fold(batch as CommitBatch<T>, touched)
 
@@ -283,30 +298,39 @@ export class SetOpNode<T> extends DataNode<T> {
     // + add/remove legality hold by construction.
     const out: RowDelta<T>[] = []
     for (const [k, cand] of touched) {
-      const preLive = this.view.has(k)
-      const preRow = this.view.get(k) as T
-      const postLive = this.live(k)
-      if (!preLive && postLive) {
-        const row = this.exposed(k) as T
-        this.view.set(k, row)
-        out.push({ op: 'add', key: k, row })
-      } else if (preLive && !postLive) {
-        this.view.delete(k)
-        out.push({ op: 'remove', key: k, prev: preRow })
-      } else if (preLive && postLive) {
-        const row = this.exposed(k) as T
-        if (Object.is(preRow, row)) continue // phantom-update suppression
-        this.view.set(k, row)
-        let path: Path = cand ?? []
-        // Keep a forwarded path only if the leaf genuinely changed in OUR
-        // exposure (a union exposure switch can change the row while the
-        // candidate leaf stays equal — that must degrade to whole-row).
-        if (path.length > 0 && Object.is(leafAt(preRow, path), leafAt(row, path))) path = []
-        out.push({ op: 'update', key: k, row, prev: preRow, path })
-      }
-      // !preLive && !postLive: a change in a parent that never surfaced here.
+      const delta = this.settleKey(k, cand)
+      if (delta !== null) out.push(delta)
     }
+    touched.clear()
     return out.length ? { seq, origin, rows: out, order: undefined, scalar: undefined } : null
+  }
+
+  // One key's view transition (extracted verbatim from the phase-2 loop so
+  // the single-delta fast path shares it): returns the delta or null.
+  private settleKey(k: RowKey, cand: Path | null): RowDelta<T> | null {
+    const preLive = this.view.has(k)
+    const preRow = this.view.get(k) as T
+    const postLive = this.live(k)
+    if (!preLive && postLive) {
+      const row = this.exposed(k) as T
+      this.view.set(k, row)
+      return { op: 'add', key: k, row }
+    } else if (preLive && !postLive) {
+      this.view.delete(k)
+      return { op: 'remove', key: k, prev: preRow }
+    } else if (preLive && postLive) {
+      const row = this.exposed(k) as T
+      if (Object.is(preRow, row)) return null // phantom-update suppression
+      this.view.set(k, row)
+      let path: Path = cand ?? []
+      // Keep a forwarded path only if the leaf genuinely changed in OUR
+      // exposure (a union exposure switch can change the row while the
+      // candidate leaf stays equal — that must degrade to whole-row).
+      if (path.length > 0 && Object.is(leafAt(preRow, path), leafAt(row, path))) path = []
+      return { op: 'update', key: k, row, prev: preRow, path }
+    }
+    // !preLive && !postLive: a change in a parent that never surfaced here.
+    return null
   }
 
   private fold(batch: CommitBatch<T>, touched: Map<RowKey, Path | null>): void {
