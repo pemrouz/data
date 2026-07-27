@@ -99,7 +99,7 @@ Notes:
 - **`get(key)` is the total, collision-free child read.** Property sugar
   (`d.field`) works for every name outside the 45-name RESERVED set
   (`get/set/update/insert/remove/patch/ingest/connect/snapshot/raf/first/last/mirror/dispose`
-  + every operator name incl. `page`/`reverse`/`join`). A data key named
+  + every operator name incl. the still-reserved `page`/`join`). A data key named
   `length` or `filter` MUST be read `d.get('length')`. `d.value` is still a
   child named `"value"` — the raw read is the exported `value` symbol
   (`Symbol.for('data.v3.value')` — a *different* symbol from v2's; never mix
@@ -444,8 +444,8 @@ compositions must be disposed or they accumulate** — the v2 kanban
 | `intersect({col: view})` object-map | gone — view operands; the old form fails fast BEFORE attach ([§3.8](#38-set-algebra-intersect--union--except-take-view-operands)) |
 | `between('col', [$(lo), $(hi)])` two-VP bounds | gone — one reactive tuple ref; old form throws at construction ([§3.2](#32-between--reactive-bounds-are-a-single-tuple-ref)) |
 | `za(n)` / `az(n)` numeric-only sort | use `top(n)` / `limit(n)`; the numeric form throws at construction ([§3.4](#34-ordered-views-az--za--top--limit)) |
-| `reverse()` | RESERVED, unimplemented — throws `data: reserved name reverse has no implementation yet` |
-| `page` / `join` | same — reserved names, throw `… has no implementation yet` (they gain signatures in a minor, not a breaking change) |
+| `reverse()` | LANDED (post-flip): reversed ARRIVAL order (newest first) — an append surfaces at index 0. v2's positional mid-array reversal dissolved with the keyed model; reverse a SORTED view with the opposite operator (az ↔ za) |
+| `page` / `join` | reserved names, throw `… has no implementation yet` (they gain signatures in a minor, not a breaking change) |
 | single-arg `connect(fn)` | still invalid (throws, same as v2 — the message names the three valid forms) |
 | `connect([])` returns the array | returns a `SubscriptionHandle`; keep the handle or a scope alive and `dispose()` explicitly |
 | WeakRef auto-unsubscription | gone — strong refs, explicit `dispose()` |

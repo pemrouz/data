@@ -149,6 +149,7 @@ export class OrderIndex {
 export class OrderedView<T> extends DataNode<T> {
   declare userCmp: RowComparator<T>
   declare n: number // window size; Infinity = unbounded
+  declare tieDir: 1 | -1 // tiebreak direction: 1 = arrival order, -1 = newest-first (reverse)
   declare rows: Map<RowKey, T> // ALL live parent rows (current references)
   declare tie: Map<RowKey, number> // key → insertion seq (stable tiebreak)
   declare tieSeq: number
@@ -156,10 +157,11 @@ export class OrderedView<T> extends DataNode<T> {
   declare window: RowKey[] // materialized: first min(n, size) ranked keys
   declare winSet: Set<RowKey> // membership of MY view (the window)
 
-  constructor(runtime: Runtime, parent: DataNode<T>, name: string, cmp: RowComparator<T>, n?: number) {
+  constructor(runtime: Runtime, parent: DataNode<T>, name: string, cmp: RowComparator<T>, n?: number, tieDir: 1 | -1 = 1) {
     super(runtime, 'operator', name, [parent])
     this.userCmp = cmp
     this.n = n === undefined ? Infinity : n
+    this.tieDir = tieDir
     this.rows = new Map()
     this.tie = new Map()
     this.tieSeq = 0
@@ -169,7 +171,7 @@ export class OrderedView<T> extends DataNode<T> {
     })
     this.index = new OrderIndex((a, b) => {
       const c = this.userCmp(this.rows.get(a) as T, this.rows.get(b) as T)
-      return c !== 0 ? c : (this.tie.get(a) as number) - (this.tie.get(b) as number)
+      return c !== 0 ? c : ((this.tie.get(a) as number) - (this.tie.get(b) as number)) * this.tieDir
     })
     this.index.build([...this.rows.keys()])
     this.window = this.index.keys.slice(0, this.winLen(this.index.keys.length))
@@ -231,7 +233,7 @@ export class OrderedView<T> extends DataNode<T> {
     }
     const keys = [...snap.keys()].sort((a, b) => {
       const c = this.userCmp(snap.get(a) as T, snap.get(b) as T)
-      return c !== 0 ? c : (tmpTie.get(a) as number) - (tmpTie.get(b) as number)
+      return c !== 0 ? c : ((tmpTie.get(a) as number) - (tmpTie.get(b) as number)) * this.tieDir
     })
     return { keys: keys.slice(0, this.winLen(keys.length)), rows: snap }
   }
@@ -299,6 +301,8 @@ export class OrderedView<T> extends DataNode<T> {
     // the batch path filters by membership (no comparisons), so row currency
     // only matters for the merge — where inserts carry their new rows.
     let ranksKnown = false
+    let remAt = -1 // single-delta path: the removal/insert ranks phase B saw
+    let insAt = -1
     if (removedIdx.length + toInsert.length > 32) {
       for (const [k, row] of pendingRow) this.rows.set(k, row)
       this.index.reconcile(removedIdx.length > 0 ? new Set(removedIdx) : null, toInsert)
@@ -308,13 +312,13 @@ export class OrderedView<T> extends DataNode<T> {
       // first |window| entries; a missing key is conservatively "touched").
       ranksKnown = true
       for (const k of removedIdx) {
-        const at = this.index.remove(k)
-        if (at < 0 || at < preWindow.length) winTouched = true
+        remAt = this.index.remove(k)
+        if (remAt < 0 || remAt < preWindow.length) winTouched = true
       }
       for (const [k, row] of pendingRow) this.rows.set(k, row)
       for (const k of toInsert) {
-        const at = this.index.insert(k)
-        if (at < preWindow.length) winTouched = true
+        insAt = this.index.insert(k)
+        if (insAt < preWindow.length) winTouched = true
       }
     }
     for (const k of pendingDel) {
@@ -332,6 +336,58 @@ export class OrderedView<T> extends DataNode<T> {
     // check on any update, so they always reconcile — behavior unchanged.
     if (ranksKnown && !winTouched && this.winLen(this.index.keys.length) === preWindow.length)
       return null
+
+    // Single-delta fast path for UNBOUNDED views (n = Infinity ⇒ window =
+    // the whole index, so the general reconcile is O(N) hashed passes per
+    // commit — the reverse/insert and unbounded-sort churn shape). The exact
+    // ranks phase B captured make the emission direct: a splice-copied
+    // window (one O(N) array pass, no Sets, no diff scans), an incremental
+    // winSet, and the single legal order delta.
+    if (ranksKnown && this.n === Infinity && input.rows.length === 1 && dmap.size === 1) {
+      const d = input.rows[0] as RowDelta<T>
+      if (d.op === 'add' && removedIdx.length === 0 && insAt >= 0) {
+        const w = preWindow.slice()
+        w.splice(insAt, 0, d.key)
+        this.window = w
+        this.winSet.add(d.key)
+        return {
+          seq, origin,
+          rows: [{ op: 'add', key: d.key, row: this.rows.get(d.key) as T }],
+          order: [{ op: 'orderInsert', key: d.key, index: insAt }],
+          scalar: undefined,
+        }
+      }
+      if (d.op === 'remove' && toInsert.length === 0 && remAt >= 0) {
+        const w = preWindow.slice()
+        w.splice(remAt, 1)
+        this.window = w
+        this.winSet.delete(d.key)
+        return {
+          seq, origin,
+          rows: [{ op: 'remove', key: d.key, prev: d.prev }],
+          order: [{ op: 'orderRemove', key: d.key, index: remAt }],
+          scalar: undefined,
+        }
+      }
+      if (d.op === 'update' && removedIdx.length === 0 && toInsert.length === 0) {
+        // cmp-blind: rank unchanged — forward the update, no order delta
+        return { seq, origin, rows: [d], order: undefined, scalar: undefined }
+      }
+      if (d.op === 'update' && remAt >= 0 && insAt >= 0) {
+        // re-ranked in place: one move (or none, when it lands where it was)
+        if (remAt === insAt) return { seq, origin, rows: [d], order: undefined, scalar: undefined }
+        const w = preWindow.slice()
+        w.splice(remAt, 1)
+        w.splice(insAt, 0, d.key)
+        this.window = w
+        return {
+          seq, origin, rows: [d],
+          order: [{ op: 'orderMove', key: d.key, index: insAt, from: remAt }],
+          scalar: undefined,
+        }
+      }
+      // defensive-entrance updates (toInsert without removedIdx) fall through
+    }
 
     // The once-per-batch window reconcile (v2 _window, generalized): diff the
     // old window keyset against the new one. Evictions are honest removes
@@ -448,6 +504,20 @@ export function limit<T>(src: DataNode<T>, n: number): OrderedView<T> {
   return new OrderedView(src.runtime, src, 'limit', () => 0, n)
 }
 
+// reverse(): the identity view in REVERSED ARRIVAL ORDER (newest first) —
+// v2's reverse, restated for the keyed model. v2 reversed the POSITIONAL
+// array; v3 has no positional value domain, so what reverses is the order
+// channel: key-insertion (arrival) order, inverted — a tail append surfaces
+// at index 0. Positional mid-array semantics dissolved with keys (MIGRATION
+// §1); a SORTED view is reversed idiomatically by the opposite operator
+// (az ↔ za — dedup'd, so both directions share nothing but the index).
+// Implementation: the all-ties comparator + a DESCENDING tie direction —
+// the whole OrderedView machinery (maintained index, window reconcile,
+// order-delta emission, midBatch pure reads) applies unchanged.
+export function reverse<T>(src: DataNode<T>): OrderedView<T> {
+  return new OrderedView(src.runtime, src, 'reverse', () => 0, undefined, -1)
+}
+
 // ── registry ─────────────────────────────────────────────────────────────────
 
 const windowKey = (name: string, by: unknown, n: unknown): string | null =>
@@ -474,4 +544,9 @@ defineOperator({
   name: 'limit', kind: 'ordered', category: 'holistic', declarative: true,
   create: (src, n) => limit(src, n),
   dedupKey: (n) => (typeof n === 'number' ? `limit:${n}` : null),
+})
+defineOperator({
+  name: 'reverse', kind: 'ordered', category: 'holistic', declarative: true,
+  create: (src) => reverse(src),
+  dedupKey: () => 'reverse',
 })

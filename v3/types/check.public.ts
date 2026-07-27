@@ -39,6 +39,8 @@ const mapped: Record<string, number> = d.map((r) => r.val)[value] // expect: map
 const winners: Row[] = d.za('val', 2)[value] // expect: bounded za materializes an ARRAY in rank order
 const controls = $({ pageSize: 2, range: [0, 100] as [number, number] })
 d.za('val', controls.pageSize) // expect: reactive window size — a child handle is a View<number>
+d.reverse() // expect: reversed arrival order — an OrderedData<Row>
+const _revArr: readonly Row[] = d.reverse()[value] // expect: ordered views materialize as arrays
 const buckets = d.length((r) => r.region) // expect: length(fn) is the histogram (lengthBuckets)
 const northCount: number = buckets[value]['north'].value // expect: buckets are { value: N } wrappers
 const bucketVP: CountBucket = buckets[value]['south'] // expect: CountBucket is nameable

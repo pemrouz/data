@@ -92,9 +92,7 @@ const OPS = [
   'intersect', 'except', 'reduce',
 ] as const
 
-const OP_SKIPS: Record<string, string> = {
-  reverse: 'v3 reserves `reverse` (unimplemented at the flip — throws "reserved name reverse has no implementation yet"); no counterpart to time',
-}
+const OP_SKIPS: Record<string, string> = {}
 const CASE_SKIPS: Record<string, string> = {
   'filter/value-move':
     "v2's reactive equality-value filter('active', $(bool)) has no v3 operator counterpart — the v3 idiom (transient filter + mirror() + dispose(), MIGRATION §3.1/§5.2) is a structurally different graph, not comparable 1:1",
@@ -443,7 +441,28 @@ function buildV3Specs(): Record<string, OpSpec> {
         }
       },
     },
-    reverse: { N: DEFAULT_N, label: 'reverse', workloads: () => ({}) }, // OP_SKIPS
+    reverse: {
+      N: DEFAULT_N, label: 'reverse',
+      workloads(this: any, n = this.N) {
+        // v3 reverse landed (reversed ARRIVAL order): over this workload's
+        // object source + tail appends + non-order updates the exposure is
+        // byte-identical to v2's positional array reversal, so EQ compares
+        // directly ('snap' canon — both engines materialize a dense array).
+        const mk = () => { const s = $(srcActive(n)); const r = s.reverse(); return { s, r } }
+        const ins = mk()
+        const bat = mk()
+        let i = n
+        let toggle = false
+        return {
+          setup: { run: () => { const s = $(srcActive(n)); s.reverse() } },
+          insert: { keep: ins, view: ins.r, run: () => { ins.s.insert({ active: true, val: i++ }) } },
+          batch: {
+            batch: 100, keep: bat, view: bat.r,
+            run: () => { toggle = !toggle; const base = toggle ? 1 : 2; for (let k = 0; k < 100; k++) bat.s.get(k).set('val', k + base) },
+          },
+        }
+      },
+    },
     distinct: {
       N: DEFAULT_N, label: 'distinct',
       workloads(this: any, n = this.N) {

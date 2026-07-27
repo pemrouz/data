@@ -76,9 +76,10 @@ export type Reserved =
   | 'intersect' | 'union' | 'except'
   | 'group' | 'distinct' | 'map' | 'to' | 'reduce' | 'tap'
   | 'keys' | 'values' | 'reverse' | 'join'
-// NB: 'page' / 'reverse' / 'join' are RESERVED but UNIMPLEMENTED (the runtime
-// throws) — deliberately ABSENT from Ops<T>, so calling them is a compile
-// error now and gains a signature (not a breaking change) when they land.
+// NB: 'page' / 'join' are RESERVED but UNIMPLEMENTED (the runtime throws) —
+// deliberately ABSENT from Ops<T>, so calling them is a compile error now and
+// gains a signature (not a breaking change) when they land. 'reverse' landed
+// (reversed ARRIVAL order — newest first; see Ops<T>).
 
 // ── shape helpers ────────────────────────────────────────────────────────────
 
@@ -216,6 +217,9 @@ export interface Ops<T> {
   za(by: ColOf<T> | CmpFn<T>, n?: Reactive<number>): OrderedData<T>
   top(n: Reactive<number>): OrderedData<T>
   limit(n: Reactive<number>): OrderedData<T>
+  // reversed ARRIVAL order (newest first) — an append surfaces at index 0;
+  // reverse a SORTED view by using the opposite operator (az ↔ za)
+  reverse(): OrderedData<T>
 
   // aggregates — precisely-typed scalars
   length(): Scalar<number>

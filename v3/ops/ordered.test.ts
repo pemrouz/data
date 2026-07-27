@@ -7,7 +7,7 @@ import assert from 'node:assert'
 import { Runtime } from '../kernel/runtime.ts'
 import { SourceNode, DataNode } from '../kernel/node.ts'
 import { filter } from './rowops.ts'
-import { az, za, top, limit, OrderIndex } from './ordered.ts'
+import { az, za, top, limit, reverse, OrderIndex } from './ordered.ts'
 import { conform, assertOracle } from '../conformance/harness.ts'
 import type { CommitBatch, RowKey } from '../contract/delta.ts'
 
@@ -553,4 +553,81 @@ test("az/za fail fast on v2's numeric top-K form and junk 'by' args", () => {
   assert.throws(() => az(src, 3 as any), /use top\(n\)/)
   assert.throws(() => za(src, {} as any), /column name or comparator/)
   src.write('a', [], { val: 1 }) // runtime unharmed
+})
+
+// ── reverse (STATUS gap 5: the reserved name gains its implementation) ───────
+//
+// v3 reverse = the identity view in REVERSED ARRIVAL ORDER (newest first):
+// an append surfaces at index 0; removes drop out in place; updates keep
+// rank (all-ties comparator — only the tie direction differs from limit).
+// Positional mid-array reversal dissolved with the keyed model.
+test('reverse: newest-first order over object- and array-born sources; conform + churn', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ v: number }>(rt, { a: { v: 1 }, b: { v: 2 }, c: { v: 3 } })
+  const r = reverse(src)
+  conform(r)
+  same([...r.currentOrder()!], ['c', 'b', 'a'])
+
+  const batches: CommitBatch<{ v: number }>[] = []
+  r.connect({ wantsOrder: true, origin: null, apply: (b) => batches.push(b) })
+
+  // append surfaces at the FRONT
+  src.write('d', [], { v: 4 })
+  same([...r.currentOrder()!], ['d', 'c', 'b', 'a'])
+  same(batches[0].order, [{ op: 'orderInsert', key: 'd', index: 0 }])
+
+  // remove drops out in place
+  src.remove('b')
+  same([...r.currentOrder()!], ['d', 'c', 'a'])
+
+  // update keeps rank (all-ties), forwards the row delta
+  batches.length = 0
+  src.write('c', ['v'], 30)
+  same([...r.currentOrder()!], ['d', 'c', 'a'])
+  same(batches[0].rows[0].op, 'update')
+  same(batches[0].order, undefined)
+
+  // remove + re-add: arrival order is a property of the ADD — re-added key
+  // is the newest, so it moves to the front (matches the parent Map's own
+  // key-insertion semantics under delete + re-set)
+  src.remove('a')
+  src.write('a', [], { v: 10 })
+  same([...r.currentOrder()!], ['a', 'd', 'c'])
+
+  // dedup: value-identity — the same view comes back
+  same(rt === r.runtime, true)
+
+  // seeded churn vs oracle: reversed key-insertion order at every step
+  const rt2 = new Runtime()
+  const s2 = new SourceNode<{ v: number }>(rt2, {})
+  const r2 = reverse(s2)
+  conform(r2)
+  const arrival: string[] = [] // live keys in arrival order
+  const rnd = lcg(77)
+  for (let step = 0; step < 300; step++) {
+    const roll = rnd()
+    if (roll < 0.5 || arrival.length === 0) {
+      const k = `k${step}`
+      s2.write(k, [], { v: step })
+      arrival.push(k)
+    } else if (roll < 0.75) {
+      const k = arrival[Math.floor(rnd() * arrival.length)]
+      s2.write(k, ['v'], step + 1000)
+    } else {
+      const i = Math.floor(rnd() * arrival.length)
+      s2.remove(arrival[i])
+      arrival.splice(i, 1)
+    }
+    same([...r2.currentOrder()!], [...arrival].reverse(), `order @ step ${step}`)
+    assertOracle(r2, () => new Map(arrival.map((k) => [k, s2.get(k)!])), `rows @ step ${step}`)
+  }
+
+  // array-born: minted integer keys, appends land at the front
+  const rt3 = new Runtime()
+  const s3 = new SourceNode<number>(rt3, [10, 20, 30])
+  const r3 = reverse(s3)
+  conform(r3)
+  same([...r3.currentOrder()!], [2, 1, 0])
+  s3.insert(40)
+  same([...r3.currentOrder()!], [3, 2, 1, 0])
 })
