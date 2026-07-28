@@ -44,9 +44,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M6 Phase 2** — adopted-object store: `$(obj)` adopts the caller's object (lazy `Object.keys`), one-shot `promote()` on first structural write, string-guarded `has`, reverse arrival-order adopt; corpus geomean **1.223×→0.940×** (v3 now beats v2), tap/setup 12.5×→1.13×, eq 44/44; A/B adopted-vs-promoted harness + promote-spike gate (<5 ms at 10k) | done | this session (local, NOT pushed) | 281 tests (+1 A/B harness); typecheck ×4; m1 0.71/0.84, m2 brush 1.12 / batch 0.76; MIGRATION §1 take-ownership note |
 | **M6 Phase 3** — adopted-array (ident) store + virtual order channel: `$(arr)` adopts the array as slots (231k ingest O(1), asserted), `materializeKeys()` on first remove, tail appends synthesize orderInserts without snapPreOrder/diffOrder; example RSS delta 202.1→191.4 MB (1.156× of v2), brushes unchanged, checksums ×5 | done | this session (local, NOT pushed) | 283 tests (+2: transition A/B churn, virtual-order synthesis); typecheck ×4; m1 0.69/0.90, m2 0.99/0.68; corpus sort/reverse/values within tolerance, eq ALL EQUAL |
 | **M6 Phase 4a** — between on the dual-mode MembershipView (include/exclude polarity + hysteresis flip; reset = empty exclude set, ~0 bytes/view): **RSS delta 163.8 MB = 0.996× of v2 — BELOW v2**, brushes best-yet (0.289×/0.102×), checksums ×5; exclude-mode `hasSansHost`/`hostAddedExcluded` subtleties tested via 240-step flip-band churn | done | this session (local, NOT pushed) | 284 tests (+1 flip-band churn); typecheck ×4; m1 0.71/0.84, m2 1.14/0.71; corpus between setup 0.42×, eq ALL EQUAL |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 4b (setops on MembershipView, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 4b** — setops on MembershipView (pre-state reconstructed from deltas; union include-pinned with per-parent pre-exposure; universe-shape bookkeeping on the null branch): **RSS delta 156.8 MB = 0.949× of v2**, setup 0.59×, brushes best-of-session (0.261×/0.115×), checksums ×5 | done | this session (local, NOT pushed) | 285 tests (+1 intersect flip-band churn); typecheck ×4; m1 0.66/0.87, m2 1.10/0.80; corpus eq ALL EQUAL; honest cost on union/churn + except/remove-other (~+20-25% absolute) |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 5 (ordered prev-overlay + counts-bucket thinning, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
 
-Run everything: `npm run test:v3` (284 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (285 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -496,9 +497,26 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   swinging 15%↔95% with interleaved host adds/removes, oracle + memberCount
   every commit, both flip directions asserted). Honest cost: the
   extreme-amplitude corpus narrow row ~+20% absolute (R5 indirection); the
-  realistic 231k brush is unchanged. **Phase 4b (setops on MembershipView) is
-  NEXT** — its `preRow`/suppression semantics need pre-state reconstruction from
-  the deltas (union's exposure switches especially), a careful ~100-line rework.
+  realistic 231k brush is unchanged. **Phase 4b LANDED 2026-07-28** (same
+  session): the setops moved onto MembershipView too — intersect/except
+  complement against the primary (full-overlap construction = empty exclude
+  set), union pinned include-mode (its universe spans parents). The stored
+  `preRow` was doing real work (remove-prev, phantom-update suppression, the
+  path-degrade check), so pre-state is now RECONSTRUCTED from the commit's
+  deltas: a parent's delta carries its own pre-state (`add` → didn't hold,
+  `remove`/`update` → held, `prev` = the old row) and a delta-less parent's
+  current state IS its pre-state (height order); `preLive` for
+  intersect/except also confirms pre-universe membership via the primary's
+  delta (a fresh add must not read as previously-live in exclude mode); the
+  `!pre && !post` branch handles universe-shape changes (`hostAddedExcluded`
+  / `hostRemoved`). Union's pre-exposure scans parents in order using
+  per-parent deltas (`udScratch`). **RSS delta 163.8 → 156.8 MB = 0.949× of
+  v2** (setup also 0.594×, brushes best-of-session: date 0.261×, p95 0.224×,
+  delay 0.115×; checksums ×5); m1 0.66/0.87, m2 1.10/0.80; 285 tests incl. a
+  240-step intersect flip-band churn. Honest cost: the eviction-heavy
+  synthetic rows pay for the reconstruction — union/churn ~+19% and
+  except/remove-other ~+25% absolute (the standing remove-side floor rows);
+  intersect setup/churn absolutes IMPROVED.
   **Phase 3 LANDED 2026-07-28** (same session): the Store gained the
   ADOPTED-ARRAY (IDENT) lane — `$(arr)` adopts the caller's array AS the slots
   (key i ≡ slot i; a 231k-row ingest is O(1), asserted < 5 ms in-suite) with

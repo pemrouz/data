@@ -14,6 +14,7 @@ import { filter } from './rowops.ts'
 import { sum } from './aggregate.ts'
 import { intersect, union, except } from './setops.ts'
 import { za } from './ordered.ts'
+import { between } from './between.ts'
 import { conform, conformScalar, assertOracle } from '../conformance/harness.ts'
 import type { CommitBatch, RowKey } from '../contract/delta.ts'
 
@@ -574,4 +575,52 @@ test('invalid operands fail fast BEFORE attach — no runtime poisoning', () => 
   src.write('e', [], { val: 55, cat: 'x' }) // the poisoning repro: this used to throw
   assert.strictEqual(f.hasRow('e'), true)
   assert.strictEqual(total.value(), 60 + 70 + 10 + 20 + 55)
+})
+
+test('M6 P4b: intersect flip-band churn — membership oscillating across the polarity band, oracle every step', () => {
+  // The secondary's selectivity swings between ~15% and ~95% of the primary,
+  // forcing repeated include→exclude→include re-polarizations, interleaved
+  // with primary adds/removes so the universe changes shape in BOTH
+  // polarities (the hostAddedExcluded / hostRemoved bookkeeping).
+  const rt = new Runtime()
+  const src: Record<string, Row> = {}
+  for (let i = 0; i < 100; i++) src['k' + i] = { val: i, cat: 'c' }
+  const s = new SourceNode<Row>(rt, src)
+  const sel = between(s, 'val', [0, 99]) // full domain to start
+  const both = intersect(s, sel)
+  conform(s)
+  conform(both)
+  const oracle = () => {
+    const m = new Map<RowKey, Row>()
+    for (const [k, row] of s.snapshot()) if (sel.hasRow(k)) m.set(k, row)
+    return m
+  }
+  ok((both.view as any).exclude === true, 'full-overlap construction lands in exclude mode')
+
+  const lcg = (seed: number) => {
+    let st = seed >>> 0
+    return () => ((st = (Math.imul(st, 1664525) + 1013904223) >>> 0), st / 4294967296)
+  }
+  const rnd = lcg(424242)
+  let sawInclude = false
+  let sawExclude = false
+  let nextId = 100
+  for (let step = 0; step < 240; step++) {
+    const r = rnd()
+    if (r < 0.4) sel.setBounds([0, 10 + ((rnd() * 20) | 0)]) // ~15-30% selectivity
+    else if (r < 0.8) sel.setBounds([0, 80 + ((rnd() * 19) | 0)]) // ~80-99%
+    else if (r < 0.9) {
+      const keys = [...s.store.keys()]
+      s.write(keys[(rnd() * keys.length) | 0], ['val'], (rnd() * 100) | 0)
+    } else if (r < 0.95) s.write('n' + nextId++, [], { val: (rnd() * 100) | 0, hot: true })
+    else {
+      const keys = [...s.store.keys()]
+      s.remove(keys[(rnd() * keys.length) | 0])
+    }
+    if ((both.view as any).exclude) sawExclude = true
+    else sawInclude = true
+    assertOracle(both, oracle, `intersect flip-band @ step ${step}`)
+    same(both.rowCount(), oracle().size, `memberCount @ step ${step}`)
+  }
+  ok(sawInclude && sawExclude, 'the churn must cross the polarity band in both directions')
 })

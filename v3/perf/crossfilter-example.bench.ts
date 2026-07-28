@@ -29,30 +29,31 @@
 // Dev iteration:     FLIGHTS_N=20000 REPS=1 node ... (same command)
 //
 // ── RESULTS 2026-07-28 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
-// Supersedes the 2026-07-06 table below. Taken AFTER M6 Phases 1–4a
+// Supersedes the 2026-07-06 table below. Taken AFTER M6 Phases 1–4
 // (between drops its rows mirror; adopted-object store; adopted-array ident
-// lane + virtual order channel; between on the dual-mode MembershipView)
-// and the gap-8 pass-2 perf series (a134649…11a271d).
+// lane + virtual order channel; between AND the setops on the dual-mode
+// MembershipView) and the gap-8 pass-2 perf series (a134649…11a271d).
 //
 //   | workload          | v2 median      | v3 median      | ratio (v3/v2) |
 //   |-------------------|----------------|----------------|---------------|
-//   | setup             | 2748.7 ms      | 1530.9 ms      | 0.576×        |
-//   | setup RSS delta   | 164.8 MB       | 163.8 MB       | 0.996×        |
-//   | brush_date median | 86.2 ms/step   | 26.8 ms/step   | 0.289×        |
-//   | brush_date p95    | 149.8 ms/step  | 40.1 ms/step   | 0.231×        |
-//   | brush_delay median| 49.2 ms/step   | 5.0 ms/step    | 0.102×        |
-//   | brush_delay p95   | 146.8 ms/step  | 82.9 ms/step   | 0.606×        |
+//   | setup             | 2375.6 ms      | 1351.5 ms      | 0.594×        |
+//   | setup RSS delta   | 165.1 MB       | 156.8 MB       | 0.949×        |
+//   | brush_date median | 81.9 ms/step   | 22.1 ms/step   | 0.261×        |
+//   | brush_date p95    | 141.0 ms/step  | 32.0 ms/step   | 0.224×        |
+//   | brush_delay median| 50.0 ms/step   | 5.0 ms/step    | 0.115×        |
+//   | brush_delay p95   | 132.8 ms/step  | 84.4 ms/step   | 0.647×        |
 //
 // Checksums v2 ≡ v3 (1596228503) on every replicate. RSS delta by phase:
-// 237.8 (pre-M6, 1.396×) → 202.1 (P1: the four between row mirrors died;
-// M6.md's ≤190 target had over-estimated V8 Map entry cost) → 191.4 (P3:
-// the source's 231k keySlot Map + slotKey/order arrays elided by the ident
-// lane) → 163.8 MB = 0.996× (P4a: between's four full-domain view Maps
-// became EMPTY exclude sets on the dual-mode MembershipView). v3 is now
-// BELOW v2 on the M6 headline metric with the 5 intersect view Maps still
-// pending (P4b). Brush ratios — date 0.289×, delay 0.102× — best-yet;
-// the honest cost is on the extreme-amplitude synthetic corpus narrow row
-// (~+20% absolute, the R5 per-key indirection), not the realistic graph.
+// 237.8 (pre-M6, 1.396×) → 202.1 (P1: the four between row mirrors died) →
+// 191.4 (P3: the source's 231k keySlot Map + slotKey/order arrays elided
+// by the ident lane) → 163.8 (P4a: between's four full-domain view Maps
+// became EMPTY exclude sets) → 156.8 MB = **0.949×** (P4b: the setops'
+// view Maps followed — membership only, rows resolve via exposed()). v3
+// is BELOW v2 on the M6 headline metric. Brush ratios — date 0.261×,
+// p95 0.224×, delay 0.115× — best-of-session; the honest costs live on
+// the extreme-amplitude/remove-side synthetic corpus rows (narrow ~+20%,
+// union/churn ~+19%, except/remove-other ~+25% absolute — the R5 per-key
+// indirection + pre-state reconstruction), not the realistic graph.
 //
 // ── RESULTS 2026-07-06 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
 // Supersedes the 2026-07-05 table below. Taken AFTER perf(v3/setops) 09adf4a
