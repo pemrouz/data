@@ -41,9 +41,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **Corpus hotspot pass 2** — distinct/batch 3.91×→1.29×, union/churn 2.23×→1.42×, group/churn →2.00×, between/remove →2.42×, except/remove-other →2.61× via distinct cut-offs + setops fast path + ordered early-out + the API handle de-fat; geomean 1.338×→1.223× (67 rows) | done | `a134649`…`11a271d` (local, NOT pushed) | 278 tests; typecheck ×4; m1/m2 pass; 2026-07-27 sweep eq ALL EQUAL |
 | **Gap-5 niceties** — `reverse` lands (reversed arrival order + unbounded single-delta fast path: reverse/insert 28×→1.04×, reverse/batch 0.008×, sort/insert →0.98×); `SourceNode.move()` + seam move ingress (diffOrder rotation gap closed); ProjectionAggregate exported; rest deferred with rationale | done | `b43db87` `f4b320d` `ebaf182` (local, NOT pushed) | 278 tests; corpus reverse mirror eq green; public types + fixtures |
 | **M6 Phase 1** — between drops its full-parent rows mirror (ctor seeds via parent.each; widen-admits via parents[0].rowAt; resort iterates the parent): crossfilter-example RSS delta 237.8→202.1 MB (1.396×→1.222× of v2), setup 0.62×→0.56×, brush ratios equal-or-better; honest cost: synthetic between/narrow ~+15% absolute (plan risk R5, per-admit parent hop) | done | this session (local, NOT pushed) | 280 tests (+2 P1 regressions); typecheck ×4; m1 0.71/0.75, m2 brush 1.03 / batch 0.78; example-bench checksums equal ×5 |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 2 (object-adopt backing, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 2** — adopted-object store: `$(obj)` adopts the caller's object (lazy `Object.keys`), one-shot `promote()` on first structural write, string-guarded `has`, reverse arrival-order adopt; corpus geomean **1.223×→0.940×** (v3 now beats v2), tap/setup 12.5×→1.13×, eq 44/44; A/B adopted-vs-promoted harness + promote-spike gate (<5 ms at 10k) | done | this session (local, NOT pushed) | 281 tests (+1 A/B harness); typecheck ×4; m1 0.71/0.84, m2 brush 1.12 / batch 0.76; MIGRATION §1 take-ownership note |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 3 (array-adopt + lazy order, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
 
-Run everything: `npm run test:v3` (280 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (281 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -475,7 +476,21 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
   (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
   parent where it matters; deletion beats sharing), with a formal drop gate after M6
-  Phase 5. **Phase 1 LANDED 2026-07-28**: between dropped its full-parent rows mirror
+  Phase 5. **Phase 2 LANDED 2026-07-28** (same session as Phase 1): the Store gained
+  the ADOPTED-OBJECT mode — `$(obj)` keeps the caller's object as the row table
+  (take-ownership, documented in MIGRATION §1) with even `Object.keys` deferred to
+  first iteration; `keySlot`/`slots` are built by a one-shot `promote()` on the first
+  STRUCTURAL write (new-key insert / any remove; value updates never promote — a
+  bounds source stays adopted forever); `has()` is string-guarded `hasOwn` so the
+  1-vs-'1' invariant holds in both lanes; `reverse()` adopts arrival order without
+  the all-ties comparator sort. Corpus geomean **1.223× → 0.940×** (67 rows, eq
+  44/44) — v3 now BEATS v2 on the corpus geometric mean; tap/setup 12.5× → 1.13×,
+  values/setup 0.24×, filter/map setups ≈1.9×. Correctness: an A/B adopted-vs-
+  force-promoted harness (3 seeds × 300 steps + a never-promotes lane) asserts
+  byte-equal batches and iteration order every step; the promote spike is gated in
+  commit.bench.ts (~4 ms at N=10k, < 5 ms budget). Residual >2× setups are
+  NODE-STATE fills, not ingestion (cpu-profiled: reverse = OrderedView's rows/tie
+  Maps → Phase 5; keys/length(fn) same family). **Phase 1 LANDED 2026-07-28**: between dropped its full-parent rows mirror
   (ctor seeds via parent.each; widen-admits read parents[0].rowAt; resort iterates the
   parent) — crossfilter-example setup RSS delta 237.8 → 202.1 MB (1.396× → 1.222× of
   v2; the −35.7 MB ≡ the four ~9 MB/Map<231k> mirrors — the plan's ≤190 target

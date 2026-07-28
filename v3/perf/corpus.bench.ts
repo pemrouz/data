@@ -34,6 +34,28 @@
 //                    v2 closures hard-code absolute key ranges auto-skip below
 //                    their minimum N — see the child's MIN_N table).
 //
+// ── 2026-07-28 M6 PHASE 2 movement (adopted-object store) — geomean 0.940× ──
+//
+// The adopted-object backing landed ($(obj) keeps the caller's object as the
+// row table + lazy Object.keys; keySlot/slots built by one-shot promote() on
+// the first structural write; reverse() adopts arrival order without the
+// comparator sort). Full REPS=5 sweep, 67 rows, eq 44/44 ALL EQUAL:
+// geometric mean 1.223× → 0.940× — v3 is now FASTER than v2 on the corpus
+// geomean. The setup class largely closed: tap/setup 12.5× → 1.13×,
+// values/setup → 0.24× (v3 ahead), filter/setup 3.34× → 1.99×, to/setup
+// 9.9× → ~3× (noise-borderline: v2's sub-ms denominator halves run to run),
+// map/setup 4.0× → 1.90×. What remains >2× is NODE-STATE construction, not
+// ingestion (cpu-profiled): reverse/setup 4.18× ≈ OrderedView's rows/tie
+// Map fills (M6 Phase 5 deletes them), keys 2.35× / length(fn) 2.89× ≈ the
+// same per-node materialization family, group/insert 2.50× / between,
+// setops remove-side ≈ the standing two-phase-commit floor. Per-write rows
+// moved within the box-noise envelope of the 07-27 table (this box's v2
+// absolutes swing 40%+ run-to-run; the between rows were same-box
+// A/B-verified no-mechanism under Phase 1). The promote spike is gated in
+// commit.bench.ts (first structural write after adopt, N=10k: ~4 ms < 5 ms
+// budget). Full table re-baseline lands with M6 Phase 6; the 07-27 table
+// below remains the standing pre-M6 baseline.
+//
 // ── RESULTS 2026-07-27 (full sweep, quiet box, REPS=5, N=10,000, node v26.1.0) ─
 //
 // READ THIS WITH THE WORKLOAD SHAPE IN MIND: the corpus is deliberately

@@ -173,7 +173,16 @@ export class OrderedView<T> extends DataNode<T> {
       const c = this.userCmp(this.rows.get(a) as T, this.rows.get(b) as T)
       return c !== 0 ? c : ((this.tie.get(a) as number) - (this.tie.get(b) as number)) * this.tieDir
     })
-    this.index.build([...this.rows.keys()])
+    if (cmp === ARRIVAL) {
+      // Zero comparator (reverse): the order IS arrival order (tie order),
+      // possibly reversed — adopt it without a comparator sort (the sort's
+      // per-compare 4 Map.gets cost ~2/3 of a 10k reverse() construction).
+      const keys = [...this.rows.keys()]
+      if (tieDir === -1) keys.reverse()
+      this.index.keys = keys
+    } else {
+      this.index.build([...this.rows.keys()])
+    }
     this.window = this.index.keys.slice(0, this.winLen(this.index.keys.length))
     this.winSet = new Set(this.window)
   }
@@ -514,8 +523,12 @@ export function limit<T>(src: DataNode<T>, n: number): OrderedView<T> {
 // Implementation: the all-ties comparator + a DESCENDING tie direction —
 // the whole OrderedView machinery (maintained index, window reconcile,
 // order-delta emission, midBatch pure reads) applies unchanged.
+// The shared zero comparator — a SENTINEL the OrderedView ctor recognizes to
+// adopt arrival order directly instead of sorting all-ties.
+const ARRIVAL = () => 0
+
 export function reverse<T>(src: DataNode<T>): OrderedView<T> {
-  return new OrderedView(src.runtime, src, 'reverse', () => 0, undefined, -1)
+  return new OrderedView(src.runtime, src, 'reverse', ARRIVAL, undefined, -1)
 }
 
 // ── registry ─────────────────────────────────────────────────────────────────

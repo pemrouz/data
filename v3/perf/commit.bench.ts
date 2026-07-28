@@ -120,3 +120,40 @@ console.log(
   `machinery overhead = bare ${bare.toFixed(3)} − raw ${raw.toFixed(3)} = ${overhead.toFixed(3)} µs ` +
   `(chain ${chain.toFixed(3)}, batched-bare ${batchedBare.toFixed(3)}, batched-chain ${batched.toFixed(3)} µs/write)`,
 )
+
+// 4. M6 P2 promote-spike guard: the one-shot exit from the adopted-object
+// lane (first structural write — here a remove — pays the deferred
+// keySlot/slots build at N=10k). ASSERTED, unlike the trackers above: the
+// spike must stay within one batch-settle budget, or lazy adoption has
+// silently become a moved-cost trap (the objection STATUS gap 8 recorded
+// against lazy key-indexes). Compared against the same remove on a
+// force-promoted twin so the delta shown IS the promote.
+{
+  const spike: number[] = []
+  const base: number[] = []
+  for (let s = 0; s < 9; s++) {
+    const rt = new Runtime()
+    const src = new SourceNode<Row>(rt, mkRows())
+    const rtP = new Runtime()
+    const srcP = new SourceNode<Row>(rtP, mkRows())
+    srcP.store.promote()
+    const t0 = performance.now()
+    src.remove('k1')
+    spike.push(performance.now() - t0)
+    const t1 = performance.now()
+    srcP.remove('k1')
+    base.push(performance.now() - t1)
+  }
+  const mSpike = median(spike)
+  const mBase = median(base)
+  console.log('---')
+  console.log(
+    `promote spike (first remove after adopt, N=${N}): ${mSpike.toFixed(3)} ms ` +
+    `(pre-promoted remove ${mBase.toFixed(3)} ms; delta = the one-shot promote)`,
+  )
+  if (mSpike >= 5) {
+    console.error(`FAIL: promote spike ${mSpike.toFixed(3)} ms >= 5 ms budget at N=${N}`)
+    process.exit(1)
+  }
+  console.log(`PASS: promote spike < 5 ms budget`)
+}

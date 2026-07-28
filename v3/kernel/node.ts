@@ -268,11 +268,11 @@ export class SourceNode<T> extends DataNode<T> {
 
   constructor(runtime: Runtime, value: Record<string, T> | T[], name = 'source') {
     super(runtime, 'source', name, [])
-    this.store = new Store<T>()
     this.pending = new Map()
     this.preBatchOrder = null
     this.inDirty = false
     if (Array.isArray(value)) {
+      this.store = new Store<T>()
       this.order = []
       for (const row of value) {
         const k = this.store.mintKey()
@@ -280,8 +280,12 @@ export class SourceNode<T> extends DataNode<T> {
         this.order.push(k)
       }
     } else {
+      // Adopt the caller's object as the row table (M6 P2): O(Object.keys)
+      // ingestion, no per-row Map.set loop. Take-ownership contract — out-of-
+      // band mutation of the adopted object was already unsupported (v2's
+      // proxy wrote through to it the same way).
       this.order = null
-      for (const k of Object.keys(value)) this.store.set(k, value[k])
+      this.store = Store.adoptObject(value)
     }
   }
 
@@ -329,21 +333,44 @@ export class SourceNode<T> extends DataNode<T> {
       rt.queueWrite(() => this.write(key, path, value, at))
       return
     }
-    const slot = this.store.slotOf(key)
-    if (slot === undefined) {
-      if (path.length > 0)
-        throw new Error(`data: deep write at [${String(key)}.${path.join('.')}] — key ${String(key)} is not live`)
-      this.applyAdd(key, value as T, at)
-      rt.written(this)
-      return
+    // Mode branch keeps the packed lane at ONE probe (slotOf) and the
+    // adopted lane at a guarded hasOwn — a live-key overwrite never
+    // promotes; only the add path below (a structural write) does.
+    const st = this.store
+    let prev: T
+    let slot = -1
+    if (st.obj !== null) {
+      if (typeof key !== 'string' || !Object.hasOwn(st.obj, key)) {
+        this.writeAdd(key, path, value, at)
+        return
+      }
+      prev = st.obj[key]
+    } else {
+      const s = st.slotOf(key)
+      if (s === undefined) {
+        this.writeAdd(key, path, value, at)
+        return
+      }
+      slot = s
+      prev = st.rowAt(s)
     }
-    const prev = this.store.rowAt(slot)
     const before = leafAt(prev, path)
     if (Object.is(before, value)) return // no-phantom-events, enforced once
     const next = pathCopy(prev, path, value)
-    this.store.writeSlot(slot, next)
+    if (slot >= 0) st.writeSlot(slot, next)
+    else (st.obj as Record<string, T>)[key as string] = next
     this.recordUpdate(key, next, prev, path)
     rt.written(this)
+  }
+
+  // The write() miss path: a missing key with an empty path is an add; a
+  // missing key with a path is an error (no implicit row creation through a
+  // deep write).
+  private writeAdd(key: RowKey, path: Path, value: unknown, at?: number): void {
+    if (path.length > 0)
+      throw new Error(`data: deep write at [${String(key)}.${path.join('.')}] — key ${String(key)} is not live`)
+    this.applyAdd(key, value as T, at)
+    this.runtime.written(this)
   }
 
   insert(row: T, at?: number): RowKey {

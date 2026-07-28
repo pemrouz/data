@@ -516,3 +516,97 @@ test('SourceNode.move(): order-only emission, batch composition, clamping, objec
   const osrc = new SourceNode<{ v: number }>(rt, { a: { v: 1 } })
   assert.throws(() => osrc.move('a', 0), /object-born/)
 })
+
+// ── M6 Phase 2: adopted-object store equivalence ─────────────────────────────
+// The adopted lane ($(obj) keeps the caller's object; promote() exits to the
+// packed lane on the first structural write) must be OBSERVABLY IDENTICAL to
+// a store that was promoted from step 0: same batches (rows, ops, prev/row
+// references' values, paths), same iteration order, same snapshots — with the
+// promotion point swept across the script by the seeds (different seeds place
+// the first insert/remove at different steps).
+test('M6 P2: adopted vs force-promoted — seeded 300-step scripts, equal batches + iteration order', () => {
+  const lcg = (seed: number) => {
+    let s = seed >>> 0
+    return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0), s / 4294967296)
+  }
+  type R = { val: number; nested: { deep: number } }
+  const mkObj = (): Record<string, R> => {
+    const o: Record<string, R> = {}
+    for (let i = 0; i < 40; i++) o['k' + i] = { val: i, nested: { deep: i } }
+    for (let i = 0; i < 10; i++) o[String(100 + i)] = { val: i, nested: { deep: i } } // numeric-LIKE string keys
+    return o
+  }
+  const strip = (b: CommitBatch<R>) => ({
+    rows: b.rows.map((d: any) => ({ op: d.op, key: d.key, row: d.row, prev: d.prev, path: d.path })),
+    order: b.order ?? null,
+  })
+
+  for (const seed of [1, 7, 42]) {
+    const rtA = new Runtime()
+    const A = new SourceNode<R>(rtA, mkObj())
+    const rtB = new Runtime()
+    const B = new SourceNode<R>(rtB, mkObj())
+    B.store.promote() // force-promoted twin from step 0
+    conform(A)
+    conform(B)
+    const bA: CommitBatch<R>[] = []
+    const bB: CommitBatch<R>[] = []
+    A.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<R>) => bA.push(b) })
+    B.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<R>) => bB.push(b) })
+
+    const rnd = lcg(seed)
+    let promoted = false
+    const step = (src: SourceNode<R>, rt: Runtime, r1: number, r2: number, r3: number) => {
+      const keys = [...src.store.keys()]
+      const k = keys[(r1 * keys.length) | 0]
+      if (r2 < 0.45) src.write(k, ['val'], (r3 * 1000) | 0)
+      else if (r2 < 0.6) src.write(k, ['nested', 'deep'], (r3 * 1000) | 0)
+      else if (r2 < 0.72) src.write('n' + ((r3 * 1e6) | 0), [], { val: 1, nested: { deep: 1 } })
+      else if (r2 < 0.84) src.remove(k)
+      else
+        rt.batch(() => {
+          src.write(k, ['val'], (r3 * 1000) | 0)
+          src.write('m' + ((r3 * 1e6) | 0), [], { val: 2, nested: { deep: 2 } })
+        })
+    }
+    for (let i = 0; i < 300; i++) {
+      const r1 = rnd()
+      const r2 = rnd()
+      const r3 = rnd()
+      if (!promoted && A.store.obj === null) promoted = true
+      step(A, rtA, r1, r2, r3)
+      step(B, rtB, r1, r2, r3)
+      // Byte-equal latest batch, identical iteration order, identical state.
+      same(bA.length, bB.length, `batch count @ seed ${seed} step ${i}`)
+      if (bA.length > 0) same(strip(bA[bA.length - 1]), strip(bB[bB.length - 1]), `batch @ seed ${seed} step ${i}`)
+      same([...A.store.keys()], [...B.store.keys()], `iteration order @ seed ${seed} step ${i}`)
+    }
+    same(A.snapshot(), B.snapshot())
+    assert.ok(A.store.obj === null, `seed ${seed}: script contained structural writes — A must have promoted`)
+    same(bA.length, bB.length)
+  }
+
+  // The pure-update script (the bounds-source shape): NEVER promotes — the
+  // adopted lane is the steady state, and equivalence still holds.
+  const rtA = new Runtime()
+  const A = new SourceNode<R>(rtA, mkObj())
+  const rtB = new Runtime()
+  const B = new SourceNode<R>(rtB, mkObj())
+  B.store.promote()
+  conform(A)
+  conform(B)
+  const rnd = lcg(99)
+  for (let i = 0; i < 100; i++) {
+    const k = 'k' + ((rnd() * 40) | 0)
+    const v = (rnd() * 1000) | 0
+    A.write(k, ['val'], v)
+    B.write(k, ['val'], v)
+  }
+  same(A.snapshot(), B.snapshot())
+  assert.ok(A.store.obj !== null, 'pure-update script: the adopted lane must never promote')
+  // 1-vs-'1' invariant holds in the adopted lane: numeric probe MISSES the
+  // numeric-LIKE string key '100'.
+  same(A.store.has(100), false)
+  same(A.store.has('100'), true)
+  same(A.get(100), undefined)
+})
