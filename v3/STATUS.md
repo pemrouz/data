@@ -42,9 +42,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **Gap-5 niceties** — `reverse` lands (reversed arrival order + unbounded single-delta fast path: reverse/insert 28×→1.04×, reverse/batch 0.008×, sort/insert →0.98×); `SourceNode.move()` + seam move ingress (diffOrder rotation gap closed); ProjectionAggregate exported; rest deferred with rationale | done | `b43db87` `f4b320d` `ebaf182` (local, NOT pushed) | 278 tests; corpus reverse mirror eq green; public types + fixtures |
 | **M6 Phase 1** — between drops its full-parent rows mirror (ctor seeds via parent.each; widen-admits via parents[0].rowAt; resort iterates the parent): crossfilter-example RSS delta 237.8→202.1 MB (1.396×→1.222× of v2), setup 0.62×→0.56×, brush ratios equal-or-better; honest cost: synthetic between/narrow ~+15% absolute (plan risk R5, per-admit parent hop) | done | this session (local, NOT pushed) | 280 tests (+2 P1 regressions); typecheck ×4; m1 0.71/0.75, m2 brush 1.03 / batch 0.78; example-bench checksums equal ×5 |
 | **M6 Phase 2** — adopted-object store: `$(obj)` adopts the caller's object (lazy `Object.keys`), one-shot `promote()` on first structural write, string-guarded `has`, reverse arrival-order adopt; corpus geomean **1.223×→0.940×** (v3 now beats v2), tap/setup 12.5×→1.13×, eq 44/44; A/B adopted-vs-promoted harness + promote-spike gate (<5 ms at 10k) | done | this session (local, NOT pushed) | 281 tests (+1 A/B harness); typecheck ×4; m1 0.71/0.84, m2 brush 1.12 / batch 0.76; MIGRATION §1 take-ownership note |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 3 (array-adopt + lazy order, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 3** — adopted-array (ident) store + virtual order channel: `$(arr)` adopts the array as slots (231k ingest O(1), asserted), `materializeKeys()` on first remove, tail appends synthesize orderInserts without snapPreOrder/diffOrder; example RSS delta 202.1→191.4 MB (1.156× of v2), brushes unchanged, checksums ×5 | done | this session (local, NOT pushed) | 283 tests (+2: transition A/B churn, virtual-order synthesis); typecheck ×4; m1 0.69/0.90, m2 0.99/0.68; corpus sort/reverse/values within tolerance, eq ALL EQUAL |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 4 (dual-mode membership view, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
 
-Run everything: `npm run test:v3` (281 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (283 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -476,7 +477,24 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
   (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
   parent where it matters; deletion beats sharing), with a formal drop gate after M6
-  Phase 5. **Phase 2 LANDED 2026-07-28** (same session as Phase 1): the Store gained
+  Phase 5. **Phase 3 LANDED 2026-07-28** (same session): the Store gained the
+  ADOPTED-ARRAY (IDENT) lane — `$(arr)` adopts the caller's array AS the slots
+  (key i ≡ slot i; a 231k-row ingest is O(1), asserted < 5 ms in-suite) with
+  `keySlot`/`slotKey` built by a one-shot `materializeKeys()` on the first REMOVE
+  (the only structural write that breaks identity; tail appends preserve it — the
+  moved-cost objection lands on first remove, never first write). The SourceNode
+  order channel is VIRTUAL while ident (null; identity 0..n-1): tail appends skip
+  `snapPreOrder`/`diffOrder` entirely and settle synthesizes their `orderInsert`s
+  (key ≡ index); the first remove/move/mid-insert/order-read materializes it, with
+  the pre-batch order reconstructed by peeling same-batch appends off the identity
+  tail. Crossfilter-example setup RSS delta **202.1 → 191.4 MB (1.156× of v2)** —
+  the 231k keySlot Map + slotKey/order arrays elided; brush ratios unchanged
+  (0.292×/0.121×), checksums equal ×5; m1 0.69/0.90, m2 brush 0.99 / batch 0.68;
+  corpus sort/reverse/values rows within tolerance, eq ALL EQUAL. Covered by an
+  A/B adopted-vs-force-materialized churn harness (3 seeds × 300 steps across the
+  ident→mapped transition, byte-equal batches + ORDER deltas + iteration every
+  step) and a virtual-order synthesis test (incl. same-batch append+remove
+  pre-batch reconstruction). **Phase 2 LANDED 2026-07-28** (same session as Phase 1): the Store gained
   the ADOPTED-OBJECT mode — `$(obj)` keeps the caller's object as the row table
   (take-ownership, documented in MIGRATION §1) with even `Object.keys` deferred to
   first iteration; `keySlot`/`slots` are built by a one-shot `promote()` on the first

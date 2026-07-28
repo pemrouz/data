@@ -37,6 +37,7 @@ export class Store<T> {
   declare holes: number
   declare obj: Record<string, T> | null // adopted lane — null once promoted
   declare okeys: string[] | null // adopted iteration order (Object.keys at adopt)
+  declare ident: boolean // adopted-ARRAY lane: key i ≡ slot i, no keySlot/slotKey
 
   constructor() {
     this.slots = []
@@ -46,6 +47,37 @@ export class Store<T> {
     this.holes = 0
     this.obj = null
     this.okeys = null
+    this.ident = false
+  }
+
+  // ── ADOPTED-ARRAY (IDENT) MODE (M6 Phase 3) ────────────────────────────────
+  // $(arr) adopts the caller's array AS the slots (take-ownership, same
+  // contract as adoptObject): key i ≡ slot i while unperturbed, so
+  // keySlot/slotKey are never built — a 231k-row ingest is O(1). Appends
+  // (key === length) preserve the identity; the first REMOVE (the only
+  // structural write that breaks key↔slot identity) runs the one-shot
+  // materializeKeys(). Non-integer / out-of-range keys route through
+  // materializeKeys() + the packed lane too (map-world minted keys are
+  // NUMBERS, so the integer guard preserves the 1-vs-'1' invariant exactly
+  // like the object lane's string guard). No tombstones while ident.
+  static adoptArray<T>(arr: T[]): Store<T> {
+    const st = new Store<T>()
+    st.slots = arr as (T | undefined)[]
+    st.ident = true
+    st.nextKey = arr.length
+    return st
+  }
+
+  // One-shot exit from the ident lane — the first remove (or a non-append
+  // structural key) pays the deferred keySlot/slotKey build.
+  materializeKeys(): void {
+    if (!this.ident) return
+    const n = this.slots.length
+    for (let i = 0; i < n; i++) {
+      this.slotKey.push(i)
+      this.keySlot.set(i, i)
+    }
+    this.ident = false
   }
 
   // Adopt the caller's object as the row table (no per-row Map.set loop).
@@ -81,6 +113,7 @@ export class Store<T> {
   }
 
   get size(): number {
+    if (this.ident) return this.slots.length
     return this.obj !== null ? this.okeysOf().length : this.keySlot.size
   }
 
@@ -88,12 +121,18 @@ export class Store<T> {
     return this.nextKey++
   }
 
+  private identHit(key: RowKey): boolean {
+    return typeof key === 'number' && Number.isInteger(key) && key >= 0 && key < this.slots.length
+  }
+
   has(key: RowKey): boolean {
+    if (this.ident) return this.identHit(key)
     if (this.obj !== null) return typeof key === 'string' && Object.hasOwn(this.obj, key)
     return this.keySlot.has(key)
   }
 
   get(key: RowKey): T | undefined {
+    if (this.ident) return this.identHit(key) ? this.slots[key as number] : undefined
     if (this.obj !== null)
       return typeof key === 'string' && Object.hasOwn(this.obj, key) ? this.obj[key] : undefined
     const s = this.keySlot.get(key)
@@ -103,6 +142,10 @@ export class Store<T> {
   // In-place overwrite of a key KNOWN to be live (the caller already probed
   // has()/slotOf) — the adopted-lane counterpart of writeSlot.
   updateLive(key: RowKey, row: T): void {
+    if (this.ident) {
+      this.slots[key as number] = row
+      return
+    }
     if (this.obj !== null) {
       this.obj[key as string] = row
       return
@@ -112,6 +155,7 @@ export class Store<T> {
 
   // Single-lookup accessor for the write hot path (has + get in one hash).
   slotOf(key: RowKey): number | undefined {
+    if (this.ident) return this.identHit(key) ? (key as number) : undefined
     return this.keySlot.get(key)
   }
 
@@ -124,8 +168,24 @@ export class Store<T> {
   }
 
   // Insert or overwrite; returns previous row (undefined if new). A NEW key
-  // on an adopted store is a structural write — promote first.
+  // on an adopted store is a structural write — promote first (object lane)
+  // or materialize keys (ident lane, unless the key is the tail append that
+  // preserves identity).
   set(key: RowKey, row: T): T | undefined {
+    if (this.ident) {
+      if (this.identHit(key)) {
+        const prev = this.slots[key as number]
+        this.slots[key as number] = row
+        return prev
+      }
+      if (key === this.slots.length) {
+        // tail append: key === slot — identity preserved
+        this.slots.push(row)
+        this.nextKey = (key as number) + 1
+        return undefined
+      }
+      this.materializeKeys() // non-append new key — leave the ident lane
+    }
     if (this.obj !== null) {
       if (typeof key === 'string' && Object.hasOwn(this.obj, key)) {
         const prev = this.obj[key]
@@ -149,6 +209,7 @@ export class Store<T> {
   }
 
   del(key: RowKey): T | undefined {
+    if (this.ident) this.materializeKeys() // structural — leave the ident lane
     if (this.obj !== null) this.promote() // structural — leave the adopted lane
     const s = this.keySlot.get(key)
     if (s === undefined) return undefined
@@ -180,6 +241,10 @@ export class Store<T> {
   // lane iterates okeys — the same order promote() seeds) — the specified
   // total iteration order for object stores.
   *entries(): IterableIterator<[RowKey, T]> {
+    if (this.ident) {
+      for (let i = 0; i < this.slots.length; i++) yield [i, this.slots[i] as T]
+      return
+    }
     if (this.obj !== null) {
       for (const k of this.okeysOf()) yield [k, this.obj[k]]
       return
@@ -188,6 +253,10 @@ export class Store<T> {
   }
 
   *keys(): IterableIterator<RowKey> {
+    if (this.ident) {
+      for (let i = 0; i < this.slots.length; i++) yield i
+      return
+    }
     if (this.obj !== null) {
       yield* this.okeysOf()
       return
@@ -197,6 +266,11 @@ export class Store<T> {
 
   // No-allocation full pass — the hot path for operator construction.
   each(fn: (key: RowKey, row: T) => void): void {
+    if (this.ident) {
+      const slots = this.slots
+      for (let i = 0; i < slots.length; i++) fn(i, slots[i] as T)
+      return
+    }
     if (this.obj !== null) {
       const okeys = this.okeysOf()
       const obj = this.obj
@@ -208,6 +282,10 @@ export class Store<T> {
 
   snapshot(): Map<RowKey, T> {
     const m = new Map<RowKey, T>()
+    if (this.ident) {
+      for (let i = 0; i < this.slots.length; i++) m.set(i, this.slots[i] as T)
+      return m
+    }
     if (this.obj !== null) {
       const okeys = this.okeysOf()
       for (let i = 0; i < okeys.length; i++) m.set(okeys[i], this.obj[okeys[i]])

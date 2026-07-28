@@ -610,3 +610,117 @@ test('M6 P2: adopted vs force-promoted — seeded 300-step scripts, equal batche
   same(A.store.has('100'), true)
   same(A.get(100), undefined)
 })
+
+// ── M6 Phase 3: adopted-array (ident) store + virtual order channel ──────────
+// $(arr) adopts the array as slots (key i ≡ slot i, no keySlot build) and the
+// order channel stays VIRTUAL (identity) while only tail appends happen; the
+// first remove / move / mid-insert materializes both. The transition must be
+// invisible: same batches, same synthesized-vs-diffed order deltas, same
+// iteration, as a twin whose keys were materialized from step 0.
+test('M6 P3: adopted-array vs force-materialized — seeded churn across the ident→mapped transition', () => {
+  const lcg = (seed: number) => {
+    let s = seed >>> 0
+    return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0), s / 4294967296)
+  }
+  type R = { val: number }
+  const mkArr = (): R[] => Array.from({ length: 30 }, (_, i) => ({ val: i }))
+  const strip = (b: CommitBatch<R>) => ({
+    rows: b.rows.map((d: any) => ({ op: d.op, key: d.key, row: d.row, prev: d.prev, path: d.path })),
+    order: b.order ?? null,
+  })
+
+  for (const seed of [3, 11, 77]) {
+    const rtA = new Runtime()
+    const A = new SourceNode<R>(rtA, mkArr())
+    const rtB = new Runtime()
+    const B = new SourceNode<R>(rtB, mkArr())
+    B.store.materializeKeys()
+    void B.currentOrder() // materialize B's order channel from step 0 too
+    conform(A)
+    conform(B)
+    const bA: CommitBatch<R>[] = []
+    const bB: CommitBatch<R>[] = []
+    A.connect({ wantsOrder: true, origin: null, apply: (b: CommitBatch<R>) => bA.push(b) })
+    B.connect({ wantsOrder: true, origin: null, apply: (b: CommitBatch<R>) => bB.push(b) })
+
+    const rnd = lcg(seed)
+    const step = (src: SourceNode<R>, rt: Runtime, r1: number, r2: number, r3: number) => {
+      const keys = [...src.store.keys()]
+      const k = keys[(r1 * keys.length) | 0]
+      if (r2 < 0.4) src.write(k, ['val'], 1000 + ((r3 * 1e6) | 0))
+      else if (r2 < 0.6) src.insert({ val: 2000 + ((r3 * 1e6) | 0) }) // tail append
+      else if (r2 < 0.72) src.insert({ val: 3000 + ((r3 * 1e6) | 0) }, (r3 * keys.length) | 0) // mid-insert
+      else if (r2 < 0.85) src.remove(k)
+      else src.move(k, (r3 * keys.length) | 0)
+    }
+    for (let i = 0; i < 300; i++) {
+      const r1 = rnd()
+      const r2 = rnd()
+      const r3 = rnd()
+      step(A, rtA, r1, r2, r3)
+      step(B, rtB, r1, r2, r3)
+      same(bA.length, bB.length, `batch count @ seed ${seed} step ${i}`)
+      if (bA.length > 0) same(strip(bA[bA.length - 1]), strip(bB[bB.length - 1]), `batch @ seed ${seed} step ${i}`)
+      same([...A.store.keys()], [...B.store.keys()], `key iteration @ seed ${seed} step ${i}`)
+      same(A.currentOrder(), B.currentOrder(), `order @ seed ${seed} step ${i}`)
+    }
+    same(A.snapshot(), B.snapshot())
+    assert.ok(!A.store.ident, `seed ${seed}: churn included removes — A must have materialized`)
+  }
+})
+
+test('M6 P3: virtual order — tail appends synthesize orderInserts (key ≡ index) without materializing', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ v: number }>(rt, [{ v: 0 }, { v: 1 }])
+  conform(src)
+  const batches: CommitBatch<{ v: number }>[] = []
+  src.connect({ wantsOrder: true, origin: null, apply: (b: CommitBatch<{ v: number }>) => batches.push(b) })
+
+  // Two appends in ONE batch: synthesized ascending orderInserts, and both
+  // channels stay virtual (ident store, null order).
+  rt.batch(() => {
+    src.insert({ v: 2 })
+    src.insert({ v: 3 })
+  })
+  same(batches.length, 1)
+  same(batches[0].order, [
+    { op: 'orderInsert', key: 2, index: 2 },
+    { op: 'orderInsert', key: 3, index: 3 },
+  ])
+  assert.ok(src.store.ident, 'tail appends keep the ident lane')
+  // NB: conform()'s replay kit reads currentOrder() every commit, which
+  // legitimately materializes the order channel (a read is allowed to). The
+  // stays-virtual property is asserted on an UNOBSERVED twin:
+  const rt2 = new Runtime()
+  const bare = new SourceNode<{ v: number }>(rt2, [{ v: 0 }])
+  bare.insert({ v: 1 })
+  rt2.batch(() => {
+    bare.insert({ v: 2 })
+    bare.insert({ v: 3 })
+  })
+  assert.ok(bare.store.ident, 'unobserved: appends keep the ident lane')
+  assert.ok((bare as any).order === null, 'unobserved: appends keep the order virtual')
+  same([...bare.currentOrder()!], [0, 1, 2, 3]) // the read materializes the identity
+
+  // A mid-batch append + remove in one batch: the remove materializes with
+  // the pre-batch order correctly reconstructed (peeling the same-batch
+  // append off the identity tail) — diffOrder emits remove + insert.
+  rt.batch(() => {
+    src.insert({ v: 4 }) // virtual append (key 4)
+    src.remove(1) // materializes; preBatch must be [0,1,2,3] — NOT including 4
+  })
+  same(batches.length, 2)
+  const od = batches[1].order ?? []
+  same(od.filter((d) => d.op === 'orderRemove').length, 1)
+  same(od.filter((d) => d.op === 'orderInsert').map((d) => d.key), [4])
+  same([...src.currentOrder()!], [0, 2, 3, 4])
+  same(src.snapshot().size, 4)
+
+  // 231k-ingest guard: adoption is O(1) — the ctor must not walk the array.
+  const big = new Array<{ v: number }>(231_000).fill({ v: 1 })
+  const t0 = performance.now()
+  const bigSrc = new SourceNode<{ v: number }>(rt, big)
+  const dt = performance.now() - t0
+  assert.ok(bigSrc.store.ident && bigSrc.rowCount() === 231_000)
+  assert.ok(dt < 5, `231k array adoption took ${dt.toFixed(2)} ms — must be ~0 (O(1), no per-row walk)`)
+})

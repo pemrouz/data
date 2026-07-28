@@ -261,7 +261,14 @@ export function diffOrder(pre: readonly RowKey[], post: readonly RowKey[]): Orde
 
 export class SourceNode<T> extends DataNode<T> {
   declare store: Store<T>
-  declare order: RowKey[] | null // array-born sources only
+  declare ordered: boolean // array-born (has an order channel)
+  // The order channel. On an array-born source it starts VIRTUAL (null while
+  // `ordered`): while the store is in the ident lane and only tail appends
+  // have happened, the order IS the identity 0..size-1 — nothing to
+  // maintain, and settle synthesizes the tail orderInserts directly (key ≡
+  // index). The first remove / move / mid-insert / order READ materializes
+  // it via ensureOrder(), after which it is maintained exactly as before.
+  declare order: RowKey[] | null
   declare pending: Map<RowKey, RowDelta<T>>
   declare preBatchOrder: RowKey[] | null
   declare inDirty: boolean // runtime dirty-list membership flag
@@ -272,24 +279,47 @@ export class SourceNode<T> extends DataNode<T> {
     this.preBatchOrder = null
     this.inDirty = false
     if (Array.isArray(value)) {
-      this.store = new Store<T>()
-      this.order = []
-      for (const row of value) {
-        const k = this.store.mintKey()
-        this.store.set(k, row)
-        this.order.push(k)
-      }
+      // Adopt the caller's array as the slots (M6 P3): key i ≡ slot i, no
+      // per-row mintKey/Map.set loop — a 231k-row ingest is O(1). Same
+      // take-ownership contract as the object lane.
+      this.ordered = true
+      this.order = null // virtual identity order
+      this.store = Store.adoptArray(value)
     } else {
       // Adopt the caller's object as the row table (M6 P2): O(Object.keys)
       // ingestion, no per-row Map.set loop. Take-ownership contract — out-of-
       // band mutation of the adopted object was already unsupported (v2's
       // proxy wrote through to it the same way).
+      this.ordered = false
       this.order = null
       this.store = Store.adoptObject(value)
     }
   }
 
+  // Materialize the virtual identity order. Called by the first
+  // order-perturbing write of a batch (BEFORE its store mutation — the
+  // reconstruction below relies on pending still holding every append of
+  // this batch) and by order reads. Appends that happened earlier in the
+  // SAME batch while virtual were never snapshotted, so the pre-batch order
+  // is reconstructed by peeling them off the identity tail — they are
+  // exactly the pending 'add' entries (removes materialize, so no
+  // annihilation can have consumed one).
+  private ensureOrder(): void {
+    if (!this.ordered || this.order !== null) return
+    const len = this.store.slots.length
+    const order = new Array<RowKey>(len)
+    for (let i = 0; i < len; i++) order[i] = i
+    this.order = order
+    if (this.preBatchOrder === null) {
+      let adds = 0
+      for (const d of this.pending.values()) if (d.op === 'add') adds++
+      if (adds > 0) this.preBatchOrder = order.slice(0, len - adds)
+    }
+  }
+
   currentOrder(): readonly RowKey[] | null {
+    if (!this.ordered) return null
+    if (this.order === null) this.ensureOrder()
     return this.order
   }
 
@@ -379,7 +409,7 @@ export class SourceNode<T> extends DataNode<T> {
       rt.queueWrite(() => void this.insert(row, at))
       return -1
     }
-    const key = this.order !== null ? this.store.mintKey() : this.autoObjectKey()
+    const key = this.ordered ? this.store.mintKey() : this.autoObjectKey()
     this.applyAdd(key, row, at)
     rt.written(this)
     return key
@@ -407,18 +437,20 @@ export class SourceNode<T> extends DataNode<T> {
       rt.queueWrite(() => this.move(key, to))
       return
     }
-    if (this.order === null)
+    if (!this.ordered)
       throw new Error(
         'data: move() repositions the order channel — this source is object-born (unordered); moves only apply to array-born sources',
       )
     if (!this.store.has(key)) return // idempotent, like remove
-    const from = this.order.indexOf(key)
+    this.ensureOrder()
+    const order = this.order as RowKey[]
+    const from = order.indexOf(key)
     if (from < 0) return
-    const t = to < 0 ? 0 : to >= this.order.length ? this.order.length - 1 : to
+    const t = to < 0 ? 0 : to >= order.length ? order.length - 1 : to
     if (from === t) return
     this.snapPreOrder()
-    this.order.splice(from, 1)
-    this.order.splice(t, 0, key)
+    order.splice(from, 1)
+    order.splice(t, 0, key)
     rt.written(this)
   }
 
@@ -431,6 +463,20 @@ export class SourceNode<T> extends DataNode<T> {
   // ── consolidation (delta.ts rules, implemented once) ───────────────────────
 
   private applyAdd(key: RowKey, row: T, at?: number): void {
+    // Virtual-order fast path: a tail append of the identity key onto an
+    // ident store keeps both the key channel AND the order channel virtual —
+    // settle synthesizes the orderInsert (key ≡ index). Anything else (a
+    // mid-insert, a non-identity key, an already-materialized order)
+    // materializes the order BEFORE the store mutation so the pre-batch
+    // reconstruction in ensureOrder sees the pre-add length.
+    let virtualAppend = false
+    if (this.ordered) {
+      const st = this.store
+      const len = st.slots.length
+      virtualAppend =
+        this.order === null && st.ident && key === len && (at === undefined || at < 0 || at >= len)
+      if (!virtualAppend && this.order === null) this.ensureOrder()
+    }
     this.store.set(key, row)
     const prior = this.pending.get(key)
     if (prior === undefined) {
@@ -441,14 +487,16 @@ export class SourceNode<T> extends DataNode<T> {
     } else {
       throw new Error(`data: add for already-live key ${String(key)}`)
     }
-    if (this.order !== null) {
+    if (this.ordered && !virtualAppend) {
+      const order = this.order as RowKey[]
       this.snapPreOrder()
-      const i = at === undefined || at < 0 || at > this.order.length ? this.order.length : at
-      this.order.splice(i, 0, key)
+      const i = at === undefined || at < 0 || at > order.length ? order.length : at
+      order.splice(i, 0, key)
     }
   }
 
   private applyRemove(key: RowKey): void {
+    if (this.ordered && this.order === null) this.ensureOrder() // before the pending annihilation below
     const prev = this.store.del(key) as T
     const prior = this.pending.get(key)
     if (prior === undefined) {
@@ -510,6 +558,15 @@ export class SourceNode<T> extends DataNode<T> {
       order = diffOrder(this.preBatchOrder, this.order!)
       this.preBatchOrder = null
       if (order.length === 0) order = undefined
+    } else if (this.ordered && this.order === null) {
+      // Virtual order (M6 P3): every structural change this batch was a tail
+      // append of an identity key (anything else would have materialized),
+      // so the order delta is one orderInsert per add at index ≡ key —
+      // ascending, matching diffOrder's insert convention, because pending
+      // preserves write order and later appends mint larger keys.
+      for (const d of rows) {
+        if (d.op === 'add') (order ??= []).push({ op: 'orderInsert', key: d.key, index: d.key as number })
+      }
     }
     if (rows.length === 0 && order === undefined) return null
     // One monomorphic batch shape (order/scalar always present as fields).

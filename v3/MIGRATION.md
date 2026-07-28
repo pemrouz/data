@@ -69,16 +69,16 @@ Two structural consequences worth internalizing before touching code:
   arr.az('v')[value]                  // [{v:1},{v:2},{v:3}] — ordered = array
   ```
 
-- **`$(x)` takes ownership of the container.** An object passed to `$()` is
-  ADOPTED as the row table (M6): reads and in-place row updates go through it
-  directly, and the engine may later reorganize its backing on a structural
-  write. Mutating the container out-of-band after `$(x)` (e.g.
-  `obj.k = row` instead of `d.set('k', row)`) is unsupported — as it already
-  was in v2, whose proxy wrote through to the same object; writes simply
-  bypassed the change stream. Same contract, now load-bearing: hand the
-  object over and write only through the handle. (Rows were always shared by
-  reference in both versions; a row you still hold is the row the engine
-  serves.)
+- **`$(x)` takes ownership of the container.** An object OR array passed to
+  `$()` is ADOPTED as the row table (M6): reads and in-place row updates go
+  through it directly, and the engine may later reorganize its backing on a
+  structural write. Mutating the container out-of-band after `$(x)` (e.g.
+  `obj.k = row` / `arr.push(row)` instead of `d.set('k', row)` /
+  `d.insert(row)`) is unsupported — as it already was in v2, whose proxy
+  wrote through to the same container; writes simply bypassed the change
+  stream. Same contract, now load-bearing: hand the container over and write
+  only through the handle. (Rows were always shared by reference in both
+  versions; a row you still hold is the row the engine serves.)
 
 ---
 
