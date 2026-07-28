@@ -43,9 +43,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M6 Phase 1** — between drops its full-parent rows mirror (ctor seeds via parent.each; widen-admits via parents[0].rowAt; resort iterates the parent): crossfilter-example RSS delta 237.8→202.1 MB (1.396×→1.222× of v2), setup 0.62×→0.56×, brush ratios equal-or-better; honest cost: synthetic between/narrow ~+15% absolute (plan risk R5, per-admit parent hop) | done | this session (local, NOT pushed) | 280 tests (+2 P1 regressions); typecheck ×4; m1 0.71/0.75, m2 brush 1.03 / batch 0.78; example-bench checksums equal ×5 |
 | **M6 Phase 2** — adopted-object store: `$(obj)` adopts the caller's object (lazy `Object.keys`), one-shot `promote()` on first structural write, string-guarded `has`, reverse arrival-order adopt; corpus geomean **1.223×→0.940×** (v3 now beats v2), tap/setup 12.5×→1.13×, eq 44/44; A/B adopted-vs-promoted harness + promote-spike gate (<5 ms at 10k) | done | this session (local, NOT pushed) | 281 tests (+1 A/B harness); typecheck ×4; m1 0.71/0.84, m2 brush 1.12 / batch 0.76; MIGRATION §1 take-ownership note |
 | **M6 Phase 3** — adopted-array (ident) store + virtual order channel: `$(arr)` adopts the array as slots (231k ingest O(1), asserted), `materializeKeys()` on first remove, tail appends synthesize orderInserts without snapPreOrder/diffOrder; example RSS delta 202.1→191.4 MB (1.156× of v2), brushes unchanged, checksums ×5 | done | this session (local, NOT pushed) | 283 tests (+2: transition A/B churn, virtual-order synthesis); typecheck ×4; m1 0.69/0.90, m2 0.99/0.68; corpus sort/reverse/values within tolerance, eq ALL EQUAL |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 4 (dual-mode membership view, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 4a** — between on the dual-mode MembershipView (include/exclude polarity + hysteresis flip; reset = empty exclude set, ~0 bytes/view): **RSS delta 163.8 MB = 0.996× of v2 — BELOW v2**, brushes best-yet (0.289×/0.102×), checksums ×5; exclude-mode `hasSansHost`/`hostAddedExcluded` subtleties tested via 240-step flip-band churn | done | this session (local, NOT pushed) | 284 tests (+1 flip-band churn); typecheck ×4; m1 0.71/0.84, m2 1.14/0.71; corpus between setup 0.42×, eq ALL EQUAL |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 4b (setops on MembershipView, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
 
-Run everything: `npm run test:v3` (283 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (284 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -477,7 +478,28 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
   (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
   parent where it matters; deletion beats sharing), with a formal drop gate after M6
-  Phase 5. **Phase 3 LANDED 2026-07-28** (same session): the Store gained the
+  Phase 5. **Phase 4a LANDED 2026-07-28** (same session): between moved onto the
+  dual-mode **MembershipView** ([v3/ops/membership.ts](ops/membership.ts)) — an
+  include-set OR exclude-set complement (polarity flips at 60%/40% membership
+  with a 20-point hysteresis band, re-checked once per settle), rows always
+  resolved through parents[0]. The reset/full-domain state — every chart before
+  its first brush and after every clear — is an EMPTY exclude set: ~0 bytes per
+  between regardless of source size. **Crossfilter-example setup RSS delta
+  191.4 → 163.8 MB = 0.996× of v2 — BELOW v2, the M6 headline goal, reached with
+  the 5 intersect view Maps still pending (Phase 4b)**; brushes best-yet (date
+  0.289×, delay 0.102×), checksums ×5; m1 0.71/0.84, m2 brush 1.14 (in-gate) /
+  batch 0.71. Two exclude-mode subtleties are load-bearing and tested: pre-state
+  membership during delta processing must NOT consult the host (`hasSansHost` —
+  the host has already dropped a removed key by settle time), and a host ADD of
+  a non-member must be recorded (`hostAddedExcluded`) or the new key is silently
+  admitted. Covered by a 240-step flip-band oscillation churn (membership
+  swinging 15%↔95% with interleaved host adds/removes, oracle + memberCount
+  every commit, both flip directions asserted). Honest cost: the
+  extreme-amplitude corpus narrow row ~+20% absolute (R5 indirection); the
+  realistic 231k brush is unchanged. **Phase 4b (setops on MembershipView) is
+  NEXT** — its `preRow`/suppression semantics need pre-state reconstruction from
+  the deltas (union's exposure switches especially), a careful ~100-line rework.
+  **Phase 3 LANDED 2026-07-28** (same session): the Store gained the
   ADOPTED-ARRAY (IDENT) lane — `$(arr)` adopts the caller's array AS the slots
   (key i ≡ slot i; a 231k-row ingest is O(1), asserted < 5 ms in-suite) with
   `keySlot`/`slotKey` built by a one-shot `materializeKeys()` on the first REMOVE

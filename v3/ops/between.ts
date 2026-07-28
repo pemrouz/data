@@ -36,6 +36,7 @@ import type { CommitBatch, OriginToken, Path, RowDelta, RowKey } from '../contra
 import { DataNode, SourceNode } from '../kernel/node.ts'
 import type { Runtime } from '../kernel/runtime.ts'
 import { defineOperator } from './registry.ts'
+import { MembershipView } from './membership.ts'
 
 type Bounds = readonly [number, number]
 const BKEY = 'b'
@@ -69,7 +70,7 @@ export class BetweenNode<T> extends DataNode<T> {
   declare lo: number // APPLIED bounds (as of the last settle)
   declare hi: number
   declare boundsSrc: SourceNode<Bounds> // TARGET bounds (post-write, read-your-writes)
-  declare view: Map<RowKey, T> // the in-range subset — this node's materialized state
+  declare view: MembershipView // in-range MEMBERSHIP (rows delegate to parents[0] — M6 P1/P4)
   // The sorted index: parallel arrays of col values and keys, ascending by
   // value. Excludes rows whose col value is undefined/null/NaN (they can never
   // satisfy an inclusive numeric range, and NaN entries would break both the
@@ -98,11 +99,12 @@ export class BetweenNode<T> extends DataNode<T> {
     this.lo = lo
     this.hi = hi
     this.boundsSrc = boundsSrc
-    this.view = new Map()
+    this.view = new MembershipView(parent)
     parent.each((k, row) => {
       const x = (row as any)?.[col]
-      if (x != null && x >= lo && x <= hi) this.view.set(k, row)
+      if (x != null && x >= lo && x <= hi) this.view.add(k)
     })
+    this.view.maybeFlip() // a full-domain construction lands as an EMPTY exclude set
     this.sVals = []
     this.sKeys = []
     this.sortedDirty = true // built lazily by the first bounds walk
@@ -144,7 +146,10 @@ export class BetweenNode<T> extends DataNode<T> {
       }
       return m
     }
-    return new Map(this.view)
+    const m = new Map<RowKey, T>()
+    const p = this.parents[0]
+    this.view.eachKey((k) => m.set(k, p.rowAt(k) as T))
+    return m
   }
 
   hasRow(key: RowKey): boolean {
@@ -154,7 +159,18 @@ export class BetweenNode<T> extends DataNode<T> {
 
   rowAt(key: RowKey): T | undefined {
     if (this.runtime.midBatch) return super.rowAt(key)
-    return this.view.get(key)
+    return this.view.has(key) ? this.parents[0].rowAt(key) : undefined
+  }
+
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    const p = this.parents[0]
+    this.view.eachKey((k) => fn(k, p.rowAt(k) as T))
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.memberCount()
   }
 
   dispose(): void {
@@ -194,6 +210,7 @@ export class BetweenNode<T> extends DataNode<T> {
         if (d.op === 'update' || d.op === 'add') this.applyBounds(d.row as Bounds, push)
       }
       if (rows.length === 0) return null
+      this.view.maybeFlip() // re-polarize once per settle, never per key
       return { seq, origin, rows, order: undefined, scalar: undefined }
     }
 
@@ -213,6 +230,7 @@ export class BetweenNode<T> extends DataNode<T> {
     const rows =
       pending.size === 1 ? [pending.values().next().value as RowDelta<T>] : [...pending.values()]
     pending.clear()
+    this.view.maybeFlip() // re-polarize once per settle, never per key
     return { seq, origin, rows, order: undefined, scalar: undefined }
   }
 
@@ -240,17 +258,24 @@ export class BetweenNode<T> extends DataNode<T> {
         case 'add': {
           this.markDirty() // index contents changed
           if (this.inRange((d.row as any)?.[col])) {
-            this.view.set(d.key, d.row)
+            this.view.add(d.key)
             this.pend(pending, d)
+          } else {
+            this.view.hostAddedExcluded(d.key) // exclude mode must record the new non-member
           }
           break
         }
         case 'remove': {
           this.markDirty()
-          if (this.view.has(d.key)) {
-            const prev = this.view.get(d.key) as T
-            this.view.delete(d.key)
-            this.pend(pending, { op: 'remove', key: d.key, prev })
+          // Pre-state via hasSansHost: the host already dropped this key
+          // (writes apply before settle), so has() would deny membership.
+          // prev is d.prev — between forwards rows unchanged, so the row
+          // this view last knew IS the row the parent last knew.
+          if (this.view.hasSansHost(d.key)) {
+            this.view.hostRemoved(d.key)
+            this.pend(pending, { op: 'remove', key: d.key, prev: d.prev })
+          } else {
+            this.view.hostRemoved(d.key) // purge a stale exclude entry
           }
           break
         }
@@ -261,16 +286,15 @@ export class BetweenNode<T> extends DataNode<T> {
           // change invalidates the index — attribute ticks on other fields
           // stay O(1) and never trigger a resort at the next brush.
           if (!Object.is(oldCol, newCol)) this.markDirty()
-          const was = this.view.has(d.key)
+          const was = this.view.hasSansHost(d.key)
           const now = this.inRange(newCol)
           if (was && now) {
-            this.view.set(d.key, d.row)
             this.pend(pending, d) // forward — prev is what this view knew (same refs)
           } else if (was && !now) {
-            this.view.delete(d.key)
+            this.view.removeMember(d.key)
             this.pend(pending, { op: 'remove', key: d.key, prev: d.prev })
           } else if (!was && now) {
-            this.view.set(d.key, d.row)
+            this.view.add(d.key)
             this.pend(pending, { op: 'add', key: d.key, row: d.row })
           }
           break
@@ -308,10 +332,9 @@ export class BetweenNode<T> extends DataNode<T> {
       while (this.hiIdx > 0 && (vals[this.hiIdx - 1] as any) > (newHi as any)) {
         this.hiIdx--
         const k = keys[this.hiIdx]
-        const prev = this.view.get(k) // single lookup; rows are objects, never undefined
-        if (prev !== undefined) {
-          this.view.delete(k)
-          emit({ op: 'remove', key: k, prev })
+        if (this.view.hasSansHost(k)) {
+          this.view.removeMember(k)
+          emit({ op: 'remove', key: k, prev: parent.rowAt(k) })
         }
       }
       if (this.loIdx > this.hiIdx) this.loIdx = this.hiIdx
@@ -322,10 +345,9 @@ export class BetweenNode<T> extends DataNode<T> {
       while (this.loIdx < vals.length && (vals[this.loIdx] as any) < (newLo as any)) {
         const k = keys[this.loIdx]
         this.loIdx++
-        const prev = this.view.get(k)
-        if (prev !== undefined) {
-          this.view.delete(k)
-          emit({ op: 'remove', key: k, prev })
+        if (this.view.hasSansHost(k)) {
+          this.view.removeMember(k)
+          emit({ op: 'remove', key: k, prev: parent.rowAt(k) })
         }
       }
       if (this.hiIdx < this.loIdx) this.hiIdx = this.loIdx
@@ -342,9 +364,9 @@ export class BetweenNode<T> extends DataNode<T> {
       while (this.hiIdx < vals.length && (vals[this.hiIdx] as any) <= (newHi as any)) {
         const k = keys[this.hiIdx]
         this.hiIdx++
-        if (!this.view.has(k)) {
+        if (!this.view.hasSansHost(k)) {
           const row = parent.rowAt(k) as T
-          this.view.set(k, row)
+          this.view.add(k)
           emit({ op: 'add', key: k, row })
         }
       }
@@ -356,9 +378,9 @@ export class BetweenNode<T> extends DataNode<T> {
       while (this.loIdx > 0 && (vals[this.loIdx - 1] as any) >= (newLo as any)) {
         this.loIdx--
         const k = keys[this.loIdx]
-        if (!this.view.has(k)) {
+        if (!this.view.hasSansHost(k)) {
           const row = parent.rowAt(k) as T
-          this.view.set(k, row)
+          this.view.add(k)
           emit({ op: 'add', key: k, row })
         }
       }

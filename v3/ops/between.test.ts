@@ -671,3 +671,45 @@ test('M6 P1: same-commit remove + widen sweeping past the removed value emits no
   same(bt.hasRow('f'), true)
   assertOracle(bt, rangeOracle(src, bt, 'val'))
 })
+
+test('M6 P4a: dual-mode membership — brush oscillation across the flip band, oracle every commit', () => {
+  // Membership swings between ~15% and ~95% of the source, forcing repeated
+  // include→exclude→include re-polarizations (hysteresis band 40%/60%), with
+  // data churn interleaved so host adds/removes hit BOTH polarities. The
+  // conformance kit replays every batch; the oracle re-derives from scratch.
+  const rt = new Runtime()
+  const src: Record<string, Row> = {}
+  for (let i = 0; i < 100; i++) src['k' + i] = { val: i, tag: 't' }
+  const s = new SourceNode<Row>(rt, src)
+  const bt = between(s, 'val', [0, 99]) // full domain → constructs straight into exclude-∅
+  conform(s)
+  conform(bt)
+  const oracle = rangeOracle(s, bt, 'val')
+  ok((bt.view as any).exclude === true, 'full-domain construction lands in exclude mode')
+
+  const rnd = lcg(2026)
+  let sawInclude = false
+  let sawExclude = false
+  let nextId = 100
+  for (let step = 0; step < 240; step++) {
+    const r = rnd()
+    if (r < 0.4) {
+      bt.setBounds([0, 10 + ((rnd() * 20) | 0)]) // ~15-30% membership → include territory
+    } else if (r < 0.8) {
+      bt.setBounds([0, 80 + ((rnd() * 19) | 0)]) // ~80-99% membership → exclude territory
+    } else if (r < 0.9) {
+      const keys = [...s.store.keys()]
+      s.write(keys[(rnd() * keys.length) | 0], ['val'], (rnd() * 100) | 0) // col move
+    } else if (r < 0.95) {
+      s.write('n' + nextId++, [], { val: (rnd() * 100) | 0, tag: 'n' }) // host add
+    } else {
+      const keys = [...s.store.keys()]
+      s.remove(keys[(rnd() * keys.length) | 0]) // host remove
+    }
+    if ((bt.view as any).exclude) sawExclude = true
+    else sawInclude = true
+    assertOracle(bt, oracle, `flip-band oracle @ step ${step}`)
+    same(bt.rowCount(), oracle().size, `memberCount @ step ${step}`)
+  }
+  ok(sawInclude && sawExclude, 'the churn must actually cross the flip band in both directions')
+})
