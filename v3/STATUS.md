@@ -40,7 +40,7 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **Corpus hotspot pass (gap 8)** — the named per-write outliers CLOSED: group/insert 10.96×→2.45×, to/insert 4.77×→1.14×, to/batch 6.20×→0.99×, reduce/batch 1.80×→0.55×; geomean 1.569×→1.338×; setups reduced via the each()/rowCount() no-copy read protocol (residual = eager $() store ingestion → M6) | done | this session (local, NOT pushed) | 275 v3 tests (+2 regressions); typecheck:v3 ×4; m1 0.65/0.71, m2 brush 1.06 / batch 0.80; full REPS=5 sweep 2026-07-13, eq ALL EQUAL |
 | **Corpus hotspot pass 2** — distinct/batch 3.91×→1.29×, union/churn 2.23×→1.42×, group/churn →2.00×, between/remove →2.42×, except/remove-other →2.61× via distinct cut-offs + setops fast path + ordered early-out + the API handle de-fat; geomean 1.338×→1.223× (67 rows) | done | `a134649`…`11a271d` (local, NOT pushed) | 278 tests; typecheck ×4; m1/m2 pass; 2026-07-27 sweep eq ALL EQUAL |
 | **Gap-5 niceties** — `reverse` lands (reversed arrival order + unbounded single-delta fast path: reverse/insert 28×→1.04×, reverse/batch 0.008×, sort/insert →0.98×); `SourceNode.move()` + seam move ingress (diffOrder rotation gap closed); ProjectionAggregate exported; rest deferred with rationale | done | `b43db87` `f4b320d` `ebaf182` (local, NOT pushed) | 278 tests; corpus reverse mirror eq green; public types + fixtures |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 columnar backing is the open engineering arc | | | |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 is PLANNED ([plans/v3/M6.md](../plans/v3/M6.md)) — implementation starts at Phase 1 (between drops its rows mirror) | | | |
 
 Run everything: `npm run test:v3` (278 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -467,10 +467,15 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
 7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
   per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
   crossfilter-shaped micro). What remains per-node: map's output cache, each between's
-  rows mirror + view, ordered's rows cache. The M6 columnar backing
-  (plans/v3/concepts/columnar-ir.md) is still the structural answer; a cheaper interim
-  is sharing row maps between an operator and its sole parent where identity-forwarding
-  allows.
+  rows mirror + view, ordered's rows cache. **The M6 plan is now LOCKED at
+  [plans/v3/M6.md](../plans/v3/M6.md)** ("Delete the Maps, adopt the containers" —
+  design panel + judge, 2026-07-27): the RSS delta is Map bookkeeping, not row data,
+  so six PR-sized phases delete/thin the Maps behind the hasRow/rowAt/each protocol,
+  adopt input containers in place for the setup class, and gate true columnar storage
+  behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
+  (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
+  parent where it matters; deletion beats sharing), with a formal drop gate after M6
+  Phase 5.
 
 ## Standing methodology rules (hard-won; do not regress)
 
