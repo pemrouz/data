@@ -28,6 +28,31 @@
 //                      v3/perf/crossfilter-example.bench.ts
 // Dev iteration:     FLIGHTS_N=20000 REPS=1 node ... (same command)
 //
+// ── RESULTS 2026-07-28 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
+// Supersedes the 2026-07-06 table below. Taken AFTER M6 Phase 1 (between
+// drops its rows mirror — the 4 per-dim full-parent Map<231k>s died; walk
+// reads parents[0].rowAt/each) and the gap-8 pass-2 perf series
+// (a134649…11a271d: setops single-delta, ordered early-out, API de-fat).
+//
+//   | workload          | v2 median      | v3 median      | ratio (v3/v2) |
+//   |-------------------|----------------|----------------|---------------|
+//   | setup             | 2837.7 ms      | 1533.2 ms      | 0.563×        |
+//   | setup RSS delta   | 165.0 MB       | 202.1 MB       | 1.222×        |
+//   | brush_date median | 93.8 ms/step   | 25.5 ms/step   | 0.267×        |
+//   | brush_date p95    | 156.4 ms/step  | 39.7 ms/step   | 0.265×        |
+//   | brush_delay median| 44.1 ms/step   | 5.4 ms/step    | 0.116×        |
+//   | brush_delay p95   | 140.8 ms/step  | 84.0 ms/step   | 0.565×        |
+//
+// Checksums v2 ≡ v3 (1596228503) on every replicate. RSS delta 237.8 →
+// 202.1 MB (1.396× → 1.222× of v2): the −35.7 MB is the four deleted
+// between mirrors at ~9 MB per Map<231k int keys> — M6.md's ≤190 target
+// assumed ~12-15 MB per Map, an over-estimate of V8 Map entry cost, not a
+// mechanism shortfall. The residual overhang is the full-domain view Maps
+// (4 between + 5 intersect), exactly M6 Phase 4's dual-mode-membership
+// target. Absolute times are faster across BOTH engines than 07-06 (quieter
+// box + pass-2); the ratios are the comparable statistic — brush_date
+// 0.267× vs 0.254×, brush_delay 0.116× vs 0.141×: no brush regression.
+//
 // ── RESULTS 2026-07-06 (full 231,083 rows, 5 reps, node v26.1.0, WSL2) ───────
 // Supersedes the 2026-07-05 table below. Taken AFTER perf(v3/setops) 09adf4a
 // (direct parent queries — the mask/prows mirrors died) and

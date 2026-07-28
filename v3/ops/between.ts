@@ -69,7 +69,6 @@ export class BetweenNode<T> extends DataNode<T> {
   declare lo: number // APPLIED bounds (as of the last settle)
   declare hi: number
   declare boundsSrc: SourceNode<Bounds> // TARGET bounds (post-write, read-your-writes)
-  declare rows: Map<RowKey, T> // full mirror of the parent (walk reads rows from here)
   declare view: Map<RowKey, T> // the in-range subset — this node's materialized state
   // The sorted index: parallel arrays of col values and keys, ascending by
   // value. Excludes rows whose col value is undefined/null/NaN (they can never
@@ -99,12 +98,11 @@ export class BetweenNode<T> extends DataNode<T> {
     this.lo = lo
     this.hi = hi
     this.boundsSrc = boundsSrc
-    this.rows = parent.snapshot()
     this.view = new Map()
-    for (const [k, row] of this.rows) {
+    parent.each((k, row) => {
       const x = (row as any)?.[col]
       if (x != null && x >= lo && x <= hi) this.view.set(k, row)
-    }
+    })
     this.sVals = []
     this.sKeys = []
     this.sortedDirty = true // built lazily by the first bounds walk
@@ -240,7 +238,6 @@ export class BetweenNode<T> extends DataNode<T> {
     for (const d of deltas) {
       switch (d.op) {
         case 'add': {
-          this.rows.set(d.key, d.row)
           this.markDirty() // index contents changed
           if (this.inRange((d.row as any)?.[col])) {
             this.view.set(d.key, d.row)
@@ -249,7 +246,6 @@ export class BetweenNode<T> extends DataNode<T> {
           break
         }
         case 'remove': {
-          this.rows.delete(d.key)
           this.markDirty()
           if (this.view.has(d.key)) {
             const prev = this.view.get(d.key) as T
@@ -259,7 +255,6 @@ export class BetweenNode<T> extends DataNode<T> {
           break
         }
         case 'update': {
-          this.rows.set(d.key, d.row)
           const oldCol = (d.prev as any)?.[col]
           const newCol = (d.row as any)?.[col]
           // The lazy-resort dirty flag (v2's amortization): only a col-value
@@ -299,6 +294,7 @@ export class BetweenNode<T> extends DataNode<T> {
     if (this.sortedDirty) this.resort()
     const vals = this.sVals
     const keys = this.sKeys
+    const parent = this.parents[0] // hoisted: the widen loops read it per admitted row
     this.loIdx ??= lowerBound(vals, this.lo)
     this.hiIdx ??= upperBound(vals, this.hi)
 
@@ -336,12 +332,18 @@ export class BetweenNode<T> extends DataNode<T> {
     }
 
     if (newHi > this.hi) {
-      // widen high: admit rows with col <= newHi (inclusive boundary)
+      // widen high: admit rows with col <= newHi (inclusive boundary).
+      // Admitted rows come from the PARENT, not a local mirror (M6 P1):
+      // height-ordered settle guarantees parents[0] settled this commit
+      // before this walk, and a same-commit remove marked sortedDirty so
+      // the resort above already dropped dead keys from the index. The
+      // walk's O(Δ) claim assumes parents[0].rowAt is an O(1) materialized
+      // read (true for SourceNode and every in-tree op).
       while (this.hiIdx < vals.length && (vals[this.hiIdx] as any) <= (newHi as any)) {
         const k = keys[this.hiIdx]
         this.hiIdx++
         if (!this.view.has(k)) {
-          const row = this.rows.get(k) as T
+          const row = parent.rowAt(k) as T
           this.view.set(k, row)
           emit({ op: 'add', key: k, row })
         }
@@ -349,12 +351,13 @@ export class BetweenNode<T> extends DataNode<T> {
     }
 
     if (newLo < this.lo) {
-      // widen low: admit rows with col >= newLo (inclusive boundary)
+      // widen low: admit rows with col >= newLo (inclusive boundary) —
+      // same parent-delegation contract as the widen-high loop above.
       while (this.loIdx > 0 && (vals[this.loIdx - 1] as any) >= (newLo as any)) {
         this.loIdx--
         const k = keys[this.loIdx]
         if (!this.view.has(k)) {
-          const row = this.rows.get(k) as T
+          const row = parent.rowAt(k) as T
           this.view.set(k, row)
           emit({ op: 'add', key: k, row })
         }
@@ -365,17 +368,20 @@ export class BetweenNode<T> extends DataNode<T> {
     this.hi = newHi
   }
 
-  // Rebuild the sorted index from the row mirror — called lazily by the walk
-  // when the dirty flag is set. Amortizes many data mutations into one
-  // O(N log N) sort that fires only when the user actually brushes.
+  // Rebuild the sorted index from the PARENT's rows — called lazily by the
+  // walk when the dirty flag is set. Amortizes many data mutations into one
+  // O(N log N) sort that fires only when the user actually brushes. Reading
+  // the parent (no local mirror, M6 P1) is settle-safe: height order means
+  // parents[0] already settled this commit, so its materialized state
+  // matches what the old mirror held after applyData.
   private resort(): void {
     const col = this.col
     const entries: [unknown, RowKey][] = []
-    for (const [k, row] of this.rows) {
+    this.parents[0].each((k, row) => {
       const x = (row as any)?.[col]
-      if (x === undefined || x === null || (typeof x === 'number' && x !== x)) continue
+      if (x === undefined || x === null || (typeof x === 'number' && x !== x)) return
       entries.push([x, k])
-    }
+    })
     entries.sort((a, b) => ((a[0] as any) < (b[0] as any) ? -1 : (a[0] as any) > (b[0] as any) ? 1 : 0))
     const n = entries.length
     const vals = new Array<unknown>(n)

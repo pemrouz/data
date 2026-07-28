@@ -609,3 +609,65 @@ test("between fails fast on v2's two-handle bounds tuple (was: silently empty)",
   const ok5 = between(src, 'val', [1, 9]) // runtime unharmed, op still works
   assert.strictEqual(ok5.hasRow('a'), true)
 })
+
+// ── M6 Phase 1 regressions (rows mirror deleted; walk reads the parent) ──────
+
+test('M6 P1: same-commit data update + widen-admit carries the POST-update row reference', () => {
+  // The widen walk admits rows via parents[0].rowAt(k) (no local mirror).
+  // Height-ordered settle means the parent settled this commit BEFORE the
+  // walk runs, so an update consolidated into the same batch must be
+  // visible in the admitted add — a stale mirror-era read would hand out
+  // the pre-update row.
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, mkRows()) // e: { val: 90 }, out of [20, 60]
+  const bt = between(src, 'val', [20, 60])
+  conform(src)
+  conform(bt)
+  const batches: CommitBatch<Row>[] = []
+  bt.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<Row>) => batches.push(b) })
+
+  rt.batch(() => {
+    src.write('e', ['tag'], 'edited') // non-col edit: no membership change under OLD bounds
+    bt.setBounds([20, 95]) // widen sweeps past val 90 → admits e
+  })
+  same(batches.length, 1)
+  const byKey = new Map(batches[0].rows.map((d) => [d.key, d]))
+  const e = byKey.get('e') as Extract<RowDelta<Row>, { op: 'add' }>
+  same(e.op, 'add')
+  same(e.row.tag, 'edited') // post-update value...
+  ok(e.row === src.rowAt('e')) // ...and the parent's live reference, not a stale copy
+  same(byKey.get('d')!.op, 'add') // 75 admitted by the same sweep
+  assertOracle(bt, rangeOracle(src, bt, 'val'))
+})
+
+test('M6 P1: same-commit remove + widen sweeping past the removed value emits no phantom add', () => {
+  // A same-commit remove marks sortedDirty, so the walk resorts from the
+  // parent FIRST — the index holds no dead keys and the sweep past the
+  // removed row's old col value cannot re-admit it (rowAt would return
+  // undefined; the resort guarantees it is never consulted).
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, mkRows())
+  const bt = between(src, 'val', [20, 60])
+  conform(src)
+  conform(bt)
+  // Prime the sorted index (a first walk builds it) so the removal below
+  // exercises the DIRTY-index path, not a fresh build.
+  bt.setBounds([20, 61])
+  const batches: CommitBatch<Row>[] = []
+  bt.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<Row>) => batches.push(b) })
+
+  rt.batch(() => {
+    src.remove('e') // val 90 — out of view, but still in the primed index
+    bt.setBounds([20, 95]) // widen sweeps past 90: must NOT resurrect e
+  })
+  same(batches.length, 1)
+  const keys = batches[0].rows.map((d) => d.key).sort()
+  same(keys, ['d']) // only 75 enters; no phantom e
+  same(bt.hasRow('e'), false)
+  assertOracle(bt, rangeOracle(src, bt, 'val'))
+
+  // And the mirror-free view survives continued churn.
+  src.write('f', [], { val: 88, tag: 'late' })
+  same(bt.hasRow('f'), true)
+  assertOracle(bt, rangeOracle(src, bt, 'val'))
+})
