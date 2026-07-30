@@ -109,7 +109,10 @@ export class BucketNode<T, B> extends DataNode<B> {
   declare counts: boolean
   // Per-bucket membership (kernel-keyed via Map — RowKey 1 and '1' never
   // collide). Never emitted; the emitted bucket objects are built from it.
-  declare members: Map<string, Map<RowKey, T>>
+  // GROUP mode only — counts mode (M6 P5) keeps no rows at all: bucketOf +
+  // a per-bucket int count are the whole state.
+  declare members: Map<string, Map<RowKey, T>> | null
+  declare count: Map<string, number> | null // counts mode only
   // Which bucket each parent row currently belongs to — the v2 posMap/mapping
   // insight: cross-bucket moves are O(1), no source re-iteration.
   declare bucketOf: Map<RowKey, string>
@@ -137,7 +140,8 @@ export class BucketNode<T, B> extends DataNode<B> {
     this.fn = fn
     this.prune = opts.prune
     this.counts = opts.counts
-    this.members = new Map()
+    this.members = opts.counts ? null : new Map()
+    this.count = opts.counts ? new Map() : null
     this.bucketOf = new Map()
     this.view = new Map()
     this.skOf = opts.counts ? null : new Map()
@@ -149,17 +153,24 @@ export class BucketNode<T, B> extends DataNode<B> {
         sk.sorted = [...sk.bySk.keys()].sort(cmpKeys)
         sk.emittedSize = sk.sorted.length
       }
-    for (const [bk, mem] of this.members) this.view.set(bk, this.build(mem, bk))
+    for (const bk of this.count !== null ? this.count.keys() : this.members!.keys())
+      this.view.set(bk, this.build(bk))
   }
 
   // ── membership bookkeeping ──────────────────────────────────────────────────
 
   private enter(key: RowKey, row: T, bulk = false): string {
     const bk = String(this.fn(row, key))
-    let mem = this.members.get(bk)
+    if (this.count !== null) {
+      // counts mode: an int per bucket — no rows retained
+      this.count.set(bk, (this.count.get(bk) ?? 0) + 1)
+      this.bucketOf.set(key, bk)
+      return bk
+    }
+    let mem = this.members!.get(bk)
     if (mem === undefined) {
       mem = new Map()
-      this.members.set(bk, mem)
+      this.members!.set(bk, mem)
       if (this.skOf) this.skOf.set(bk, { sorted: [], bySk: new Map(), emittedSize: 0 })
     }
     mem.set(key, row)
@@ -175,7 +186,12 @@ export class BucketNode<T, B> extends DataNode<B> {
 
   private leave(key: RowKey): string {
     const bk = this.bucketOf.get(key) as string
-    this.members.get(bk)!.delete(key)
+    if (this.count !== null) {
+      this.count.set(bk, (this.count.get(bk) as number) - 1)
+      this.bucketOf.delete(key)
+      return bk
+    }
+    this.members!.get(bk)!.delete(key)
     this.bucketOf.delete(key)
     if (this.skOf) {
       const sk = this.skOf.get(bk)!
@@ -194,8 +210,8 @@ export class BucketNode<T, B> extends DataNode<B> {
   // comparison exact byte-for-byte).
   // Settle-path build: reads the bucket's MAINTAINED sorted list (skOf) —
   // one O(B) object fill, no String() pass, no sort, no temp Map.
-  private build(mem: Map<RowKey, T>, bk: string): B {
-    if (this.counts) return { value: mem.size } as unknown as B
+  private build(bk: string): B {
+    if (this.counts) return { value: this.count!.get(bk) ?? 0 } as unknown as B
     const sk = this.skOf!.get(bk)!
     const o: Record<string, T> = {}
     for (const s of sk.sorted) o[s] = sk.bySk.get(s) as T
@@ -311,7 +327,7 @@ export class BucketNode<T, B> extends DataNode<B> {
           const oldBk = this.bucketOf.get(d.key) as string
           const newBk = String(this.fn(d.row, d.key))
           if (oldBk === newBk) {
-            this.members.get(oldBk)!.set(d.key, d.row)
+            if (this.members !== null) this.members.get(oldBk)!.set(d.key, d.row)
             if (this.skOf) this.skOf.get(oldBk)!.bySk.set(String(d.key), d.row)
             // counts: same bucket ⇒ count unchanged ⇒ inert (v2's per-counter
             // quiet on non-key edits). group: bucket content changed ⇒ touch.
@@ -330,10 +346,10 @@ export class BucketNode<T, B> extends DataNode<B> {
 
     const out: RowDelta<B>[] = []
     for (const [bk, prev] of touched) {
-      const mem = this.members.get(bk) as Map<RowKey, T>
-      const emptied = mem.size === 0
+      const emptied =
+        this.count !== null ? (this.count.get(bk) ?? 0) === 0 : (this.members!.get(bk) as Map<RowKey, T>).size === 0
       if (this.prune && emptied) {
-        this.members.delete(bk)
+        this.members!.delete(bk) // counts buckets never prune (prune=false)
         if (this.skOf) this.skOf.delete(bk)
       }
       const liveNow = this.prune ? !emptied : true // counts buckets persist once created
@@ -347,7 +363,7 @@ export class BucketNode<T, B> extends DataNode<B> {
         }
         continue
       }
-      const next = this.build(mem, bk)
+      const next = this.build(bk)
       const sk = this.skOf === null ? undefined : this.skOf.get(bk)
       if (!wasLive) {
         this.view.set(bk, next)

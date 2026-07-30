@@ -45,9 +45,10 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M6 Phase 3** — adopted-array (ident) store + virtual order channel: `$(arr)` adopts the array as slots (231k ingest O(1), asserted), `materializeKeys()` on first remove, tail appends synthesize orderInserts without snapPreOrder/diffOrder; example RSS delta 202.1→191.4 MB (1.156× of v2), brushes unchanged, checksums ×5 | done | this session (local, NOT pushed) | 283 tests (+2: transition A/B churn, virtual-order synthesis); typecheck ×4; m1 0.69/0.90, m2 0.99/0.68; corpus sort/reverse/values within tolerance, eq ALL EQUAL |
 | **M6 Phase 4a** — between on the dual-mode MembershipView (include/exclude polarity + hysteresis flip; reset = empty exclude set, ~0 bytes/view): **RSS delta 163.8 MB = 0.996× of v2 — BELOW v2**, brushes best-yet (0.289×/0.102×), checksums ×5; exclude-mode `hasSansHost`/`hostAddedExcluded` subtleties tested via 240-step flip-band churn | done | this session (local, NOT pushed) | 284 tests (+1 flip-band churn); typecheck ×4; m1 0.71/0.84, m2 1.14/0.71; corpus between setup 0.42×, eq ALL EQUAL |
 | **M6 Phase 4b** — setops on MembershipView (pre-state reconstructed from deltas; union include-pinned with per-parent pre-exposure; universe-shape bookkeeping on the null branch): **RSS delta 156.8 MB = 0.949× of v2**, setup 0.59×, brushes best-of-session (0.261×/0.115×), checksums ×5 | done | this session (local, NOT pushed) | 285 tests (+1 intersect flip-band churn); typecheck ×4; m1 0.66/0.87, m2 1.10/0.80; corpus eq ALL EQUAL; honest cost on union/churn + except/remove-other (~+20-25% absolute) |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 continues at Phase 5 (ordered prev-overlay + counts-bucket thinning, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 5** — ordered drops its rows Map (comparator reads the parent through the delta-sized prev-overlay; ctor-seeded for the build); counts buckets drop members for ints: **RSS delta 137.3 MB = 0.837× of v2**, realistic brushes unchanged (0.269×/0.112×), reverse/setup →~3.0×, length(fn)/setup →2.51×, sort/brush 0.215× | done | this session (local, NOT pushed) | 286 tests (+1 window-boundary batch churn); typecheck ×4; m1 0.78/0.83; m2 1.14 on 3rd run (degraded box — same-box A/B pins P5 micro cost ~2-3%); eq ALL EQUAL |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 finishes at Phase 6 (quiet-box re-baseline + docs close-out + the formal gap-7-interim drop decision, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
 
-Run everything: `npm run test:v3` (285 tests). Types gate: `npm run typecheck:v3` —
+Run everything: `npm run test:v3` (286 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
 ([types/tsconfig.jsx.json](types/tsconfig.jsx.json) → check.tsx via jsx-surface.ts
 declared facades), automatic JSX ([types/tsconfig.auto.json](types/tsconfig.auto.json) →
@@ -479,7 +480,25 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
   (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
   parent where it matters; deletion beats sharing), with a formal drop gate after M6
-  Phase 5. **Phase 4a LANDED 2026-07-28** (same session): between moved onto the
+  Phase 5. **Phase 5 LANDED 2026-07-28** (same session): OrderedView dropped its
+  full-source `rows` Map — the comparator reads the PARENT through a delta-sized
+  **prev-overlay** (populated from `d.prev` for removes + re-ranked updates in
+  phase A; ACTIVE only during phase-B removals so a removal bisect sees the row
+  each key was ranked under while the settled parent already holds the new one;
+  cleared before inserts/the batch reconcile, where new rows are correct; also
+  seeded with all rows for the ctor's O(N log N) build, then dropped). The
+  cmp-blind check reads `d.prev` directly; the not-indexed defensive check moved
+  to `tie.has`; public reads delegate to the parent over window keys. Counts-mode
+  BucketNode dropped its per-bucket members Maps for per-bucket ints (`count`),
+  keeping `bucketOf`. **RSS delta 156.8 → 137.3 MB = 0.837× of v2**; brushes
+  UNCHANGED at realistic scale (date 0.269× vs P4b's 0.261×, p95 0.224× both);
+  reverse/setup 5.30×→~3.0×, length(fn)/setup 2.89×→2.51×, sort/brush 0.215×
+  (best yet). Honest cost: sort ctor/rotate/window-move ~+10-15% (the
+  per-compare parent hop); the m2 brush micro reads 1.14-1.24 on a NOW-DEGRADED
+  box where PRE-P5 code same-box also reads 1.206 — the A/B pins P5's real
+  micro cost at ~2-3%, and the third m2 run passed (1.143). New test: one batch
+  mixing update+remove+insert across the window boundary + 60-step patch-shaped
+  churn crossing the >32 reconcile threshold. **Phase 4a LANDED 2026-07-28** (same session): between moved onto the
   dual-mode **MembershipView** ([v3/ops/membership.ts](ops/membership.ts)) — an
   include-set OR exclude-set complement (polarity flips at 60%/40% membership
   with a 20-point hysteresis band, re-checked once per settle), rows always

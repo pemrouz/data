@@ -631,3 +631,64 @@ test('reverse: newest-first order over object- and array-born sources; conform +
   s3.insert(40)
   same([...r3.currentOrder()!], [3, 2, 1, 0])
 })
+
+test('M6 P5: one batch mixing update+remove+insert across the window boundary — prev-overlay correctness', () => {
+  // The comparator now reads the PARENT through the delta-sized prev-overlay
+  // (no local row cache). A single commit that simultaneously re-ranks an
+  // in-window row (update), removes another (remove), and admits a third
+  // (insert) exercises every overlay window: removal bisects must see
+  // ranked-under (OLD) rows while the settled parent already holds new ones;
+  // insert bisects must see NEW rows after the overlay clears.
+  const rt = new Runtime()
+  const src: Record<string, { score: number }> = {}
+  for (let i = 0; i < 20; i++) src['k' + i] = { score: i * 10 } // k19=190 … k0=0
+  const s = new SourceNode<{ score: number }>(rt, src)
+  const top = za(s, 'score', 5) // window: k19,k18,k17,k16,k15
+  conform(s)
+  conform(top)
+  const oracle = () => {
+    const rows = [...s.snapshot().entries()].sort((a, b) => b[1].score - a[1].score).slice(0, 5)
+    return new Map(rows)
+  }
+  same([...top.currentOrder()], ['k19', 'k18', 'k17', 'k16', 'k15'])
+
+  rt.batch(() => {
+    s.write('k17', ['score'], 5) // in-window re-rank OUT (170 → 5)
+    s.remove('k18') // in-window remove
+    s.write('n1', [], { score: 185 }) // new row straight into the window
+  })
+  same(top.snapshot(), oracle())
+  same([...top.currentOrder()], ['k19', 'n1', 'k16', 'k15', 'k14'])
+
+  // And the reverse direction in one commit: pull an evicted row back while
+  // evicting the newcomer past the boundary.
+  rt.batch(() => {
+    s.write('k17', ['score'], 200) // back in, at the TOP
+    s.write('n1', ['score'], 1) // out past the boundary
+  })
+  same(top.snapshot(), oracle())
+  same([...top.currentOrder()], ['k17', 'k19', 'k16', 'k15', 'k14'])
+
+  // Seeded mixed churn to shake the overlay across sizes (crossing the >32
+  // reconcile threshold with patch-shaped batches).
+  const lcg = (seed: number) => {
+    let st = seed >>> 0
+    return () => ((st = (Math.imul(st, 1664525) + 1013904223) >>> 0), st / 4294967296)
+  }
+  const rnd = lcg(5150)
+  let id = 100
+  for (let step = 0; step < 60; step++) {
+    rt.batch(() => {
+      const n = 1 + ((rnd() * 40) | 0) // batches from 1 to ~40 deltas
+      for (let i = 0; i < n; i++) {
+        const r = rnd()
+        const keys = [...s.store.keys()]
+        const k = keys[(rnd() * keys.length) | 0]
+        if (r < 0.5) s.write(k, ['score'], (rnd() * 250) | 0)
+        else if (r < 0.75) s.write('m' + id++, [], { score: (rnd() * 250) | 0 })
+        else if (keys.length > 6) s.remove(k)
+      }
+    })
+    same(top.snapshot(), oracle(), `window oracle @ step ${step}`)
+  }
+})

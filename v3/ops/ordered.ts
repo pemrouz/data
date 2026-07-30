@@ -151,7 +151,8 @@ export class OrderedView<T> extends DataNode<T> {
   declare n: number // window size; Infinity = unbounded
   declare tieDir: 1 | -1 // tiebreak direction: 1 = arrival order, -1 = newest-first (reverse)
   declare rows: Map<RowKey, T> // ALL live parent rows (current references)
-  declare tie: Map<RowKey, number> // key → insertion seq (stable tiebreak)
+  declare tie: Map<RowKey, number>
+  declare overlay: Map<RowKey, T | undefined> | null // prev rows of touched keys — ACTIVE only during phase-B removals // key → insertion seq (stable tiebreak)
   declare tieSeq: number
   declare index: OrderIndex // full order over ALL parent rows
   declare window: RowKey[] // materialized: first min(n, size) ranked keys
@@ -162,29 +163,50 @@ export class OrderedView<T> extends DataNode<T> {
     this.userCmp = cmp
     this.n = n === undefined ? Infinity : n
     this.tieDir = tieDir
-    this.rows = new Map()
     this.tie = new Map()
     this.tieSeq = 0
+    this.overlay = null
+    const keys: RowKey[] = []
+    // The construction sort makes O(N log N) comparator reads — pre-resolve
+    // every row into the overlay ONCE so the sort reads a local Map instead
+    // of hopping to the parent per compare, then drop it (steady-state reads
+    // delegate; the overlay is otherwise only alive during phase-B removals).
+    const seed = new Map<RowKey, T | undefined>()
     parent.each((k, row) => {
-      this.rows.set(k, row)
       this.tie.set(k, this.tieSeq++)
+      keys.push(k)
+      seed.set(k, row)
     })
+    this.overlay = seed
+    // The comparator reads rows from the PARENT (M6 P5 — no local row cache),
+    // through the delta-sized prev-OVERLAY during phase-B removals so a
+    // removal bisect sees the row each key was RANKED UNDER even though the
+    // already-settled parent holds the new one. Outside removals the overlay
+    // is empty and this is a straight parent read.
     this.index = new OrderIndex((a, b) => {
-      const c = this.userCmp(this.rows.get(a) as T, this.rows.get(b) as T)
+      const c = this.userCmp(this.rowOf(a) as T, this.rowOf(b) as T)
       return c !== 0 ? c : ((this.tie.get(a) as number) - (this.tie.get(b) as number)) * this.tieDir
     })
     if (cmp === ARRIVAL) {
       // Zero comparator (reverse): the order IS arrival order (tie order),
-      // possibly reversed — adopt it without a comparator sort (the sort's
-      // per-compare 4 Map.gets cost ~2/3 of a 10k reverse() construction).
-      const keys = [...this.rows.keys()]
+      // possibly reversed — adopt it without a comparator sort.
       if (tieDir === -1) keys.reverse()
       this.index.keys = keys
     } else {
-      this.index.build([...this.rows.keys()])
+      this.index.build(keys)
     }
+    this.overlay = null // construction done — steady-state reads delegate
     this.window = this.index.keys.slice(0, this.winLen(this.index.keys.length))
     this.winSet = new Set(this.window)
+  }
+
+  private rowOf(k: RowKey): T | undefined {
+    const o = this.overlay
+    if (o !== null && o.size > 0) {
+      const r = o.get(k)
+      if (r !== undefined || o.has(k)) return r
+    }
+    return (this.parents[0] as DataNode<T>).rowAt(k)
   }
 
   private winLen(size: number): number {
@@ -204,13 +226,15 @@ export class OrderedView<T> extends DataNode<T> {
       return m
     }
     const m = new Map<RowKey, T>()
-    for (const k of this.window) m.set(k, this.rows.get(k) as T)
+    const p = this.parents[0] as DataNode<T>
+    for (const k of this.window) m.set(k, p.rowAt(k) as T)
     return m
   }
 
   each(fn: (key: RowKey, row: T) => void): void {
     if (this.runtime.midBatch) return super.each(fn)
-    for (const k of this.window) fn(k, this.rows.get(k) as T)
+    const p = this.parents[0] as DataNode<T>
+    for (const k of this.window) fn(k, p.rowAt(k) as T)
   }
 
   rowCount(): number {
@@ -225,7 +249,7 @@ export class OrderedView<T> extends DataNode<T> {
 
   rowAt(key: RowKey): T | undefined {
     if (this.runtime.midBatch) return super.rowAt(key)
-    return this.winSet.has(key) ? this.rows.get(key) : undefined
+    return this.winSet.has(key) ? (this.parents[0] as DataNode<T>).rowAt(key) : undefined
   }
 
   // Pure recompute from the parent (flush-on-read, SCHEDULE clause 2b): sort
@@ -255,8 +279,13 @@ export class OrderedView<T> extends DataNode<T> {
     const dmap = new Map<RowKey, RowDelta<T>>()
     const toInsert: RowKey[] = []
     const removedIdx: RowKey[] = [] // keys leaving the index (removes + re-ranks)
-    const pendingRow = new Map<RowKey, T>() // re-ranked updates: applied after index removal
-    const pendingDel: RowKey[] = [] // removes: cache deletion deferred past index ops
+    // The prev-OVERLAY (M6 P5): old rows (d.prev) of keys leaving the index,
+    // visible to the comparator ONLY while the phase-B removals run — a
+    // removal bisect must see the row each key was ranked under, and the
+    // parent has already settled to the new rows. Cleared before inserts /
+    // the batch reconcile, where NEW rows are the correct reading.
+    const overlay = (this.overlay ??= new Map())
+    const pendingDel: RowKey[] = [] // removes: tie cleanup deferred past index ops
     // Window-touch tracking for the early-out below: any delta on an
     // in-window key, or any index operation at a rank inside the window,
     // means the reconcile must run.
@@ -271,32 +300,33 @@ export class OrderedView<T> extends DataNode<T> {
       if (!winTouched && preSet.has(d.key)) winTouched = true
       switch (d.op) {
         case 'add':
-          this.rows.set(d.key, d.row) // not yet indexed — no bisect can see it
-          this.tie.set(d.key, this.tieSeq++)
+          this.tie.set(d.key, this.tieSeq++) // not yet indexed — no bisect can see it
           toInsert.push(d.key)
           break
         case 'remove':
           removedIdx.push(d.key)
+          overlay.set(d.key, d.prev)
           pendingDel.push(d.key)
           break
         case 'update': {
-          if (!this.rows.has(d.key)) {
+          if (!this.tie.has(d.key)) {
             // Defensive: an update for a key we never indexed — treat as an
             // entrance (should be unreachable off a legal parent stream).
-            this.rows.set(d.key, d.row)
             this.tie.set(d.key, this.tieSeq++)
             toInsert.push(d.key)
             break
           }
           // Reindex only when the comparator can see the change; a rank can't
-          // move otherwise (the tie seq — preserved here — is stable).
-          if (this.userCmp(this.rows.get(d.key) as T, d.row) !== 0) {
+          // move otherwise (the tie seq — preserved here — is stable). The
+          // OLD row is the delta's prev (consolidation guarantees it is the
+          // row this view last ranked under).
+          if (this.userCmp(d.prev as T, d.row) !== 0) {
             removedIdx.push(d.key)
-            pendingRow.set(d.key, d.row)
+            overlay.set(d.key, d.prev)
             toInsert.push(d.key)
-          } else {
-            this.rows.set(d.key, d.row) // cmp-blind: position unaffected
           }
+          // cmp-blind: position unaffected — nothing to store, the parent
+          // already holds the new row.
           break
         }
       }
@@ -313,7 +343,9 @@ export class OrderedView<T> extends DataNode<T> {
     let remAt = -1 // single-delta path: the removal/insert ranks phase B saw
     let insAt = -1
     if (removedIdx.length + toInsert.length > 32) {
-      for (const [k, row] of pendingRow) this.rows.set(k, row)
+      // The batch reconcile filters by membership and sorted-merges inserts
+      // against survivors — every comparison wants NEW rows: drop the overlay.
+      overlay.clear()
       this.index.reconcile(removedIdx.length > 0 ? new Set(removedIdx) : null, toInsert)
     } else {
       // Per-key path returns exact ranks — track whether any operation landed
@@ -321,19 +353,16 @@ export class OrderedView<T> extends DataNode<T> {
       // first |window| entries; a missing key is conservatively "touched").
       ranksKnown = true
       for (const k of removedIdx) {
-        remAt = this.index.remove(k)
+        remAt = this.index.remove(k) // bisects read the overlay's ranked-under rows
         if (remAt < 0 || remAt < preWindow.length) winTouched = true
       }
-      for (const [k, row] of pendingRow) this.rows.set(k, row)
+      overlay.clear() // inserts bisect against the parent's NEW rows
       for (const k of toInsert) {
         insAt = this.index.insert(k)
         if (insAt < preWindow.length) winTouched = true
       }
     }
-    for (const k of pendingDel) {
-      this.rows.delete(k)
-      this.tie.delete(k)
-    }
+    for (const k of pendingDel) this.tie.delete(k)
 
     // Window-untouched early-out (the single-write churn shape: removes/
     // inserts on a big source that never graze the window): no touched key
@@ -361,7 +390,7 @@ export class OrderedView<T> extends DataNode<T> {
         this.winSet.add(d.key)
         return {
           seq, origin,
-          rows: [{ op: 'add', key: d.key, row: this.rows.get(d.key) as T }],
+          rows: [{ op: 'add', key: d.key, row: d.row }],
           order: [{ op: 'orderInsert', key: d.key, index: insAt }],
           scalar: undefined,
         }
@@ -411,12 +440,14 @@ export class OrderedView<T> extends DataNode<T> {
       // prev as my view knew it: for a touched key the delta's prev IS the
       // pre-batch row (consolidation guarantees it); an untouched rotation
       // evictee still sits unchanged in the row cache.
-      const prev = d !== undefined && d.op !== 'add' ? d.prev : (this.rows.get(k) as T)
+      // prev as my view knew it: a touched key's delta carries the pre-batch
+      // row; an untouched rotation evictee is unchanged in the parent.
+      const prev = d !== undefined && d.op !== 'add' ? d.prev : ((this.parents[0] as DataNode<T>).rowAt(k) as T)
       out.push({ op: 'remove', key: k, prev })
     }
     for (const k of newWindow) {
       if (!preSet.has(k)) {
-        out.push({ op: 'add', key: k, row: this.rows.get(k) as T })
+        out.push({ op: 'add', key: k, row: ((this.parents[0] as DataNode<T>).rowAt(k)) as T })
       } else {
         const d = dmap.get(k)
         if (d !== undefined && d.op === 'update') out.push(d) // forward, same prev/path
