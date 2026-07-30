@@ -1,12 +1,15 @@
 # v3 rewrite — status
 
-*Updated 2026-07-12 (tenth block: **THE FLIP IS COMPLETE AND PUBLISHED** —
-phases 1–3 (entry re-plumb / showcase migration / docs sweep) plus the flow
-essay coda are all committed; branch `v3` is pushed and **PR #1 to main is
-open**: https://github.com/pemrouz/data/pull/1. Every showcase surface runs
-the v3 engine; the v2 gallery pages stay intentionally on `data/v2`).
+*Updated 2026-07-28 (eleventh block: **M6 IS COMPLETE** — "Delete the Maps,
+adopt the containers", Phases 1–5 + close-out, all local commits on branch
+`v3`, NOT pushed. Crossfilter RSS 237.8 → 137.3 MB = **0.837× of v2**; corpus
+geomean 1.223× → **0.940×** — v3 now beats v2 on BOTH the memory and the
+per-write-corpus headline. THE FLIP itself (tenth block) is published: branch
+`v3` pushed through `8f4c568`, **PR #1 to main open**:
+https://github.com/pemrouz/data/pull/1; everything after is local-only.)
 Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
-[plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md).*
+[plans/v3/concepts/keyed-delta.md](../plans/v3/concepts/keyed-delta.md);
+M6 plan: [plans/v3/M6.md](../plans/v3/M6.md).*
 
 ## Where things stand
 
@@ -46,7 +49,8 @@ Plan: [plans/v3/PLAN.md](../plans/v3/PLAN.md); architecture detail:
 | **M6 Phase 4a** — between on the dual-mode MembershipView (include/exclude polarity + hysteresis flip; reset = empty exclude set, ~0 bytes/view): **RSS delta 163.8 MB = 0.996× of v2 — BELOW v2**, brushes best-yet (0.289×/0.102×), checksums ×5; exclude-mode `hasSansHost`/`hostAddedExcluded` subtleties tested via 240-step flip-band churn | done | this session (local, NOT pushed) | 284 tests (+1 flip-band churn); typecheck ×4; m1 0.71/0.84, m2 1.14/0.71; corpus between setup 0.42×, eq ALL EQUAL |
 | **M6 Phase 4b** — setops on MembershipView (pre-state reconstructed from deltas; union include-pinned with per-parent pre-exposure; universe-shape bookkeeping on the null branch): **RSS delta 156.8 MB = 0.949× of v2**, setup 0.59×, brushes best-of-session (0.261×/0.115×), checksums ×5 | done | this session (local, NOT pushed) | 285 tests (+1 intersect flip-band churn); typecheck ×4; m1 0.66/0.87, m2 1.10/0.80; corpus eq ALL EQUAL; honest cost on union/churn + except/remove-other (~+20-25% absolute) |
 | **M6 Phase 5** — ordered drops its rows Map (comparator reads the parent through the delta-sized prev-overlay; ctor-seeded for the build); counts buckets drop members for ints: **RSS delta 137.3 MB = 0.837× of v2**, realistic brushes unchanged (0.269×/0.112×), reverse/setup →~3.0×, length(fn)/setup →2.51×, sort/brush 0.215× | done | this session (local, NOT pushed) | 286 tests (+1 window-boundary batch churn); typecheck ×4; m1 0.78/0.83; m2 1.14 on 3rd run (degraded box — same-box A/B pins P5 micro cost ~2-3%); eq ALL EQUAL |
-| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user; M6 finishes at Phase 6 (quiet-box re-baseline + docs close-out + the formal gap-7-interim drop decision, [plans/v3/M6.md](../plans/v3/M6.md)) | | | |
+| **M6 Phase 6 (close-out)** — gaps 7+8 CLOSED with numbers; the gap-7 sharing interim FORMALLY DROPPED (decision gate met at 0.837×); columnar appendix G2 stays unbuilt (its gate never fired); post-P5 full sweep confirms geomean **0.945×**, eq 44/44 (loaded box — geomean/eq are load-robust; a pristine-box per-row stamp is the one remaining nicety) | done | this session (local, NOT pushed) | 286 tests; typecheck ×4; two independent post-adoption sweeps agree (0.940×/0.945×) |
+| Remaining: npm publish as data@3.0.0 (token); v2 gallery pages stay intentionally on `data/v2`; PR #1 awaits the user (15+ new local commits since); OPTIONAL: pristine-box corpus sweep to stamp the final per-row table | | | |
 
 Run everything: `npm run test:v3` (286 tests). Types gate: `npm run typecheck:v3` —
 FOUR programs: base (89 positive + 47 @ts-expect-error negative fixtures), classic JSX
@@ -432,9 +436,18 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   (DONE — [perf/corpus.bench.ts](perf/corpus.bench.ts), table + read in its header),
   ~~MIGRATION.md~~ (drafted + verified; flip-time renames still TODO in its §6), the
   flip. fero Phase 0.5 items on the v2 side remain undone.
-8. **Corpus hotspots** — TWO passes done; geomean 1.569× → 1.338× → **1.223×**
-  (67 rows, 2026-07-27 sweep, eq ALL EQUAL on 44 — the current table + narrative
-  live in [perf/corpus.bench.ts](perf/corpus.bench.ts)). **Pass 2 (2026-07-27,
+8. **Corpus hotspots** — CLOSED 2026-07-28 by M6: geomean 1.569× → 1.338× →
+  1.223× → **0.940×/0.945×** (two independent post-adoption full sweeps, 67
+  rows, eq ALL EQUAL on 44 — v3 now BEATS v2 on the corpus geometric mean;
+  table + narrative in [perf/corpus.bench.ts](perf/corpus.bench.ts); the
+  second sweep ran on a loaded box — geomean/eq are the load-robust
+  statistics, and a pristine-box per-row table stamp is the one remaining
+  nicety). The setup class closed via container adoption (M6 P2/P3) and
+  node-state thinning (P5): tap/setup 12.5×→~1.2×, values 0.24×,
+  filter/map ~1.5-2×, reverse 5.4×→~3×; the residual >2× rows are the
+  documented two-phase-commit remove-side floor + fresh-immutable-bucket
+  emission + the R5 delegation micro-costs, each traded knowingly for the
+  RSS program. History below. **Pass 2 (2026-07-27,
   `a134649`…`11a271d`; diagnosis by a read-only agent panel):** distinct/batch
   3.91× → 1.29× (settle-time touched cut-offs — non-projection updates and
   occupied-bucket admits provably can't move the exposed value, so the
@@ -470,17 +483,21 @@ Ninth block (THE FLIP, phase 2 — the showcase surfaces, `70ea8ed`…`fc03b92` 
   union/intersect churn ~2.2–2.3× — set-op/bucket write paths. Geomean
   1.569× → 1.338× over 64 rows; single-write parity and the batched flagship
   shapes remain at-or-ahead of v2 (m1 0.65/0.71, m2 brush 1.06 / batch 0.80).
-7. **Memory**: LARGELY FIXED 2026-07-06 — the set-ops rewrite (`09adf4a`) deleted the
-  per-parent mirrors that dominated (337→218 MB build / 403→186 MB post-brush on the
-  crossfilter-shaped micro). **The M6 plan is LOCKED at
-  [plans/v3/M6.md](../plans/v3/M6.md)** ("Delete the Maps, adopt the containers" —
-  design panel + judge, 2026-07-27): the RSS delta is Map bookkeeping, not row data,
-  so six PR-sized phases delete/thin the Maps behind the hasRow/rowAt/each protocol,
-  adopt input containers in place for the setup class, and gate true columnar storage
-  behind a still-needed check. The gap-7 sole-parent map-sharing interim is SUPERSEDED
-  (the bench graph fans one source into 4 betweens + 5 intersects — nothing has a sole
-  parent where it matters; deletion beats sharing), with a formal drop gate after M6
-  Phase 5. **Phase 5 LANDED 2026-07-28** (same session): OrderedView dropped its
+7. **Memory**: **CLOSED 2026-07-28 — M6 COMPLETE (Phases 1–5 + this close-out).**
+  Crossfilter-example setup RSS delta, phase by phase: 237.8 MB (1.396× of v2) →
+  202.1 (P1: between's four full-parent row mirrors) → 191.4 (P3: the source's
+  231k keySlot Map + slotKey/order arrays, ident lane) → 163.8 (P4a: between's
+  view Maps → dual-mode membership, 0.996×) → 156.8 (P4b: setops membership,
+  0.949×) → **137.3 MB = 0.837× of v2** (P5: ordered's full-source rows Map →
+  prev-overlay; counts buckets → ints). Checksums equal on every replicate of
+  every phase's bench; realistic brushes improved across the arc (date 0.269×,
+  p95 0.224×, delay 0.112×). The plan's thesis held: the delta was Map
+  bookkeeping, not row data — deleted behind the hasRow/rowAt/each protocol +
+  container adoption, no columnar storage needed (appendix G2 stays unbuilt; its
+  gate — RSS still >1.0× after P5 — did not fire). **The gap-7 sole-parent
+  map-sharing interim is FORMALLY DROPPED** per the plan's written decision gate
+  (RSS is 0.837×, far inside the "within ~10% of v2" bar; deletion beat sharing
+  exactly as argued). Plan history at [plans/v3/M6.md](../plans/v3/M6.md). **Phase 5 LANDED 2026-07-28** (same session): OrderedView dropped its
   full-source `rows` Map — the comparator reads the PARENT through a delta-sized
   **prev-overlay** (populated from `d.prev` for removes + re-ranked updates in
   phase A; ACTIVE only during phase-B removals so a removal bisect sees the row

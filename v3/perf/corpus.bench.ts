@@ -34,6 +34,20 @@
 //                    v2 closures hard-code absolute key ranges auto-skip below
 //                    their minimum N — see the child's MIN_N table).
 //
+// ── 2026-07-28 M6 COMPLETE (Phases 1–5) — geomean 0.945×, eq 44/44 ─────────
+//
+// After the full M6 arc (between/setops/ordered Maps deleted or thinned via
+// parent delegation + dual-mode membership + the prev-overlay; object/array
+// containers adopted), the post-P5 full sweep holds the adopted-store
+// geomean: **0.945× over 67 rows, eq ALL EQUAL** — consistent with the
+// post-P2 0.940× below. BOX CAVEAT: load climbed 1.4 → 3.75 during this
+// sweep (a second workload on the machine), inflating individual rows
+// (between/narrow read 14 ms vs ~9 on the same code earlier that day); the
+// geomean and eq are the load-robust statistics. A pristine-box sweep to
+// stamp the final per-row table is the one remaining nicety — the RSS arc
+// (load-insensitive, crossfilter-example bench): 237.8 → 137.3 MB =
+// **0.837× of v2** (phase ledger in crossfilter-example.bench.ts).
+//
 // ── 2026-07-28 M6 PHASE 2 movement (adopted-object store) — geomean 0.940× ──
 //
 // The adopted-object backing landed ($(obj) keeps the caller's object as the
