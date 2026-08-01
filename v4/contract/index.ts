@@ -65,6 +65,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'get', 'set', 'update', 'insert', 'remove', 'patch', 'ingest', 'connect',
   'snapshot', 'raf', 'first', 'last', 'mirror', 'dispose',
   'sink', // v4 (a major): the native batch subscription (W2)
+  'promote', // v4: pre-pay the container-adoption spike (W11)
   // operators
   'filter', 'between', 'gt', 'lt', 'gte', 'lte',
   'az', 'za', 'top', 'limit', 'page',

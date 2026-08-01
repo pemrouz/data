@@ -510,6 +510,19 @@ export class SourceNode<T> extends DataNode<T> {
     rt.written(this)
   }
 
+  // W11: finish the deferred adoption bookkeeping NOW, off the serving path.
+  // $() adopts containers (M6) and defers keySlot/slots (object lane) or the
+  // key/order materialization (ident array lane) to the FIRST structural
+  // write — a <5ms-at-10k spike that lands on the first inbound remove after
+  // a replica seeds from replay, i.e. exactly on the serving path. A
+  // seed-then-serve flow calls promote() at boot instead. Idempotent; a
+  // never-promoted source keeps the adoption fast paths.
+  promote(): void {
+    this.store.promote()
+    this.store.materializeKeys()
+    if (this.ordered) this.ensureOrder()
+  }
+
   private autoObjectKey(): string {
     let n = this.store.size
     while (this.store.has(String(n))) n++

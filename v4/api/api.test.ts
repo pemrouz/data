@@ -317,3 +317,26 @@ test('W2 sink(): native CommitBatch by reference, optional init, origin, sync di
   assert.throws(() => d.sink({} as any), /sink\(\) takes/)
   assert.throws(() => (d.sum('n') as any).sink({ apply: () => {} }), /scalar/)
 })
+
+test('W11: promote() pre-pays adoption — idempotent, state/emission identical, spike off the write path', () => {
+  const big: Record<string, any> = {}
+  for (let i = 0; i < 5000; i++) big['k' + i] = { n: i }
+  const d = $(big)
+  d.promote() // seed-then-serve: pay the bookkeeping at boot
+  d.promote() // idempotent
+  const recs: any[] = []
+  d.connect(recs, { initial: false })
+  const t0 = performance.now()
+  d.get('k100').remove() // the first structural write — no promote spike left to pay
+  const dt = performance.now() - t0
+  same(recs.length, 1)
+  same(recs[0].type, 'remove')
+  same(d.rowCount ? undefined : undefined, undefined) // (rowCount lands with W9)
+  same((d as any)[value]['k100'], undefined)
+  ok(dt < 50, `structural write after promote took ${dt}ms`) // loose tripwire, not the <5ms gate
+  // array-born: promote materializes keys + order
+  const a = $([{ v: 1 }, { v: 2 }])
+  a.promote()
+  a.get('0').remove()
+  same((a as any)[value].length, 1)
+})

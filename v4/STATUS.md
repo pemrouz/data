@@ -23,7 +23,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W8 | P1 | Alloc + sink-cost budgets, gated, joint methodology; onCommit zero-cost-unhooked clause | DONE — m4-budgets gate (5 sections) + push-time suppression |
 | W9 | P2 | Public each()/rowCount() + safe (COW/frozen-rows) snapshot | open |
 | W10 | P3 | Re-scopable filter(fn, dep) via the reactive binder | open |
-| W11 | P2 | Public promote()/adoption control | open |
+| W11 | P2 | Public promote()/adoption control | DONE — kernel + api + types |
 | W12 | P2 | some(col)/every(col) overloads | DONE — col form + dedup |
 | W13 | P3 | median/percentile/quantile | open |
 | W14 | P3 | Per-path connect() / deep-scalar emission | open |

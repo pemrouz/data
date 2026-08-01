@@ -169,7 +169,7 @@ function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; s
 
 const BUILTIN = new Set([
   'get', 'snapshot', 'update', 'set', 'insert', 'remove', 'patch', 'connect',
-  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest', 'sink',
+  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest', 'sink', 'promote',
 ])
 
 function doUpdate(state: HandleState, v: unknown): void {
@@ -295,6 +295,13 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
         if (!(state.node instanceof SourceNode) || state.path.length > 0)
           throw new Error('data: ingest() applies to a source root')
         return seamIngest(state.node, records as any, opts as any)
+      }
+    case 'promote':
+      // W11: pre-pay the adoption spike at boot (seed-then-serve flows).
+      return () => {
+        if (!(state.node instanceof SourceNode) || state.path.length > 0)
+          throw new Error('data: promote() applies to a source root')
+        state.node.promote()
       }
     case 'sink':
       // W2: the NATIVE batch subscription on the public surface — CommitBatch

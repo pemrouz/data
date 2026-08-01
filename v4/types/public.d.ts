@@ -187,6 +187,7 @@ export interface Scalar<out V> extends View<V> {
   connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
   sink(s: NativeSink): SubscriptionHandle
+  promote(): void // W11: pre-pay the container-adoption spike (seed-then-serve boots)
   dispose(): void
 }
 
