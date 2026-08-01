@@ -252,3 +252,68 @@ test('nested-field remove (clause 10a/b): d.get(k).get(f).remove() deletes the p
   d.get('r').get('ghost').get('x').remove() // absent ancestor — no-op
   same(d.get('r')[value], { a: { c: 2 }, keep: 9 })
 })
+
+// ── W2: origin-capable, clone-free public subscription ───────────────────────
+
+test('W2 connect opts: clone:false delivers BY REFERENCE; initial:false skips the opening snapshot', () => {
+  const d = $({} as any)
+  const rowIn = { n: 1, nested: { deep: true } }
+
+  const cloned: any[] = []
+  d.connect(cloned) // default: v2 parity — opening snapshot + cloned values
+  const byRef: any[] = []
+  d.connect(byRef, { clone: false, initial: false })
+
+  same(cloned.length, 1) // the v2 opening whole-value record
+  same(byRef.length, 0) // initial:false — no opening record
+
+  d.set('a', rowIn)
+  same(byRef.length, 1)
+  ok(byRef[0].value === rowIn) // IDENTITY — zero clones on the by-ref surface
+  ok(cloned[1].value !== rowIn) // v2 parity still clones
+  same(cloned[1].value, rowIn)
+})
+
+test('W2 connect opts: origin suppresses the subscriber\'s own echoes on the public record surface', () => {
+  const d = $({} as any)
+  const mine = Symbol('peer-A')
+  const asMine: any[] = []
+  const asOther: any[] = []
+  d.connect(asMine, { origin: mine, initial: false })
+  d.connect(asOther, { initial: false })
+
+  d.ingest([{ t: 'add', k: 'a', v: { n: 1 } }], { origin: mine })
+  same(asMine.length, 0) // own echo suppressed — no cell/value matching needed
+  same(asOther.length, 1)
+
+  d.set('b', { n: 2 }) // a local user write — not ours, must arrive
+  same(asMine.length, 1)
+})
+
+test('W2 sink(): native CommitBatch by reference, optional init, origin, sync dispose', () => {
+  const d = $({ a: { n: 1 } } as any)
+  const mine = Symbol('peer-A')
+  let initSnap: Map<any, any> | null = null
+  const batches: any[] = []
+  const h = d.sink({
+    origin: mine,
+    init: (snap: Map<any, any>) => (initSnap = snap),
+    apply: (b: any) => batches.push(b),
+  })
+
+  same(initSnap!.size, 1) // clause 7: snapshot at attach
+  const row = { n: 2 }
+  d.set('b', row)
+  same(batches.length, 1)
+  ok(batches[0].rows[0].row === row) // the delta's row IS the written reference
+
+  d.ingest([{ t: 'add', k: 'c', v: { n: 3 } }], { origin: mine })
+  same(batches.length, 1) // own origin suppressed
+
+  h.dispose() // synchronous detach
+  d.set('d', { n: 4 })
+  same(batches.length, 1)
+
+  assert.throws(() => d.sink({} as any), /sink\(\) takes/)
+  assert.throws(() => (d.sum('n') as any).sink({ apply: () => {} }), /scalar/)
+})

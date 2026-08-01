@@ -23,7 +23,7 @@ import { DataNode, SourceNode, leafAt } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import { RESERVED, type ChangeRecordV2 } from '../contract/index.ts'
 import type { Path, RowKey } from '../contract/delta.ts'
-import { V2RecordSink, materialize } from '../compat/v2-records.ts'
+import { V2RecordSink, materialize, type V2SinkOpts } from '../compat/v2-records.ts'
 import { currentScope } from '../kernel/scope.ts'
 import { installReactive } from '../ops/reactive.ts'
 import { mirror as makeMirror, MirrorNode, raf as rafWriter } from '../render/index.ts'
@@ -169,7 +169,7 @@ function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; s
 
 const BUILTIN = new Set([
   'get', 'snapshot', 'update', 'set', 'insert', 'remove', 'patch', 'connect',
-  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest',
+  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest', 'sink',
 ])
 
 function doUpdate(state: HandleState, v: unknown): void {
@@ -234,15 +234,18 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
         })
       }
     case 'connect':
-      return (a: unknown, b?: unknown): SubscriptionHandle => {
+      return (a: unknown, b?: unknown, c?: unknown): SubscriptionHandle => {
         const n = state.node
         if (state.path.length > 0) throw new Error('data: connect() on child paths not yet supported — connect the view')
-        if (Array.isArray(a) && b === undefined) {
-          const sink = new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r))
+        // W2: the record forms take trailing options {origin, clone, initial} —
+        // origin-token echo suppression and the clone-free/by-ref mode on the
+        // PUBLIC surface (no more Symbol.for node reach-through for fero).
+        if (Array.isArray(a) && (b === undefined || (typeof b === 'object' && b !== null))) {
+          const sink = new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r), (b as V2SinkOpts) ?? {})
           return n.connect(sink)
         }
         if (typeof a === 'object' && a !== null && typeof b === 'function') {
-          const sink = new V2RecordSink(n, b as (r: ChangeRecordV2) => void)
+          const sink = new V2RecordSink(n, b as (r: ChangeRecordV2) => void, (c as V2SinkOpts) ?? {})
           return n.connect(sink)
         }
         if (typeof a === 'object' && a !== null && typeof b === 'string') {
@@ -291,7 +294,35 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
       return (records: unknown, opts?: unknown) => {
         if (!(state.node instanceof SourceNode) || state.path.length > 0)
           throw new Error('data: ingest() applies to a source root')
-        seamIngest(state.node, records as any, opts as any)
+        return seamIngest(state.node, records as any, opts as any)
+      }
+    case 'sink':
+      // W2: the NATIVE batch subscription on the public surface — CommitBatch
+      // by REFERENCE (zero clones; shared-immutable contract), origin-token
+      // suppression, wantsOrder opt-in, optional init (snapshot-then-deltas,
+      // clause 7) and synchronous dispose via the returned handle. This is
+      // the hot-path shape fero's capture/serve rides — the documented
+      // replacement for the Symbol.for('data.v4.node') reach-through.
+      return (s: {
+        wantsOrder?: boolean
+        origin?: symbol | null
+        init?: (snapshot: Map<RowKey, unknown>, order?: readonly RowKey[]) => void
+        apply: (batch: unknown) => void
+      }): SubscriptionHandle => {
+        const n = state.node
+        if (state.path.length > 0) throw new Error('data: sink() attaches to a view, not a child path')
+        if (typeof s?.apply !== 'function') throw new Error('data: sink() takes { apply(batch), wantsOrder?, origin?, init? }')
+        if (n.kind === 'scalar')
+          throw new Error('data: sink() attaches to collection views — subscribe a scalar via connect(anchor, fn) records')
+        if (s.init) s.init(n.snapshot(), n.currentOrder() ?? undefined)
+        // Wrap rather than hand the user object to the kernel: the effect
+        // loop reads entry.origin/wantsOrder per commit (keep them plain data
+        // fields), and the runtime stamps bornSeq/dead on the entry.
+        return n.connect({
+          wantsOrder: s.wantsOrder === true,
+          origin: s.origin ?? null,
+          apply: (b) => s.apply(b),
+        })
       }
   }
   throw new Error(`data: makeMethod(${name}) — not a builtin`) // unreachable: gated by BUILTIN

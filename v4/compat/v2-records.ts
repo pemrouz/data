@@ -13,22 +13,45 @@
 // against recorded v2 streams is the M2+ gate (see plans/v3/PLAN.md §7.6).
 
 import type { ChangeRecordV2 } from '../contract/index.ts'
-import type { CommitBatch, RowDelta, RowKey } from '../contract/delta.ts'
+import type { CommitBatch, OriginToken, RowDelta, RowKey } from '../contract/delta.ts'
 import { leafAt } from '../kernel/node.ts'
 import type { DataNode, SubscriptionHandle } from '../kernel/node.ts'
 
 const sclone = (v: unknown) => (v === undefined ? v : structuredClone(v))
+const ident = (v: unknown) => v
+
+// W2 options — the fero asks, on the PUBLIC record surface:
+//   origin  — declare the subscriber's origin token: batches produced by
+//             commits carrying the same origin are suppressed at the kernel
+//             effect loop (SCHEDULE clause 6). Default null = never suppress.
+//   clone   — false: record values arrive BY REFERENCE (shared-immutable
+//             contract: the consumer must not mutate them). Default true =
+//             v2 byte-parity behavior (structuredClone per value).
+//   initial — false: skip the opening whole-value snapshot record. Default
+//             true = v2 parity (connect emits the snapshot first).
+export interface V2SinkOpts {
+  readonly origin?: OriginToken | null
+  readonly clone?: boolean
+  readonly initial?: boolean
+}
 
 export class V2RecordSink<T> {
   readonly wantsOrder = true
-  readonly origin = null
+  declare readonly origin: OriginToken | null
   declare out: (r: ChangeRecordV2) => void
   declare order: RowKey[] | null // local mirror of the node's order channel
   declare node: DataNode<T>
+  declare private c: (v: unknown) => unknown // sclone (v2 parity) or identity (clone:false)
 
-  constructor(node: DataNode<T>, out: (r: ChangeRecordV2) => void) {
+  constructor(node: DataNode<T>, out: (r: ChangeRecordV2) => void, opts: V2SinkOpts = {}) {
     this.node = node
     this.out = out
+    ;(this as { origin: OriginToken | null }).origin = opts.origin ?? null
+    this.c = opts.clone === false ? ident : sclone
+    if (opts.initial === false) {
+      this.order = node.kind === 'scalar' ? null : (node.currentOrder() ? [...node.currentOrder()!] : null)
+      return
+    }
     // Scalars (aggregates) have no snapshot()/order — their stream is the
     // initial whole-value record plus one update per scalar delta (apply()'s
     // batch.scalar branch). v2 supported change-stream capture on aggregates
@@ -36,14 +59,14 @@ export class V2RecordSink<T> {
     // pre-fix this snapshot() read threw "read value(), not snapshot()".
     if (node.kind === 'scalar') {
       this.order = null
-      this.out({ type: 'update', key: [], value: sclone((node as any).value()) })
+      this.out({ type: 'update', key: [], value: this.c((node as any).value()) })
       return
     }
     const snap = node.snapshot()
     const order = node.currentOrder()
     this.order = order ? [...order] : null
     // v2: connect emits the current snapshot as one whole-value update record.
-    this.out({ type: 'update', key: [], value: sclone(materialize(snap, this.order)) })
+    this.out({ type: 'update', key: [], value: this.c(materialize(snap, this.order)) })
   }
 
   apply(batch: CommitBatch<T>): void {
@@ -60,14 +83,14 @@ export class V2RecordSink<T> {
           if (d && d.op === 'remove') {
             rowsByKey.delete(od.key)
             if (d.prev !== undefined) // v2: skip undefined-valued removes
-              this.out({ type: 'remove', key: [String(od.index)], value: sclone(d.prev) })
+              this.out({ type: 'remove', key: [String(od.index)], value: this.c(d.prev) })
           }
         } else if (od.op === 'orderInsert') {
           const d = rowsByKey.get(od.key)
           this.order.splice(od.index, 0, od.key)
           if (d && d.op === 'add') {
             rowsByKey.delete(od.key)
-            this.out({ type: 'insert', key: [], value: sclone(d.row), at: od.index })
+            this.out({ type: 'insert', key: [], value: this.c(d.row), at: od.index })
           }
         } else {
           this.out({ type: 'move', from: od.from!, to: od.index })
@@ -82,11 +105,11 @@ export class V2RecordSink<T> {
       const name = this.order !== null ? String(this.order.indexOf(d.key)) : String(d.key)
       switch (d.op) {
         case 'add':
-          this.out({ type: 'insert', key: [], value: sclone(d.row), at: this.order !== null ? Number(name) : d.key })
+          this.out({ type: 'insert', key: [], value: this.c(d.row), at: this.order !== null ? Number(name) : d.key })
           break
         case 'remove':
           if (d.prev !== undefined)
-            this.out({ type: 'remove', key: [name], value: sclone(d.prev) })
+            this.out({ type: 'remove', key: [name], value: this.c(d.prev) })
           break
         case 'update': {
           // Field DELETION (W3a) round-trips as v2's nested remove record —
@@ -96,18 +119,18 @@ export class V2RecordSink<T> {
             this.out({
               type: 'remove',
               key: [name, ...d.path.map(String)],
-              value: sclone(leafAt(d.prev, d.path)),
+              value: this.c(leafAt(d.prev, d.path)),
             })
             break
           }
           const value = d.path.length ? leafAt(d.row, d.path) : d.row
-          this.out({ type: 'update', key: [name, ...d.path.map(String)], value: sclone(value) })
+          this.out({ type: 'update', key: [name, ...d.path.map(String)], value: this.c(value) })
           break
         }
       }
     }
 
-    if (batch.scalar) this.out({ type: 'update', key: [], value: sclone(batch.scalar.next) })
+    if (batch.scalar) this.out({ type: 'update', key: [], value: this.c(batch.scalar.next) })
   }
 }
 
@@ -122,7 +145,7 @@ export function materialize<T>(snap: Map<RowKey, T>, order: readonly RowKey[] | 
 // v2's connect([]) shape: push records into the given array; the returned
 // handle disposes the subscription (the v2 WeakRef-drop idiom is replaced by
 // an explicit handle — scopes own it if one is current).
-export function connectRecords<T>(node: DataNode<T>, arr: ChangeRecordV2[]): SubscriptionHandle {
-  const sink = new V2RecordSink(node, (r) => arr.push(r))
+export function connectRecords<T>(node: DataNode<T>, arr: ChangeRecordV2[], opts: V2SinkOpts = {}): SubscriptionHandle {
+  const sink = new V2RecordSink(node, (r) => arr.push(r), opts)
   return node.connect(sink)
 }

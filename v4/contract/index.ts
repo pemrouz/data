@@ -50,6 +50,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   // built-ins
   'get', 'set', 'update', 'insert', 'remove', 'patch', 'ingest', 'connect',
   'snapshot', 'raf', 'first', 'last', 'mirror', 'dispose',
+  'sink', // v4 (a major): the native batch subscription (W2)
   // operators
   'filter', 'between', 'gt', 'lt', 'gte', 'lte',
   'az', 'za', 'top', 'limit', 'page',

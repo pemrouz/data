@@ -57,6 +57,52 @@ export type ChangeRecordV2 =
   | { type: 'update' | 'insert' | 'remove'; key: string[]; value: unknown; at?: unknown }
   | { type: 'move'; from: number; to: number }
 
+// W2: sink() makes the delta algebra part of the SHIPPED surface — the
+// self-contained mirror of contract/delta.ts (consumers get CommitBatch
+// without importing engine internals).
+export type OriginToken = symbol
+export interface AddDelta<T = unknown> { readonly op: 'add'; readonly key: RowKey; readonly row: T }
+export interface RemoveDelta<T = unknown> { readonly op: 'remove'; readonly key: RowKey; readonly prev: T }
+export interface UpdateDelta<T = unknown> {
+  readonly op: 'update'
+  readonly key: RowKey
+  readonly row: T
+  readonly prev: T
+  readonly path: readonly (string | number)[]
+  readonly deleted?: boolean // clause 10a: the leaf at `path` was DELETED, not written
+}
+export type RowDelta<T = unknown> = AddDelta<T> | RemoveDelta<T> | UpdateDelta<T>
+export interface OrderDelta {
+  readonly op: 'orderInsert' | 'orderRemove' | 'orderMove'
+  readonly key: RowKey
+  readonly index: number
+  readonly from?: number
+}
+export interface ScalarDelta { readonly prev: unknown; readonly next: unknown }
+export interface CommitBatch<T = unknown> {
+  readonly seq: number
+  readonly origin: OriginToken
+  readonly rows: readonly RowDelta<T>[]
+  readonly order: readonly OrderDelta[] | undefined
+  readonly scalar: ScalarDelta | undefined
+}
+
+// W2: options for the record-profile connect forms — origin-token echo
+// suppression, clone-free by-ref values, initial-snapshot opt-out.
+export interface SinkOpts {
+  readonly origin?: symbol | null
+  readonly clone?: boolean
+  readonly initial?: boolean
+}
+
+// W2: the native batch subscription (d.sink(...)) — CommitBatch by reference.
+export interface NativeSink<T = unknown> {
+  readonly wantsOrder?: boolean
+  readonly origin?: symbol | null
+  init?(snapshot: Map<RowKey, T>, order?: readonly RowKey[]): void
+  apply(batch: CommitBatch<T>): void
+}
+
 export interface SubscriptionHandle {
   dispose(): void
 }
@@ -130,9 +176,10 @@ export type Reactive<T> = T | View<T>
 
 export interface Scalar<out V> extends View<V> {
   snapshot(): V
-  connect(records: ChangeRecordV2[]): SubscriptionHandle
-  connect(anchor: object, fn: (record: ChangeRecordV2) => void): SubscriptionHandle
+  connect(records: ChangeRecordV2[], opts?: SinkOpts): SubscriptionHandle
+  connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
+  sink(s: NativeSink): SubscriptionHandle
   dispose(): void
 }
 
@@ -265,9 +312,10 @@ interface ReadCore<T> {
   readonly [value]: SnapshotOf<T>
   readonly [node]: object
   snapshot(): SnapshotOf<T>
-  connect(records: ChangeRecordV2[]): SubscriptionHandle
-  connect(anchor: object, fn: (record: ChangeRecordV2) => void): SubscriptionHandle
+  connect(records: ChangeRecordV2[], opts?: SinkOpts): SubscriptionHandle
+  connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
+  sink(s: NativeSink): SubscriptionHandle
   dispose(): void
   mirror(): Mirror<T>
   [Symbol.iterator](): IterableIterator<RowOf<T>>
