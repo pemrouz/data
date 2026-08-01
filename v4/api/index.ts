@@ -16,6 +16,7 @@ import '../ops/setops.ts'
 import '../ops/bucket.ts'
 import '../ops/ordered.ts'
 import '../ops/misc.ts'
+import '../ops/quantile.ts'
 
 import { registry } from '../ops/registry.ts'
 import { Runtime } from '../kernel/runtime.ts'

@@ -74,6 +74,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'length', 'sum', 'avg', 'max', 'min', 'some', 'every',
   'intersect', 'union', 'except',
   'group', 'distinct', 'map', 'to', 'reduce', 'tap',
+  'median', 'percentile', 'quantile', // v4: the quantile family (W13)
   'keys', 'values', 'reverse', 'join',
 ])
 

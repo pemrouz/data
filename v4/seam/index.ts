@@ -32,6 +32,7 @@ import '../ops/setops.ts'
 import '../ops/bucket.ts'
 import '../ops/ordered.ts'
 import '../ops/misc.ts'
+import '../ops/quantile.ts'
 
 import { SourceNode, DataNode, leafAt } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'

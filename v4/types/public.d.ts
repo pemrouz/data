@@ -328,6 +328,11 @@ interface ReadCore<T> {
   each(fn: (key: RowKey, row: RowOf<T>) => void): void // W9: no-copy one-pass read
   rowCount(): number // W9: live count, no snapshot
   snapshot(opts?: { freeze?: boolean }): unknown // W9 freeze: deep-frozen rows — safe hand-out, no clone
+  median(col?: string): Scalar<number | undefined> // W13
+  percentile(col: string, p: number): Scalar<number | undefined> // W13
+  percentile(p: number): Scalar<number | undefined>
+  quantile(col: string, q: number): Scalar<number | undefined> // W13
+  quantile(q: number): Scalar<number | undefined>
   dispose(): void
   mirror(): Mirror<T>
   [Symbol.iterator](): IterableIterator<RowOf<T>>
