@@ -292,7 +292,11 @@ defineOperator({
   name: 'filter', kind: 'row', category: 'rowop', declarative: false,
   // W10: filter(fn, dep) — dep (a node; root handles unwrap at the call
   // seam) is the explicit re-scope subscription.
-  create: (src, pred, dep) => (dep === undefined ? filter(src, pred) : rescopeFilter(src, pred, dep)),
+  create: (src, pred, dep) => {
+    if (typeof pred !== 'function')
+      throw new Error("data: filter() takes a predicate fn — v2's filter('key', value) / filter({key: value}) forms are gone: filter(r => r.key === value)")
+    return dep === undefined ? filter(src, pred) : rescopeFilter(src, pred, dep)
+  },
   dedupKey: () => null, // opaque closures never dedup
 })
 defineOperator({
