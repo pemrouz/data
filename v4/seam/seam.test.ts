@@ -24,7 +24,7 @@ import { connectRecords, materialize } from '../compat/v2-records.ts'
 import { RESERVED } from '../contract/index.ts'
 import type { ChangeRecordV2, WireRecord } from '../contract/index.ts'
 import type { CommitBatch, OriginToken, RowDelta, RowKey } from '../contract/delta.ts'
-import { ingest, lane, HOT, wireSink, fromAsync, InMemoryBacking, exportContract } from './index.ts'
+import { ingest, lane, HOT, wireSink, mount, fromAsync, InMemoryBacking, exportContract } from './index.ts'
 
 const same = assert.deepStrictEqual
 const ok = assert.ok
@@ -780,4 +780,36 @@ test('W1 wireSink: origin suppression + initial:false + empty-commit elision', (
   A.write('x', ['n'], 6)
   same(batches.length, 1)
   same(batches[0].records[0], { t: 'update', k: 'x', v: 6, prev: 5, path: ['n'] }) // leaf-at-path (W1)
+})
+
+// ── W5: mount(backing) ───────────────────────────────────────────────────────
+
+test('W5 mount: the mirror follows the backing — seed, live updates, nested paths, deletes; apply routes to authority', () => {
+  const rt = new Runtime()
+  const backing = new InMemoryBacking<any>(rt, { a: { n: 1, meta: { note: 1 } } })
+  const m = mount(rt, backing)
+  conform(m.source)
+  const total = sum(m.source, 'n')
+
+  same([...m.source.snapshot()], [...backing.source.snapshot()]) // seeded from init
+  same((total as any).value(), 1)
+
+  // Authority-side changes flow through subscribe into the mirror.
+  backing.apply([
+    { t: 'add', k: 'b', v: { n: 2 } },
+    { t: 'update', k: 'a', path: ['n'], v: 5 },
+    { t: 'remove', k: 'a', path: ['meta', 'note'] }, // clause-10a delete rides
+  ])
+  same(m.source.rowAt('a'), { n: 5, meta: {} })
+  same((total as any).value(), 7)
+
+  // Writes route THROUGH the mount to the authority, then echo back.
+  m.apply([{ t: 'remove', k: 'b' }])
+  same(backing.source.hasRow('b'), false)
+  same(m.source.hasRow('b'), false)
+  same((total as any).value(), 5)
+
+  m.dispose()
+  backing.apply([{ t: 'add', k: 'c', v: { n: 9 } }])
+  same(m.source.hasRow('c'), false) // disposed — the mirror froze
 })

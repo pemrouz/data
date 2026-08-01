@@ -631,6 +631,66 @@ export class InMemoryBacking<T> implements SourceBacking<T> {
   }
 }
 
+// ── mount: a SourceBacking behind a live source (W5) ─────────────────────────
+//
+// The boundary was a shape + one proof (InMemoryBacking) with NO way to put
+// a $()-consumable source ON a backing. mount(runtime, backing) closes that:
+// the returned source is a LIVE MIRROR of the backing — seeded from
+// subscribe's init snapshot, kept current by translating every backing
+// CommitBatch into local writes (one batch per upstream commit; nested
+// paths, clause-10a deletes, and order moves all ride). Reads and operators
+// hang off the mirror like any source.
+//
+// The write contract is deliberate: the BACKING is the authority — route
+// writes through handle.apply(records, origin?) (→ backing.apply), and the
+// mirror follows via subscribe. Writing the mirror source directly is local
+// divergence (unsupported, like out-of-band container mutation). A stack
+// that owns the full write path (fero: assignment → its kernel → ingest)
+// wants DESIGN-DATA3 §4.1, not mount(); this is the boundary proof and the
+// fero-L3 door (read(key) remote resolution stays parked there).
+
+export interface MountHandle<T> {
+  readonly source: SourceNode<T>
+  apply(records: readonly IngestRecord[], origin?: OriginToken): void
+  dispose(): void
+}
+
+export function mount<T>(runtime: Runtime, backing: SourceBacking<T>): MountHandle<T> {
+  let src: SourceNode<T> | null = null
+  const sub = backing.subscribe({
+    wantsOrder: true,
+    init(snapshot, order) {
+      // Seed the mirror in ONE batch. Array-born backings mirror as an
+      // object-keyed source carrying the SAME minted keys (positional
+      // identity is the backing's concern; the mirror is keyed).
+      src = new SourceNode<T>(runtime, {} as any, 'mounted')
+      runtime.batch(() => {
+        if (order) for (const k of order) src!.write(k, [], snapshot.get(k))
+        else for (const [k, row] of snapshot) src!.write(k, [], row)
+      })
+    },
+    apply(batch: CommitBatch<T>) {
+      const s = src!
+      runtime.batch(() => {
+        for (const d of batch.rows) {
+          if (d.op === 'add') s.write(d.key, [], d.row)
+          else if (d.op === 'remove') s.remove(d.key)
+          else if (d.deleted === true && d.path.length > 0) s.remove(d.key, d.path)
+          else if (d.path.length > 0) s.write(d.key, d.path, leafAt(d.row, d.path))
+          else s.write(d.key, [], d.row)
+        }
+      })
+    },
+  })
+  if (src === null)
+    throw new Error('data: mount() — the backing must deliver init(snapshot) synchronously at subscribe (clause 7)')
+  return {
+    source: src,
+    apply: (records, origin) => backing.apply(records, origin),
+    dispose: () => sub.dispose(),
+  }
+}
+
 // ── exportContract: the machine-readable manifest ────────────────────────────
 //
 // Everything a layered consumer (fero, codegen, guidance tooling) needs to
