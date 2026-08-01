@@ -72,8 +72,28 @@ const NODE = Symbol.for('data.v4.node')
 
 export type IngestRecord = WireRecord | ChangeRecordV2
 
+// One rejected record (W3d). Delivery: rejects are COLLECTED during the batch
+// and surfaced AFTER it closes — sibling records commit and emit first, so a
+// poison record can never abort or starve the rest of its frame (the v3
+// failure mode was worse than atomic: the prefix committed, the suffix was
+// silently lost, and the error propagated — seed-13's frozen-union class).
+export interface IngestReject {
+  readonly index: number
+  readonly record: IngestRecord
+  readonly error: unknown
+}
+
+export interface IngestReport {
+  readonly applied: number
+  readonly rejected: number
+}
+
 export interface IngestOpts {
   readonly origin?: OriginToken
+  // Consume rejects without throwing (fero: count/journal and move on). When
+  // absent, any reject throws ONE AggregateError after the batch has
+  // committed — loud by default, never poisoning.
+  readonly onReject?: (reject: IngestReject) => void
 }
 
 export type IngestTarget = SourceNode<any> | { readonly [k: symbol]: unknown }
@@ -90,13 +110,28 @@ function resolveSource(target: unknown): SourceNode<any> {
   )
 }
 
-export function ingest(target: IngestTarget, records: readonly IngestRecord[], opts: IngestOpts = {}): void {
+export function ingest(
+  target: IngestTarget,
+  records: readonly IngestRecord[],
+  opts: IngestOpts = {},
+): IngestReport {
   const src = resolveSource(target)
+  let applied = 0
+  let rejects: IngestReject[] | null = null
   const run = () => {
-    for (const r of records) {
-      if (r !== null && typeof r === 'object' && 't' in r) applyWire(src, r as WireRecord)
-      else if (r !== null && typeof r === 'object' && 'type' in r) applyV2(src, r as ChangeRecordV2)
-      else throw new Error(`data: ingest() cannot detect record profile: ${JSON.stringify(r)}`)
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i]
+      try {
+        if (r !== null && typeof r === 'object' && 't' in r) applyWire(src, r as WireRecord)
+        else if (r !== null && typeof r === 'object' && 'type' in r) applyV2(src, r as ChangeRecordV2)
+        else throw new Error(`data: ingest() cannot detect record profile: ${JSON.stringify(r)}`)
+        applied++
+      } catch (e) {
+        // Per-record isolation (W3d, SCHEDULE clause 10): collect — never let
+        // one record's throw unwind the loop. Delivery happens after the
+        // batch closes, so user reject-handlers can never write mid-apply.
+        ;(rejects ??= []).push({ index: i, record: r, error: e })
+      }
     }
   }
   // NB: withOrigin(origin, () => batch(run)) rather than batch(run, origin) —
@@ -105,6 +140,15 @@ export function ingest(target: IngestTarget, records: readonly IngestRecord[], o
   // in the M4 seam notes). withOrigin stays installed across the flush.
   if (opts.origin) src.runtime.withOrigin(opts.origin, () => src.runtime.batch(run))
   else src.runtime.batch(run)
+  if (rejects !== null) {
+    if (opts.onReject) for (const rj of rejects) opts.onReject(rj)
+    else
+      throw new AggregateError(
+        rejects.map((rj) => rj.error),
+        `data: ingest() rejected ${rejects.length} of ${records.length} record(s) — the rest committed; pass opts.onReject to consume rejects without throwing`,
+      )
+  }
+  return { applied, rejected: rejects?.length ?? 0 }
 }
 
 function applyWire(src: SourceNode<any>, r: WireRecord): void {
@@ -118,7 +162,9 @@ function applyWire(src: SourceNode<any>, r: WireRecord): void {
       src.write(r.k, (r.path ?? []) as Path, r.v)
       return
     case 'remove':
-      src.remove(r.k) // silent for non-live keys — idempotent redelivery
+      // Whole row, or nested FIELD deletion when `path` rides the record
+      // (W3a). Both idempotent — non-live key / absent path are silent no-ops.
+      src.remove(r.k, r.path as Path | undefined)
       return
     case 'move':
       // Positional reposition — SourceNode.move validates (array-born only)
@@ -178,12 +224,11 @@ function applyV2(src: SourceNode<any>, r: ChangeRecordV2): void {
     src.write(key, r.key.slice(1), r.value)
     return
   }
-  // remove
+  // remove — whole row (key.length 1) or nested field deletion (deeper: the
+  // v2 deep-delete record, W3a). Idempotent in every direction by clause 10.
   const key = v2RowKey(src, r.key[0])
   if (key === undefined) return // out-of-range positional remove — idempotent no-op
-  if (r.key.length > 1)
-    throw new Error('data: ingest() nested-field removal is not supported (v2 deep delete) — write undefined/null instead')
-  src.remove(key)
+  src.remove(key, r.key.length > 1 ? r.key.slice(1) : undefined)
 }
 
 // v2 whole-value update ({key: [], value: snapshot}) — the record every v2

@@ -89,6 +89,17 @@ export class V2RecordSink<T> {
             this.out({ type: 'remove', key: [name], value: sclone(d.prev) })
           break
         case 'update': {
+          // Field DELETION (W3a) round-trips as v2's nested remove record —
+          // an update-to-undefined would be indistinguishable from a real
+          // undefined value on the wire; the deleted marker keeps them apart.
+          if (d.deleted === true && d.path.length > 0) {
+            this.out({
+              type: 'remove',
+              key: [name, ...d.path.map(String)],
+              value: sclone(leafAt(d.prev, d.path)),
+            })
+            break
+          }
           const value = d.path.length ? leafAt(d.row, d.path) : d.row
           this.out({ type: 'update', key: [name, ...d.path.map(String)], value: sclone(value) })
           break

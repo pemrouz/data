@@ -43,6 +43,13 @@ export interface UpdateDelta<T> {
   readonly row: T // post-write row (reference)
   readonly prev: T // pre-write row (reference; structurally shared with row)
   readonly path: Path // [] = whole-row overwrite; ['f'] = field edit; deeper = nested
+  // Field DELETION marker (W3a, SCHEDULE clause 10): true when the leaf at
+  // `path` was deleted (property removed — enumeration changes), not written.
+  // Only meaningful with path.length > 0; wire/compat sinks emit these as
+  // nested REMOVE records so field deletion round-trips losslessly (an
+  // update-to-undefined would be indistinguishable from a real undefined
+  // value). Consumers that only read leafAt(row, path) may ignore it.
+  readonly deleted?: boolean
 }
 
 export type RowDelta<T> = AddDelta<T> | RemoveDelta<T> | UpdateDelta<T>

@@ -200,6 +200,46 @@ export function leafAt(v: unknown, path: Path): unknown {
   return cur
 }
 
+// Copy-on-write field DELETION along the path (W3a). Returns the new root
+// with the leaf property removed (structural sharing off-path, like
+// pathCopy), or null when the deletion is a NO-OP: any ancestor is
+// missing/null/non-object, or the leaf property is not owned. The null
+// return is the idempotence law (SCHEDULE clause 10) — a replicated remove
+// redelivered or reordered must never throw or write. Deleting an ARRAY
+// element is refused loudly: `delete arr[i]` mints a sparse hole (the exact
+// value-domain shape v3 version-broke) — the caller writes a spliced array
+// instead.
+export function pathDelete<T>(row: T, path: Path): T | null {
+  let probe: any = row
+  for (let i = 0; i < path.length - 1; i++) {
+    if (probe === null || typeof probe !== 'object') return null
+    probe = probe[path[i]]
+  }
+  const last = path[path.length - 1]
+  if (probe === null || typeof probe !== 'object' || !Object.hasOwn(probe, last)) return null
+  // An owned-but-undefined leaf deletes as a no-op: at the deep-write layer
+  // leaf-absent ≡ leaf-undefined (the same equivalence the Object.is no-op
+  // drop applies to writes), and emitting the delete would be a phantom
+  // update under clause 8 (leaf unchanged: undefined → undefined).
+  if (probe[last] === undefined) return null
+  if (Array.isArray(probe))
+    throw new Error(
+      `data: remove() of array element [${path.join('.')}] would leave a sparse hole — write the spliced array instead`,
+    )
+  const root = shallowCopy(row)
+  let src: any = row
+  let dst: any = root
+  for (let i = 0; i < path.length - 1; i++) {
+    const p = path[i]
+    const next = shallowCopy(src[p])
+    dst[p] = next
+    src = src[p]
+    dst = next
+  }
+  delete dst[last]
+  return root
+}
+
 // Copy-on-write along the written path. Returns the new root; prev is the
 // untouched old root (structural sharing everywhere off-path) — oldValue for
 // free, zero clones.
@@ -415,13 +455,29 @@ export class SourceNode<T> extends DataNode<T> {
     return key
   }
 
-  remove(key: RowKey): void {
+  // Remove a row (no path) or DELETE a nested field (path present — W3a).
+  // Both directions are idempotent by law (SCHEDULE clause 10): a non-live
+  // key, an absent ancestor, or an un-owned leaf is a silent no-op — fero's
+  // at-least-once redelivery and cross-origin reordering land here freely.
+  remove(key: RowKey, path?: Path): void {
     const rt = this.runtime
     if (!rt.canWriteNow()) {
-      rt.queueWrite(() => this.remove(key))
+      rt.queueWrite(() => this.remove(key, path))
       return
     }
     if (!this.store.has(key)) return
+    if (path !== undefined && path.length > 0) {
+      const st = this.store
+      const prev = st.get(key) as T
+      const next = pathDelete(prev, path)
+      if (next === null) return // absent ancestor/leaf — idempotent no-op
+      const slot = st.obj !== null ? -1 : st.slotOf(key)!
+      if (slot >= 0) st.writeSlot(slot, next)
+      else (st.obj as Record<string, T>)[key as string] = next
+      this.recordUpdate(key, next, prev, path, true)
+      rt.written(this)
+      return
+    }
     this.applyRemove(key)
     rt.written(this)
   }
@@ -515,26 +571,42 @@ export class SourceNode<T> extends DataNode<T> {
     }
   }
 
-  private recordUpdate(key: RowKey, row: T, prev: T, path: Path): void {
+  private recordUpdate(key: RowKey, row: T, prev: T, path: Path, deleted?: boolean): void {
     const prior = this.pending.get(key)
     if (prior === undefined) {
-      this.pending.set(key, { op: 'update', key, row, prev, path })
+      this.pending.set(
+        key,
+        deleted === true
+          ? { op: 'update', key, row, prev, path, deleted: true }
+          : { op: 'update', key, row, prev, path },
+      )
     } else if (prior.op === 'add') {
       this.pending.set(key, { op: 'add', key, row })
     } else if (prior.op === 'update') {
       const samePath =
         prior.path.length === path.length && prior.path.every((p, i) => p === path[i])
       if (samePath && Object.is(leafAt(prior.prev, path), leafAt(row, path))) {
-        // The batch's net effect at this leaf is zero (e.g. a flip A→B→A):
-        // annihilate — emitting it would be a phantom update (clause 8).
-        // Same-path merges structurally share every other field with prev,
-        // so a leaf-equal merge means the whole row is content-identical.
+        // The batch's net effect at this leaf is zero (e.g. a flip A→B→A, or
+        // set-then-delete of a field the row never owned): annihilate —
+        // emitting it would be a phantom update (clause 8). Same-path merges
+        // structurally share every other field with prev, so a leaf-equal
+        // merge means the whole row is content-identical. (Clause 10 corner:
+        // an explicit-undefined leaf deleted in the same batch that set it
+        // annihilates too — at the deep-write layer leaf-absent ≡
+        // leaf-undefined, the documented value-domain equivalence.)
         this.pending.delete(key)
         return
       }
-      this.pending.set(key, {
-        op: 'update', key, row, prev: prior.prev, path: samePath ? path : [],
-      })
+      // Merged shape: same path keeps the path (and the LAST op's deletion
+      // marker — set-then-delete stays a delete, delete-then-set a write);
+      // diverged paths collapse to a whole-row update, where the flag is
+      // meaningless (the full row already carries the truth).
+      this.pending.set(
+        key,
+        samePath && deleted === true
+          ? { op: 'update', key, row, prev: prior.prev, path, deleted: true }
+          : { op: 'update', key, row, prev: prior.prev, path: samePath ? path : [] },
+      )
     }
   }
 

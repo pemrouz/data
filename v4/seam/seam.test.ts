@@ -37,6 +37,17 @@ function captureBatches<T>(node: SourceNode<T> | any): CommitBatch<T>[] {
   return out
 }
 
+// W3d: per-record errors surface as ONE AggregateError after the batch (the
+// siblings committed) — assert the wrapper AND the underlying cause.
+function rejectsRecord(fn: () => void, re: RegExp): void {
+  assert.throws(fn, (e: unknown) => {
+    ok(e instanceof AggregateError, 'expected AggregateError (per-record isolation)')
+    ok(/rejected \d+ of \d+/.test((e as Error).message), 'expected the ingest reject summary')
+    ok((e as AggregateError).errors.some((c) => re.test((c as Error).message)), `no cause matched ${re}`)
+    return true
+  })
+}
+
 async function until(cond: () => boolean, ms = 2000): Promise<void> {
   const t0 = Date.now()
   while (!cond()) {
@@ -71,7 +82,7 @@ test('ingest wire → object source: add / update(path) / remove, one batch, LWW
   ok(byKey.get('x')!.op === 'add')
 
   // deep write to a non-live key stays LOUD (no implicit row creation)
-  assert.throws(() => ingest(src, [{ t: 'update', k: 'nope', path: ['n'], v: 1 }]), /not live/)
+  rejectsRecord(() => ingest(src, [{ t: 'update', k: 'nope', path: ['n'], v: 1 }]), /not live/)
 })
 
 test('ingest wire → array source: explicit minted keys append in arrival order; nextKey advances', () => {
@@ -102,7 +113,7 @@ test('ingest: profile detection is per-record; unrecognizable records are loud',
     { type: 'insert', key: [], value: { n: 2 }, at: 'b' } as ChangeRecordV2,
   ])
   same(src.snapshot().size, 2)
-  assert.throws(() => ingest(src, [{ nope: true } as any]), /cannot detect record profile/)
+  rejectsRecord(() => ingest(src, [{ nope: true } as any]), /cannot detect record profile/)
   assert.throws(() => ingest({} as any, []), /must be a source/)
 })
 
@@ -146,7 +157,7 @@ test('ingest: move records reposition the order channel (both profiles); object-
 
   // object-born: no order channel — loud
   const osrc = new SourceNode<{ v: number }>(rt, { a: { v: 1 } })
-  assert.throws(() => ingest(osrc, [{ t: 'move', k: 'a', from: 0, to: 0 }]), /object-born/)
+  rejectsRecord(() => ingest(osrc, [{ t: 'move', k: 'a', from: 0, to: 0 }]), /object-born/)
 })
 
 // ── ingest: v2 profile ───────────────────────────────────────────────────────
@@ -195,7 +206,7 @@ test('ingest v2 → array source: positional keys resolve through currentOrder()
   // out-of-range positional remove is an idempotent no-op; update is loud
   ingest(src, [{ type: 'remove', key: ['99'], value: null }])
   same(src.snapshot().size, 3)
-  assert.throws(() => ingest(src, [{ type: 'update', key: ['99', 'v'], value: 1 }]), /out of range/)
+  rejectsRecord(() => ingest(src, [{ type: 'update', key: ['99', 'v'], value: 1 }]), /out of range/)
 })
 
 test('ingest v2 whole-value update (key []) diffs against current state, both shapes', () => {
@@ -526,4 +537,91 @@ test('exportContract: schema version, full RESERVED set, registry-projected oper
   }
   // manifest is a fresh projection, not a live view of internals
   ok(m.reserved !== (RESERVED as unknown))
+})
+
+// ── W3 acceptance: the deep-path law under seeded at-least-once chaos ────────
+//
+// What data guarantees at this layer (SCHEDULE clause 10) and what it
+// deliberately does NOT: duplicates absorb (idempotence), per-key-order-
+// preserving interleavings from N origins converge, and NO ordering of any
+// stream ever throws or poisons a sibling — but conflicting UPDATES to one
+// key resolve by ARRIVAL order (data is not a CRDT; fero's Lamport/LWW
+// versioning owns cross-origin ordering above this seam).
+
+test('W3 fuzz: 300-step seeded stream — duplicates absorb; cross-key interleave converges; full shuffle never poisons', () => {
+  let s = 0xC0FFEE
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0), s / 0x100000000)
+  const pick = <T,>(a: readonly T[]) => a[Math.floor(rnd() * a.length)]
+
+  const KEYS = ['k0', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7']
+  const stream: WireRecord[] = []
+  for (let i = 0; i < 300; i++) {
+    const k = pick(KEYS)
+    const roll = rnd()
+    if (roll < 0.25) stream.push({ t: 'add', k, v: { n: i, meta: { note: i } } })
+    else if (roll < 0.5) stream.push({ t: 'update', k, path: ['n'], v: i })
+    else if (roll < 0.65) stream.push({ t: 'update', k, path: ['meta', 'note'], v: i })
+    else if (roll < 0.8) stream.push({ t: 'remove', k, path: ['meta', 'note'] }) // nested delete
+    else stream.push({ t: 'remove', k })
+  }
+  // Deep updates to dead keys reject (stay LOUD) — consume them uniformly so
+  // every lane sees the same accepted sub-stream.
+  const opts = { onReject: () => {} }
+
+  const rt = new Runtime()
+  const A = new SourceNode<any>(rt, {})
+  conform(A)
+  ingest(A, stream, opts)
+
+  // Lane 1 — duplicates absorb: every record delivered 1–3× in order.
+  const B = new SourceNode<any>(rt, {})
+  conform(B)
+  const dup: WireRecord[] = []
+  for (const r of stream) {
+    dup.push(r)
+    if (rnd() < 0.3) dup.push(r)
+    if (rnd() < 0.1) dup.push(r)
+  }
+  ingest(B, dup, opts)
+  // NB: exact convergence under duplication holds for this stream because
+  // re-applying any of its records is either an Object.is no-op (same leaf
+  // value), an idempotent remove, or an add-tolerance whole-row update to
+  // the same row. That is the at-least-once property fero needs.
+  same(materialize(B.snapshot(), null), materialize(A.snapshot(), null))
+
+  // Lane 2 — cross-key interleave: split the stream by key, then merge the
+  // per-key runs in a different (seeded) order. Per-key order preserved →
+  // same final state per key → convergence.
+  const byKey = new Map<string, WireRecord[]>()
+  for (const r of stream) {
+    const k = String((r as any).k)
+    if (!byKey.has(k)) byKey.set(k, [])
+    byKey.get(k)!.push(r)
+  }
+  const interleaved: WireRecord[] = []
+  const queues = [...byKey.values()].map((q) => [...q])
+  while (queues.some((q) => q.length > 0)) {
+    const live = queues.filter((q) => q.length > 0)
+    interleaved.push(pick(live).shift()!)
+  }
+  const C = new SourceNode<any>(rt, {})
+  conform(C)
+  ingest(C, interleaved, opts)
+  same(materialize(C.snapshot(), null), materialize(A.snapshot(), null))
+
+  // Lane 3 — FULL shuffle (per-key order broken): final state may differ
+  // (arrival-order LWW — fero's versioning owns this above the seam), but
+  // the stream must apply without a single throw and every record must be
+  // either applied or individually rejected: nothing lost, nothing poisoned.
+  const shuffled = [...stream]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  const D = new SourceNode<any>(rt, {})
+  conform(D) // legality on every commit — a poisoned emission fails here
+  let rejected = 0
+  const report = ingest(D, shuffled, { onReject: () => rejected++ })
+  same(report.applied + report.rejected, stream.length)
+  same(report.rejected, rejected)
 })

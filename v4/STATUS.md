@@ -15,7 +15,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 |---|---|---|---|
 | W1 | P2 | Native wire egress (CommitBatch→WireRecord emitter + keyDomain batch header) | open |
 | W2 | P1 | Origin-capable clone-free public subscription (connect opts / sink()) | open |
-| W3 | P1 | Deep-path law: (a) nested-field remove IMPL; (b) absent-remove no-op SPEC-PIN; (c) vivify-under-null/scalar SPEC-PIN; (d) per-record ingest isolation IMPL | open |
+| W3 | P1 | Deep-path law: (a) nested-field remove IMPL; (b) absent-remove no-op SPEC-PIN; (c) vivify-under-null/scalar SPEC-PIN; (d) per-record ingest isolation IMPL | DONE — SCHEDULE clause 10, VERSION 2 |
 | W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 11 tests, one per clause |
 | W5 | P3 | Backing-mounted sources ($(backing)) | open |
 | W6 | P3 | Pre-commit veto — doc-only under fero §4.1 | open |

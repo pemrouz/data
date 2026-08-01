@@ -1,4 +1,4 @@
-# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 1)
+# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 2)
 
 This document is versioned and contract-tested (cross-repo: data CI and fero CI both run the
 executable tests in [../conformance/schedule.test.ts](../conformance/schedule.test.ts) against
@@ -43,3 +43,25 @@ superset of v2's per-write settle, never a replacement.
 9. **Coalescing (opt-in sugar, not a semantic change).** `coalesce('microtask' | 'frame')`
    turns implicit batches into scheduled batches for producers that opt in. The default is
    clause 0: bare write = synchronous batch of one.
+10. **The deep-path law (SCHEDULE_VERSION 2 — fero W3).** Replication reorders and redelivers
+    freely, so deep-path operations are tolerant, isolated, and lossless:
+    - (a) **Nested-field removal is first-class.** `remove(key, path)` deletes the property
+      (enumeration changes); the delta is an `update` carrying `deleted: true` with the field's
+      path, and wire/compat sinks emit it as a nested REMOVE record — never an
+      update-to-undefined (which would be indistinguishable from a real `undefined` value).
+      Deleting an ARRAY element throws (a sparse hole is a version-broken shape) — write the
+      spliced array.
+    - (b) **Removes are idempotent everywhere.** A remove of a non-live key, an absent
+      ancestor, or an un-owned leaf is a silent no-op — never a throw, never a write.
+    - (c) **Deep writes vivify on live rows; stay loud on dead ones.** A deep write under a
+      `null`/scalar intermediate of a LIVE row auto-creates object intermediates (path-copy);
+      a deep write to a NON-live key throws — a deep write cannot invent a row.
+      At the leaf, **absence ≡ `undefined`**: writing `undefined` over an absent field is the
+      Object.is no-op drop, and deleting an owned-but-`undefined` leaf is a no-op — explicit
+      `undefined` and absence are indistinguishable to the deep-write layer (whole-row writes
+      still distinguish them).
+    - (d) **Ingest isolates per record.** One bad record in an `ingest()` batch never aborts,
+      starves, or silently drops its siblings: good records commit and emit in the one batch;
+      rejects are collected and surfaced AFTER the flush — as one `AggregateError` by default,
+      or per-record via `opts.onReject` (which suppresses the throw). The pre-v4 failure mode
+      (prefix commits, suffix silently lost, error propagates) is outlawed.

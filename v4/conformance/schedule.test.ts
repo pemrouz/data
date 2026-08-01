@@ -36,7 +36,7 @@ function capture<T>(node: any, origin: symbol | null = null): CommitBatch<T>[] {
 
 //! SCHEDULE_VERSION — the constant this suite executes; a clause change without a bump fails here.
 test('SCHEDULE_VERSION is exported at runtime and matches this suite', () => {
-  same(SCHEDULE_VERSION, 1)
+  same(SCHEDULE_VERSION, 2) // v2: clause 10, the deep-path law (W3)
 })
 
 //! Clause 1 — a bare write is a SYNCHRONOUS batch of one; central Object.is no-op drop.
@@ -260,6 +260,94 @@ test('clause 8: A→B→A and add+remove annihilate; multi-write batches consoli
   same(batches[0].rows.length, 2) // ≤1 delta per key: a's two writes consolidated
   const a = batches[0].rows.find((d) => d.key === 'a')!
   ok(a.op === 'update' && (a as any).prev.n === 1) // first prev, last row
+})
+
+//! Clause 10a — nested-field removal: property deleted, delta carries deleted:true, no phantom.
+test('clause 10a: remove(key, path) deletes the field; the delta is a deleted-marked update', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ a?: { b?: number; c?: number } }>(rt, { r: { a: { b: 1, c: 2 } } })
+  conform(src)
+  const batches = capture<any>(src)
+
+  src.remove('r', ['a', 'b'])
+  same(batches.length, 1)
+  const d = batches[0].rows[0] as any
+  same(d.op, 'update')
+  same(d.deleted, true)
+  same(d.path, ['a', 'b'])
+  same(src.snapshot().get('r'), { a: { c: 2 } }) // property GONE, not undefined
+  ok(!Object.hasOwn(src.snapshot().get('r')!.a!, 'b')) // enumeration changed
+  same((d.prev as any).a.b, 1) // prev carries the deleted leaf's value
+
+  // Array-element deletion is refused loudly — a sparse hole is version-broken.
+  const arr = new SourceNode<{ xs: number[] }>(rt, { r: { xs: [1, 2, 3] } })
+  assert.throws(() => arr.remove('r', ['xs', 1]), /sparse hole/)
+})
+
+//! Clause 10b — removes are idempotent everywhere: non-live key, absent ancestor, un-owned leaf.
+test('clause 10b: every absent-target remove is a silent no-op, never a throw or a write', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { r: { a: { b: 1 } }, s: { flat: 0 }, u: { x: undefined } })
+  conform(src)
+  const batches = capture<any>(src)
+
+  src.remove('ghost') // non-live key
+  src.remove('ghost', ['a']) // non-live key, deep
+  src.remove('r', ['nope', 'deep']) // absent ancestor
+  src.remove('r', ['a', 'nope']) // un-owned leaf
+  src.remove('s', ['flat', 'under-scalar']) // scalar ancestor
+  src.remove('u', ['x']) // owned-but-undefined leaf: absence ≡ undefined at the leaf
+  same(batches.length, 0) // not one emission, not one throw
+  same(src.snapshot().get('r'), { a: { b: 1 } }) // and not one write
+})
+
+//! Clause 10c — deep writes vivify under null/scalar on LIVE rows; stay loud on dead keys.
+test('clause 10c: vivify-under-null/scalar on live rows; deep write to a non-live key throws', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { r: { a: null, s: 5 } })
+  conform(src)
+
+  src.write('r', ['a', 'deep'], 1) // null intermediate → vivified object
+  same(src.snapshot().get('r').a, { deep: 1 })
+  src.write('r', ['s', 'deep'], 2) // scalar intermediate → vivified object
+  same(src.snapshot().get('r').s, { deep: 2 })
+  assert.throws(() => src.write('dead', ['a'], 1), /not live/) // a deep write cannot invent a row
+})
+
+//! Clause 10d — ingest isolates per record: siblings commit, rejects surface after the flush.
+test('clause 10d: a poison record never aborts its siblings; rejects collect into one AggregateError', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {})
+  conform(src)
+  const batches = capture<Row>(src)
+
+  // Default: loud — AggregateError AFTER the good records committed + emitted.
+  assert.throws(
+    () =>
+      ingest(src, [
+        { t: 'add', k: 'a', v: { n: 1 } },
+        { t: 'update', k: 'ghost', path: ['n'], v: 9 }, // poison: deep write to a dead key
+        { t: 'add', k: 'b', v: { n: 2 } }, // the pre-v4 bug LOST this one
+      ]),
+    (e: unknown) => e instanceof AggregateError && /rejected 1 of 3/.test((e as Error).message),
+  )
+  same(batches.length, 1) // ONE batch, already flushed before the throw
+  same(src.snapshot().size, 2) // both siblings committed
+  same(src.snapshot().get('b'), { n: 2 })
+
+  // onReject: consumed, no throw, report returned.
+  const rejects: number[] = []
+  const report = ingest(
+    src,
+    [
+      { t: 'update', k: 'a', path: ['n'], v: 10 },
+      { t: 'update', k: 'ghost2', path: ['n'], v: 9 },
+    ],
+    { onReject: (rj) => rejects.push(rj.index) },
+  )
+  same(report, { applied: 1, rejected: 1 })
+  same(rejects, [1])
+  same(src.snapshot().get('a'), { n: 10 })
 })
 
 //! Clause 9 — coalescing is opt-in sugar: same final state, fewer commits; default stays sync.

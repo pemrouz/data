@@ -15,7 +15,9 @@ export const SCHEMA_VERSION = 3 as const
 // repos' CIs, and any clause change bumps this constant — an unnoticed bump
 // fails the consumer's pin loudly instead of shipping a silent timing change
 // (the c870bde lost-write class).
-export const SCHEDULE_VERSION = 1 as const
+// v2: clause 10 (the deep-path law: nested-field removal, absent-path
+// idempotence, vivify-under-null/scalar, per-record ingest isolation — W3).
+export const SCHEDULE_VERSION = 2 as const
 
 // ── Wire profiles ────────────────────────────────────────────────────────────
 // Native profile (SCHEMA_VERSION 3): stable keys, prev, path, move-with-key.
@@ -25,7 +27,10 @@ export const SCHEDULE_VERSION = 1 as const
 export type WireRecord =
   | { t: 'add'; k: RowKey; v: unknown }
   | { t: 'update'; k: RowKey; v: unknown; prev?: unknown; path?: readonly (string | number)[] }
-  | { t: 'remove'; k: RowKey; prev?: unknown }
+  // remove: whole row when `path` is absent; a nested FIELD deletion when
+  // `path` is present (W3a — property removed from the row; idempotent when
+  // the key/path is already absent, per SCHEDULE clause 10).
+  | { t: 'remove'; k: RowKey; prev?: unknown; path?: readonly (string | number)[] }
   | { t: 'move'; k: RowKey; from: number; to: number }
 
 // v2-compat profile — PERMANENT, not a shim. Byte-parity with v2's
@@ -82,6 +87,21 @@ export function foldSnapshot(state: FoldState, r: WireRecord): FoldState {
       state.rows.set(r.k, r.v)
       return state
     case 'remove': {
+      if (r.path !== undefined && r.path.length > 0) {
+        // Nested FIELD deletion: fold by deleting the leaf property in a
+        // copied row (the fold is a viewing aid — plain-JS copy is fine here).
+        const row = state.rows.get(r.k)
+        if (row === null || typeof row !== 'object') return state // idempotent
+        const copy = structuredClone(row) as any
+        let cur = copy
+        for (let i = 0; i < r.path.length - 1; i++) {
+          cur = cur?.[r.path[i]]
+          if (cur === null || typeof cur !== 'object') return state // absent ancestor — no-op
+        }
+        delete cur[r.path[r.path.length - 1]]
+        state.rows.set(r.k, copy)
+        return state
+      }
       state.rows.delete(r.k)
       const i = state.order.indexOf(r.k)
       if (i >= 0) state.order.splice(i, 1)

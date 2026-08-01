@@ -8,6 +8,7 @@ import { $, value, node, batch } from './index.ts'
 import { conform } from '../conformance/harness.ts'
 
 const same = assert.deepStrictEqual
+const ok = assert.ok
 
 type Row = { region: string; val: number; nested?: { deep: number } }
 const rows = (): Record<string, Row> => ({
@@ -240,4 +241,14 @@ test('REVIEW FIX (flip phase 2): nested child reads on an OPERATOR VIEW extend t
   // and it tracks: a rebucketing write moves both reads
   d.get('c').set('tenor', '5Y')
   same(counts.get('5Y').get('value')[value], 3)
+})
+
+test('nested-field remove (clause 10a/b): d.get(k).get(f).remove() deletes the property; absent targets no-op', () => {
+  const d = $({ r: { a: { b: 1, c: 2 }, keep: 9 } } as any)
+  d.get('r').get('a').get('b').remove()
+  same(d.get('r')[value], { a: { c: 2 }, keep: 9 }) // property GONE
+  ok(!Object.hasOwn((d.get('r') as any)[value].a, 'b'))
+  d.get('r').get('a').get('b').remove() // redelivery — idempotent no-op
+  d.get('r').get('ghost').get('x').remove() // absent ancestor — no-op
+  same(d.get('r')[value], { a: { c: 2 }, keep: 9 })
 })

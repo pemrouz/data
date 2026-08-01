@@ -84,6 +84,18 @@ export class LegalityChecker<T> {
               this.node, seq,
               `phantom update at key ${String(d.key)} path [${d.path.join('.')}] — leaf unchanged`,
             )
+          // Field-deletion shape (clause 10): the marker requires a real path
+          // and a now-absent leaf — a deleted:true update whose post row
+          // still owns the leaf is a contract violation.
+          if (d.deleted === true) {
+            if (d.path.length === 0)
+              throw new LegalityError(this.node, seq, `deleted update with empty path at key ${String(d.key)}`)
+            if (after !== undefined)
+              throw new LegalityError(
+                this.node, seq,
+                `deleted update at key ${String(d.key)} path [${d.path.join('.')}] whose post leaf is still present`,
+              )
+          }
           break
         }
         default: {

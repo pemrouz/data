@@ -48,7 +48,7 @@ export type Path = readonly (string | number)[]
 export type WireRecord =
   | { t: 'add'; k: RowKey; v: unknown }
   | { t: 'update'; k: RowKey; v: unknown; prev?: unknown; path?: readonly (string | number)[] }
-  | { t: 'remove'; k: RowKey; prev?: unknown }
+  | { t: 'remove'; k: RowKey; prev?: unknown; path?: readonly (string | number)[] } // path = nested FIELD deletion (clause 10a)
   | { t: 'move'; k: RowKey; from: number; to: number }
 
 // v2-compat profile — PERMANENT, not a shim (byte-parity with v2's
@@ -161,7 +161,7 @@ export type ReadonlyChild<V> = ChildRead<V> &
 
 export type DataChild<V> = ChildRead<V> & {
   update(v: V): void
-  remove(): void // depth-1 children detach the row; deeper removal is a runtime gap
+  remove(): void // depth-1 children detach the row; deeper paths DELETE the field (clause 10a; absent targets no-op)
   raf(): RafWriter<V>
 } & ([V] extends [object]
     ? {
@@ -286,7 +286,14 @@ interface Writes<T> {
   set<K extends KeyOf<T>>(k: K, v: MemberOf<T, K>): void
   insert(v: RowOf<T>, at?: number): RowKey
   patch(pairs: readonly (readonly [KeyOf<T>, RowOf<T>])[]): void
-  ingest(records: readonly (WireRecord | ChangeRecordV2)[], opts?: { readonly origin?: symbol }): void
+  ingest(
+    records: readonly (WireRecord | ChangeRecordV2)[],
+    opts?: {
+      readonly origin?: symbol
+      // consume per-record rejects (clause 10d) — absent: one AggregateError after the batch
+      readonly onReject?: (reject: { readonly index: number; readonly record: WireRecord | ChangeRecordV2; readonly error: unknown }) => void
+    },
+  ): { readonly applied: number; readonly rejected: number }
   first(): DataChild<RowOf<T>>
   last(): DataChild<RowOf<T>>
   // NB deliberately ABSENT (the runtime THROWS on both at a source root):

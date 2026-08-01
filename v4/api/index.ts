@@ -209,9 +209,11 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
       }
     case 'remove':
       return () => {
+        // Row detach at depth 1; nested FIELD deletion deeper (W3a) — the
+        // property is removed from the row (enumeration changes; an absent
+        // ancestor or un-owned leaf is an idempotent no-op, clause 10).
         const { src, key, sub } = writeTarget(state)
-        if (sub.length > 0) throw new Error('data: remove() detaches a row — nested field removal not yet supported')
-        src.remove(key)
+        src.remove(key, sub.length > 0 ? sub : undefined)
       }
     case 'patch':
       return (pairs: readonly (readonly [string | number, unknown])[]) => {
