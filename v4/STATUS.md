@@ -13,7 +13,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 
 | # | P | Item | State |
 |---|---|---|---|
-| W1 | P2 | Native wire egress (CommitBatch→WireRecord emitter + keyDomain batch header) | open |
+| W1 | P2 | Native wire egress (CommitBatch→WireRecord emitter + keyDomain batch header) | DONE — wireSink() + WireBatch; leaf-at-path settled |
 | W2 | P1 | Origin-capable clone-free public subscription (connect opts / sink()) | DONE — sink() + connect opts |
 | W3 | P1 | Deep-path law: (a) nested-field remove IMPL; (b) absent-remove no-op SPEC-PIN; (c) vivify-under-null/scalar SPEC-PIN; (d) per-record ingest isolation IMPL | DONE — SCHEDULE clause 10, VERSION 2 |
 | W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 11 tests, one per clause |

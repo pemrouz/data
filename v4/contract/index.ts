@@ -22,16 +22,30 @@ export const SCHEDULE_VERSION = 2 as const
 // ── Wire profiles ────────────────────────────────────────────────────────────
 // Native profile (SCHEMA_VERSION 3): stable keys, prev, path, move-with-key.
 // Keys serialize domain-tagged: {k: 5} (minted int) vs {k: "5"} (adopted
-// string) — JSON distinguishes them; a batch header carries the store's
-// keyDomain so a remote fold reconstructs identity exactly.
+// string) — JSON distinguishes them; the WireBatch envelope (W1) carries the
+// store's keyDomain so a remote fold reconstructs identity exactly.
 export type WireRecord =
-  | { t: 'add'; k: RowKey; v: unknown }
+  // add: `at` (W1) carries the order-channel position for array-born rows so
+  // a mid-insert round-trips; object-born adds omit it.
+  | { t: 'add'; k: RowKey; v: unknown; at?: number }
+  // update: v/prev are the value AT `path` — the LEAF for a field edit
+  // (compact wire), the whole row when path is []/absent. Settled by W1 (the
+  // egress made the latent applyWire-vs-foldSnapshot disagreement visible).
   | { t: 'update'; k: RowKey; v: unknown; prev?: unknown; path?: readonly (string | number)[] }
   // remove: whole row when `path` is absent; a nested FIELD deletion when
   // `path` is present (W3a — property removed from the row; idempotent when
   // the key/path is already absent, per SCHEDULE clause 10).
   | { t: 'remove'; k: RowKey; prev?: unknown; path?: readonly (string | number)[] }
   | { t: 'move'; k: RowKey; from: number; to: number }
+
+// The batch envelope the wire egress emits (W1): one per commit, keyDomain-
+// tagged. keyDomain 'int' = array-born minted integer keys; 'string' =
+// object-born adopted keys (a store never mixes them — kernel invariant).
+export interface WireBatch {
+  readonly keyDomain: 'int' | 'string'
+  readonly seq: number
+  readonly records: readonly WireRecord[]
+}
 
 // v2-compat profile — PERMANENT, not a shim. Byte-parity with v2's
 // ChangeRecord stream: positional keys for array-born sources (projected
@@ -82,11 +96,29 @@ export function foldSnapshot(state: FoldState, r: WireRecord): FoldState {
   switch (r.t) {
     case 'add':
       state.rows.set(r.k, r.v)
-      if (!state.order.includes(r.k)) state.order.push(r.k)
+      if (!state.order.includes(r.k)) {
+        if (r.at !== undefined && r.at >= 0 && r.at <= state.order.length) state.order.splice(r.at, 0, r.k)
+        else state.order.push(r.k)
+      }
       return state
-    case 'update':
+    case 'update': {
+      if (r.path !== undefined && r.path.length > 0) {
+        // v is the LEAF at path (W1) — deep-set on a copied row.
+        const row = state.rows.get(r.k)
+        if (row === null || typeof row !== 'object') return state
+        const copy = structuredClone(row) as any
+        let cur = copy
+        for (let i = 0; i < r.path.length - 1; i++) {
+          const nxt = cur[r.path[i]]
+          cur = cur[r.path[i]] = nxt === null || typeof nxt !== 'object' ? {} : nxt
+        }
+        cur[r.path[r.path.length - 1]] = r.v
+        state.rows.set(r.k, copy)
+        return state
+      }
       state.rows.set(r.k, r.v)
       return state
+    }
     case 'remove': {
       if (r.path !== undefined && r.path.length > 0) {
         // Nested FIELD deletion: fold by deleting the leaf property in a

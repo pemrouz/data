@@ -33,12 +33,12 @@ import '../ops/bucket.ts'
 import '../ops/ordered.ts'
 import '../ops/misc.ts'
 
-import { SourceNode } from '../kernel/node.ts'
+import { SourceNode, DataNode, leafAt } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import type { Runtime } from '../kernel/runtime.ts'
 import { currentScope } from '../kernel/scope.ts'
 import { SCHEMA_VERSION, RESERVED } from '../contract/index.ts'
-import type { ChangeRecordV2, WireRecord, OpCategory } from '../contract/index.ts'
+import type { ChangeRecordV2, WireRecord, WireBatch, OpCategory } from '../contract/index.ts'
 import type {
   CollectionSink, CommitBatch, OriginToken, Path, RowKey,
 } from '../contract/delta.ts'
@@ -110,6 +110,16 @@ function resolveSource(target: unknown): SourceNode<any> {
   )
 }
 
+function resolveNode(target: unknown): DataNode<any> {
+  if (target instanceof DataNode) return target
+  const n =
+    target !== null && (typeof target === 'object' || typeof target === 'function')
+      ? (target as any)[NODE]
+      : undefined
+  if (n instanceof DataNode) return n
+  throw new Error('data: wireSink() target must be a view — pass an api handle or a raw node')
+}
+
 export function ingest(
   target: IngestTarget,
   records: readonly IngestRecord[],
@@ -155,8 +165,9 @@ function applyWire(src: SourceNode<any>, r: WireRecord): void {
   switch (r.t) {
     case 'add':
       // Live key → whole-row update (LWW tolerance); missing key → add.
-      // SourceNode.write handles both at the single chokepoint.
-      src.write(r.k, [], r.v)
+      // SourceNode.write handles both at the single chokepoint. `at` (W1)
+      // carries the order position for array-born mid-inserts.
+      src.write(r.k, [], r.v, r.at)
       return
     case 'update':
       src.write(r.k, (r.path ?? []) as Path, r.v)
@@ -484,6 +495,88 @@ export function fromAsync<T>(
   // (the source node registered itself with the same scope in its ctor).
   currentScope()?.add({ dispose: () => handle.dispose() })
   return handle
+}
+
+// ── the wire egress (W1): CommitBatch → WireBatch, symmetric with ingest ─────
+//
+// The missing half of the native profile: ingest() consumed WireRecords from
+// day one, but nothing EMITTED them — a replicator had to hand-write the
+// CommitBatch translation against kernel internals. wireSink(node, out,
+// opts) is that translation as a stability-guaranteed export: one WireBatch
+// per commit, keyDomain-tagged (the envelope contract/index.ts promised),
+// with `emit → wire → ingest` round-tripping by construction:
+//
+//   add        → {t:'add', k, v, at?}   (at = order position, array-born)
+//   update     → {t:'update', k, v: row, prev, path}
+//   deleted    → {t:'remove', k, path, prev: leaf}  (clause 10a — a field
+//                deletion round-trips as a remove, never update-to-undefined)
+//   remove     → {t:'remove', k, prev}
+//   orderMove  → {t:'move', k, from, to}
+//
+// Values ride BY REFERENCE (shared-immutable, like sink()); origin declares
+// echo suppression; initial:false skips the opening snapshot batch (seq 0,
+// one add per row in order).
+
+export interface WireSinkOpts {
+  readonly origin?: OriginToken | null
+  readonly initial?: boolean
+}
+
+export function wireSink(
+  target: IngestTarget | { readonly [k: symbol]: unknown },
+  out: (batch: WireBatch) => void,
+  opts: WireSinkOpts = {},
+): SubscriptionHandle {
+  const node = resolveNode(target)
+  const keyDomain: WireBatch['keyDomain'] = node.currentOrder() !== null ? 'int' : 'string'
+  if (opts.initial !== false) {
+    const records: WireRecord[] = []
+    const order = node.currentOrder()
+    if (order !== null) {
+      const snap = node.snapshot()
+      for (let i = 0; i < order.length; i++) records.push({ t: 'add', k: order[i], v: snap.get(order[i]), at: i })
+    } else {
+      node.each((k, row) => records.push({ t: 'add', k, v: row }))
+    }
+    out({ keyDomain, seq: 0, records })
+  }
+  return node.connect({
+    wantsOrder: true,
+    origin: opts.origin ?? null,
+    apply(batch: CommitBatch<any>) {
+      const records: WireRecord[] = []
+      // Row deltas first; the order channel contributes positions for adds
+      // and standalone moves (removes are key-addressed — no index needed).
+      let addAt: Map<RowKey, number> | null = null
+      if (batch.order) {
+        for (const od of batch.order) {
+          if (od.op === 'orderInsert') (addAt ??= new Map()).set(od.key, od.index)
+        }
+      }
+      for (const d of batch.rows) {
+        if (d.op === 'add') {
+          const at = addAt?.get(d.key)
+          records.push(at !== undefined ? { t: 'add', k: d.key, v: d.row, at } : { t: 'add', k: d.key, v: d.row })
+        } else if (d.op === 'remove') {
+          records.push({ t: 'remove', k: d.key, prev: d.prev })
+        } else if (d.deleted === true && d.path.length > 0) {
+          records.push({ t: 'remove', k: d.key, path: d.path, prev: leafAt(d.prev, d.path) })
+        } else if (d.path.length > 0) {
+          // Field edit: v/prev are the LEAF at path — compact on the wire,
+          // symmetric with applyWire's leaf-at-path apply.
+          records.push({ t: 'update', k: d.key, v: leafAt(d.row, d.path), prev: leafAt(d.prev, d.path), path: d.path })
+        } else {
+          records.push({ t: 'update', k: d.key, v: d.row, prev: d.prev, path: d.path })
+        }
+      }
+      if (batch.order) {
+        for (const od of batch.order) {
+          if (od.op === 'orderMove') records.push({ t: 'move', k: od.key, from: od.from!, to: od.index })
+        }
+      }
+      if (records.length > 0) out({ keyDomain, seq: batch.seq, records })
+    },
+  })
 }
 
 // ── SourceBacking: the pluggable-source boundary (plan §3.6) ─────────────────

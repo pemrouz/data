@@ -45,8 +45,15 @@ export type RowKey = number | string
 export type Path = readonly (string | number)[]
 
 // Native profile (SCHEMA_VERSION 3): stable keys, prev, path, move-with-key.
+export interface WireBatch {
+  readonly keyDomain: 'int' | 'string'
+  readonly seq: number
+  readonly records: readonly WireRecord[]
+}
 export type WireRecord =
-  | { t: 'add'; k: RowKey; v: unknown }
+  // add.at = order position (array-born mid-inserts); update v/prev = the
+  // LEAF at path ([]/absent = whole row) — the W1-settled profile.
+  | { t: 'add'; k: RowKey; v: unknown; at?: number }
   | { t: 'update'; k: RowKey; v: unknown; prev?: unknown; path?: readonly (string | number)[] }
   | { t: 'remove'; k: RowKey; prev?: unknown; path?: readonly (string | number)[] } // path = nested FIELD deletion (clause 10a)
   | { t: 'move'; k: RowKey; from: number; to: number }
@@ -526,6 +533,16 @@ export declare function onCleanup(fn: () => void): void
 // ── the seam (async sources / backings / the contract manifest) ──────────────
 
 export type IngestRecord = WireRecord | ChangeRecordV2
+
+// W1: the native wire egress (module export) — one keyDomain-tagged
+// WireBatch per commit, values by reference, origin-capable; emit → wire →
+// ingest round-trips by construction (incl. clause-10a nested deletes and
+// array-born positions).
+export function wireSink(
+  target: object,
+  out: (batch: WireBatch) => void,
+  opts?: { readonly origin?: symbol | null; readonly initial?: boolean },
+): SubscriptionHandle
 
 export type AsyncStatus = 'pending' | 'ready' | 'error'
 

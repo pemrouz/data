@@ -42,7 +42,7 @@ export { onCleanup } from '../kernel/scope.ts'
 // exist here for that entry to forward — and classic/automatic interop shares
 // one module instance either way.
 export { jsx, jsxs, jsxDEV } from '../jsx/runtime.ts'
-export { fromAsync, exportContract, InMemoryBacking } from '../seam/index.ts'
+export { fromAsync, exportContract, InMemoryBacking, lane, HOT, wireSink } from '../seam/index.ts'
 // Devtools-support re-exports: dist/v3/devtools.js is emitted with every
 // cross-boundary import rewritten to './index.js' (the jsx-runtime
 // single-module-instance discipline — a duplicate kernel would break

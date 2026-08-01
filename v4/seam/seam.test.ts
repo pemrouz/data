@@ -24,7 +24,7 @@ import { connectRecords, materialize } from '../compat/v2-records.ts'
 import { RESERVED } from '../contract/index.ts'
 import type { ChangeRecordV2, WireRecord } from '../contract/index.ts'
 import type { CommitBatch, OriginToken, RowDelta, RowKey } from '../contract/delta.ts'
-import { ingest, lane, HOT, fromAsync, InMemoryBacking, exportContract } from './index.ts'
+import { ingest, lane, HOT, wireSink, fromAsync, InMemoryBacking, exportContract } from './index.ts'
 
 const same = assert.deepStrictEqual
 const ok = assert.ok
@@ -715,4 +715,69 @@ test('lane(): per-record isolation + fixed origin suppression; array-born target
   // Array-born sources are refused at lane construction, not per call.
   const arr = new SourceNode<any>(rt, [{ n: 1 }])
   assert.throws(() => lane(arr), /object-born/)
+})
+
+// ── W1: the native wire egress ───────────────────────────────────────────────
+
+test('W1 wireSink: emit → wire → ingest round-trips an object-born source incl. nested deletes', () => {
+  const rt = new Runtime()
+  const A = new SourceNode<any>(rt, { x: { n: 1, meta: { note: 7 } } })
+  const B = new SourceNode<any>(new Runtime(), {})
+  conform(A)
+  conform(B)
+  const batches: any[] = []
+  wireSink(A, (wb) => {
+    batches.push(wb)
+    ingest(B, wb.records)
+  })
+
+  same(batches.length, 1) // the initial snapshot batch
+  same(batches[0].keyDomain, 'string')
+  same(batches[0].seq, 0)
+  same([...B.snapshot()], [...A.snapshot()]) // seeded from initial
+
+  rt.batch(() => {
+    A.write('y', [], { n: 2 })
+    A.write('x', ['n'], 9)
+  })
+  A.remove('x', ['meta', 'note']) // clause 10a — must ride as remove+path, not update-to-undefined
+  A.remove('y')
+  same(JSON.stringify([...B.snapshot()]), JSON.stringify([...A.snapshot()]))
+  ok(!Object.hasOwn(B.snapshot().get('x').meta, 'note')) // the field is GONE on the replica
+  const deleteRec = batches.flatMap((b: any) => b.records).find((r: any) => r.t === 'remove' && r.path)
+  same(deleteRec.path, ['meta', 'note'])
+})
+
+test('W1 wireSink: array-born round-trip — minted int keys, mid-insert positions, moves', () => {
+  const rt = new Runtime()
+  const A = new SourceNode<{ v: number }>(rt, [{ v: 0 }, { v: 1 }, { v: 2 }])
+  const B = new SourceNode<{ v: number }>(new Runtime(), [])
+  conform(A)
+  const domains = new Set<string>()
+  wireSink(A, (wb) => {
+    domains.add(wb.keyDomain)
+    ingest(B, wb.records)
+  })
+
+  A.insert({ v: 9 }, 1) // mid-insert — `at` must ride the add record
+  A.move(0, 2)
+  A.remove(1)
+  same(domains, new Set(['int']))
+  same([...B.snapshot()], [...A.snapshot()]) // same minted keys — domain preserved
+  same(B.currentOrder(), A.currentOrder()) // same positions — at + move round-tripped
+})
+
+test('W1 wireSink: origin suppression + initial:false + empty-commit elision', () => {
+  const rt = new Runtime()
+  const A = new SourceNode<any>(rt, { x: { n: 1 } })
+  const mine = Symbol('me')
+  const batches: any[] = []
+  wireSink(A, (wb) => batches.push(wb), { origin: mine, initial: false })
+
+  same(batches.length, 0) // initial skipped
+  ingest(A, [{ t: 'update', k: 'x', path: ['n'], v: 5 }], { origin: mine })
+  same(batches.length, 0) // own echo suppressed at the kernel
+  A.write('x', ['n'], 6)
+  same(batches.length, 1)
+  same(batches[0].records[0], { t: 'update', k: 'x', v: 6, prev: 5, path: ['n'] }) // leaf-at-path (W1)
 })
