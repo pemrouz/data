@@ -15,8 +15,14 @@ export class FilterNode<T> extends DataNode<T> {
   declare pred: (row: T, key: RowKey) => boolean
   declare view: Map<RowKey, T> // materialized, updated at settle
 
-  constructor(runtime: Runtime, parent: DataNode<T>, pred: (row: T, key: RowKey) => boolean, name = 'filter') {
-    super(runtime, 'operator', name, [parent])
+  constructor(
+    runtime: Runtime,
+    parent: DataNode<T>,
+    pred: (row: T, key: RowKey) => boolean,
+    name = 'filter',
+    extraParents: readonly DataNode<any>[] = [], // W10: rescope deps ride as real parents
+  ) {
+    super(runtime, 'operator', name, [parent, ...extraParents])
     this.pred = pred
     this.view = new Map()
     parent.each((k, row) => { if (pred(row, k)) this.view.set(k, row) })
@@ -55,6 +61,11 @@ export class FilterNode<T> extends DataNode<T> {
     const input = this.in0
     if (input === null) return null
     const out: RowDelta<T>[] = []
+    this.applySrcBatch(input, out)
+    return out.length ? { seq, origin, rows: out, order: undefined, scalar: undefined } : null
+  }
+
+  protected applySrcBatch(input: CommitBatch<any>, out: RowDelta<T>[]): void {
     for (const d of input.rows as readonly RowDelta<T>[]) {
       switch (d.op) {
         case 'add':
@@ -86,8 +97,89 @@ export class FilterNode<T> extends DataNode<T> {
         }
       }
     }
+  }
+}
+
+// ── the re-scopable filter (W10) ─────────────────────────────────────────────
+//
+// filter(fn, dep): dep is a REAL second parent whose commits re-evaluate the
+// predicate over every source row — the answer to predicates over EXTERNAL
+// state (fero's owner-scoping: filter((_, k) => owner(k) === me) where owner
+// reads the ring; dep = the ring-epoch view). This EXTENDS the deliberate
+// function-slot exclusion in ops/reactive.ts rather than reversing it: "an
+// operator reacts only to args it explicitly subscribes to" — dep IS the
+// explicit subscription; the closure alone still never re-runs.
+//
+// Emission: source-only commits take FilterNode's per-delta path unchanged.
+// Any commit where dep fired takes ONE full-diff sweep (removals via
+// hasRow, membership/row changes via each) — a single pass emits ≤1 delta
+// per key by construction (clause 8), costs O(N) predicate calls, and emits
+// O(moved) deltas. That replaces v2/v3's only alternative — transient
+// teardown + rebuild of the whole chain (the ~2× setup-class cost fero paid
+// per ring rebind, times every downstream operator's reconstruction).
+
+export class RescopeFilterNode<T> extends FilterNode<T> {
+  constructor(runtime: Runtime, parent: DataNode<T>, pred: (row: T, key: RowKey) => boolean, dep: DataNode<any>) {
+    super(runtime, parent, pred, 'filter(rescope)', [dep])
+  }
+
+  settle(seq: number, origin: OriginToken): CommitBatch<T> | null {
+    // Identify which parents contributed this commit (src is parents[0]).
+    const src = this.parents[0]
+    let srcBatch: CommitBatch<any> | null = null
+    let depFired = false
+    if (this.in0 !== null) {
+      if (this.inFrom0 === src) srcBatch = this.in0
+      else depFired = true
+    }
+    if (this.inMore !== null) {
+      for (const m of this.inMore) {
+        if (m.from === src) srcBatch = m.batch
+        else depFired = true
+      }
+    }
+    const out: RowDelta<T>[] = []
+    if (!depFired) {
+      if (srcBatch === null) return null
+      this.applySrcBatch(srcBatch, out)
+      return out.length ? { seq, origin, rows: out, order: undefined, scalar: undefined } : null
+    }
+    // dep fired (possibly alongside a src batch): ONE full-diff sweep against
+    // the settled parent (height order guarantees it settled first), so a
+    // row touched by both inputs still yields exactly one delta.
+    for (const [k, old] of [...this.view]) {
+      if (!src.hasRow(k)) {
+        this.view.delete(k)
+        out.push({ op: 'remove', key: k, prev: old })
+      }
+    }
+    src.each((k, row) => {
+      const was = this.view.has(k)
+      const old = this.view.get(k)
+      const now = this.pred(row, k)
+      if (was && !now) {
+        this.view.delete(k)
+        out.push({ op: 'remove', key: k, prev: old as T })
+      } else if (!was && now) {
+        this.view.set(k, row)
+        out.push({ op: 'add', key: k, row })
+      } else if (was && now && !Object.is(old, row)) {
+        this.view.set(k, row)
+        out.push({ op: 'update', key: k, row, prev: old as T, path: [] })
+      }
+    })
     return out.length ? { seq, origin, rows: out, order: undefined, scalar: undefined } : null
   }
+}
+
+export function rescopeFilter<T>(
+  src: DataNode<T>,
+  pred: (row: T, key: RowKey) => boolean,
+  dep: DataNode<any>,
+): RescopeFilterNode<T> {
+  if (!(dep instanceof DataNode))
+    throw new Error('data: filter(fn, dep) — dep must be a view/scalar node or root handle (the explicit re-scope subscription)')
+  return new RescopeFilterNode(src.runtime, src, pred, dep)
 }
 
 // ── map ──────────────────────────────────────────────────────────────────────
@@ -198,7 +290,9 @@ export function compare<T>(src: DataNode<T>, op: CmpOp, col: string, threshold: 
 
 defineOperator({
   name: 'filter', kind: 'row', category: 'rowop', declarative: false,
-  create: (src, pred) => filter(src, pred),
+  // W10: filter(fn, dep) — dep (a node; root handles unwrap at the call
+  // seam) is the explicit re-scope subscription.
+  create: (src, pred, dep) => (dep === undefined ? filter(src, pred) : rescopeFilter(src, pred, dep)),
   dedupKey: () => null, // opaque closures never dedup
 })
 defineOperator({

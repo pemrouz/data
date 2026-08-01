@@ -22,7 +22,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W7 | P1 | Hot ingest lane (pre-declared profile, numeric type tags, lazy records) + replication corpus row + remove-floor statement | DONE — lane() + m3 gate (0.171× at frame-16) |
 | W8 | P1 | Alloc + sink-cost budgets, gated, joint methodology; onCommit zero-cost-unhooked clause | DONE — m4-budgets gate (5 sections) + push-time suppression |
 | W9 | P2 | Public each()/rowCount() + safe (COW/frozen-rows) snapshot | DONE — handle protocol + freeze opt |
-| W10 | P3 | Re-scopable filter(fn, dep) via the reactive binder | open |
+| W10 | P3 | Re-scopable filter(fn, dep) via the reactive binder | DONE — RescopeFilterNode (dep = second parent) |
 | W11 | P2 | Public promote()/adoption control | DONE — kernel + api + types |
 | W12 | P2 | some(col)/every(col) overloads | DONE — col form + dedup |
 | W13 | P3 | median/percentile/quantile | DONE — sorted-multiset QuantileNode, R-type-7 |

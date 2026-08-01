@@ -257,6 +257,9 @@ export interface CountBucket {
 export interface Ops<T> {
   // row ops (keyed output — no order channel)
   filter(pred: (row: RowOf<T>, key: RowKey) => unknown): ReadonlyData<KeyedOf<T>>
+  // W10: dep = the explicit re-scope subscription — its commits re-evaluate
+  // the predicate over every row (O(moved) deltas, no teardown/rebuild).
+  filter(pred: (row: RowOf<T>, key: RowKey) => unknown, dep: object): ReadonlyData<KeyedOf<T>>
   map<U>(fn: (row: RowOf<T>, key: RowKey) => U): ReadonlyData<Record<string, U>>
   gt<C extends ColOf<T>>(col: C, threshold: Reactive<ColVal<T, C>>): ReadonlyData<KeyedOf<T>>
   lt<C extends ColOf<T>>(col: C, threshold: Reactive<ColVal<T, C>>): ReadonlyData<KeyedOf<T>>
