@@ -24,7 +24,7 @@ import { connectRecords, materialize } from '../compat/v2-records.ts'
 import { RESERVED } from '../contract/index.ts'
 import type { ChangeRecordV2, WireRecord } from '../contract/index.ts'
 import type { CommitBatch, OriginToken, RowDelta, RowKey } from '../contract/delta.ts'
-import { ingest, fromAsync, InMemoryBacking, exportContract } from './index.ts'
+import { ingest, lane, HOT, fromAsync, InMemoryBacking, exportContract } from './index.ts'
 
 const same = assert.deepStrictEqual
 const ok = assert.ok
@@ -624,4 +624,95 @@ test('W3 fuzz: 300-step seeded stream — duplicates absorb; cross-key interleav
   const report = ingest(D, shuffled, { onReject: () => rejected++ })
   same(report.applied + report.rejected, stream.length)
   same(report.rejected, rejected)
+})
+
+// ── W7a: the hot ingest lane ─────────────────────────────────────────────────
+
+test('lane(): fero Rec shapes apply verbatim — numeric types, path keys, at-keyed root insert, one batch', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { a: { n: 1, meta: { note: 0 } } })
+  conform(src)
+  const batches = captureBatches(src)
+  const apply = lane(src)
+
+  const report = apply([
+    { type: HOT.update, key: ['a', 'n'], value: 2 }, // deep field write
+    { type: HOT.insert, key: [], value: { n: 9 }, at: 'b' }, // BI0: minted key rides `at`
+    { type: HOT.insert, key: ['c'], value: { n: 3 } }, // key[0] root insert
+    { type: HOT.update, key: ['b'], value: { n: 10 } }, // whole-row update
+    { type: HOT.remove, key: ['a', 'meta', 'note'] }, // nested FIELD deletion (clause 10a)
+    { type: HOT.remove, key: ['ghost'] }, // idempotent no-op
+  ])
+  same(report, { applied: 6, rejected: 0 })
+  same(batches.length, 1) // ONE commit for the frame-run
+  same(src.snapshot().get('a'), { n: 2, meta: {} })
+  same(src.snapshot().get('b'), { n: 10 })
+  same(src.snapshot().get('c'), { n: 3 })
+
+  // redelivery of the whole frame: adds absorb as updates, removes no-op —
+  // the at-least-once property, zero throws
+  const again = apply([
+    { type: HOT.insert, key: [], value: { n: 9 }, at: 'b' },
+    { type: HOT.remove, key: ['ghost'] },
+  ])
+  same(again.rejected, 0)
+  same(src.snapshot().get('b'), { n: 9 }) // LWW: redelivered add overwrote as update
+})
+
+test('lane(): getter-backed lazy records — value read EXACTLY once, installed by reference', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, {})
+  const apply = lane(src)
+
+  const row = { n: 1 }
+  let valueReads = 0
+  let keyReads = 0
+  const rec = {
+    type: HOT.insert,
+    get key() {
+      keyReads++
+      return ['k'] as const
+    },
+    get value() {
+      valueReads++
+      return row
+    },
+  }
+  apply([rec as any])
+  same(valueReads, 1) // the lazy-decode contract: one forced read, at state-install
+  ok(keyReads >= 1)
+  ok(src.snapshot().get('k') === row) // BY REFERENCE — no reshape, no clone
+})
+
+test('lane(): per-record isolation + fixed origin suppression; array-born targets refused', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, {})
+  const mine = Symbol('me')
+  const mineBatches: any[] = []
+  const otherBatches: any[] = []
+  src.connect({ wantsOrder: false, origin: mine, apply: (b: any) => mineBatches.push(b) })
+  src.connect({ wantsOrder: false, origin: null, apply: (b: any) => otherBatches.push(b) })
+
+  // Default (no onReject): loud AggregateError AFTER the siblings committed.
+  const loud = lane(src, { origin: mine })
+  assert.throws(
+    () =>
+      loud([
+        { type: HOT.insert, key: ['a'], value: { n: 1 } },
+        { type: HOT.update, key: ['ghost', 'deep'], value: 9 }, // poison: deep write to dead key
+        { type: HOT.insert, key: ['b'], value: { n: 2 } },
+      ]),
+    (e: unknown) => e instanceof AggregateError && /rejected 1 of 3/.test((e as Error).message),
+  )
+  same(src.snapshot().size, 2) // siblings committed
+  same(mineBatches.length, 0) // the lane's fixed origin suppressed our own sink
+  same(otherBatches.length, 1) // one frame-run = one commit, others see it
+
+  // onReject consumes; report accounts for every record.
+  const soft = lane(src, { origin: mine, onReject: () => {} })
+  same(soft([{ type: HOT.update, key: ['ghost', 'deep'], value: 9 }]), { applied: 0, rejected: 1 })
+
+  // Array-born sources are refused at lane construction, not per call.
+  const arr = new SourceNode<any>(rt, [{ n: 1 }])
+  assert.throws(() => lane(arr), /object-born/)
 })

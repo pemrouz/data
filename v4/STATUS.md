@@ -19,7 +19,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 11 tests, one per clause |
 | W5 | P3 | Backing-mounted sources ($(backing)) | open |
 | W6 | P3 | Pre-commit veto — doc-only under fero §4.1 | open |
-| W7 | P1 | Hot ingest lane (pre-declared profile, numeric type tags, lazy records) + replication corpus row + remove-floor statement | open |
+| W7 | P1 | Hot ingest lane (pre-declared profile, numeric type tags, lazy records) + replication corpus row + remove-floor statement | DONE — lane() + m3 gate (0.171× at frame-16) |
 | W8 | P1 | Alloc + sink-cost budgets, gated, joint methodology; onCommit zero-cost-unhooked clause | open |
 | W9 | P2 | Public each()/rowCount() + safe (COW/frozen-rows) snapshot | open |
 | W10 | P3 | Re-scopable filter(fn, dep) via the reactive binder | open |

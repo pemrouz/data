@@ -256,6 +256,104 @@ function applyV2WholeValue(src: SourceNode<any>, value: unknown): void {
   for (const k of Object.keys(next)) src.write(k, [], next[k])
 }
 
+// ── the hot ingest lane (W7a): fero's frame-run shape, zero reshape ──────────
+//
+// ingest() sniffs the wire profile per record and routes v2 records through
+// order resolution — correct for the general boundary, waste for a
+// replication hot path whose frames are HOMOGENEOUS and pre-validated.
+// lane(target, opts) pre-resolves everything resolvable (source, origin,
+// profile) and returns a closure that applies one frame-run per call:
+//
+//   - records are fero's native Rec shape VERBATIM — numeric type tags
+//     (HOT.update/insert/remove = fero kernel REC's 0/1/2), key as a PATH
+//     ([rowKey, ...fieldPath]) — so a decoded frame is handed over with ZERO
+//     per-record reshape and no profile detection;
+//   - getter-backed lazy records work by construction: the lane reads
+//     `type` (dispatch), `key` (routing), and `value`/`at` exactly once
+//     each, and the value installs BY REFERENCE — a relayed record's value
+//     bytes are never forced beyond state-install;
+//   - one batch() commit per call (a frame-run is one consistent cut);
+//   - the same clause-10 tolerances and per-record isolation as ingest():
+//     add-vs-update resolves at the write chokepoint, removes are idempotent
+//     everywhere, a poison record rejects alone.
+//
+// Object-born (keyed) sources only — fero's resources are keyed; array-born
+// positional frames go through ingest()'s v2 profile.
+
+export const HOT = { update: 0, insert: 1, remove: 2 } as const // ≡ fero kernel/env.ts REC
+
+export interface HotRecord {
+  readonly type: number // HOT.*
+  readonly key: readonly (string | number)[] // PATH: [rowKey, ...fieldPath]
+  readonly value?: unknown
+  readonly at?: string | number // root-insert minted key (v2 BI0 / fero partitionOf)
+}
+
+export type HotLane = (records: readonly HotRecord[]) => IngestReport
+
+const EMPTY_PATH: Path = Object.freeze([]) as unknown as Path
+
+function applyHot(src: SourceNode<any>, r: HotRecord): void {
+  const k = r.key
+  if (r.type === HOT.update) {
+    if (k.length === 0)
+      throw new Error('data: lane() whole-source update (key []) — apply a keyed record or use ingest()')
+    src.write(k[0], k.length === 1 ? EMPTY_PATH : (k.slice(1) as Path), r.value)
+    return
+  }
+  if (r.type === HOT.remove) {
+    if (k.length === 0) throw new Error('data: lane() remove with empty key')
+    src.remove(k[0], k.length > 1 ? (k.slice(1) as Path) : undefined)
+    return
+  }
+  if (r.type === HOT.insert) {
+    // Root insert: the minted key rides `at` when key is [] (v2's BI0 shape,
+    // fero's partitionOf contract) or key[0] directly. Upsert at the write
+    // chokepoint (LWW redelivery tolerance). Deeper insert paths are not a
+    // lane shape (nested arrays are opaque leaf VALUES — write the array).
+    if (k.length > 1) throw new Error('data: lane() nested insert — write the containing array/object instead')
+    const key = k.length === 1 ? k[0] : r.at
+    if (key === undefined || key === null || key === '')
+      throw new Error('data: lane() root insert without a key (key [] and no at)')
+    src.write(key as RowKey, EMPTY_PATH, r.value)
+    return
+  }
+  throw new Error(`data: lane() unknown record type ${r.type}`)
+}
+
+export function lane(target: IngestTarget, opts: IngestOpts = {}): HotLane {
+  const src = resolveSource(target)
+  if (src.ordered)
+    throw new Error('data: lane() serves object-born (keyed) sources — positional frames go through ingest()')
+  const origin = opts.origin
+  const onReject = opts.onReject
+  return (records: readonly HotRecord[]): IngestReport => {
+    let applied = 0
+    let rejects: IngestReject[] | null = null
+    const run = () => {
+      for (let i = 0; i < records.length; i++) {
+        try {
+          applyHot(src, records[i])
+          applied++
+        } catch (e) {
+          ;(rejects ??= []).push({ index: i, record: records[i] as unknown as IngestRecord, error: e })
+        }
+      }
+    }
+    if (origin) src.runtime.withOrigin(origin, () => src.runtime.batch(run))
+    else src.runtime.batch(run)
+    if (rejects !== null) {
+      if (onReject) for (const rj of rejects) onReject(rj)
+      else
+        throw new AggregateError(
+          rejects.map((rj) => rj.error),
+          `data: lane() rejected ${rejects.length} of ${records.length} record(s) — the rest committed; pass opts.onReject to consume rejects without throwing`,
+        )
+    }
+    return { applied, rejected: rejects?.length ?? 0 }
+  }
+}
+
 // ── fromAsync: async / streaming sources ─────────────────────────────────────
 //
 // A source that starts empty and fills as data arrives. Each drain is ONE
