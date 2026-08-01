@@ -340,3 +340,32 @@ test('W11: promote() pre-pays adoption — idempotent, state/emission identical,
   a.get('0').remove()
   same((a as any)[value].length, 1)
 })
+
+test('W9: each()/rowCount() — no-copy reads on root views; guarded elsewhere', () => {
+  const d = $({ a: { n: 1 }, b: { n: 2 } } as any)
+  const seen: any[] = []
+  d.each((k: any, row: any) => seen.push([k, row.n]))
+  same(seen, [['a', 1], ['b', 2]])
+  same(d.rowCount(), 2)
+  const f = d.filter((r: any) => r.n > 1)
+  same(f.rowCount(), 1)
+  assert.throws(() => d.get('a').each(() => {}), /child path/)
+  assert.throws(() => (d.sum('n') as any).each(() => {}), /collection views/)
+})
+
+test('W9: snapshot({freeze:true}) — deep-frozen safe hand-out; writers unaffected', () => {
+  'use strict'
+  const d = $({ a: { n: 1, nested: { deep: 1 } } } as any)
+  const safe: any = d.snapshot({ freeze: true })
+  ok(Object.isFrozen(safe))
+  ok(Object.isFrozen(safe.a))
+  ok(Object.isFrozen(safe.a.nested))
+  assert.throws(() => {
+    safe.a.nested.deep = 999
+  }, TypeError) // deep mutation is LOUD, not silent store corruption
+  same((d as any)[value].a.nested.deep, 1)
+  d.get('a').get('n').update(2) // path-copy writes mint fresh objects — unaffected
+  same((d as any)[value].a.n, 2)
+  const plain: any = d.snapshot()
+  ok(!Object.isFrozen(plain)) // the default container stays plain
+})

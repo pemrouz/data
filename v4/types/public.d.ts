@@ -186,8 +186,8 @@ export interface Scalar<out V> extends View<V> {
   connect(records: ChangeRecordV2[], opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
-  sink(s: NativeSink): SubscriptionHandle
-  promote(): void // W11: pre-pay the container-adoption spike (seed-then-serve boots)
+  // NB deliberately ABSENT (runtime throws on scalars): sink() / each() /
+  // rowCount() / promote() — collection-view surface only (W2/W9/W11).
   dispose(): void
 }
 
@@ -324,6 +324,10 @@ interface ReadCore<T> {
   connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
   sink(s: NativeSink): SubscriptionHandle
+  promote(): void // W11: pre-pay the container-adoption spike (seed-then-serve boots)
+  each(fn: (key: RowKey, row: RowOf<T>) => void): void // W9: no-copy one-pass read
+  rowCount(): number // W9: live count, no snapshot
+  snapshot(opts?: { freeze?: boolean }): unknown // W9 freeze: deep-frozen rows — safe hand-out, no clone
   dispose(): void
   mirror(): Mirror<T>
   [Symbol.iterator](): IterableIterator<RowOf<T>>

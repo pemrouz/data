@@ -148,6 +148,18 @@ function coerceKey(state: HandleState, name: string): RowKey {
 
 const EMPTY_PATH: Path = Object.freeze([]) as unknown as Path
 
+// W9: once-per-object deep freeze (cycle-safe; WeakSet cache added BEFORE
+// recursion). Rows are immutable post-write by the path-copy law, so a
+// frozen row stays valid forever.
+const frozenSeen = new WeakSet<object>()
+function deepFreeze<T>(v: T): T {
+  if (v === null || typeof v !== 'object') return v
+  if (frozenSeen.has(v as object)) return v
+  frozenSeen.add(v as object)
+  for (const k of Object.keys(v as object)) deepFreeze((v as any)[k])
+  return Object.freeze(v)
+}
+
 function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; sub: Path } {
   if (state.source === null || state.path.length === 0)
     throw new Error(
@@ -169,7 +181,7 @@ function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; s
 
 const BUILTIN = new Set([
   'get', 'snapshot', 'update', 'set', 'insert', 'remove', 'patch', 'connect',
-  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest', 'sink', 'promote',
+  'dispose', 'mirror', 'raf', 'first', 'last', 'ingest', 'sink', 'promote', 'each', 'rowCount',
 ])
 
 function doUpdate(state: HandleState, v: unknown): void {
@@ -184,7 +196,21 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
     case 'get':
       return (k: string | number) => childHandle(state, String(k))
     case 'snapshot':
-      return () => readAt(state)
+      // W9: snapshot({freeze: true}) hands out a SAFE value — the container
+      // is fresh per call (as always) and every row is DEEP-FROZEN, so "give
+      // the caller a value" stops costing a structuredClone of the resource.
+      // Safe by the path-copy law: the kernel never mutates a row in place
+      // (writes mint fresh objects along the written path and only READ
+      // off-path subtrees), so freezing a store-held row can never break a
+      // later write. Freeze is once-per-row (WeakSet-cached) — rows are
+      // immutable post-write, so the cache never staleness-lies. Honest
+      // consequence: those row OBJECTS stay frozen for every later reader
+      // (they were never legally mutable — the freeze turns silent
+      // corruption into a loud strict-mode throw).
+      return (opts?: { freeze?: boolean }) => {
+        const v = readAt(state)
+        return opts?.freeze === true ? deepFreeze(v) : v
+      }
     case 'update':
       return (v: unknown) => doUpdate(state, v)
     case 'set':
@@ -295,6 +321,23 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
         if (!(state.node instanceof SourceNode) || state.path.length > 0)
           throw new Error('data: ingest() applies to a source root')
         return seamIngest(state.node, records as any, opts as any)
+      }
+    case 'each':
+      // W9: the NO-COPY read protocol on the public handle — one-pass row
+      // visitation without materializing a snapshot container (~5× the
+      // copy-then-iterate cost at 10k rows; kernel node.each). Root views
+      // only; contract: do NOT mutate the view inside fn.
+      return (fn: (key: RowKey, row: unknown) => void) => {
+        if (state.path.length > 0) throw new Error('data: each() applies to a view, not a child path')
+        if (state.node.kind === 'scalar') throw new Error('data: each() applies to collection views — read a scalar via [value]')
+        state.node.each(fn)
+      }
+    case 'rowCount':
+      // W9: live row count without a snapshot — O(1) on stores/materialized views.
+      return () => {
+        if (state.path.length > 0) throw new Error('data: rowCount() applies to a view, not a child path')
+        if (state.node.kind === 'scalar') throw new Error('data: rowCount() applies to collection views')
+        return state.node.rowCount()
       }
     case 'promote':
       // W11: pre-pay the adoption spike at boot (seed-then-serve flows).
