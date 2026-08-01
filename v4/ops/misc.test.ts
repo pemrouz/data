@@ -763,3 +763,23 @@ test('distinct: non-projection updates and occupied-bucket admits stay silent; r
   same(ops.get('east'), 'remove')
   same(ops.get('west'), 'add')
 })
+
+test('W12: some(col)/every(col) — the column overload, ≡ the predicate form, dedups by column', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { a: { active: true, n: 1 }, b: { active: false, n: 2 } })
+  const s = some(src, 'active')
+  const e = every(src, 'active')
+  conformScalar(s as any)
+  conformScalar(e as any)
+  same((s as any).value(), true)
+  same((e as any).value(), false)
+  src.write('b', ['active'], true)
+  same((e as any).value(), true)
+  src.remove('a')
+  src.remove('b')
+  same((s as any).value(), false) // empty set: Array.prototype semantics
+  same((e as any).value(), true) // vacuous truth
+  same(registry.get('some')!.dedupKey!('active'), 'some:active')
+  same(registry.get('every')!.dedupKey!(() => 1), null)
+  assert.throws(() => some(src, 5 as any), /predicate fn or a column name/)
+})

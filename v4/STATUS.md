@@ -24,7 +24,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W9 | P2 | Public each()/rowCount() + safe (COW/frozen-rows) snapshot | open |
 | W10 | P3 | Re-scopable filter(fn, dep) via the reactive binder | open |
 | W11 | P2 | Public promote()/adoption control | open |
-| W12 | P2 | some(col)/every(col) overloads | open |
+| W12 | P2 | some(col)/every(col) overloads | DONE — col form + dedup |
 | W13 | P3 | median/percentile/quantile | open |
 | W14 | P3 | Per-path connect() / deep-scalar emission | open |
 | W15 | P3 | Value-domain portability clauses + NUL-key conformance | open |

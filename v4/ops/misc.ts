@@ -772,11 +772,25 @@ export function max<T>(src: DataNode<T>, col?: string): MaxNode<T> {
 export function min<T>(src: DataNode<T>, col?: string): MinNode<T> {
   return new MinNode(src.runtime, src, col)
 }
-export function some<T>(src: DataNode<T>, fn: (row: T) => unknown): SomeNode<T> {
-  return new SomeNode(src.runtime, src, fn)
+// W12: the COLUMN overload — some('active') ≡ some(r => !!r.active). v2
+// accepted a column for sum/max/min/avg/filter but not some/every, and
+// fero's R=∞ facade crashed live on exactly that asymmetry ("fn is not a
+// function", fero DECISIONS Q2). A string arg is declarative (dedups by
+// column; a closure never dedups).
+function colPred<T>(fnOrCol: ((row: T) => unknown) | string): (row: T) => unknown {
+  if (typeof fnOrCol === 'string') {
+    const col = fnOrCol
+    return (r: any) => (r == null ? undefined : r[col])
+  }
+  if (typeof fnOrCol !== 'function')
+    throw new Error(`data: some()/every() take a predicate fn or a column name, got ${typeof fnOrCol}`)
+  return fnOrCol
 }
-export function every<T>(src: DataNode<T>, fn: (row: T) => unknown): EveryNode<T> {
-  return new EveryNode(src.runtime, src, fn)
+export function some<T>(src: DataNode<T>, fn: ((row: T) => unknown) | string): SomeNode<T> {
+  return new SomeNode(src.runtime, src, colPred(fn))
+}
+export function every<T>(src: DataNode<T>, fn: ((row: T) => unknown) | string): EveryNode<T> {
+  return new EveryNode(src.runtime, src, colPred(fn))
 }
 // Dispatch mirrors v2: a function-valued second arg selects the 3-arg
 // incremental form (add, remove, init); otherwise (fn, init) general fold.
@@ -823,12 +837,12 @@ defineOperator({
 defineOperator({
   name: 'some', kind: 'aggregate', category: 'aggregate-decomposable', declarative: false,
   create: (src, fn) => some(src, fn),
-  dedupKey: () => null,
+  dedupKey: (fn) => (typeof fn === 'string' ? `some:${fn}` : null), // W12: col form dedups
 })
 defineOperator({
   name: 'every', kind: 'aggregate', category: 'aggregate-decomposable', declarative: false,
   create: (src, fn) => every(src, fn),
-  dedupKey: () => null,
+  dedupKey: (fn) => (typeof fn === 'string' ? `every:${fn}` : null), // W12: col form dedups
 })
 defineOperator({
   name: 'reduce', kind: 'aggregate', category: 'holistic', declarative: false,
