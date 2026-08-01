@@ -8,6 +8,15 @@ import type { RowKey } from './delta.ts'
 
 export const SCHEMA_VERSION = 3 as const
 
+// The timing/consistency contract version (contract/SCHEDULE.md). Exported at
+// runtime so a layered consumer (fero) can assert the contract it was built
+// against BEFORE trusting the executable suite's coverage: the suite
+// (conformance/schedule.test.ts, one test per numbered clause) rides both
+// repos' CIs, and any clause change bumps this constant — an unnoticed bump
+// fails the consumer's pin loudly instead of shipping a silent timing change
+// (the c870bde lost-write class).
+export const SCHEDULE_VERSION = 1 as const
+
 // ── Wire profiles ────────────────────────────────────────────────────────────
 // Native profile (SCHEMA_VERSION 3): stable keys, prev, path, move-with-key.
 // Keys serialize domain-tagged: {k: 5} (minted int) vs {k: "5"} (adopted

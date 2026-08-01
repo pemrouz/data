@@ -1,8 +1,10 @@
-# SCHEDULE.md — the v3 timing & consistency contract (SCHEDULE_VERSION 1)
+# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 1)
 
 This document is versioned and contract-tested (cross-repo: data CI and fero CI both run the
-executable tests in `v3/conformance/schedule.test.ts` against data HEAD). It is the answer to
-fero plan-v3 §10 M0 item 4. Changes to any numbered clause bump SCHEDULE_VERSION.
+executable tests in [../conformance/schedule.test.ts](../conformance/schedule.test.ts) against
+data HEAD — one test per numbered clause; W4 of fero's DESIGN-DATA3 wishlist). SCHEDULE_VERSION
+is exported at runtime from [../contract/index.ts](index.ts) so consumers can pin it. It is the
+answer to fero plan-v3 §10 M0 item 4. Changes to any numbered clause bump SCHEDULE_VERSION.
 
 ## The model
 
