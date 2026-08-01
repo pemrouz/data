@@ -1,0 +1,694 @@
+// v3/ops/ordered.test.ts — the ORDERED view family under the conformance kit.
+// Every collection node is wrapped with conform() (legality + replay on every
+// commit); state is additionally asserted against a naive plain-JS oracle.
+
+import { test } from 'node:test'
+import assert from 'node:assert'
+import { Runtime } from '../kernel/runtime.ts'
+import { SourceNode, DataNode } from '../kernel/node.ts'
+import { filter } from './rowops.ts'
+import { az, za, top, limit, reverse, OrderIndex } from './ordered.ts'
+import { conform, assertOracle } from '../conformance/harness.ts'
+import type { CommitBatch, RowKey } from '../contract/delta.ts'
+
+const same = assert.deepStrictEqual
+
+type Row = { val: number | null | undefined; nested?: { deep: number }; other?: string }
+type FRow = { g: string; val: number; meta: { x: number } }
+
+function collect<T>(node: DataNode<T>): CommitBatch<T>[] {
+  const batches: CommitBatch<T>[] = []
+  node.connect({ wantsOrder: true, origin: null, apply: (b: CommitBatch<T>) => batches.push(b) })
+  return batches
+}
+
+// ── OrderIndex ────────────────────────────────────────────────────────────────
+
+test('OrderIndex: bisect insertion; rank lookup IS a bisect (no eager rank map)', () => {
+  const vals = new Map<RowKey, number>([['a', 30], ['b', 10], ['c', 20], ['d', 40]])
+  const idx = new OrderIndex((x, y) => vals.get(x)! - vals.get(y)!)
+  idx.build(['a', 'b', 'c', 'd'])
+  same(idx.keys, ['b', 'c', 'a', 'd'])
+  const checkRanks = () => {
+    for (let i = 0; i < idx.keys.length; i++) same(idx.rankOf(idx.keys[i]), i)
+  }
+  checkRanks()
+  vals.set('e', 25)
+  same(idx.insert('e'), 2)
+  same(idx.keys, ['b', 'c', 'e', 'a', 'd'])
+  checkRanks()
+  same(idx.remove('b'), 0)
+  same(idx.keys, ['c', 'e', 'a', 'd'])
+  checkRanks()
+  same(idx.rankOf('a'), 2)
+  same(idx.rankOf('b'), -1)
+  same(idx.remove('b'), -1) // absent key is a no-op
+  checkRanks()
+})
+
+test('OrderIndex.reconcile: one filter+merge pass ≡ per-key splices', () => {
+  const vals = new Map<RowKey, number>()
+  const keys: RowKey[] = []
+  for (let i = 0; i < 500; i++) {
+    const k = `k${i}`
+    vals.set(k, (i * 7919) % 1000) // deterministic scatter with collisions
+    keys.push(k)
+  }
+  const cmp = (x: RowKey, y: RowKey) => {
+    const c = vals.get(x)! - vals.get(y)!
+    return c !== 0 ? c : String(x) < String(y) ? -1 : 1 // strict total order
+  }
+  const a = new OrderIndex(cmp)
+  const b = new OrderIndex(cmp)
+  a.build(keys)
+  b.build(keys)
+
+  // remove every 3rd key; insert 100 fresh keys landing across the range
+  const removed = new Set<RowKey>()
+  for (let i = 0; i < 500; i += 3) removed.add(`k${i}`)
+  const inserts: RowKey[] = []
+  for (let i = 0; i < 100; i++) {
+    const k = `n${i}`
+    vals.set(k, (i * 613) % 1000)
+    inserts.push(k)
+  }
+
+  for (const k of removed) a.remove(k)
+  for (const k of inserts) a.insert(k)
+  b.reconcile(removed, inserts.slice())
+  same(b.keys, a.keys) // identical membership AND order
+  same(b.rankOf('n0'), a.rankOf('n0'))
+})
+
+// ── az / za, object-born ─────────────────────────────────────────────────────
+
+test('az(col) object-born: rank changes, rank-preserving updates, add/remove; conformant', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { val: 30 }, b: { val: 10 }, c: { val: 20 } })
+  conform(src)
+  const v = az(src, 'val')
+  conform(v)
+  const batches = collect(v)
+  same([...v.currentOrder()], ['b', 'c', 'a'])
+
+  src.write('b', ['val'], 40) // rank change: b → last
+  same([...v.currentOrder()], ['c', 'a', 'b'])
+
+  src.write('c', ['val'], 21) // NO rank change: forwarded update, no order delta
+  same([...v.currentOrder()], ['c', 'a', 'b'])
+  const b1 = batches[batches.length - 1]
+  same(b1.rows.length, 1)
+  same(b1.rows[0].op, 'update')
+  same(b1.order, undefined)
+
+  src.write('d', [], { val: 5 }) // add: bisects to rank 0
+  same([...v.currentOrder()], ['d', 'c', 'a', 'b'])
+  src.remove('a')
+  same([...v.currentOrder()], ['d', 'c', 'b'])
+  same([...v.snapshot().keys()], ['d', 'c', 'b']) // snapshot iterates in rank order
+  same(v.snapshot().get('c'), { val: 21 })
+})
+
+test('unbounded za: in-window rank rotation emits ONE orderMove + the forwarded update', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { val: 50 }, b: { val: 40 }, c: { val: 30 } })
+  const v = za(src, 'val')
+  conform(v)
+  const batches = collect(v)
+  same([...v.currentOrder()], ['a', 'b', 'c'])
+
+  src.write('b', ['val'], 60) // b rotates 1 → 0
+  same([...v.currentOrder()], ['b', 'a', 'c'])
+  const b = batches[batches.length - 1]
+  same(b.rows.length, 1)
+  same(b.rows[0].op, 'update')
+  same(b.rows[0].key, 'b')
+  same(b.order, [{ op: 'orderMove', key: 'b', index: 0, from: 1 }])
+})
+
+// ── az / za, array-born ──────────────────────────────────────────────────────
+
+test('az(col) array-born: minted keys, mid-insert, update, remove; conformant', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, [{ val: 10 }, { val: 30 }, { val: 20 }]) // keys 0,1,2
+  conform(src)
+  const v = az(src, 'val')
+  conform(v)
+  same([...v.currentOrder()], [0, 2, 1])
+
+  const k = src.insert({ val: 15 }, 1) // mid-insert in SOURCE order; sort ranks by value
+  same(k, 3)
+  same([...v.currentOrder()], [0, 3, 2, 1])
+
+  src.write(2, ['val'], 5)
+  same([...v.currentOrder()], [2, 0, 3, 1])
+  src.remove(0)
+  same([...v.currentOrder()], [2, 3, 1])
+})
+
+// ── bounded windows ──────────────────────────────────────────────────────────
+
+test('bounded za(col, 3): boundary rotation both directions — one remove + one add per rotation, coherent order', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    a: { val: 50 }, b: { val: 40 }, c: { val: 30 }, d: { val: 20 }, e: { val: 10 },
+  })
+  conform(src)
+  const v = za(src, 'val', 3)
+  conform(v)
+  const batches = collect(v)
+  same([...v.currentOrder()], ['a', 'b', 'c'])
+  same(v.snapshot().size, 3)
+
+  // out → in: d crosses the boundary upward, evicting c
+  src.write('d', ['val'], 45)
+  same([...v.currentOrder()], ['a', 'd', 'b'])
+  let b = batches[batches.length - 1]
+  const byOp1 = new Map(b.rows.map((r) => [r.op, r]))
+  same(b.rows.length, 2)
+  assert.ok(byOp1.get('remove')!.key === 'c')
+  same((byOp1.get('remove') as any).prev, { val: 30 }) // prev = the row as THIS view last had it
+  assert.ok(byOp1.get('add')!.key === 'd')
+  same((byOp1.get('add') as any).row, { val: 45 })
+
+  // in → out: d drops back below the boundary, c re-enters
+  src.write('d', ['val'], 5)
+  same([...v.currentOrder()], ['a', 'b', 'c'])
+  b = batches[batches.length - 1]
+  const byOp2 = new Map(b.rows.map((r) => [r.op, r]))
+  same(b.rows.length, 2)
+  assert.ok(byOp2.get('remove')!.key === 'd')
+  same((byOp2.get('remove') as any).prev, { val: 45 }) // pre-batch row, not the new one
+  assert.ok(byOp2.get('add')!.key === 'c')
+
+  // in-window row leaves by its own update: prev = its pre-batch row
+  src.write('a', ['val'], 1)
+  same([...v.currentOrder()], ['b', 'c', 'e'])
+  b = batches[batches.length - 1]
+  const rem = b.rows.find((r) => r.op === 'remove')!
+  same(rem.key, 'a')
+  same((rem as any).prev, { val: 50 })
+
+  // removing a windowed row refills from the next rank
+  src.remove('b')
+  same([...v.currentOrder()], ['c', 'e', 'd'])
+})
+
+test('bounded window grows while underfilled, then caps at n', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { val: 2 }, b: { val: 1 } })
+  const v = za(src, 'val', 3)
+  conform(v)
+  same([...v.currentOrder()], ['a', 'b'])
+  src.write('c', [], { val: 3 })
+  same([...v.currentOrder()], ['c', 'a', 'b'])
+  src.write('d', [], { val: 4 }) // window full: d enters, b evicted
+  same([...v.currentOrder()], ['d', 'c', 'a'])
+  same(v.snapshot().size, 3)
+})
+
+// ── top / limit ──────────────────────────────────────────────────────────────
+
+test('top(n): descending over the row value itself, array-born; conformant', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<number>(rt, [5, 9, 1, 7]) // keys 0..3
+  conform(src)
+  const t = top(src, 3)
+  conform(t)
+  same([...t.currentOrder()], [1, 3, 0]) // 9, 7, 5
+  src.insert(8) // key 4
+  same([...t.currentOrder()], [1, 4, 3]) // 9, 8, 7
+  src.write(0, [], 10) // 5 → 10: enters at the top
+  same([...t.currentOrder()], [0, 1, 4])
+  src.remove(1)
+  same([...t.currentOrder()], [0, 4, 3])
+  same([...t.snapshot().values()], [10, 8, 7])
+})
+
+test('limit(n) object-born: first n keys in source key-insertion order, deterministic; re-added key moves to the end', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    a: { val: 1 }, b: { val: 2 }, c: { val: 3 }, d: { val: 4 },
+  })
+  conform(src)
+  const l = limit(src, 2)
+  conform(l)
+  same([...l.currentOrder()], ['a', 'b'])
+
+  src.remove('a') // refill from the next insertion-order key
+  same([...l.currentOrder()], ['b', 'c'])
+  src.write('e', [], { val: 5 }) // window full: no change
+  same([...l.currentOrder()], ['b', 'c'])
+  src.write('b', ['val'], 99) // update inside the window: content only, no order change
+  same([...l.currentOrder()], ['b', 'c'])
+  same(l.snapshot().get('b'), { val: 99 })
+  src.remove('b')
+  same([...l.currentOrder()], ['c', 'd'])
+  src.remove('c')
+  same([...l.currentOrder()], ['d', 'e'])
+  src.write('a', [], { val: 6 }) // re-added: arrives anew, i.e. at the END
+  same([...l.currentOrder()], ['d', 'e'])
+  src.remove('d')
+  same([...l.currentOrder()], ['e', 'a'])
+})
+
+// ── determinism rules ────────────────────────────────────────────────────────
+
+test('ties break by key insertion order, stable under value churn (re-ranked update keeps its tie)', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { val: 1 }, b: { val: 1 }, c: { val: 1 } })
+  const v = az(src, 'val')
+  conform(v)
+  same([...v.currentOrder()], ['a', 'b', 'c']) // insertion order
+
+  src.write('b', ['val'], 0)
+  same([...v.currentOrder()], ['b', 'a', 'c'])
+  src.write('b', ['val'], 1) // back into the tie: b keeps its ORIGINAL tie seq
+  same([...v.currentOrder()], ['a', 'b', 'c'])
+  src.write('d', [], { val: 1 }) // a new tied key sorts after all existing ties
+  same([...v.currentOrder()], ['a', 'b', 'c', 'd'])
+})
+
+test('undefined / null / NaN sort keys order LAST in BOTH directions (tie: insertion order)', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    a: { val: undefined }, b: { val: 2 }, c: { val: null }, d: { val: 1 },
+  })
+  const asc = az(src, 'val')
+  const desc = za(src, 'val')
+  conform(asc)
+  conform(desc)
+  same([...asc.currentOrder()], ['d', 'b', 'a', 'c'])
+  same([...desc.currentOrder()], ['b', 'd', 'a', 'c'])
+
+  src.write('a', ['val'], 0) // a becomes sortable
+  same([...asc.currentOrder()], ['a', 'd', 'b', 'c'])
+  same([...desc.currentOrder()], ['b', 'd', 'a', 'c'])
+
+  src.write('d', ['val'], NaN) // d joins the bad set — after c (insertion order among bads)
+  same([...asc.currentOrder()], ['a', 'b', 'c', 'd'])
+  same([...desc.currentOrder()], ['b', 'a', 'c', 'd'])
+})
+
+// ── nested paths + batch() writes ────────────────────────────────────────────
+
+test('nested path update off the sort column: forwarded with its path, no order delta', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    a: { val: 1, nested: { deep: 1 } }, b: { val: 2, nested: { deep: 2 } },
+  })
+  const v = az(src, 'val')
+  conform(v)
+  const batches = collect(v)
+  src.write('a', ['nested', 'deep'], 9)
+  const b = batches[batches.length - 1]
+  same(b.rows.length, 1)
+  const d = b.rows[0]
+  assert.ok(d.op === 'update')
+  same(d.path, ['nested', 'deep'])
+  same((d.row as Row).nested!.deep, 9)
+  same((d.prev as Row).nested!.deep, 1)
+  same(b.order, undefined)
+})
+
+test('batch(): consolidated multi-key commit (rank moves + add + remove + nested) settles in one legal batch', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {
+    a: { val: 10, nested: { deep: 1 } },
+    b: { val: 20, nested: { deep: 2 } },
+    c: { val: 30, nested: { deep: 3 } },
+  })
+  conform(src)
+  const v = az(src, 'val')
+  conform(v)
+  const batches = collect(v)
+
+  rt.batch(() => {
+    src.write('a', ['val'], 100) // rank move a → last
+    src.write('x', [], { val: 5 }) // add → rank 0
+    src.remove('b')
+    src.write('c', ['nested', 'deep'], 7) // nested, non-sort-column
+    // mid-batch derived reads are consistent (flush-on-read, pure recompute)
+    same([...v.currentOrder()], ['x', 'c', 'a'])
+    same(v.snapshot().get('a'), { val: 100, nested: { deep: 1 } })
+  })
+  same([...v.currentOrder()], ['x', 'c', 'a'])
+  same(batches.length, 1) // ONE consolidated batch
+  same(new Set(batches[0].rows.map((d) => d.key)), new Set(['a', 'x', 'b', 'c']))
+  same(v.snapshot().get('c')!.nested!.deep, 7)
+
+  // batch-sound reindex: several sort-column writes in ONE batch (the v2
+  // _batchUpdate trap — pair-by-pair bisects against stale ranks mis-order)
+  rt.batch(() => {
+    src.write('a', ['val'], 1)
+    src.write('c', ['val'], 2)
+    src.write('x', ['val'], 3)
+  })
+  same([...v.currentOrder()], ['a', 'c', 'x'])
+})
+
+// ── composition: filter → windowed sort ──────────────────────────────────────
+
+test('chain filter → za(col, n): membership flips rotate the window honestly', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<FRow>(rt, {
+    a: { g: 'in', val: 50, meta: { x: 0 } },
+    b: { g: 'in', val: 40, meta: { x: 0 } },
+    c: { g: 'in', val: 30, meta: { x: 0 } },
+    d: { g: 'out', val: 45, meta: { x: 0 } },
+    e: { g: 'in', val: 20, meta: { x: 0 } },
+  })
+  conform(src)
+  const north = filter(src, (r) => r.g === 'in')
+  conform(north)
+  const v = za(north, 'val', 3)
+  conform(v)
+  same([...v.currentOrder()], ['a', 'b', 'c'])
+
+  src.write('d', ['g'], 'in') // enters the filter → enters the window, evicts c
+  same([...v.currentOrder()], ['a', 'd', 'b'])
+  src.write('b', ['g'], 'out') // leaves the filter → window refills from c
+  same([...v.currentOrder()], ['a', 'd', 'c'])
+  src.write('c', ['val'], 60) // in-window rank rotation
+  same([...v.currentOrder()], ['c', 'a', 'd'])
+  src.remove('a') // removed upstream → refill from e
+  same([...v.currentOrder()], ['c', 'd', 'e'])
+  src.write('e', ['meta', 'x'], 5) // nested non-sort edit on a windowed row
+  same(v.snapshot().get('e')!.meta.x, 5)
+  same([...v.currentOrder()], ['c', 'd', 'e'])
+})
+
+// ── seeded pseudo-random churn (LCG — no Math.random) ────────────────────────
+
+function lcg(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0
+    return s / 4294967296
+  }
+}
+
+test('LCG churn, object-born: filter → za(val, 8), 400 steps, oracle + conform at every step', () => {
+  const rt = new Runtime()
+  const rnd = lcg(42)
+  let ctr = 0
+  const mkVal = () => Math.floor(rnd() * 1000) + ++ctr / 1e6 // unique, interior placements
+  const mkRow = (): FRow => ({ g: rnd() < 0.5 ? 'in' : 'out', val: mkVal(), meta: { x: 0 } })
+
+  const seed: Record<string, FRow> = {}
+  const live: string[] = []
+  let nk = 0
+  for (let i = 0; i < 20; i++) {
+    const k = `k${nk++}`
+    seed[k] = mkRow()
+    live.push(k)
+  }
+  const src = new SourceNode<FRow>(rt, seed)
+  const north = filter(src, (r) => r.g === 'in')
+  const v = za(north, 'val', 8)
+  conform(src)
+  conform(north)
+  conform(v)
+
+  const pick = () => live[Math.floor(rnd() * live.length)]
+  // `flipped` guards a KERNEL consolidation gap, not an ordered-view one: two
+  // g-flips on the same key inside one batch() consolidate update+update into
+  // an update whose ['g'] leaf is unchanged — a phantom update emitted by the
+  // SourceNode itself (fails source legality before our node is even reached).
+  const doOne = (c: number, flipped?: Set<string>) => {
+    if (live.length === 0) c = 0
+    switch (c) {
+      case 0: { // add
+        const k = `k${nk++}`
+        src.write(k, [], mkRow())
+        live.push(k)
+        break
+      }
+      case 1: { // remove
+        const i = Math.floor(rnd() * live.length)
+        src.remove(live[i])
+        live.splice(i, 1)
+        break
+      }
+      case 2: // sort-column write
+        src.write(pick(), ['val'], mkVal())
+        break
+      case 3: { // filter-membership flip
+        const k = pick()
+        if (flipped !== undefined) {
+          if (flipped.has(k)) break // avoid the same-leaf self-cancel within one batch
+          flipped.add(k)
+        }
+        src.write(k, ['g'], src.get(k)!.g === 'in' ? 'out' : 'in')
+        break
+      }
+      case 4: // nested non-sort write
+        src.write(pick(), ['meta', 'x'], ++ctr)
+        break
+    }
+  }
+
+  const oracle = (): [string, FRow][] => {
+    const ent = [...src.snapshot()].filter(([, r]) => r.g === 'in') as [string, FRow][]
+    ent.sort((x, y) => y[1].val - x[1].val)
+    return ent.slice(0, 8)
+  }
+
+  for (let step = 0; step < 400; step++) {
+    const c = Math.floor(rnd() * 6)
+    if (c === 5) {
+      const m = 2 + Math.floor(rnd() * 4)
+      const flipped = new Set<string>()
+      rt.batch(() => {
+        for (let j = 0; j < m; j++) doOne(Math.floor(rnd() * 5), flipped)
+      })
+    } else {
+      doOne(c)
+    }
+    const exp = oracle()
+    same([...v.currentOrder()], exp.map(([k]) => k), `order @ step ${step}`)
+    assertOracle(v, () => new Map(exp), `oracle @ step ${step}`)
+  }
+})
+
+test('LCG churn, array-born: filter → za(val, 6), 300 steps incl. mid-inserts, oracle + conform at every step', () => {
+  const rt = new Runtime()
+  const rnd = lcg(1337)
+  let ctr = 0
+  const mkVal = () => Math.floor(rnd() * 500) + ++ctr / 1e6
+  const mkRow = (): FRow => ({ g: rnd() < 0.5 ? 'in' : 'out', val: mkVal(), meta: { x: 0 } })
+
+  const seedArr: FRow[] = []
+  for (let i = 0; i < 15; i++) seedArr.push(mkRow())
+  const src = new SourceNode<FRow>(rt, seedArr)
+  const live: RowKey[] = [...src.snapshot().keys()]
+  const north = filter(src, (r) => r.g === 'in')
+  const v = za(north, 'val', 6)
+  conform(src)
+  conform(north)
+  conform(v)
+
+  const pick = () => live[Math.floor(rnd() * live.length)]
+  const doOne = (c: number, flipped?: Set<RowKey>) => {
+    if (live.length === 0) c = 0
+    switch (c) {
+      case 0: { // insert, sometimes mid-array (order channel churn upstream)
+        const at = rnd() < 0.5 ? Math.floor(rnd() * (live.length + 1)) : undefined
+        live.push(src.insert(mkRow(), at))
+        break
+      }
+      case 1: { // remove
+        const i = Math.floor(rnd() * live.length)
+        src.remove(live[i])
+        live.splice(i, 1)
+        break
+      }
+      case 2:
+        src.write(pick(), ['val'], mkVal())
+        break
+      case 3: { // see the object-born churn: no double-flip per batch (kernel gap)
+        const k = pick()
+        if (flipped !== undefined) {
+          if (flipped.has(k)) break
+          flipped.add(k)
+        }
+        src.write(k, ['g'], src.get(k)!.g === 'in' ? 'out' : 'in')
+        break
+      }
+      case 4:
+        src.write(pick(), ['meta', 'x'], ++ctr)
+        break
+    }
+  }
+
+  const oracle = (): [RowKey, FRow][] => {
+    const ent = [...src.snapshot()].filter(([, r]) => r.g === 'in')
+    ent.sort((x, y) => y[1].val - x[1].val)
+    return ent.slice(0, 6)
+  }
+
+  for (let step = 0; step < 300; step++) {
+    const c = Math.floor(rnd() * 6)
+    if (c === 5) {
+      const m = 2 + Math.floor(rnd() * 3)
+      const flipped = new Set<RowKey>()
+      rt.batch(() => {
+        for (let j = 0; j < m; j++) doOne(Math.floor(rnd() * 5), flipped)
+      })
+    } else {
+      doOne(c)
+    }
+    const exp = oracle()
+    same([...v.currentOrder()], exp.map(([k]) => k), `order @ step ${step}`)
+    assertOracle(v, () => new Map(exp), `oracle @ step ${step}`)
+  }
+})
+
+test("az/za fail fast on v2's numeric top-K form and junk 'by' args", () => {
+  // za(5) died LATE pre-guard: a bare "by is not a function" at the first
+  // two-row comparison — and silently NOTHING over 0/1-row sources.
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, {})
+  assert.throws(() => za(src, 5 as any), /use top\(n\)/)
+  assert.throws(() => az(src, 3 as any), /use top\(n\)/)
+  assert.throws(() => za(src, {} as any), /column name or comparator/)
+  src.write('a', [], { val: 1 }) // runtime unharmed
+})
+
+// ── reverse (STATUS gap 5: the reserved name gains its implementation) ───────
+//
+// v3 reverse = the identity view in REVERSED ARRIVAL ORDER (newest first):
+// an append surfaces at index 0; removes drop out in place; updates keep
+// rank (all-ties comparator — only the tie direction differs from limit).
+// Positional mid-array reversal dissolved with the keyed model.
+test('reverse: newest-first order over object- and array-born sources; conform + churn', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ v: number }>(rt, { a: { v: 1 }, b: { v: 2 }, c: { v: 3 } })
+  const r = reverse(src)
+  conform(r)
+  same([...r.currentOrder()!], ['c', 'b', 'a'])
+
+  const batches: CommitBatch<{ v: number }>[] = []
+  r.connect({ wantsOrder: true, origin: null, apply: (b) => batches.push(b) })
+
+  // append surfaces at the FRONT
+  src.write('d', [], { v: 4 })
+  same([...r.currentOrder()!], ['d', 'c', 'b', 'a'])
+  same(batches[0].order, [{ op: 'orderInsert', key: 'd', index: 0 }])
+
+  // remove drops out in place
+  src.remove('b')
+  same([...r.currentOrder()!], ['d', 'c', 'a'])
+
+  // update keeps rank (all-ties), forwards the row delta
+  batches.length = 0
+  src.write('c', ['v'], 30)
+  same([...r.currentOrder()!], ['d', 'c', 'a'])
+  same(batches[0].rows[0].op, 'update')
+  same(batches[0].order, undefined)
+
+  // remove + re-add: arrival order is a property of the ADD — re-added key
+  // is the newest, so it moves to the front (matches the parent Map's own
+  // key-insertion semantics under delete + re-set)
+  src.remove('a')
+  src.write('a', [], { v: 10 })
+  same([...r.currentOrder()!], ['a', 'd', 'c'])
+
+  // dedup: value-identity — the same view comes back
+  same(rt === r.runtime, true)
+
+  // seeded churn vs oracle: reversed key-insertion order at every step
+  const rt2 = new Runtime()
+  const s2 = new SourceNode<{ v: number }>(rt2, {})
+  const r2 = reverse(s2)
+  conform(r2)
+  const arrival: string[] = [] // live keys in arrival order
+  const rnd = lcg(77)
+  for (let step = 0; step < 300; step++) {
+    const roll = rnd()
+    if (roll < 0.5 || arrival.length === 0) {
+      const k = `k${step}`
+      s2.write(k, [], { v: step })
+      arrival.push(k)
+    } else if (roll < 0.75) {
+      const k = arrival[Math.floor(rnd() * arrival.length)]
+      s2.write(k, ['v'], step + 1000)
+    } else {
+      const i = Math.floor(rnd() * arrival.length)
+      s2.remove(arrival[i])
+      arrival.splice(i, 1)
+    }
+    same([...r2.currentOrder()!], [...arrival].reverse(), `order @ step ${step}`)
+    assertOracle(r2, () => new Map(arrival.map((k) => [k, s2.get(k)!])), `rows @ step ${step}`)
+  }
+
+  // array-born: minted integer keys, appends land at the front
+  const rt3 = new Runtime()
+  const s3 = new SourceNode<number>(rt3, [10, 20, 30])
+  const r3 = reverse(s3)
+  conform(r3)
+  same([...r3.currentOrder()!], [2, 1, 0])
+  s3.insert(40)
+  same([...r3.currentOrder()!], [3, 2, 1, 0])
+})
+
+test('M6 P5: one batch mixing update+remove+insert across the window boundary — prev-overlay correctness', () => {
+  // The comparator now reads the PARENT through the delta-sized prev-overlay
+  // (no local row cache). A single commit that simultaneously re-ranks an
+  // in-window row (update), removes another (remove), and admits a third
+  // (insert) exercises every overlay window: removal bisects must see
+  // ranked-under (OLD) rows while the settled parent already holds new ones;
+  // insert bisects must see NEW rows after the overlay clears.
+  const rt = new Runtime()
+  const src: Record<string, { score: number }> = {}
+  for (let i = 0; i < 20; i++) src['k' + i] = { score: i * 10 } // k19=190 … k0=0
+  const s = new SourceNode<{ score: number }>(rt, src)
+  const top = za(s, 'score', 5) // window: k19,k18,k17,k16,k15
+  conform(s)
+  conform(top)
+  const oracle = () => {
+    const rows = [...s.snapshot().entries()].sort((a, b) => b[1].score - a[1].score).slice(0, 5)
+    return new Map(rows)
+  }
+  same([...top.currentOrder()], ['k19', 'k18', 'k17', 'k16', 'k15'])
+
+  rt.batch(() => {
+    s.write('k17', ['score'], 5) // in-window re-rank OUT (170 → 5)
+    s.remove('k18') // in-window remove
+    s.write('n1', [], { score: 185 }) // new row straight into the window
+  })
+  same(top.snapshot(), oracle())
+  same([...top.currentOrder()], ['k19', 'n1', 'k16', 'k15', 'k14'])
+
+  // And the reverse direction in one commit: pull an evicted row back while
+  // evicting the newcomer past the boundary.
+  rt.batch(() => {
+    s.write('k17', ['score'], 200) // back in, at the TOP
+    s.write('n1', ['score'], 1) // out past the boundary
+  })
+  same(top.snapshot(), oracle())
+  same([...top.currentOrder()], ['k17', 'k19', 'k16', 'k15', 'k14'])
+
+  // Seeded mixed churn to shake the overlay across sizes (crossing the >32
+  // reconcile threshold with patch-shaped batches).
+  const lcg = (seed: number) => {
+    let st = seed >>> 0
+    return () => ((st = (Math.imul(st, 1664525) + 1013904223) >>> 0), st / 4294967296)
+  }
+  const rnd = lcg(5150)
+  let id = 100
+  for (let step = 0; step < 60; step++) {
+    rt.batch(() => {
+      const n = 1 + ((rnd() * 40) | 0) // batches from 1 to ~40 deltas
+      for (let i = 0; i < n; i++) {
+        const r = rnd()
+        const keys = [...s.store.keys()]
+        const k = keys[(rnd() * keys.length) | 0]
+        if (r < 0.5) s.write(k, ['score'], (rnd() * 250) | 0)
+        else if (r < 0.75) s.write('m' + id++, [], { score: (rnd() * 250) | 0 })
+        else if (keys.length > 6) s.remove(k)
+      }
+    })
+    same(top.snapshot(), oracle(), `window oracle @ step ${step}`)
+  }
+})

@@ -1,0 +1,19 @@
+{
+  // The v3 CLASSIC-transform JSX gate: `npx tsc -p v3/types/tsconfig.jsx.json`
+  // compiles check.tsx (positives + @ts-expect-error negatives) against the
+  // GLOBAL JSX namespace (../jsx/jsx.d.ts → the shared ../jsx/intrinsics.ts)
+  // and the declaration facades (jsx-surface.ts), inheriting the base gate's
+  // discipline (strict, noEmit, noCheck:false, NodeNext,
+  // allowImportingTsExtensions — jsx.d.ts imports './intrinsics.ts'). A
+  // SEPARATE program from the base gate on purpose: jsx.d.ts declares a
+  // global JSX namespace that must only enter programs that opt in (its
+  // scope warning — it can never share a program with v2's /jsx/jsx.d.ts),
+  // and the base gate's explicit include stays JSX-free.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment"
+  },
+  "include": ["check.tsx", "jsx-surface.ts", "../jsx/jsx.d.ts"]
+}
