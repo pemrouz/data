@@ -250,11 +250,23 @@ export class Runtime {
       if (effects.length === 0) continue
       const batch = emitB[i]
       fx.length = 0
-      for (let ei = 0; ei < effects.length; ei++) fx.push(effects[ei])
-      for (let ei = 0; ei < fx.length; ei++) {
-        const entry = fx[ei]
+      // Filter AT PUSH time (W8/B4): dead, born-this-commit, and
+      // origin-suppressed entries never enter the snapshot — a fully
+      // suppressed fan-out (a replication peer applying its own origin with
+      // N subscribers) costs N identity compares and ZERO pushes, the
+      // clause-6 "one compare per sink" promise made literal. These three
+      // predicates are immutable for the duration of the batch; only `dead`
+      // can change mid-phase (an effect disposing a sibling), so it alone is
+      // re-checked in the run loop below.
+      for (let ei = 0; ei < effects.length; ei++) {
+        const entry = effects[ei]
         if (entry.dead === true || entry.bornSeq === seq) continue
         if (entry.origin !== null && entry.origin === batch.origin) continue // echo suppression
+        fx.push(entry)
+      }
+      for (let ei = 0; ei < fx.length; ei++) {
+        const entry = fx[ei]
+        if (entry.dead === true) continue // tombstoned by an earlier effect this phase
         try {
           entry.apply(batch)
         } catch (e) {

@@ -141,7 +141,7 @@
     "bench:wasm": "npm run bench:wasm:build && npm run bench:wasm:kernels",
     "test:v4": "node --experimental-strip-types --no-warnings --test v4/**/*.test.ts",
     "typecheck:v4": "tsc -p v4/types && tsc -p v4/types/tsconfig.jsx.json && tsc -p v4/types/tsconfig.auto.json && tsc -p v4/types/tsconfig.public.json",
-    "perf:v4": "node --experimental-strip-types --no-warnings v4/perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc v4/perf/m2-gate.ts && node --experimental-strip-types --no-warnings v4/perf/m3-replication.ts"
+    "perf:v4": "node --experimental-strip-types --no-warnings v4/perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc v4/perf/m2-gate.ts && node --experimental-strip-types --no-warnings v4/perf/m3-replication.ts && node --experimental-strip-types --no-warnings --expose-gc v4/perf/m4-budgets.ts"
   },
   "author": "pemrouz",
   "devDependencies": {
