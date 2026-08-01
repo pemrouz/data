@@ -36,7 +36,7 @@ function capture<T>(node: any, origin: symbol | null = null): CommitBatch<T>[] {
 
 //! SCHEDULE_VERSION — the constant this suite executes; a clause change without a bump fails here.
 test('SCHEDULE_VERSION is exported at runtime and matches this suite', () => {
-  same(SCHEDULE_VERSION, 2) // v2: clause 10, the deep-path law (W3)
+  same(SCHEDULE_VERSION, 3) // v2: clause 10 deep-path law (W3); v3: clause 11 value domain (W15)
 })
 
 //! Clause 1 — a bare write is a SYNCHRONOUS batch of one; central Object.is no-op drop.
@@ -380,4 +380,31 @@ test('clause 9: coalescing changes commit COUNT, never semantics — default sta
   same(co.status(), 'ready')
   same(coBatches.length, 1) // opted in: one merged commit...
   same(co.source.rowCount(), sync.source.rowCount()) // ...identical final state — sugar, not semantics
+})
+
+//! Clause 11 — the value-domain portability table: NUL keys, first-class NaN/undefined, by-ref immutability.
+test('clause 11: NUL/unicode keys are total; undefined/NaN are first-class; by-ref values are shared-immutable', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, {})
+  conform(src)
+
+  // NUL and friends in KEYS — no separator assumption may leak (the v2 \x00 bug class).
+  const evil = ['\x00', 'a\x00b', '\x00\x00', 'ключ🔑', 'a.b[c]']
+  for (const k of evil) src.write(k, [], { n: k.length })
+  for (const k of evil) ok(src.hasRow(k), `key ${JSON.stringify(k)} lost`)
+  src.remove('a\x00b')
+  ok(!src.hasRow('a\x00b') && src.hasRow('\x00')) // no over-matching via separators
+
+  // undefined and NaN as first-class VALUES (dense — the row exists).
+  src.write('u', [], undefined)
+  ok(src.hasRow('u') && src.rowAt('u') === undefined)
+  src.write('nan', [], { x: NaN })
+  ok(Number.isNaN((src.rowAt('nan') as any).x)) // in-engine NaN survives (wire codecs own their fate)
+
+  // By-ref surfaces share the SAME reference (the shared-immutable contract).
+  const row = { deep: { v: 1 } }
+  let seen: any
+  src.connect({ wantsOrder: false, origin: null, apply: (b: any) => (seen = b.rows[0]?.row) })
+  src.write('r', [], row)
+  ok(seen === row)
 })

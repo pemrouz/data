@@ -18,7 +18,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W3 | P1 | Deep-path law: (a) nested-field remove IMPL; (b) absent-remove no-op SPEC-PIN; (c) vivify-under-null/scalar SPEC-PIN; (d) per-record ingest isolation IMPL | DONE — SCHEDULE clause 10, VERSION 2 |
 | W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 11 tests, one per clause |
 | W5 | P3 | Backing-mounted sources ($(backing)) | open |
-| W6 | P3 | Pre-commit veto — doc-only under fero §4.1 | open |
+| W6 | P3 | Pre-commit veto — doc-only under fero §4.1 | DONE (doc): fero owns the write trap (DESIGN-DATA3 §4.1) — every fero-side validation/auth bounce happens BEFORE data sees the write; no data-side veto hook needed. Returns as a real ask only if fero abandons §4.1. |
 | W7 | P1 | Hot ingest lane (pre-declared profile, numeric type tags, lazy records) + replication corpus row + remove-floor statement | DONE — lane() + m3 gate (0.171× at frame-16) |
 | W8 | P1 | Alloc + sink-cost budgets, gated, joint methodology; onCommit zero-cost-unhooked clause | DONE — m4-budgets gate (5 sections) + push-time suppression |
 | W9 | P2 | Public each()/rowCount() + safe (COW/frozen-rows) snapshot | DONE — handle protocol + freeze opt |
@@ -27,8 +27,8 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W12 | P2 | some(col)/every(col) overloads | DONE — col form + dedup |
 | W13 | P3 | median/percentile/quantile | open |
 | W14 | P3 | Per-path connect() / deep-scalar emission | open |
-| W15 | P3 | Value-domain portability clauses + NUL-key conformance | open |
-| W16 | P3 | Cancel "Phase 0.5 on v2" (docs) | open |
+| W15 | P3 | Value-domain portability clauses + NUL-key conformance | DONE — SCHEDULE clause 11 (VERSION 3) + conformance |
+| W16 | P3 | Cancel "Phase 0.5 on v2" (docs) | DONE: the v2-side additive ingress (v3/STATUS.md:438 'fero Phase 0.5 items remain undone') is FORMALLY CANCELLED — fero migrates straight onto v4; nobody builds the v2-side apply()/clone:false/TIMING.md items. |
 | W17 | P3 | fero-facing tracking artifact (this file IS it — keep current) | done (this file) |
 
 ## Baseline

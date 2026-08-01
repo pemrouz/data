@@ -65,3 +65,19 @@ superset of v2's per-write settle, never a replacement.
       rejects are collected and surfaced AFTER the flush — as one `AggregateError` by default,
       or per-record via `opts.onReject` (which suppresses the throw). The pre-v4 failure mode
       (prefix commits, suffix silently lost, error propagates) is outlawed.
+11. **The value-domain portability table (W15 — what a replicating codec must preserve).**
+    Row values are arbitrary JS values with these law-bearing points:
+    - `undefined` and `null` are FIRST-CLASS row/leaf values (dense snapshots; absence = key
+      absence — except at the deep-write layer, where leaf absence ≡ `undefined`, clause 10c).
+    - `NaN`/`Infinity` are first-class numbers in-engine. A JSON-based wire mangles nested
+      ones to `null` — a codec claiming this profile must preserve them (CBOR/binary) or
+      document the v2-JSON degradation it inherits.
+    - Binary values (TypedArray/ArrayBuffer) are opaque leaf values in-engine; JSON does not
+      round-trip them. A replicating codec must either preserve them or reject loudly at
+      ingress — never silently reshape (`{type:'Buffer',data:[…]}` is the outlawed shape).
+    - Row KEYS are arbitrary unicode strings (object-born) or minted ints (array-born).
+      NUL (`\x00`) and every other codepoint are legal in string keys — no separator
+      assumption may leak into key handling (the inherited v2 `\x00`-separator bug class);
+      pinned by a conformance case.
+    - Reference semantics: by-ref surfaces (sink(), clone:false, lane()) share IMMUTABLE
+      references — the path-copy law is what makes that sound.

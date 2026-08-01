@@ -17,7 +17,8 @@ export const SCHEMA_VERSION = 3 as const
 // (the c870bde lost-write class).
 // v2: clause 10 (the deep-path law: nested-field removal, absent-path
 // idempotence, vivify-under-null/scalar, per-record ingest isolation — W3).
-export const SCHEDULE_VERSION = 2 as const
+// v3: clause 11 (the value-domain portability table — W15).
+export const SCHEDULE_VERSION = 3 as const
 
 // ── Wire profiles ────────────────────────────────────────────────────────────
 // Native profile (SCHEMA_VERSION 3): stable keys, prev, path, move-with-key.
