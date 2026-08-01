@@ -369,3 +369,51 @@ test('W9: snapshot({freeze:true}) — deep-frozen safe hand-out; writers unaffec
   const plain: any = d.snapshot()
   ok(!Object.isFrozen(plain)) // the default container stays plain
 })
+
+// ── W14: per-path connect ────────────────────────────────────────────────────
+
+test('W14: depth-1 connect — partition-scoped records, relative keys, other rows invisible', () => {
+  const d = $({ p1: { a: 1, deep: { x: 1 } }, p2: { b: 2 } } as any)
+  const recs: any[] = []
+  const h = d.get('p1').connect(recs)
+  same(recs, [{ type: 'update', key: [], value: { a: 1, deep: { x: 1 } } }]) // initial, subtree-rooted
+
+  d.get('p2').get('b').update(3) // a SIBLING partition — invisible
+  same(recs.length, 1)
+  d.get('p1').get('a').update(5) // field edit → relative key ['a']
+  same(recs[1], { type: 'update', key: ['a'], value: 5 })
+  d.get('p1').get('deep').get('x').remove() // nested delete → relative remove
+  same(recs[2], { type: 'remove', key: ['deep', 'x'], value: 1 })
+  d.set('p1', { a: 9 }) // whole-row replace from ABOVE → subtree root update
+  same(recs[3], { type: 'update', key: [], value: { a: 9 } })
+  d.get('p1').remove() // row removal → root remove with prev
+  same(recs[4], { type: 'remove', key: [], value: { a: 9 } })
+  h.dispose()
+  d.set('p1', { back: 1 })
+  same(recs.length, 5) // disposed — silent
+})
+
+test('W14: deep-scalar mode — leaf-scoped subscription sees only its leaf; opts respected', () => {
+  const d = $({ cfg: { limits: { rate: 10, burst: 5 } } } as any)
+  const mine = Symbol('me')
+  const leaf: any[] = []
+  d.get('cfg').get('limits').get('rate').connect({}, (r: any) => leaf.push(r), { initial: false, origin: mine })
+
+  d.get('cfg').get('limits').get('burst').update(6) // sibling leaf — invisible
+  same(leaf.length, 0)
+  d.get('cfg').get('limits').get('rate').update(20) // our leaf
+  same(leaf[0], { type: 'update', key: [], value: 20 })
+  d.set('cfg', { limits: { rate: 30 } }) // ancestor replace → leaf diff
+  same(leaf[1], { type: 'update', key: [], value: 30 })
+  d.set('cfg', { limits: {} }) // leaf vanished via ancestor → remove
+  same(leaf[2], { type: 'remove', key: [], value: 30 })
+  d.ingest([{ t: 'update', k: 'cfg', path: ['limits', 'rate'], v: 99 }], { origin: mine })
+  same(leaf.length, 3) // own origin suppressed on the scoped subscription too
+
+  // connect(obj, prop) mirrors the leaf
+  const box: any = {}
+  d.get('cfg').get('limits').get('rate').connect(box, 'rate')
+  same(box.rate, 99)
+  d.get('cfg').get('limits').get('rate').update(100)
+  same(box.rate, 100)
+})

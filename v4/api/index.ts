@@ -161,6 +161,64 @@ function deepFreeze<T>(v: T): T {
   return Object.freeze(v)
 }
 
+// W14: the subtree-scoped record subscription. Subscribes the ROOT source
+// and projects only the deltas touching state.path, re-keyed RELATIVE to the
+// subtree: an edit at/below it emits its relative path; a write ABOVE it
+// (ancestor replace, whole-row update, row add) diffs the subtree leaf and
+// emits a root-relative update — or a remove when the leaf vanished (at the
+// leaf layer absence ≡ undefined, clause 10c). Row-level removes emit
+// {type:'remove', key:[]}. opts: origin (kernel suppression), clone
+// (default v2-parity true), initial (default true: one opening
+// {key:[], value: current} record).
+function connectPath(
+  state: HandleState,
+  out: (r: ChangeRecordV2) => void,
+  opts: V2SinkOpts,
+): SubscriptionHandle {
+  const src = state.source!
+  const key = state.path[0] as RowKey
+  const rest = state.path.slice(1)
+  const clone = opts.clone === false ? <V>(v: V) => v : <V>(v: V) => (v === undefined ? v : (structuredClone(v) as V))
+  if (opts.initial !== false) out({ type: 'update', key: [], value: clone(readAt(state)) })
+  return src.connect({
+    wantsOrder: false,
+    origin: opts.origin ?? null,
+    apply(batch) {
+      for (const d of batch.rows) {
+        if (d.key !== key) continue
+        if (d.op === 'remove') {
+          const prevLeaf = leafAt(d.prev, rest)
+          if (rest.length === 0 || prevLeaf !== undefined)
+            out({ type: 'remove', key: [], value: clone(prevLeaf) })
+          continue
+        }
+        if (d.op === 'add') {
+          const leaf = leafAt(d.row, rest)
+          out({ type: 'update', key: [], value: clone(leaf) })
+          continue
+        }
+        // update: relate d.path to our subtree path (rest)
+        const p = d.path
+        let i = 0
+        while (i < p.length && i < rest.length && String(p[i]) === String(rest[i])) i++
+        if (i === rest.length) {
+          // edit AT or BELOW the subtree — relative key path
+          const rel = p.slice(rest.length).map(String)
+          if (d.deleted === true) out({ type: 'remove', key: rel, value: clone(leafAt(d.prev, p)) })
+          else out({ type: 'update', key: rel, value: clone(leafAt(d.row, p)) })
+        } else if (i === p.length) {
+          // write ABOVE the subtree (incl. whole-row path []) — diff our leaf
+          const oldLeaf = leafAt(d.prev, rest)
+          const newLeaf = leafAt(d.row, rest)
+          if (Object.is(oldLeaf, newLeaf)) continue
+          if (newLeaf === undefined) out({ type: 'remove', key: [], value: clone(oldLeaf) })
+          else out({ type: 'update', key: [], value: clone(newLeaf) })
+        } // else: disjoint sibling path — not ours
+      }
+    },
+  })
+}
+
 function writeTarget(state: HandleState): { src: SourceNode<any>; key: RowKey; sub: Path } {
   if (state.source === null || state.path.length === 0)
     throw new Error(
@@ -263,7 +321,24 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
     case 'connect':
       return (a: unknown, b?: unknown, c?: unknown): SubscriptionHandle => {
         const n = state.node
-        if (state.path.length > 0) throw new Error('data: connect() on child paths not yet supported — connect the view')
+        if (state.path.length > 0) {
+          // W14: PER-PATH connect — a subtree-scoped record subscription on a
+          // SOURCE child (depth 1 = partition-scoped: fero's per-client
+          // read() projections and spoke mirrors; deeper = the deep-scalar
+          // emission mode). Records are RELATIVE to the subtree root.
+          if (state.source === null)
+            throw new Error('data: connect() on an operator-view child is not supported — connect the view and filter records')
+          if (Array.isArray(a) && (b === undefined || (typeof b === 'object' && b !== null)))
+            return connectPath(state, (r) => (a as ChangeRecordV2[]).push(r), (b as V2SinkOpts) ?? {})
+          if (typeof a === 'object' && a !== null && typeof b === 'function')
+            return connectPath(state, b as (r: ChangeRecordV2) => void, (c as V2SinkOpts) ?? {})
+          if (typeof a === 'object' && a !== null && typeof b === 'string') {
+            const obj = a as Record<string, unknown>
+            obj[b] = readAt(state)
+            return connectPath(state, () => { obj[b] = readAt(state) }, { clone: false, initial: false })
+          }
+          throw new Error('data: connect(fn) is not a valid sink — use connect(anchor, fn), connect([]), or connect(obj, prop)')
+        }
         // W2: the record forms take trailing options {origin, clone, initial} —
         // origin-token echo suppression and the clone-free/by-ref mode on the
         // PUBLIC surface (no more Symbol.for node reach-through for fero).

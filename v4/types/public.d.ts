@@ -218,6 +218,11 @@ export type DataChild<V> = ChildRead<V> & {
   update(v: V): void
   remove(): void // depth-1 children detach the row; deeper paths DELETE the field (clause 10a; absent targets no-op)
   raf(): RafWriter<V>
+  // W14: subtree-scoped records — relative keys; depth 1 = partition-scoped,
+  // deeper = the deep-scalar emission mode.
+  connect(records: ChangeRecordV2[], opts?: SinkOpts): SubscriptionHandle
+  connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
+  connect(anchor: object, prop: string): SubscriptionHandle
 } & ([V] extends [object]
     ? {
         get<K extends Extract<keyof V, string>>(k: K): DataChild<V[K]>

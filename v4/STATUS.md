@@ -26,7 +26,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W11 | P2 | Public promote()/adoption control | DONE — kernel + api + types |
 | W12 | P2 | some(col)/every(col) overloads | DONE — col form + dedup |
 | W13 | P3 | median/percentile/quantile | DONE — sorted-multiset QuantileNode, R-type-7 |
-| W14 | P3 | Per-path connect() / deep-scalar emission | open |
+| W14 | P3 | Per-path connect() / deep-scalar emission | DONE — connectPath on source children |
 | W15 | P3 | Value-domain portability clauses + NUL-key conformance | DONE — SCHEDULE clause 11 (VERSION 3) + conformance |
 | W16 | P3 | Cancel "Phase 0.5 on v2" (docs) | DONE: the v2-side additive ingress (v3/STATUS.md:438 'fero Phase 0.5 items remain undone') is FORMALLY CANCELLED — fero migrates straight onto v4; nobody builds the v2-side apply()/clone:false/TIMING.md items. |
 | W17 | P3 | fero-facing tracking artifact (this file IS it — keep current) | done (this file) |
