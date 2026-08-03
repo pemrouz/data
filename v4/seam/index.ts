@@ -121,6 +121,37 @@ function resolveNode(target: unknown): DataNode<any> {
   throw new Error('data: wireSink() target must be a view — pass an api handle or a raw node')
 }
 
+// Reject/flush-error delivery shared by ingest() and lane(). Clause 10d
+// promises rejects are surfaced AFTER the flush — including when an effect
+// SINK throws during that flush (clause 4's AggregateError): the reject
+// report must never be swallowed by a failing subscriber. With onReject the
+// rejects are delivered first and the flush error rethrows; without it, both
+// classes surface as ONE AggregateError (rejects + the effect failure).
+const NO_FLUSH_ERROR = Symbol('no-flush-error')
+
+function finishIngest(
+  verb: 'ingest' | 'lane',
+  total: number,
+  rejects: IngestReject[] | null,
+  onReject: ((r: IngestReject) => void) | undefined,
+  flushError: unknown,
+): void {
+  if (rejects !== null) {
+    if (onReject) for (const rj of rejects) onReject(rj)
+    else if (flushError === NO_FLUSH_ERROR)
+      throw new AggregateError(
+        rejects.map((rj) => rj.error),
+        `data: ${verb}() rejected ${rejects.length} of ${total} record(s) — the rest committed; pass opts.onReject to consume rejects without throwing`,
+      )
+    else
+      throw new AggregateError(
+        [...rejects.map((rj) => rj.error), flushError],
+        `data: ${verb}() rejected ${rejects.length} of ${total} record(s) AND effect sink(s) failed during the commit — the rest committed; pass opts.onReject to consume rejects without throwing`,
+      )
+  }
+  if (flushError !== NO_FLUSH_ERROR) throw flushError
+}
+
 export function ingest(
   target: IngestTarget,
   records: readonly IngestRecord[],
@@ -149,16 +180,14 @@ export function ingest(
   // Runtime.batch restores currentOrigin in its finally BEFORE flushing, so
   // its own origin param never reaches the commit stamp (kernel gap, reported
   // in the M4 seam notes). withOrigin stays installed across the flush.
-  if (opts.origin) src.runtime.withOrigin(opts.origin, () => src.runtime.batch(run))
-  else src.runtime.batch(run)
-  if (rejects !== null) {
-    if (opts.onReject) for (const rj of rejects) opts.onReject(rj)
-    else
-      throw new AggregateError(
-        rejects.map((rj) => rj.error),
-        `data: ingest() rejected ${rejects.length} of ${records.length} record(s) — the rest committed; pass opts.onReject to consume rejects without throwing`,
-      )
+  let flushError: unknown = NO_FLUSH_ERROR
+  try {
+    if (opts.origin) src.runtime.withOrigin(opts.origin, () => src.runtime.batch(run))
+    else src.runtime.batch(run)
+  } catch (e) {
+    flushError = e
   }
+  finishIngest('ingest', records.length, rejects, opts.onReject, flushError)
   return { applied, rejected: rejects?.length ?? 0 }
 }
 
@@ -352,16 +381,14 @@ export function lane(target: IngestTarget, opts: IngestOpts = {}): HotLane {
         }
       }
     }
-    if (origin) src.runtime.withOrigin(origin, () => src.runtime.batch(run))
-    else src.runtime.batch(run)
-    if (rejects !== null) {
-      if (onReject) for (const rj of rejects) onReject(rj)
-      else
-        throw new AggregateError(
-          rejects.map((rj) => rj.error),
-          `data: lane() rejected ${rejects.length} of ${records.length} record(s) — the rest committed; pass opts.onReject to consume rejects without throwing`,
-        )
+    let flushError: unknown = NO_FLUSH_ERROR
+    try {
+      if (origin) src.runtime.withOrigin(origin, () => src.runtime.batch(run))
+      else src.runtime.batch(run)
+    } catch (e) {
+      flushError = e
     }
+    finishIngest('lane', records.length, rejects, onReject, flushError)
     return { applied, rejected: rejects?.length ?? 0 }
   }
 }

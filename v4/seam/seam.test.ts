@@ -719,6 +719,65 @@ test('lane(): per-record isolation + fixed origin suppression; array-born target
   assert.throws(() => lane(arr), /object-born/)
 })
 
+// Regression (clause 10d re-review): rejects were delivered AFTER
+// runtime.batch() returned — but a throwing effect SINK makes the flush throw
+// clause 4's AggregateError out of batch(), so the reject block never ran:
+// onReject silently skipped, the {applied, rejected} report lost. Reject
+// delivery now survives a flush error (delivered first; the effect failure
+// still propagates — combined into one AggregateError when there's no
+// onReject to consume the rejects).
+test('clause 10d: reject delivery survives a throwing effect sink — ingest() and lane()', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { a: { n: 1 } })
+  src.connect({ wantsOrder: false, origin: null, apply: () => { throw new Error('sink boom') } })
+
+  // onReject: rejects delivered, effect failure still propagates (clause 4).
+  const rejects: any[] = []
+  let threw: unknown = null
+  try {
+    ingest(src, [
+      { t: 'add', k: 'b', v: { n: 2 } },
+      { t: 'update', k: 'ghost', path: ['deep'], v: 9 }, // poison
+    ], { onReject: (rj) => rejects.push(rj) })
+  } catch (e) {
+    threw = e
+  }
+  same(rejects.length, 1) // DELIVERED despite the sink throw
+  same(rejects[0].index, 1)
+  ok(threw instanceof AggregateError && /effect/.test((threw as Error).message))
+  same(src.snapshot().size, 2) // the sibling committed
+
+  // No onReject: ONE AggregateError carrying BOTH classes.
+  let threw2: unknown = null
+  try {
+    ingest(src, [
+      { t: 'add', k: 'c', v: { n: 3 } },
+      { t: 'update', k: 'ghost2', path: ['deep'], v: 9 },
+    ])
+  } catch (e) {
+    threw2 = e
+  }
+  ok(threw2 instanceof AggregateError)
+  ok(/rejected 1 of 2/.test((threw2 as Error).message) && /effect sink/.test((threw2 as Error).message))
+  same((threw2 as AggregateError).errors.length, 2) // the reject + the effect failure
+
+  // lane(): same guarantee on the hot path.
+  const laneRejects: any[] = []
+  let threw3: unknown = null
+  const apply = lane(src, { onReject: (rj) => laneRejects.push(rj) })
+  try {
+    apply([
+      { type: HOT.update, key: ['a', 'n'], value: 9 },
+      { type: HOT.update, key: ['ghost3', 'deep'], value: 1 }, // poison
+    ])
+  } catch (e) {
+    threw3 = e
+  }
+  same(laneRejects.length, 1)
+  ok(threw3 instanceof AggregateError && /effect/.test((threw3 as Error).message))
+  same(src.snapshot().get('a').n, 9) // the sibling committed
+})
+
 // ── W1: the native wire egress ───────────────────────────────────────────────
 
 test('W1 wireSink: emit → wire → ingest round-trips an object-born source incl. nested deletes', () => {
