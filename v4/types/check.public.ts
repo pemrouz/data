@@ -13,6 +13,7 @@ import {
   HTML, SVG, normChildren,
   h, Fragment, For, ErrorBoundary, jsx, jsxs, jsxDEV,
   fromAsync, exportContract, InMemoryBacking,
+  ingest, lane, HOT, mount,
   DataNode, Runtime, handleFor, materialize, domLinks, liveLists,
 } from 'data'
 import type {
@@ -21,6 +22,7 @@ import type {
   RowOf, ColOf, DataChild, ReadonlyChild, RafWriter, SubscriptionHandle,
   Element, VNodeLike, BindLike, CountBucket,
   AsyncSourceHandle, ContractManifest,
+  IngestReport, IngestReject, HotLane, MountHandle,
 } from 'data'
 
 type Row = { region: string; val: number; nested: { deep: number } }
@@ -187,6 +189,28 @@ onCleanup(123)
 ErrorBoundary({ children: hv })
 // @ts-expect-error — For requires the row-fn child
 For({ each: north })
+
+// ── the v4 W-wave surface (re-evaluation sweep pins) ─────────────────────────
+// W12: some/every column overloads — the fero R=∞ facade shape.
+const someCol: Scalar<boolean> = d.some('region')
+const everyCol: Scalar<boolean> = d.every('val')
+// @ts-expect-error — some(col) is key-checked against the row type
+d.some('bogus')
+// W11: promote() is SOURCE-only (Writes) — absent from operator views.
+d.promote()
+// @ts-expect-error — promote() on a derived view (the runtime throws too)
+north.promote()
+// Module-level seam ingress/egress: ingest / lane / HOT / mount.
+const rep: IngestReport = ingest(d, [{ t: 'add', k: 'z', v: rows.a }], {
+  onReject: (rj: IngestReject) => void rj.index,
+})
+void rep.applied
+const hot: HotLane = lane(d)
+hot([{ type: HOT.update, key: ['a', 'val'], value: 11 }])
+const backing2 = new InMemoryBacking<Row>(new Runtime(), rows)
+const mounted: MountHandle<Row> = mount(new Runtime(), backing2)
+mounted.apply([{ t: 'update', k: 'a', path: ['val'], v: 12 }])
+mounted.dispose()
 
 void mapped; void winners; void northCount; void bucketVP; void total; void both
 void a; void minted; void batched; void snap; void rawNode; void leaf; void derived

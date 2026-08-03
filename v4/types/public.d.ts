@@ -122,12 +122,16 @@ export type Reserved =
   // built-ins
   | 'get' | 'set' | 'update' | 'insert' | 'remove' | 'patch' | 'ingest' | 'connect'
   | 'snapshot' | 'raf' | 'first' | 'last' | 'mirror' | 'dispose'
+  | 'sink' // v4 (a major): the native batch subscription (W2)
+  | 'promote' // v4: pre-pay the container-adoption spike (W11)
+  | 'each' | 'rowCount' // v4: the no-copy read protocol (W9)
   // operators
   | 'filter' | 'between' | 'gt' | 'lt' | 'gte' | 'lte'
   | 'az' | 'za' | 'top' | 'limit' | 'page'
   | 'length' | 'sum' | 'avg' | 'max' | 'min' | 'some' | 'every'
   | 'intersect' | 'union' | 'except'
   | 'group' | 'distinct' | 'map' | 'to' | 'reduce' | 'tap'
+  | 'median' | 'percentile' | 'quantile' // v4: the quantile family (W13)
   | 'keys' | 'values' | 'reverse' | 'join'
 // NB: 'page' / 'join' are RESERVED but UNIMPLEMENTED (the runtime throws) —
 // deliberately ABSENT from Ops<T>, so calling them is a compile error now and
@@ -297,6 +301,10 @@ export interface Ops<T> {
   min<C extends ColOf<T>>(col: C): Scalar<ColVal<T, C> | undefined>
   some(fn: (row: RowOf<T>) => unknown): Scalar<boolean>
   every(fn: (row: RowOf<T>) => unknown): Scalar<boolean>
+  // W12: the column overloads — some('col')/every('col') test row[col]
+  // truthiness (the fero R=∞ facade shape); dedup by column name.
+  some<C extends ColOf<T>>(col: C): Scalar<boolean>
+  every<C extends ColOf<T>>(col: C): Scalar<boolean>
   // reduce's init is the fold's identity ELEMENT — a plain value, never a view.
   reduce<A>(fn: (acc: A, row: RowOf<T>, key: RowKey) => A, init: A): Scalar<A>
   reduce<A>(
@@ -332,7 +340,6 @@ interface ReadCore<T> {
   connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
   sink(s: NativeSink): SubscriptionHandle
-  promote(): void // W11: pre-pay the container-adoption spike (seed-then-serve boots)
   each(fn: (key: RowKey, row: RowOf<T>) => void): void // W9: no-copy one-pass read
   rowCount(): number // W9: live count, no snapshot
   snapshot(opts?: { freeze?: boolean }): unknown // W9 freeze: deep-frozen rows — safe hand-out, no clone
@@ -369,6 +376,9 @@ interface Writes<T> {
   ): { readonly applied: number; readonly rejected: number }
   first(): DataChild<RowOf<T>>
   last(): DataChild<RowOf<T>>
+  // W11: pre-pay the container-adoption spike (seed-then-serve boots).
+  // SOURCE-ONLY like ingest() — the runtime throws on operator views.
+  promote(): void
   // NB deliberately ABSENT (the runtime THROWS on both at a source root):
   // update() and remove() — row removal is d.get(k).remove() / d.a.remove().
 }
@@ -561,6 +571,67 @@ export function wireSink(
   out: (batch: WireBatch) => void,
   opts?: { readonly origin?: symbol | null; readonly initial?: boolean },
 ): SubscriptionHandle
+
+// W3d/clause 10d: the ingest vocabulary shared by the module-level ingress
+// forms (ingest(), lane()) and the instance verb d.ingest().
+export interface IngestReject {
+  readonly index: number
+  readonly record: IngestRecord
+  readonly error: unknown
+}
+export interface IngestReport {
+  readonly applied: number
+  readonly rejected: number
+}
+export interface IngestOpts {
+  readonly origin?: symbol
+  // consume per-record rejects — absent: one AggregateError after the batch
+  readonly onReject?: (reject: IngestReject) => void
+}
+
+// The module-level record-apply ingress: one batch() commit per call, both
+// wire profiles auto-detected, per-record isolation (clause 10d). Target is
+// a $() source handle or a raw SourceNode.
+export declare function ingest(
+  target: object,
+  records: readonly IngestRecord[],
+  opts?: IngestOpts,
+): IngestReport
+
+// W7: the hot ingest lane — fero's frame-run Rec shape applied VERBATIM
+// (numeric type tags, [rowKey, ...fieldPath] key paths, lazy-record safe,
+// values installed by reference). Object-born (keyed) sources only.
+export declare const HOT: { readonly update: 0; readonly insert: 1; readonly remove: 2 }
+export interface HotRecord {
+  readonly type: number // HOT.*
+  readonly key: readonly (string | number)[] // PATH: [rowKey, ...fieldPath]
+  readonly value?: unknown
+  readonly at?: string | number // root-insert minted key when key is []
+}
+export type HotLane = (records: readonly HotRecord[]) => IngestReport
+export declare function lane(target: object, opts?: IngestOpts): HotLane
+
+// The pluggable-source boundary (plan §3.6): load/apply/subscribe.
+export interface SourceBacking<T> {
+  load(): { rows: Map<RowKey, T>; order: readonly RowKey[] | null }
+  apply(records: readonly IngestRecord[], origin?: symbol): void
+  subscribe(sink: {
+    readonly wantsOrder?: boolean
+    readonly origin?: symbol | null
+    init(snapshot: ReadonlyMap<RowKey, T>, order?: readonly RowKey[]): void
+    apply(batch: any): void
+  }): SubscriptionHandle
+}
+
+// W5: mount(backing) — a live mirror source over a SourceBacking. The
+// BACKING is the write authority (route writes through handle.apply);
+// the mirror follows via subscribe. source is the raw node (handleFor).
+export interface MountHandle<T> {
+  readonly source: DataNode<T>
+  apply(records: readonly IngestRecord[], origin?: symbol): void
+  dispose(): void
+}
+export declare function mount<T>(runtime: Runtime, backing: SourceBacking<T>): MountHandle<T>
 
 export type AsyncStatus = 'pending' | 'ready' | 'error'
 

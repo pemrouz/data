@@ -77,12 +77,16 @@ export type Reserved =
   // built-ins
   | 'get' | 'set' | 'update' | 'insert' | 'remove' | 'patch' | 'ingest' | 'connect'
   | 'snapshot' | 'raf' | 'first' | 'last' | 'mirror' | 'dispose'
+  | 'sink' // v4 (a major): the native batch subscription (W2)
+  | 'promote' // v4: pre-pay the container-adoption spike (W11)
+  | 'each' | 'rowCount' // v4: the no-copy read protocol (W9)
   // operators
   | 'filter' | 'between' | 'gt' | 'lt' | 'gte' | 'lte'
   | 'az' | 'za' | 'top' | 'limit' | 'page'
   | 'length' | 'sum' | 'avg' | 'max' | 'min' | 'some' | 'every'
   | 'intersect' | 'union' | 'except'
   | 'group' | 'distinct' | 'map' | 'to' | 'reduce' | 'tap'
+  | 'median' | 'percentile' | 'quantile' // v4: the quantile family (W13)
   | 'keys' | 'values' | 'reverse' | 'join'
 // NB: 'page' / 'reverse' / 'join' are RESERVED but UNIMPLEMENTED (the
 // runtime throws "reserved name … has no implementation yet") — they are
@@ -239,6 +243,18 @@ export interface Ops<T> {
   min<C extends ColOf<T>>(col: C): Scalar<ColVal<T, C> | undefined>
   some(fn: (row: RowOf<T>) => unknown): Scalar<boolean>
   every(fn: (row: RowOf<T>) => unknown): Scalar<boolean>
+  // W12: the column overloads — some('col')/every('col') test row[col]
+  // truthiness; dedup by column name.
+  some<C extends ColOf<T>>(col: C): Scalar<boolean>
+  every<C extends ColOf<T>>(col: C): Scalar<boolean>
+  // W13: the quantile family — sorted-multiset scalars, R-type-7
+  // interpolation; empty set → undefined. Column optional when rows are
+  // themselves numeric.
+  median(col?: string): Scalar<number | undefined>
+  percentile(col: string, p: number): Scalar<number | undefined>
+  percentile(p: number): Scalar<number | undefined>
+  quantile(col: string, q: number): Scalar<number | undefined>
+  quantile(q: number): Scalar<number | undefined>
   // reduce's init is the fold's identity ELEMENT — a plain value, never a
   // view (the runtime's assertPlainInit throws on a reactive init; here a
   // handle simply isn't assignable to A once acc pins it).
@@ -268,13 +284,34 @@ export interface Ops<T> {
 
 // ── the read core shared by source + operator handles ────────────────────────
 
+// W2: options for the record-profile connect forms.
+export interface SinkOpts {
+  readonly origin?: symbol | null
+  readonly clone?: boolean
+  readonly initial?: boolean
+}
+
+// W2: the native batch subscription (d.sink(...)) — CommitBatch by
+// reference. Batch typed loosely here (the full delta vocabulary lives in
+// contract/delta.ts; public.d.ts carries the precise mirror).
+export interface NativeSink<T = unknown> {
+  readonly wantsOrder?: boolean
+  readonly origin?: symbol | null
+  init?(snapshot: Map<RowKey, T>, order?: readonly RowKey[]): void
+  apply(batch: unknown): void
+}
+
 interface ReadCore<T> {
   readonly [value]: SnapshotOf<T>
   readonly [node]: object
   snapshot(): SnapshotOf<T>
-  connect(records: ChangeRecordV2[]): SubscriptionHandle
-  connect(anchor: object, fn: (record: ChangeRecordV2) => void): SubscriptionHandle
+  snapshot(opts?: { freeze?: boolean }): unknown // W9 freeze: deep-frozen rows
+  connect(records: ChangeRecordV2[], opts?: SinkOpts): SubscriptionHandle
+  connect(anchor: object, fn: (record: ChangeRecordV2) => void, opts?: SinkOpts): SubscriptionHandle
   connect(anchor: object, prop: string): SubscriptionHandle
+  sink(s: NativeSink): SubscriptionHandle // W2
+  each(fn: (key: RowKey, row: RowOf<T>) => void): void // W9: no-copy one-pass read
+  rowCount(): number // W9: live count, no snapshot
   dispose(): void
   mirror(): Mirror<T>
   [Symbol.iterator](): IterableIterator<RowOf<T>>
@@ -293,9 +330,18 @@ interface Writes<T> {
   set<K extends KeyOf<T>>(k: K, v: MemberOf<T, K>): void
   insert(v: RowOf<T>, at?: number): RowKey
   patch(pairs: readonly (readonly [KeyOf<T>, RowOf<T>])[]): void
-  ingest(records: readonly (WireRecord | ChangeRecordV2)[], opts?: { readonly origin?: symbol }): void
+  ingest(
+    records: readonly (WireRecord | ChangeRecordV2)[],
+    opts?: {
+      readonly origin?: symbol
+      readonly onReject?: (reject: { readonly index: number; readonly record: WireRecord | ChangeRecordV2; readonly error: unknown }) => void
+    },
+  ): { readonly applied: number; readonly rejected: number }
   first(): DataChild<RowOf<T>>
   last(): DataChild<RowOf<T>>
+  // W11: pre-pay the container-adoption spike. SOURCE-ONLY like ingest() —
+  // the runtime throws on operator views.
+  promote(): void
   // NB deliberately ABSENT (the runtime THROWS on both at a source root):
   // update() ("whole-source update not yet supported") and remove()
   // (row removal is d.get(k).remove() / d.a.remove()).
