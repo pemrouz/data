@@ -41,7 +41,7 @@ import { currentScope } from '../kernel/scope.ts'
 import { SCHEMA_VERSION, RESERVED } from '../contract/index.ts'
 import type { ChangeRecordV2, WireRecord, WireBatch, OpCategory } from '../contract/index.ts'
 import type {
-  CollectionSink, CommitBatch, OriginToken, Path, RowKey,
+  AddDelta, CollectionSink, CommitBatch, OriginToken, Path, RowKey,
 } from '../contract/delta.ts'
 import { registry } from '../ops/registry.ts'
 
@@ -514,6 +514,13 @@ export function fromAsync<T>(
 //   remove     → {t:'remove', k, prev}
 //   orderMove  → {t:'move', k, from, to}
 //
+// Record ORDER within a batch is the application script (diffOrder's law):
+// whole-row removes, then survivor moves, then adds at ascending final
+// indices, then field/row updates — a WireBatch replays sequentially, so a
+// compound array-born batch (mid-insert + remove/move in one commit) only
+// round-trips if positional records are emitted in application order, not
+// first-touch rows order.
+//
 // Values ride BY REFERENCE (shared-immutable, like sink()); origin declares
 // echo suppression; initial:false skips the opening snapshot batch (seq 0,
 // one add per row in order).
@@ -545,36 +552,52 @@ export function wireSink(
     wantsOrder: true,
     origin: opts.origin ?? null,
     apply(batch: CommitBatch<any>) {
+      // A WireBatch is a sequential program — applyWire replays records in
+      // array order — so emission follows the delta contract's application
+      // script (diffOrder's law): whole-row removes first (key-addressed),
+      // then survivor moves in channel order, then adds at ASCENDING final
+      // indices, then position-agnostic field/row updates. Emitting in
+      // batch.rows (first-touch) order desynced replicas on compound
+      // array-born batches: a mid-insert's final-index `at` was applied
+      // BEFORE the removes/moves that precede it positionally.
       const records: WireRecord[] = []
-      // Row deltas first; the order channel contributes positions for adds
-      // and standalone moves (removes are key-addressed — no index needed).
-      let addAt: Map<RowKey, number> | null = null
-      if (batch.order) {
-        for (const od of batch.order) {
-          if (od.op === 'orderInsert') (addAt ??= new Map()).set(od.key, od.index)
-        }
-      }
+      let addOf: Map<RowKey, AddDelta<any>> | null = null
+      const updates: WireRecord[] = []
       for (const d of batch.rows) {
         if (d.op === 'add') {
-          const at = addAt?.get(d.key)
-          records.push(at !== undefined ? { t: 'add', k: d.key, v: d.row, at } : { t: 'add', k: d.key, v: d.row })
+          ;(addOf ??= new Map()).set(d.key, d)
         } else if (d.op === 'remove') {
           records.push({ t: 'remove', k: d.key, prev: d.prev })
         } else if (d.deleted === true && d.path.length > 0) {
-          records.push({ t: 'remove', k: d.key, path: d.path, prev: leafAt(d.prev, d.path) })
+          updates.push({ t: 'remove', k: d.key, path: d.path, prev: leafAt(d.prev, d.path) })
         } else if (d.path.length > 0) {
           // Field edit: v/prev are the LEAF at path — compact on the wire,
           // symmetric with applyWire's leaf-at-path apply.
-          records.push({ t: 'update', k: d.key, v: leafAt(d.row, d.path), prev: leafAt(d.prev, d.path), path: d.path })
+          updates.push({ t: 'update', k: d.key, v: leafAt(d.row, d.path), prev: leafAt(d.prev, d.path), path: d.path })
         } else {
-          records.push({ t: 'update', k: d.key, v: d.row, prev: d.prev, path: d.path })
+          updates.push({ t: 'update', k: d.key, v: d.row, prev: d.prev, path: d.path })
         }
       }
       if (batch.order) {
         for (const od of batch.order) {
           if (od.op === 'orderMove') records.push({ t: 'move', k: od.key, from: od.from!, to: od.index })
         }
+        // orderInserts ride the channel at ascending final indices; emitting
+        // adds in that sequence makes sequential re-insertion land each row
+        // at its final position.
+        for (const od of batch.order) {
+          if (od.op === 'orderInsert') {
+            const d = addOf?.get(od.key)
+            if (d !== undefined) {
+              records.push({ t: 'add', k: d.key, v: d.row, at: od.index })
+              addOf!.delete(od.key)
+            }
+          }
+        }
       }
+      // Adds with no order position (object-born, or no channel this batch).
+      if (addOf !== null) for (const d of addOf.values()) records.push({ t: 'add', k: d.key, v: d.row })
+      for (const u of updates) records.push(u)
       if (records.length > 0) out({ keyDomain, seq: batch.seq, records })
     },
   })

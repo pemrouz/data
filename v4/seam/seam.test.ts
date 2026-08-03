@@ -767,6 +767,97 @@ test('W1 wireSink: array-born round-trip — minted int keys, mid-insert positio
   same(B.currentOrder(), A.currentOrder()) // same positions — at + move round-tripped
 })
 
+// Regression (W1 re-review): a compound array-born batch — mid-insert plus a
+// remove/move of a row that precedes it positionally, in ONE commit — used to
+// desync the replica: records rode in batch.rows (first-touch) order, so the
+// add's FINAL-index `at` was applied before the remove/move it depends on
+// ([k0..k4] + {insert(x,@final 3); remove(k0)} put x at replica index 2).
+// wireSink now emits in the application-script order (removes → moves → adds
+// at ascending final indices → updates); these pin it.
+test('W1 wireSink: compound array-born batches — removes/moves/mid-inserts in one commit replay in application order', () => {
+  const pair = () => {
+    const rt = new Runtime()
+    const A = new SourceNode<{ v: number }>(rt, [{ v: 0 }, { v: 1 }, { v: 2 }, { v: 3 }, { v: 4 }])
+    const B = new SourceNode<{ v: number }>(new Runtime(), [])
+    conform(A)
+    wireSink(A, (wb) => ingest(B, wb.records))
+    const sync = () => {
+      same(JSON.stringify([...B.snapshot()]), JSON.stringify([...A.snapshot()]))
+      same(B.currentOrder(), A.currentOrder())
+    }
+    return { rt, A, sync }
+  }
+
+  {
+    // The reported repro: insert-then-remove in one batch.
+    const { rt, A, sync } = pair()
+    rt.batch(() => {
+      A.insert({ v: 9 }, 4)
+      A.remove(0)
+    })
+    sync()
+  }
+  {
+    // Move + mid-insert in one batch.
+    const { rt, A, sync } = pair()
+    rt.batch(() => {
+      A.move(0, 3)
+      A.insert({ v: 8 }, 1)
+    })
+    sync()
+  }
+  {
+    // Remove + move + insert + a field edit, all in one batch.
+    const { rt, A, sync } = pair()
+    rt.batch(() => {
+      A.remove(2)
+      A.move(4, 0)
+      A.insert({ v: 7 }, 2)
+      A.write(1, ['v'], 99)
+    })
+    sync()
+  }
+})
+
+test('W1 wireSink fuzz: 200 seeded compound batches — replica snapshot AND order track the emitter exactly', () => {
+  let s = 0xBADC0DE
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0), s / 0x100000000)
+
+  const rt = new Runtime()
+  const A = new SourceNode<{ v: number }>(rt, [{ v: 0 }, { v: 1 }, { v: 2 }, { v: 3 }])
+  const B = new SourceNode<{ v: number }>(new Runtime(), [])
+  conform(A)
+  wireSink(A, (wb) => ingest(B, wb.records))
+
+  // Store-Map insertion order is NOT semantic for array-born sources (the
+  // order channel is): a batch with descending-position inserts applies
+  // ascending on the replica, so raw Map iteration can differ legally.
+  const sorted = (src: SourceNode<{ v: number }>) =>
+    JSON.stringify([...src.snapshot()].sort((a, b) => (a[0] as number) - (b[0] as number)))
+
+  let n = 100
+  for (let step = 0; step < 200; step++) {
+    rt.batch(() => {
+      const ops = 1 + Math.floor(rnd() * 3)
+      for (let i = 0; i < ops; i++) {
+        const ord = A.currentOrder() ?? []
+        const roll = rnd()
+        if (roll < 0.3 || ord.length === 0) {
+          A.insert({ v: n++ }, Math.floor(rnd() * (ord.length + 1)))
+        } else if (roll < 0.55) {
+          A.remove(ord[Math.floor(rnd() * ord.length)])
+        } else if (roll < 0.8) {
+          A.move(ord[Math.floor(rnd() * ord.length)], Math.floor(rnd() * ord.length))
+        } else {
+          A.write(ord[Math.floor(rnd() * ord.length)], ['v'], n++)
+        }
+      }
+    })
+    same(sorted(B), sorted(A))
+    same(B.currentOrder(), A.currentOrder())
+  }
+})
+
 test('W1 wireSink: origin suppression + initial:false + empty-commit elision', () => {
   const rt = new Runtime()
   const A = new SourceNode<any>(rt, { x: { n: 1 } })
