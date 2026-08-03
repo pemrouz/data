@@ -1,8 +1,10 @@
-# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 2)
+# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 3)
 
-This document is versioned and contract-tested (cross-repo: data CI and fero CI both run the
-executable tests in [../conformance/schedule.test.ts](../conformance/schedule.test.ts) against
-data HEAD — one test per numbered clause; W4 of fero's DESIGN-DATA3 wishlist). SCHEDULE_VERSION
+This document is versioned and contract-tested: the executable suite in
+[../conformance/schedule.test.ts](../conformance/schedule.test.ts) covers every numbered clause
+(some clauses carry several tests) against data HEAD, and fero CI rides the same suite
+cross-repo (its `test:contract` chains this file into `npm test` — W4 of fero's DESIGN-DATA3
+wishlist; data-side CI wiring lands with the v4 root promotion). SCHEDULE_VERSION
 is exported at runtime from [../contract/index.ts](index.ts) so consumers can pin it. It is the
 answer to fero plan-v3 §10 M0 item 4. Changes to any numbered clause bump SCHEDULE_VERSION.
 
@@ -29,9 +31,11 @@ superset of v2's per-write settle, never a replacement.
    into one `AggregateError` thrown after the drain completes.
 5. **Re-entrancy.** A write issued inside an effect queues as the NEXT commit, drained FIFO
    after the current flush completes. Cascades are bounded by a cycle cap (dev-mode error).
-6. **Origin tokens.** Every batch carries the `origin` of the commit that produced it. Writes
-   issued by a sink carry that sink's origin, so echo suppression is
-   `if (batch.origin === mine) return` — declarative, timing-independent.
+6. **Origin tokens.** Every batch carries the `origin` of the commit that produced it. A sink
+   declares its origin for suppression — `if (batch.origin === mine) return`, and a declared
+   entry origin is suppressed at the kernel — declarative, timing-independent. A re-entrant
+   write carries the AMBIENT origin at ISSUE time (the origin of the commit whose effect
+   issued it, or the enclosing `withOrigin`), not the issuing sink's declared origin.
 7. **Snapshot-then-deltas.** A sink connected between commits receives `init(snapshot,
    order?)` reflecting fully-settled state, then `apply(batch)` for every subsequent commit,
    exactly once each, in commit order. No gap, no overlap.
@@ -43,7 +47,7 @@ superset of v2's per-write settle, never a replacement.
 9. **Coalescing (opt-in sugar, not a semantic change).** `coalesce('microtask' | 'frame')`
    turns implicit batches into scheduled batches for producers that opt in. The default is
    clause 0: bare write = synchronous batch of one.
-10. **The deep-path law (SCHEDULE_VERSION 2 — fero W3).** Replication reorders and redelivers
+10. **The deep-path law (introduced at SCHEDULE_VERSION 2 — fero W3).** Replication reorders and redelivers
     freely, so deep-path operations are tolerant, isolated, and lossless:
     - (a) **Nested-field removal is first-class.** `remove(key, path)` deletes the property
       (enumeration changes); the delta is an `update` carrying `deleted: true` with the field's
@@ -65,7 +69,7 @@ superset of v2's per-write settle, never a replacement.
       rejects are collected and surfaced AFTER the flush — as one `AggregateError` by default,
       or per-record via `opts.onReject` (which suppresses the throw). The pre-v4 failure mode
       (prefix commits, suffix silently lost, error propagates) is outlawed.
-11. **The value-domain portability table (W15 — what a replicating codec must preserve).**
+11. **The value-domain portability table (introduced at SCHEDULE_VERSION 3 — W15; what a replicating codec must preserve).**
     Row values are arbitrary JS values with these law-bearing points:
     - `undefined` and `null` are FIRST-CLASS row/leaf values (dense snapshots; absence = key
       absence — except at the deep-write layer, where leaf absence ≡ `undefined`, clause 10c).

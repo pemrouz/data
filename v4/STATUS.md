@@ -16,7 +16,7 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 | W1 | P2 | Native wire egress (CommitBatch→WireRecord emitter + keyDomain batch header) | DONE — wireSink() + WireBatch; leaf-at-path settled |
 | W2 | P1 | Origin-capable clone-free public subscription (connect opts / sink()) | DONE — sink() + connect opts |
 | W3 | P1 | Deep-path law: (a) nested-field remove IMPL; (b) absent-remove no-op SPEC-PIN; (c) vivify-under-null/scalar SPEC-PIN; (d) per-record ingest isolation IMPL | DONE — SCHEDULE clause 10, VERSION 2 |
-| W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 11 tests, one per clause |
+| W4 | P1 | Executable SCHEDULE suite (conformance/schedule.test.ts) + SCHEDULE_VERSION export | DONE — 16 tests over the 11 clauses (grown by W3/W15) |
 | W5 | P3 | Backing-mounted sources ($(backing)) | DONE — mount(runtime, backing) live mirror |
 | W6 | P3 | Pre-commit veto — doc-only under fero §4.1 | DONE (doc): fero owns the write trap (DESIGN-DATA3 §4.1) — every fero-side validation/auth bounce happens BEFORE data sees the write; no data-side veto hook needed. Returns as a real ask only if fero abandons §4.1. |
 | W7 | P1 | Hot ingest lane (pre-declared profile, numeric type tags, lazy records) + replication corpus row + remove-floor statement | DONE — lane() + m3 gate (0.171× at frame-16) |
