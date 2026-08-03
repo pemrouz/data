@@ -341,8 +341,15 @@ test('clause 10a: remove(key, path) deletes the field; the delta is a deleted-ma
   same((d.prev as any).a.b, 1) // prev carries the deleted leaf's value
 
   // Array-element deletion is refused loudly — a sparse hole is version-broken.
-  const arr = new SourceNode<{ xs: number[] }>(rt, { r: { xs: [1, 2, 3] } })
+  const arr = new SourceNode<{ xs: (number | undefined)[] }>(rt, { r: { xs: [1, 2, 3] } })
   assert.throws(() => arr.remove('r', ['xs', 1]), /sparse hole/)
+  // The refusal outranks the undefined-leaf no-op: an OWNED slot holding
+  // explicit `undefined` still throws; only an out-of-range index is the
+  // clause-10b absent-target no-op (pinned at SCHEDULE_VERSION 4).
+  arr.write('r', ['xs'], [1, undefined, 3])
+  assert.throws(() => arr.remove('r', ['xs', 1]), /sparse hole/)
+  arr.remove('r', ['xs', 9]) // out of range — silent 10b no-op
+  same(arr.snapshot().get('r')!.xs, [1, undefined, 3])
 })
 
 //! Clause 10b — removes are idempotent everywhere: non-live key, absent ancestor, un-owned leaf.
@@ -372,7 +379,66 @@ test('clause 10c: vivify-under-null/scalar on live rows; deep write to a non-liv
   same(src.snapshot().get('r').a, { deep: 1 })
   src.write('r', ['s', 'deep'], 2) // scalar intermediate → vivified object
   same(src.snapshot().get('r').s, { deep: 2 })
+  // A STRING intermediate vivifies CLEAN (SCHEDULE_VERSION 4): spreading the
+  // string would leak its index characters ({'0':'a','1':'b',...}) into the
+  // vivified object — junk that would replicate to every peer.
+  src.write('r', ['t'], 'abc')
+  src.write('r', ['t', 'deep'], 3)
+  same(src.snapshot().get('r').t, { deep: 3 })
   assert.throws(() => src.write('dead', ['a'], 1), /not live/) // a deep write cannot invent a row
+})
+
+//! Clause 8 × 10a — same-batch field-write + field-delete consolidation. The four merge
+//! shapes recordUpdate implements; a regression in the keeps-the-marker branch would emit
+//! the exact update-to-undefined shape clause 10a outlaws.
+test('clause 8: same-batch field-write/field-delete merges — annihilate, keep-delete, drop-marker, restore', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<any>(rt, { a: { n: 1 }, b: { n: 2 }, c: { n: 3 }, d: { n: 4 } })
+  conform(src)
+  const batches = capture<any>(src)
+
+  // (1) set-then-delete of a NEVER-OWNED field: annihilates (net zero).
+  rt.batch(() => {
+    src.write('a', ['tmp'], 5)
+    src.remove('a', ['tmp'])
+  })
+  same(batches.length, 0)
+  ok(!Object.hasOwn(src.snapshot().get('a'), 'tmp'))
+
+  // (2) set-then-delete of an OWNED field: ONE update keeping deleted:true —
+  // never an update-to-undefined.
+  rt.batch(() => {
+    src.write('b', ['n'], 9)
+    src.remove('b', ['n'])
+  })
+  same(batches.length, 1)
+  const d2 = batches[0].rows[0]
+  same(d2.op, 'update')
+  same(d2.deleted, true)
+  same(d2.path, ['n'])
+  ok(!Object.hasOwn(d2.row, 'n')) // the field is GONE on the merged row
+  same(d2.prev.n, 2) // first prev
+
+  // (3) delete-then-set: the marker DROPS — one plain field update.
+  rt.batch(() => {
+    src.remove('c', ['n'])
+    src.write('c', ['n'], 7)
+  })
+  same(batches.length, 2)
+  const d3 = batches[1].rows[0]
+  same(d3.op, 'update')
+  same(d3.deleted, undefined)
+  same(d3.path, ['n'])
+  same(d3.row.n, 7)
+  same(d3.prev.n, 3)
+
+  // (4) delete-then-restore the SAME value: annihilates (no phantom update).
+  rt.batch(() => {
+    src.remove('d', ['n'])
+    src.write('d', ['n'], 4)
+  })
+  same(batches.length, 2) // nothing new emitted
+  same(src.snapshot().get('d').n, 4)
 })
 
 //! Clause 10d — ingest isolates per record: siblings commit, rejects surface after the flush.

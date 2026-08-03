@@ -60,12 +60,16 @@ superset of v2's per-write settle, never a replacement.
       path, and wire/compat sinks emit it as a nested REMOVE record — never an
       update-to-undefined (which would be indistinguishable from a real `undefined` value).
       Deleting an ARRAY element throws (a sparse hole is a version-broken shape) — write the
-      spliced array.
+      spliced array. The refusal outranks the leaf-undefined no-op: an OWNED array slot
+      holding explicit `undefined` still throws; only an un-owned/out-of-range index is the
+      clause-10b absent-target no-op (precedence pinned at SCHEDULE_VERSION 4).
     - (b) **Removes are idempotent everywhere.** A remove of a non-live key, an absent
       ancestor, or an un-owned leaf is a silent no-op — never a throw, never a write.
     - (c) **Deep writes vivify on live rows; stay loud on dead ones.** A deep write under a
       `null`/scalar intermediate of a LIVE row auto-creates object intermediates (path-copy);
-      a deep write to a NON-live key throws — a deep write cannot invent a row.
+      the vivified intermediate is a CLEAN `{}` for every non-object value — a string
+      intermediate never leaks its index characters into it (pinned at SCHEDULE_VERSION 4).
+      A deep write to a NON-live key throws — a deep write cannot invent a row.
       At the leaf, **absence ≡ `undefined`**: writing `undefined` over an absent field is the
       Object.is no-op drop, and deleting an owned-but-`undefined` leaf is a no-op — explicit
       `undefined` and absence are indistinguishable to the deep-write layer (whole-row writes

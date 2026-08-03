@@ -243,15 +243,18 @@ export function pathDelete<T>(row: T, path: Path): T | null {
   }
   const last = path[path.length - 1]
   if (probe === null || typeof probe !== 'object' || !Object.hasOwn(probe, last)) return null
+  // The array refusal outranks the undefined-leaf no-op below: an OWNED array
+  // slot holding explicit `undefined` still throws (clause 10a is a blanket —
+  // only an un-owned/out-of-range index is the 10b absent-target no-op).
+  if (Array.isArray(probe))
+    throw new Error(
+      `data: remove() of array element [${path.join('.')}] would leave a sparse hole — write the spliced array instead`,
+    )
   // An owned-but-undefined leaf deletes as a no-op: at the deep-write layer
   // leaf-absent ≡ leaf-undefined (the same equivalence the Object.is no-op
   // drop applies to writes), and emitting the delete would be a phantom
   // update under clause 8 (leaf unchanged: undefined → undefined).
   if (probe[last] === undefined) return null
-  if (Array.isArray(probe))
-    throw new Error(
-      `data: remove() of array element [${path.join('.')}] would leave a sparse hole — write the spliced array instead`,
-    )
   const root = shallowCopy(row)
   let src: any = row
   let dst: any = root
@@ -276,9 +279,14 @@ export function pathCopy<T>(row: T, path: Path, value: unknown): T {
   let dst: any = root
   for (let i = 0; i < path.length - 1; i++) {
     const p = path[i]
-    const next = src == null || src[p] == null ? {} : shallowCopy(src[p])
+    // Vivify ANY non-object intermediate to a clean {} (clause 10c): spreading
+    // a scalar happens to be {} for numbers/booleans, but a STRING spreads its
+    // index characters into the vivified object ({'0':'a','1':'b',...}) — junk
+    // that would replicate to every peer.
+    const cur = src == null ? undefined : src[p]
+    const next = cur === null || typeof cur !== 'object' ? {} : shallowCopy(cur)
     dst[p] = next
-    src = src == null ? undefined : src[p]
+    src = cur
     dst = next
   }
   dst[path[path.length - 1]] = value
