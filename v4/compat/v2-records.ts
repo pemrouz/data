@@ -14,7 +14,7 @@
 
 import type { ChangeRecordV2 } from '../contract/index.ts'
 import type { CommitBatch, OriginToken, RowDelta, RowKey } from '../contract/delta.ts'
-import { leafAt } from '../kernel/node.ts'
+import { attachSettled, leafAt } from '../kernel/node.ts'
 import type { DataNode, SubscriptionHandle } from '../kernel/node.ts'
 
 const sclone = (v: unknown) => (v === undefined ? v : structuredClone(v))
@@ -146,6 +146,7 @@ export function materialize<T>(snap: Map<RowKey, T>, order: readonly RowKey[] | 
 // handle disposes the subscription (the v2 WeakRef-drop idiom is replaced by
 // an explicit handle — scopes own it if one is current).
 export function connectRecords<T>(node: DataNode<T>, arr: ChangeRecordV2[], opts: V2SinkOpts = {}): SubscriptionHandle {
-  const sink = new V2RecordSink(node, (r) => arr.push(r), opts)
-  return node.connect(sink)
+  // attachSettled: the sink CONSTRUCTOR emits the initial whole-value record,
+  // so a mid-batch attach defers construction+connect together (clause 7).
+  return attachSettled(node.runtime, () => node.connect(new V2RecordSink(node, (r) => arr.push(r), opts)))
 }

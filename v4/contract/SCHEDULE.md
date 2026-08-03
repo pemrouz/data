@@ -1,4 +1,4 @@
-# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 3)
+# SCHEDULE.md — the v4 timing & consistency contract (SCHEDULE_VERSION 4)
 
 This document is versioned and contract-tested: the executable suite in
 [../conformance/schedule.test.ts](../conformance/schedule.test.ts) covers every numbered clause
@@ -38,7 +38,13 @@ superset of v2's per-write settle, never a replacement.
    issued it, or the enclosing `withOrigin`), not the issuing sink's declared origin.
 7. **Snapshot-then-deltas.** A sink connected between commits receives `init(snapshot,
    order?)` reflecting fully-settled state, then `apply(batch)` for every subsequent commit,
-   exactly once each, in commit order. No gap, no overlap.
+   exactly once each, in commit order. No gap, no overlap. An attach issued INSIDE an open
+   `batch()` observes the batch boundary (SCHEDULE_VERSION 4): the whole attach — init
+   snapshot + connect — defers to that batch's own commit, so `init` reflects the settled
+   post-commit state (writes both before AND after the attach in that batch) and delivery
+   starts at the NEXT commit; a write-free batch attaches at close against the unchanged
+   state. (An attach from inside an effect keeps the established mid-flush semantics: its
+   init already contains the current commit, delivery starts at the next.)
 8. **Emission legality.** Within one batch: at most one row delta per key; `add` only for
    keys not live before the batch; `update`/`remove` only for keys live before the batch;
    no `update` whose written leaf satisfies `Object.is(prevLeaf, nextLeaf)` (no-phantom-events);

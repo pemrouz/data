@@ -34,7 +34,7 @@ import '../ops/ordered.ts'
 import '../ops/misc.ts'
 import '../ops/quantile.ts'
 
-import { SourceNode, DataNode, leafAt } from '../kernel/node.ts'
+import { SourceNode, DataNode, attachSettled, leafAt } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import type { Runtime } from '../kernel/runtime.ts'
 import { currentScope } from '../kernel/scope.ts'
@@ -555,6 +555,10 @@ export function wireSink(
 ): SubscriptionHandle {
   const node = resolveNode(target)
   const keyDomain = keyDomainOf(node)
+  // attachSettled: a mid-batch wireSink defers the seq-0 snapshot emission +
+  // connect to the batch's commit (clause 7 — the snapshot batch reflects the
+  // settled state and the batch's own deltas are not re-emitted).
+  return attachSettled(node.runtime, () => {
   if (opts.initial !== false) {
     const records: WireRecord[] = []
     const order = node.currentOrder()
@@ -618,6 +622,7 @@ export function wireSink(
       for (const u of updates) records.push(u)
       if (records.length > 0) out({ keyDomain, seq: batch.seq, records })
     },
+  })
   })
 }
 

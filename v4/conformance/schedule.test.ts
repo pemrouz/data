@@ -20,6 +20,7 @@ import { filter } from '../ops/rowops.ts'
 import { sum } from '../ops/aggregate.ts'
 import { intersect } from '../ops/setops.ts'
 import { SCHEDULE_VERSION } from '../contract/index.ts'
+import { handleFor } from '../api/index.ts'
 import type { CommitBatch } from '../contract/delta.ts'
 import { ingest, fromAsync, InMemoryBacking } from '../seam/index.ts'
 
@@ -36,7 +37,7 @@ function capture<T>(node: any, origin: symbol | null = null): CommitBatch<T>[] {
 
 //! SCHEDULE_VERSION — the constant this suite executes; a clause change without a bump fails here.
 test('SCHEDULE_VERSION is exported at runtime and matches this suite', () => {
-  same(SCHEDULE_VERSION, 3) // v2: clause 10 deep-path law (W3); v3: clause 11 value domain (W15)
+  same(SCHEDULE_VERSION, 4) // v2: clause 10 deep-path law (W3); v3: clause 11 value domain (W15); v4: clause 7 mid-batch attach
 })
 
 //! Clause 1 — a bare write is a SYNCHRONOUS batch of one; central Object.is no-op drop.
@@ -232,6 +233,66 @@ test('clause 7: init(snapshot) then apply per commit — no gap, no overlap', ()
   backing.source.write('a', ['n'], 9)
   same(seqs.length, 2) // every subsequent commit, exactly once each
   ok(seqs[0] < seqs[1]) // in commit order — no reordering, no overlap
+})
+
+//! Clause 7 addendum (SCHEDULE_VERSION 4) — an attach INSIDE an open batch() observes the
+//! batch boundary: the whole attach defers to that batch's commit. Pre-v4 the init snapshot
+//! read the half-applied batch (read-your-writes) and apply() then redelivered the same
+//! batch — a mid-batch subscriber double-counted every pending write.
+test('clause 7: sink()/connect() attached INSIDE batch() — init is the settled commit, apply starts at the NEXT commit', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { n: 1 } })
+  conform(src)
+  const h = handleFor(src)
+
+  // sink(): no gap (init carries writes made before AND after the attach in
+  // the batch), no overlap (the batch's own deltas are not redelivered).
+  let snap: Map<unknown, Row> | null = null
+  const applies: unknown[] = []
+  rt.batch(() => {
+    src.write('b', [], { n: 2 }) // before the attach
+    h.sink({
+      init: (s: Map<unknown, Row>) => (snap = new Map(s)),
+      apply: (b: unknown) => applies.push(b),
+    })
+    src.write('c', [], { n: 3 }) // after the attach, same batch
+    ok(snap === null) // nothing delivered mid-batch (clause 2b)
+  })
+  same([...snap!.keys()].sort(), ['a', 'b', 'c']) // no gap — the whole settled batch
+  same(applies.length, 0) // no overlap — the attach batch is not redelivered
+  src.write('c', ['n'], 9)
+  same(applies.length, 1) // delivery starts at the NEXT commit, exactly once
+
+  // connect([]): one settled whole-value opening record, no per-key
+  // duplicates for the attach batch, then one record per subsequent commit.
+  const recs: any[] = []
+  rt.batch(() => {
+    src.write('d', [], { n: 4 })
+    h.connect(recs)
+  })
+  same(recs.length, 1)
+  same(recs[0].type, 'update')
+  same(recs[0].key, [])
+  ok('d' in recs[0].value) // settled state including the mid-batch write
+  src.remove('d')
+  same(recs.length, 2)
+  same(recs[1].type, 'remove')
+
+  // A write-free batch never commits — the attach lands at batch close
+  // against the unchanged state.
+  const recs2: any[] = []
+  rt.batch(() => h.connect(recs2))
+  same(recs2.length, 1)
+
+  // dispose() before the deferred attach ran cancels it entirely.
+  const recs3: any[] = []
+  rt.batch(() => {
+    src.write('e', [], { n: 5 })
+    h.connect(recs3).dispose()
+  })
+  same(recs3.length, 0)
+  src.write('e', ['n'], 6)
+  same(recs3.length, 0)
 })
 
 //! Clause 8 — emission legality: consolidation ≤1 delta/key; net-zero flips annihilate to NOTHING.

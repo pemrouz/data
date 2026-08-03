@@ -56,6 +56,40 @@ export class Runtime {
     return this.flushing && !this.draining ? this.seq : 0
   }
 
+  // Clause-7 deferral for MID-BATCH attaches (attachSettled in node.ts). A
+  // subscription created inside an open batch() must not snapshot the
+  // half-applied batch and then receive that same batch's deltas (overlap),
+  // nor snapshot early and miss post-attach writes from the same batch (a
+  // gap). The whole attach (init snapshot + connect) is deferred into the
+  // batch's own commit — after settle, before the effect phase — where the
+  // init snapshot is the settled post-commit state and connectSeq() stamps
+  // bornSeq = this commit, so delivery starts at the NEXT commit. A batch
+  // that wrote nothing never commits; batch() drains the queue at close
+  // against the unchanged state instead (≡ an outside-batch attach).
+  private attaches: (() => void)[] | null = null
+
+  attachWhenSettled(run: () => void): void {
+    if (this.batchDepth === 0) {
+      run()
+      return
+    }
+    ;(this.attaches ??= []).push(run)
+  }
+
+  private drainAttaches(errors: unknown[] | null): void {
+    const list = this.attaches!
+    this.attaches = null
+    for (const run of list) {
+      if (errors === null) run()
+      else
+        try {
+          run()
+        } catch (e) {
+          errors.push(e)
+        }
+    }
+  }
+
   register(node: DataNode<any>): void {
     this.registry.add(new WeakRef(node))
   }
@@ -120,7 +154,14 @@ export class Runtime {
       // origin tokens never stamped the commit (echo suppression silently
       // dead; found by the seam agent's round-trip test).
       try {
-        if (this.batchDepth === 0 && this.dirty.length > 0 && !this.flushing) this.flush()
+        if (this.batchDepth === 0 && !this.flushing) {
+          if (this.dirty.length > 0) this.flush()
+          // A write-free batch never committed: run deferred attaches now,
+          // against the unchanged state. (When this.flushing — a queued
+          // re-entrant batch closing mid-flush — the enclosing flush loop
+          // drains them at the next commit's settle boundary instead.)
+          if (this.attaches !== null) this.drainAttaches(null)
+        }
       } finally {
         this.currentOrigin = prevOrigin
       }
@@ -162,6 +203,9 @@ export class Runtime {
         }
         this.commitOnce(errors)
       }
+      // A write-free queued batch can leave deferred attaches with nothing
+      // left to commit — run them against the settled end-of-flush state.
+      if (this.attaches !== null) this.drainAttaches(errors)
     } finally {
       this.flushing = false
     }
@@ -236,6 +280,12 @@ export class Runtime {
         }
       }
     }
+
+    // Mid-batch attaches (clause 7): run after settle, before effects — the
+    // init snapshot is this commit's settled state, connectSeq() stamps
+    // bornSeq = seq so the effect loop below skips this batch for them.
+    // Exception-isolated like effects (clause 4).
+    if (this.attaches !== null) this.drainAttaches(errors)
 
     // Effect phase: after ALL operator state is settled (clause 4), in
     // topological order, exception-isolated. Each node's effects run off a

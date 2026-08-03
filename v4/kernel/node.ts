@@ -170,6 +170,32 @@ export abstract class DataNode<Out> {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+// Clause-7 wrapper for every public snapshot-then-connect site (api sink()/
+// connect(), connectPath, connectRecords, wireSink). Outside a batch the
+// attach runs immediately (identity). Inside an open batch() the WHOLE attach
+// — init snapshot + connect — defers to the batch's own commit (after settle,
+// before effects; Runtime.attachWhenSettled), so init reflects the settled
+// post-commit state and the batch's own deltas are not redelivered. The
+// returned handle is live immediately: dispose() before the deferred attach
+// cancels it; after, it forwards. The ambient scope is captured at CALL time
+// (the deferred connect may run outside the caller's scope frame).
+export function attachSettled(runtime: Runtime, attach: () => SubscriptionHandle): SubscriptionHandle {
+  if (!runtime.midBatch) return attach()
+  let inner: SubscriptionHandle | null = null
+  let dead = false
+  runtime.attachWhenSettled(() => {
+    if (!dead) inner = attach()
+  })
+  const handle: SubscriptionHandle = {
+    dispose() {
+      dead = true
+      if (inner) inner.dispose()
+    },
+  }
+  currentScope()?.add(handle as unknown as { dispose(): void })
+  return handle
+}
+
 function shallowCopy(v: any): any {
   return Array.isArray(v) ? v.slice() : { ...v }
 }

@@ -20,7 +20,7 @@ import '../ops/quantile.ts'
 
 import { registry } from '../ops/registry.ts'
 import { Runtime } from '../kernel/runtime.ts'
-import { DataNode, SourceNode, leafAt } from '../kernel/node.ts'
+import { DataNode, SourceNode, attachSettled, leafAt } from '../kernel/node.ts'
 import type { SubscriptionHandle } from '../kernel/node.ts'
 import { RESERVED, type ChangeRecordV2 } from '../contract/index.ts'
 import type { Path, RowKey } from '../contract/delta.ts'
@@ -179,6 +179,9 @@ function connectPath(
   const key = state.path[0] as RowKey
   const rest = state.path.slice(1)
   const clone = opts.clone === false ? <V>(v: V) => v : <V>(v: V) => (v === undefined ? v : (structuredClone(v) as V))
+  // attachSettled: a mid-batch attach defers initial-record + connect to the
+  // batch's commit (clause 7 — no half-applied snapshot, no redelivery).
+  return attachSettled(src.runtime, () => {
   if (opts.initial !== false) out({ type: 'update', key: [], value: clone(readAt(state)) })
   return src.connect({
     wantsOrder: false,
@@ -216,6 +219,7 @@ function connectPath(
         } // else: disjoint sibling path — not ours
       }
     },
+  })
   })
 }
 
@@ -342,23 +346,30 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
         // W2: the record forms take trailing options {origin, clone, initial} —
         // origin-token echo suppression and the clone-free/by-ref mode on the
         // PUBLIC surface (no more Symbol.for node reach-through for fero).
+        // attachSettled on every root form: the sink constructor / mirror
+        // seed reads the snapshot, so a mid-batch attach defers the whole
+        // thing to the batch's commit (clause 7 — no overlap, no gap).
         if (Array.isArray(a) && (b === undefined || (typeof b === 'object' && b !== null))) {
-          const sink = new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r), (b as V2SinkOpts) ?? {})
-          return n.connect(sink)
+          return attachSettled(n.runtime, () =>
+            n.connect(new V2RecordSink(n, (r: ChangeRecordV2) => (a as ChangeRecordV2[]).push(r), (b as V2SinkOpts) ?? {})),
+          )
         }
         if (typeof a === 'object' && a !== null && typeof b === 'function') {
-          const sink = new V2RecordSink(n, b as (r: ChangeRecordV2) => void, (c as V2SinkOpts) ?? {})
-          return n.connect(sink)
+          return attachSettled(n.runtime, () =>
+            n.connect(new V2RecordSink(n, b as (r: ChangeRecordV2) => void, (c as V2SinkOpts) ?? {})),
+          )
         }
         if (typeof a === 'object' && a !== null && typeof b === 'string') {
           const obj = a as Record<string, unknown>
-          obj[b] = readAt(state)
-          return n.connect({
-            wantsOrder: false,
-            origin: null,
-            apply: () => {
-              obj[b] = readAt(state)
-            },
+          return attachSettled(n.runtime, () => {
+            obj[b] = readAt(state)
+            return n.connect({
+              wantsOrder: false,
+              origin: null,
+              apply: () => {
+                obj[b] = readAt(state)
+              },
+            })
           })
         }
         throw new Error(
@@ -440,14 +451,19 @@ function makeMethod(state: HandleState, name: string): (...args: any[]) => any {
         if (typeof s?.apply !== 'function') throw new Error('data: sink() takes { apply(batch), wantsOrder?, origin?, init? }')
         if (n.kind === 'scalar')
           throw new Error('data: sink() attaches to collection views — subscribe a scalar via connect(anchor, fn) records')
-        if (s.init) s.init(n.snapshot(), n.currentOrder() ?? undefined)
-        // Wrap rather than hand the user object to the kernel: the effect
-        // loop reads entry.origin/wantsOrder per commit (keep them plain data
-        // fields), and the runtime stamps bornSeq/dead on the entry.
-        return n.connect({
-          wantsOrder: s.wantsOrder === true,
-          origin: s.origin ?? null,
-          apply: (b) => s.apply(b),
+        // attachSettled: a mid-batch sink() defers init+connect to the
+        // batch's commit (clause 7 — init is the settled state, the batch's
+        // own deltas are not redelivered).
+        return attachSettled(n.runtime, () => {
+          if (s.init) s.init(n.snapshot(), n.currentOrder() ?? undefined)
+          // Wrap rather than hand the user object to the kernel: the effect
+          // loop reads entry.origin/wantsOrder per commit (keep them plain
+          // data fields), and the runtime stamps bornSeq/dead on the entry.
+          return n.connect({
+            wantsOrder: s.wantsOrder === true,
+            origin: s.origin ?? null,
+            apply: (b) => s.apply(b),
+          })
         })
       }
   }
