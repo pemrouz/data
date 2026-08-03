@@ -19,6 +19,8 @@ import { SourceNode } from '../kernel/node.ts'
 import { scope, runInScope } from '../kernel/scope.ts'
 import { conform, conformScalar, assertOracle } from '../conformance/harness.ts'
 import { filter } from '../ops/rowops.ts'
+import { az } from '../ops/ordered.ts'
+import { group } from '../ops/bucket.ts'
 import { sum } from '../ops/aggregate.ts'
 import { connectRecords, materialize } from '../compat/v2-records.ts'
 import { RESERVED } from '../contract/index.ts'
@@ -817,6 +819,31 @@ test('W1 wireSink: compound array-born batches — removes/moves/mid-inserts in 
     })
     sync()
   }
+})
+
+// Regression (W1 re-review): keyDomain was computed from ORDEREDNESS
+// (currentOrder() !== null), conflating "has an order channel" with the key
+// domain — az(objectBorn) was labeled 'int' with all-string adopted keys, and
+// filter(arrayBorn) was labeled 'string' with minted int keys. The envelope
+// tag now reflects emitted key identity: the primary-parent chain down to the
+// root source's mint mode, with bucket-kind views ('group'/'lengthBuckets'/
+// 'distinct') re-keying to 'string'.
+test('W1 wireSink: keyDomain reflects key identity, not orderedness — derived views label correctly', () => {
+  const rt = new Runtime()
+  const obj = new SourceNode<{ v: number }>(rt, { a: { v: 2 }, b: { v: 1 } })
+  const arr = new SourceNode<{ v: number }>(rt, [{ v: 0 }, { v: 1 }])
+  const domain = (node: unknown) => {
+    let d: string | undefined
+    const sub = wireSink(node as any, (wb) => (d ??= wb.keyDomain))
+    sub.dispose()
+    return d
+  }
+  same(domain(obj), 'string')
+  same(domain(arr), 'int')
+  same(domain(az(obj, 'v')), 'string') // ordered view, adopted string keys
+  same(domain(filter(arr, (r) => r.v >= 0)), 'int') // unordered view, minted int keys
+  same(domain(az(filter(obj, (r) => r.v >= 0), 'v')), 'string') // chain preserves identity
+  same(domain(group(arr, (r) => (r.v % 2 ? 'odd' : 'even'))), 'string') // bucket re-keys
 })
 
 test('W1 wireSink fuzz: 200 seeded compound batches — replica snapshot AND order track the emitter exactly', () => {

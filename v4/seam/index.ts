@@ -530,13 +530,31 @@ export interface WireSinkOpts {
   readonly initial?: boolean
 }
 
+// The envelope's keyDomain reflects the node's EMITTED KEY IDENTITY ('int' =
+// minted integer keys, 'string' = adopted keys — contract/index.ts), NOT
+// orderedness: az(objectBorn) emits adopted string keys (→ 'string') and
+// filter(arrayBorn) emits minted int keys (→ 'int'). Key identity flows down
+// the primary-parent chain: bucket-kind views (group / lengthBuckets /
+// distinct) RE-KEY to minted string bucket keys; every other view preserves
+// its primary parent's keys down to the root source's mint mode.
+function keyDomainOf(node: DataNode<any>): WireBatch['keyDomain'] {
+  let n: DataNode<any> = node
+  while (!(n instanceof SourceNode)) {
+    if (registry.get(n.opName)?.kind === 'bucket') return 'string'
+    const p = n.parents[0]
+    if (p === undefined) return 'string' // detached — no row keys ride anyway
+    n = p
+  }
+  return n.ordered ? 'int' : 'string'
+}
+
 export function wireSink(
   target: IngestTarget | { readonly [k: symbol]: unknown },
   out: (batch: WireBatch) => void,
   opts: WireSinkOpts = {},
 ): SubscriptionHandle {
   const node = resolveNode(target)
-  const keyDomain: WireBatch['keyDomain'] = node.currentOrder() !== null ? 'int' : 'string'
+  const keyDomain = keyDomainOf(node)
   if (opts.initial !== false) {
     const records: WireRecord[] = []
     const order = node.currentOrder()
