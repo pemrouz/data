@@ -1,35 +1,31 @@
-// M3 replication gate (W7b/c): the corpus row that never existed — fero's
-// EXACT inbound shape, gated.
+// M3 replication gate (W7b/c): the hot ingest lane under fero's frame-run
+// shape — a deterministic 60/20/20 update/insert/remove stream applied
+// through lane() at three framings (16 records/frame — fero's realistic
+// inbound; 1/frame — the unbatched two-phase floor; 512/frame — the batch
+// amortization ceiling), each riding one native sink + one filter→sum chain.
 //
-// The workload is replication apply: interleaved update/insert/remove
-// records arriving in frame-runs, applied into a source carrying one
-// record-consumer sink + one filter→sum chain (fero: the capture/serve sink
-// and a derived projection). The referent is fero's terminal apply TODAY —
-// v2's `[view].res.update/insert/remove` per record (log/index.ts
-// applyRecord) with a FunctionSink attached (v2 clones per emission; that is
-// fero's current, measured cost). The candidate is the v4 hot lane
-// (seam.lane(), zero reshape) applied per frame of 16 — the D1 migration
-// design (fero batches inbound per frame-run, never per record).
+// HISTORY: born as the corpus row that never existed — v4 lane vs fero's v2
+// terminal apply ([view].res per record), gate ≤ 1.15×. The v2 referent was
+// RETIRED at the v4 root promotion (2026-08-03); the final recorded A/B on
+// the dev machine was frame-16 at 0.151× of the v2 path (µs/rec ≈ 0.79 vs
+// 6.07) — the lane beat the referent by ~6.6×, with per-rec (batch-of-1) at
+// ~0.53× and frame-512 at ~0.13×.
 //
-// GATE: median-of-interleaved-ratios (m1 methodology: adjacent samples, same
-// JIT/GC state, monotonic values, fresh insert keys — never the no-op lane)
-// v4-frame16 / v2-per-record ≤ 1.15.
+// What gates NOW:
+// 1. absolute ceiling, dev-machine-calibrated: frame-16 ≤ 3.0 µs/rec.
+//    Observed 0.79–1.55 µs/rec across runs on this machine (WSL wall-clock
+//    variance is real); the retired v2 referent sat at ~6 µs/rec, so 3.0
+//    still catches that regression class, a lost lane fast path, or an
+//    accidental per-record reshape/allocation.
+// 2. CROSS-LANE STATE EQUALITY: all three framings replay the IDENTICAL
+//    script, so their live sets and derived sums must agree exactly — a
+//    silently-diverging lane fails long before any ratio matters.
 //
-// INFORMATIONAL (the W7c remove-floor statement, printed every run):
-//   v4 per-record (batch-of-1)   — the honest two-phase-commit floor at the
-//                                  unbatched framing (corpus: remove rows
-//                                  2.4-2.6× v2 there);
-//   v4 frame-512                 — how batching amortizes it.
-// The number to read: frame-16 already recovers the floor (fero's realistic
-// small frame), frame-512 is gravy. If v4-rec/v2-rec drifts far above the
-// corpus remove-floor band, something regressed in the commit path.
-//
-// Run: node --experimental-strip-types --no-warnings v4/perf/m3-replication.ts
+// Run: node --experimental-strip-types --no-warnings perf/m3-replication.ts
 
 type Row = { region: string; val: number }
 const N = 10_000
 
-const { $, view } = await import('../../index.ts')
 const { Runtime } = await import('../kernel/runtime.ts')
 const { SourceNode } = await import('../kernel/node.ts')
 const { filter } = await import('../ops/rowops.ts')
@@ -45,7 +41,7 @@ function mk(): Record<string, Row> {
 // ── the deterministic replication stream ─────────────────────────────────────
 // 60% field updates (monotonic — always a real write), 20% inserts (fresh
 // minted keys — the source grows), 20% removes (the oldest previously
-// inserted key — steady live-set). One shared script; every engine replays
+// inserted key — steady live-set). One shared script; every lane replays
 // the identical sequence, so final states must be deep-equal (asserted).
 let stamp = 1
 let mintSeq = 0
@@ -58,33 +54,19 @@ function nextOp(i: number): Op {
   return { t: 2, k: 'm' + Math.min(reapSeq++, mintSeq - 1), path: false, v: 0 }
 }
 
-// ── engines (steady-state fixtures, mutated throughout) ──────────────────────
-// v2: fero's terminal apply — [view].res per record + FunctionSink + chain.
-const v2src: any = $(mk())
-const v2res = v2src[view].res
-let v2sink = 0
-v2src.connect({}, () => v2sink++)
-const v2total = v2src.filter((r: Row) => r.region === 'north').sum('val')
-
-// v4 engines — one per lane so EVERY engine replays the IDENTICAL script
-// exactly once (a shared source would double-apply the informational lanes).
-function mkV4() {
+// One engine per framing so EVERY lane replays the IDENTICAL script exactly
+// once (a shared source would double-apply).
+function mkEngine() {
   const rt = new Runtime()
-  const src4 = new SourceNode<Row>(rt, mk())
+  const src = new SourceNode<Row>(rt, mk())
   let sinkN = 0
-  src4.connect({ wantsOrder: false, origin: null, apply: () => sinkN++ })
-  const total = sum(filter(src4, (r: Row) => r.region === 'north'), 'val')
-  return { src: src4, total, sink: () => sinkN, lane: lane(src4) }
+  src.connect({ wantsOrder: false, origin: null, apply: () => sinkN++ })
+  const total = sum(filter(src, (r: Row) => r.region === 'north'), 'val')
+  return { src, total, sink: () => sinkN, lane: lane(src) }
 }
-const e16 = mkV4()
-const eRec = mkV4()
-const e512 = mkV4()
-
-function v2apply(op: Op): void {
-  if (op.t === 0) v2res.update(op.v, [op.k, 'val'])
-  else if (op.t === 1) v2res.update({ region: 'north', val: op.v }, [op.k])
-  else v2res.remove([op.k])
-}
+const e16 = mkEngine()
+const eRec = mkEngine()
+const e512 = mkEngine()
 
 const hotOf = (op: Op) =>
   op.t === 0
@@ -102,10 +84,7 @@ function script(): Op[] {
   return ops
 }
 
-const applyV2 = (ops: Op[]) => {
-  for (let i = 0; i < ops.length; i++) v2apply(ops[i])
-}
-const applyFramed = (e: ReturnType<typeof mkV4>, size: number) => (ops: Op[]) => {
+const applyFramed = (e: ReturnType<typeof mkEngine>, size: number) => (ops: Op[]) => {
   const frame: any[] = []
   for (let i = 0; i < ops.length; i++) {
     frame.push(hotOf(ops[i]))
@@ -117,10 +96,9 @@ const applyFramed = (e: ReturnType<typeof mkV4>, size: number) => (ops: Op[]) =>
   if (frame.length) e.lane(frame)
 }
 const CASES: [string, (ops: Op[]) => void][] = [
-  ['v2 res/rec', applyV2],
-  ['v4 lane/frame16', applyFramed(e16, 16)],
-  ['v4 lane/rec', applyFramed(eRec, 1)],
-  ['v4 lane/frame512', applyFramed(e512, 512)],
+  ['lane/frame16', applyFramed(e16, 16)],
+  ['lane/rec', applyFramed(eRec, 1)],
+  ['lane/frame512', applyFramed(e512, 512)],
 ]
 
 function sample(fn: (ops: Op[]) => void, ops: Op[]): number {
@@ -136,56 +114,41 @@ for (let w = 0; w < 2; w++) {
 }
 
 const ROUNDS = 11
-const ratios: number[] = []
-const info = { rec: [] as number[], f512: [] as number[], v2: [] as number[], f16: [] as number[] }
+const info = { f16: [] as number[], rec: [] as number[], f512: [] as number[] }
 for (let r = 0; r < ROUNDS; r++) {
-  const ops = script() // ONE script per round; every engine replays it
-  const v2t = sample(CASES[0][1], ops)
-  const f16 = sample(CASES[1][1], ops)
-  const rec = sample(CASES[2][1], ops)
-  const f512 = sample(CASES[3][1], ops)
-  ratios.push(f16 / v2t)
-  info.v2.push(v2t)
-  info.f16.push(f16)
-  info.rec.push(rec / v2t)
-  info.f512.push(f512 / v2t)
+  const ops = script() // ONE script per round; every lane replays it
+  info.f16.push(sample(CASES[0][1], ops))
+  info.rec.push(sample(CASES[1][1], ops))
+  info.f512.push(sample(CASES[2][1], ops))
 }
 const med = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1]
 
-// State equality: all four engines replayed the identical script — their
+// Cross-lane state equality: the three lanes replayed the identical script —
 // live sets and derived chains must agree exactly (guards a silently-
-// diverging lane long before any ratio matters).
+// diverging lane long before any timing matters).
 {
-  const { value } = await import('../../index.ts')
-  const v2snap = v2src[value] as Record<string, Row>
-  const v2keys = Object.keys(v2snap)
-  for (const [name, e] of [['frame16', e16], ['rec', eRec], ['frame512', e512]] as const) {
-    const v4snap = e.src.snapshot()
-    if (v2keys.length !== v4snap.size)
-      throw new Error(`state divergence (${name}): v2 ${v2keys.length} rows vs v4 ${v4snap.size}`)
-    for (const k of v2keys) {
-      const a4 = v4snap.get(k) as Row
-      const a2 = v2snap[k]
-      if (a2.val !== a4.val || a2.region !== a4.region)
-        throw new Error(`state divergence (${name}) at ${k}: v2 ${JSON.stringify(a2)} vs v4 ${JSON.stringify(a4)}`)
+  const ref = e16.src.snapshot()
+  for (const [name, e] of [['rec', eRec], ['frame512', e512]] as const) {
+    const snap = e.src.snapshot()
+    if (ref.size !== snap.size) throw new Error(`state divergence (${name}): ${ref.size} rows vs ${snap.size}`)
+    for (const [k, a] of ref) {
+      const b = snap.get(k) as Row
+      if (a.val !== b.val || a.region !== b.region)
+        throw new Error(`state divergence (${name}) at ${String(k)}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`)
     }
-    const t2 = v2total[value]
-    const t4 = (e.total as any).value()
-    if (t2 !== t4) throw new Error(`derived divergence (${name}): v2 sum ${t2} vs v4 sum ${t4}`)
+    const t16 = (e16.total as any).value()
+    const tb = (e.total as any).value()
+    if (t16 !== tb) throw new Error(`derived divergence (${name}): sum ${t16} vs ${tb}`)
   }
 }
 
-console.log(
-  `v2 res/rec ${med(info.v2).toFixed(3)} µs/rec   v4 lane/frame16 ${med(info.f16).toFixed(3)} µs/rec`,
-)
-console.log(
-  `ratios v4-frame16/v2 ${ratios.map((x) => x.toFixed(3)).join(' ')} -> median ${med(ratios).toFixed(3)}  (gate ≤ 1.15)`,
-)
-console.log(
-  `informational: v4 lane/rec ${med(info.rec).toFixed(3)}× v2 (the unbatched two-phase floor); v4 frame512 ${med(info.f512).toFixed(3)}× v2 — frame-16 batching is the D1 design and the floor recovery`,
-)
-if (med(ratios) > 1.15) {
-  console.log(`FAIL: M3 replication gate exceeded (${med(ratios).toFixed(3)} > 1.15)`)
+const f16 = med(info.f16)
+console.log(`lane/frame16 ${f16.toFixed(3)} µs/rec   lane/rec ${med(info.rec).toFixed(3)}   lane/frame512 ${med(info.f512).toFixed(3)}`)
+console.log('---')
+const CEIL = 3.0
+console.log(`frame-16 ceiling ${f16.toFixed(3)} µs/rec (gate ≤ ${CEIL}); frame-16 batching is the D1 design point`)
+if (f16 > CEIL) {
+  console.log(`FAIL: M3 replication gate exceeded (${f16.toFixed(3)} > ${CEIL})`)
   process.exit(1)
 }
-console.log(`PASS: M3 replication shape ≤ 1.15× fero's v2 terminal apply (sinks ${v2sink}/${e16.sink()})`)
+console.log(`PASS: M3 replication lane within budget (three framings state-equal; sinks ${e16.sink()})`)

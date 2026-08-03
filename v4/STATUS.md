@@ -36,9 +36,16 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 - 2026-08-01 scaffold run: **test:v4 286/286 PASS** (byte-identical inherit
   from v3 apart from the identity rebrand). typecheck:v4 / perf:v4 verification
   pending in the log below.
-- Copy caveats to watch: perf gate children (m1/m2 compare against v2 via
-  dist — unchanged by copy), typecheck programs (`data/v4` importSource
+- Copy caveats to watch: typecheck programs (`data/v4` importSource
   self-resolves via the tsconfig paths map).
+- 2026-08-03 — the perf gates are SELF-CONTAINED: m1/m2/m3's v2-comparative
+  referents were retired ahead of the v4 root promotion (final recorded A/B:
+  m1 bare 0.65×/chain 0.77×, m2 brush 1.11×/batch 0.76×, m3 frame-16 0.151×
+  of fero's v2 terminal apply — all under the 1.15× gates). They now gate on
+  machine-calibrated absolute ceilings + the m1 chain/bare ratio + m3's
+  cross-lane state equality; m4-budgets unchanged. The informational
+  v2-comparison benches (corpus.bench, crossfilter-example.bench + children)
+  were deleted with their referent.
 
 ## Log
 

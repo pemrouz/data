@@ -1,14 +1,26 @@
-// M1 exit gate: v3 single-tick ≤ 1.15× v2 on the filter/aggregate shape
-// (plans/v3/PLAN.md §10 M1 row). Same machine, same workload.
+// M1 gate: single-tick write cost — self-contained (no external referent).
 //
-// Methodology: INTERLEAVED rounds (v2 and v3 sampled adjacently under the
-// same JIT/GC/thermal state), per-round v3/v2 ratios, median-of-ratios
-// verdict. Sequential single-median comparisons were swinging ±50% between
-// runs on this machine — ratios from adjacent samples are the stable signal.
-// Values are monotonic so every measured write is REAL (never an
-// Object.is no-op).
+// HISTORY: this gate was born as an A/B against the v2 engine (v3 single-tick
+// ≤ 1.15× v2, PLAN §10 M1). The v2 referent was RETIRED at the v4 root
+// promotion (2026-08-03); the final recorded A/B on the dev machine was
+// bare 0.65×, chain 0.77× of v2 — comfortably under the 1.15× gate, with the
+// absolute medians bare ≈ 1.17 µs/write, chain ≈ 1.65 µs/write.
 //
-// Run: node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts
+// What gates NOW:
+// 1. chain/bare ratio ≤ 3.0 — machine-independent: the whole operator-chain
+//    overhead (filter → sum riding a keyed field write) over a bare write.
+//    Recorded steady-state ≈ 1.4×; a structural regression (an O(N) walk on
+//    the delta path, a lost fast path) blows straight through 3.0.
+// 2. absolute ceilings, dev-machine-calibrated with ~4× headroom: bare ≤ 5
+//    µs/write, chain ≤ 8 µs/write. These absorb thermal/WSL variance but
+//    catch order-of-magnitude regressions even if both cases regress
+//    together (which the ratio alone would forgive).
+//
+// Methodology (kept from the A/B era): interleaved rounds, median-of-rounds,
+// monotonic values so every measured write is REAL (never an Object.is
+// no-op).
+//
+// Run: node --experimental-strip-types --no-warnings perf/m1-gate.ts
 
 type Row = { region: string; val: number }
 const N = 10_000
@@ -21,30 +33,22 @@ const keys: string[] = []
 for (let i = 0; i < N; i++) keys.push('k' + i)
 let stamp = 1
 
-const { $ } = await import('../../index.ts')
 const { Runtime } = await import('../kernel/runtime.ts')
 const { SourceNode } = await import('../kernel/node.ts')
 const { filter } = await import('../ops/rowops.ts')
 const { sum } = await import('../ops/aggregate.ts')
 
 // ── fixtures (built once, mutated throughout — steady-state engines) ─────────
-const v2src: any = $(mk())
-const v2csrc: any = $(mk())
-const v2north = v2csrc.filter((r: Row) => r.region === 'north')
-const v2total = v2north.sum('val')
-
-const rt3 = new Runtime()
-const v3src = new SourceNode<Row>(rt3, mk())
-const rt3c = new Runtime()
-const v3csrc = new SourceNode<Row>(rt3c, mk())
-const v3north = filter(v3csrc, (r) => r.region === 'north')
-const v3total = sum(v3north, 'val')
+const rt = new Runtime()
+const bareSrc = new SourceNode<Row>(rt, mk())
+const rtc = new Runtime()
+const chainSrc = new SourceNode<Row>(rtc, mk())
+const north = filter(chainSrc, (r) => r.region === 'north')
+const total = sum(north, 'val')
 
 const CASES: [string, (i: number) => void][] = [
-  ['v2 bare', (i) => { v2src[keys[i % N]].val = ++stamp }],
-  ['v3 bare', (i) => v3src.write(keys[i % N], ['val'], ++stamp)],
-  ['v2 chain', (i) => { v2csrc[keys[i % N]].val = ++stamp }],
-  ['v3 chain', (i) => v3csrc.write(keys[i % N], ['val'], ++stamp)],
+  ['bare', (i) => bareSrc.write(keys[i % N], ['val'], ++stamp)],
+  ['chain', (i) => chainSrc.write(keys[i % N], ['val'], ++stamp)],
 ]
 
 const INNER = 8000
@@ -69,24 +73,24 @@ function med(xs: number[]): number {
   return s[s.length >> 1]
 }
 
+const bare = med(times[0])
+const chain = med(times[1])
 for (let c = 0; c < CASES.length; c++) {
-  console.log(CASES[c][0].padEnd(10), med(times[c]).toFixed(3), 'µs/write')
+  console.log(CASES[c][0].padEnd(6), med(times[c]).toFixed(3), 'µs/write')
 }
 
 // per-round ratios → median (adjacent samples share machine state)
-const bareRatios = times[0].map((v2, r) => times[1][r] / v2)
-const chainRatios = times[2].map((v2, r) => times[3][r] / v2)
-const rBare = med(bareRatios)
-const rChain = med(chainRatios)
+const ratio = med(times[0].map((b, r) => times[1][r] / b))
 
 console.log('---')
-const GATE = 1.15
-console.log(`bare  ratio v3/v2 (median of ${ROUNDS} rounds) = ${rBare.toFixed(3)}  (gate ≤ ${GATE})`)
-console.log(`chain ratio v3/v2 (median of ${ROUNDS} rounds) = ${rChain.toFixed(3)}  (gate ≤ ${GATE})`)
-// keep the graph alive against v2's WeakRef lifetime + v3 scope-less refs
-void v2total; void v3total
-if (rBare > GATE || rChain > GATE) {
+const RATIO_GATE = 3.0
+const BARE_CEIL = 5
+const CHAIN_CEIL = 8
+console.log(`chain/bare ratio (median of ${ROUNDS} rounds) = ${ratio.toFixed(3)}  (gate ≤ ${RATIO_GATE})`)
+console.log(`absolute: bare ${bare.toFixed(3)} µs (≤ ${BARE_CEIL})  chain ${chain.toFixed(3)} µs (≤ ${CHAIN_CEIL})`)
+void total // keep the chain alive
+if (ratio > RATIO_GATE || bare > BARE_CEIL || chain > CHAIN_CEIL) {
   console.error('FAIL: M1 single-tick gate exceeded')
   process.exit(1)
 }
-console.log('PASS: M1 single-tick ≤ 1.15× v2')
+console.log('PASS: M1 single-tick within budget (chain overhead + absolute ceilings)')
