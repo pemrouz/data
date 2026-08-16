@@ -1,9 +1,16 @@
-# Architecture reference → moved
+# Architecture pointer
 
-The architecture & notification-protocol reference now lives at the repo root as a human-facing doc:
+The canonical internals references are:
 
-➜ **[../PROTOCOL.md](../PROTOCOL.md)**
+- [contract/SCHEDULE.md](../contract/SCHEDULE.md) — the executable timing &
+  consistency contract (SCHEDULE_VERSION; conformance tests per clause in
+  [conformance/schedule.test.ts](../conformance/schedule.test.ts)).
+- [contract/delta.ts](../contract/delta.ts) — the closed delta algebra (the
+  WHOLE verb surface: three row verbs, three order verbs, one scalar shape,
+  one batch envelope).
+- [kernel/](../kernel) — Runtime (two-phase batch commit), DataNode/SourceNode,
+  Store. [ops/](../ops) — the operator registry + implementations.
+  [seam/](../seam) — ingest/lane/wireSink/mount, the outside-world boundary.
+- [STATUS.md](../STATUS.md) — the wishlist ledger and promotion history.
 
-It was promoted out of `.claude/` so it's discoverable from the README — not just by Claude sessions. The View / Sink contract, the full notification-code legend (`XU0`/`BU1`/`BI0`/`BH1`/`BF0`/`BMV1`/`BR1A`/`BI0A`/…), propagation rules, the array-source shift contract, operator dedup, WeakRef sink cleanup, and the render/devtools internals all live there now.
-
-This file is kept only as a pointer because several docs still link here. **Edit [../PROTOCOL.md](../PROTOCOL.md)** (the canonical source), not this stub.
+See CLAUDE.md at the repo root for the working guide.

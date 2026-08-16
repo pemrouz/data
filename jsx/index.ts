@@ -1,194 +1,157 @@
-// Thin JSX adapter over the HTML/SVG builders. Goal: let templates be
-// authored in JSX syntax without giving up the per-key surgical DOM updates
-// that DOMSink does. The trick is that JSX is purely a syntactic transform —
-// `<div className="x">{c}</div>` desugars to `h("div", {className:"x"}, c)`,
-// and if `h` returns the same NodeProxy AST that `HTML.div.x(c)` returns,
-// `render()` walks an identical tree and DOMSink handles updates exactly as
-// it does today. No virtual DOM, no scheduler, no new sink type.
-import { HTML, SVG, NODE } from '../render/index.ts'
-import { view } from '../core.ts'
-import type { Data, RowOf } from '../core.ts'
-
-// SVG-namespaced tags. `h` uses this set to dispatch to SVG instead of HTML;
-// anything not listed is HTML. Capitalized JSX identifiers (function
-// components) bypass this entirely and are invoked directly.
-const SVG_TAGS = new Set([
-  'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline',
-  'polygon', 'text', 'tspan', 'textPath', 'defs', 'clipPath', 'mask',
-  'pattern', 'image', 'use', 'symbol', 'marker', 'linearGradient',
-  'radialGradient', 'stop', 'foreignObject', 'filter', 'feGaussianBlur',
-  'feOffset', 'feMerge', 'feMergeNode', 'feColorMatrix', 'feFlood',
-  'feComposite', 'desc',
-  // NB: `title` is intentionally NOT here. It exists in both namespaces (HTML
-  // document <title> and SVG tooltip <title>), and h() picks the namespace from
-  // this set with no parent context — so a `title` here forced every <title>
-  // into the SVG namespace, breaking HTML <title> (which jsx.d.ts types as
-  // HTML). Defaulting it to HTML matches the d.ts; for an SVG tooltip use the
-  // explicit `SVG.title` builder. (Other dual-namespace tags — a/script/style —
-  // were never in the set, so they already default to HTML.)
-])
-
-// Translate a JSX props bag onto an existing NodeProxy by chaining the
-// equivalent builder calls. Centralized here so `h` and `For` use the same
-// rules. Returns the new proxy (each builder call returns a fresh proxy).
+// jsx — the classic JSX transform (jsxFactory: h, jsxFragmentFactory:
+// Fragment) — M4.5b sugar layer.
 //
-//   className / class string → .class('name', true) per token
-//   class object             → .class({name: cond}) — Prop.add's object form,
-//                              the natural mirror of .class('a', va).class('b', vb)
-//   style object             → .style({name: value})
-//   id string                → .id(value, true)
-//   on{Event}                → .on(event.toLowerCase(), fn)
-//   children/key/ref         → reserved JSX names, ignored here
-//   anything else            → .attr(key, value), boolean true → '' so
-//                              setAttribute produces the standard empty-string
-//                              boolean attribute (matches existing 'autofocus='
-//                              shorthand, not the literal string "true")
-export function applyProps(node: any, props: any): any {
-  if (!props) return node
-  for (const k in props) {
-    const v = props[k]
-    if (v === undefined || v === null || v === false) continue
-    if (k === 'className' || k === 'class') {
-      if (typeof v === 'string') {
-        for (const c of v.split(/\s+/)) if (c) node = node.class(c, true)
-      } else {
-        node = node.class(v)
-      }
-    } else if (k === 'style' && typeof v === 'object') {
-      node = node.style(v)
-    } else if (k === 'id' && typeof v === 'string') {
-      node = node.id(v, true)
-    } else if (/^on[A-Z]/.test(k) && typeof v === 'function' && !(v as any)[view]) {
-      // Require an UPPERCASE char after `on` (onClick, onInput) so a legitimate
-      // non-event prop that merely starts with "on" and holds a function —
-      // `once={fn}` — isn't swallowed as addEventListener('ce', fn). Also exclude
-      // a ViewProxy value (it's `typeof 'function'`): `onClick={vp}` would
-      // otherwise install a listener that throws on the first click.
-      node = node.on(k.slice(2).toLowerCase(), v)
-    } else if (k === 'ref' && typeof v === 'function') {
-      // One-shot callback fired with the real DOM element after create().
-      // See the Ref class in render/index.ts.
-      node = node.ref(v)
-    } else if (k === 'children' || k === 'key') {
-      // children come positionally (classic) or via the runtime's children
-      // extraction (automatic, see jsx()). key is reserved for future
-      // keyed-list semantics; currently unused.
-    } else {
-      node = node.attr(k, v === true ? '' : v)
+// A THIN layer over the frozen render AST, sharing normChildren with the
+// builder DSL: `<div class="x">{total}</div>` produces the EXACT record
+// `el('div', { class: 'x' }, text(total))` produces — same renderer, same
+// keyed sink, same surgical updates. Props pass through UNCHANGED (the
+// renderer already dispatches on* events / handle / DataNode / bind() /
+// static values), so reactive attrs need no JSX-side work.
+//
+// THE v2 CHILD AMBIGUITY IS DEAD (deliberate kill, do not resurrect):
+// - a bare $ handle / view child is reactive TEXT, always — it never
+//   auto-iterates, whatever its siblings are.
+// - iteration is ONLY <For each={view}>{(row, key) => vnode}</For>, which is
+//   list(view, fn). There is NO [vp, fn] children shorthand: a FUNCTION child
+//   under a string tag THROWS (normChildren's unsupported-child error), so a
+//   view child can never silently pair with a sibling function and flip from
+//   text to iteration (the v2 hasRowFn discriminator and its whole bug family
+//   — text-vs-data path flips, element-sibling exclusions — do not exist here).
+//
+// Components: a FUNCTION tag becomes component(tag, { ...props, children }) —
+// DEFERRED to mount, where the render layer invokes it ONCE under its own
+// child Scope (onCleanup(), transient views, and raf() writers inside it die
+// with its DOM). Component children are normalized with the SAME vocabulary
+// as element children EXCEPT a function child passes through raw — the
+// render-prop protocol For itself relies on. The STRUCTURAL builtins stay
+// EAGER (identity-checked): Fragment returns its children array (normChildren
+// flattening makes it disappear into any parent), For validates and returns a
+// ListNode at construction, ErrorBoundary returns a boundary() record.
+//
+// The automatic runtime (jsx / jsxs / jsxDEV) lives in ./runtime.ts — a thin
+// normalizer onto this module's h, so classic and automatic transforms can
+// never produce different records. Per-tag intrinsic types live in
+// ./intrinsics.ts (shared by ./jsx.d.ts's global namespace for the classic
+// transform and runtime.ts's exported namespace for the automatic one).
+
+import { el, list, component, boundary } from '../render/index.ts'
+import type { VNode, ListNode } from '../render/index.ts'
+import { normChildren } from '../render/builders.ts'
+import { DataNode } from '../kernel/node.ts'
+import type { RowKey } from '../contract/delta.ts'
+
+// The versioned handle symbol (Symbol.for — shared with api/index.ts without
+// importing it; a symbol read is safe on the handle proxy, string reads are
+// child-path dispatch and may throw).
+const NODE = Symbol.for('data.v4.node')
+
+// A component may return the full child vocabulary (a VNode, an array,
+// reactive-text sources, null) — the mount normalizes it via normChildren.
+export type Component = (props: any) => unknown
+
+function isViewLike(x: unknown): boolean {
+  if (x instanceof DataNode) return true
+  return x !== null && typeof x === 'object' && (x as any)[NODE] instanceof DataNode
+}
+
+function viewNodeOf(x: unknown): DataNode<any> {
+  return x instanceof DataNode ? x : ((x as any)[NODE] as DataNode<any>)
+}
+
+// Component-children normalization: normChildren's vocabulary, EXCEPT a
+// FUNCTION child passes through raw (the render-prop protocol — For's row
+// fn). String tags use normChildren directly, so a function child of an
+// ELEMENT still throws.
+function normComponentChildren(children: unknown[]): unknown[] {
+  const out: unknown[] = []
+  const push = (c: unknown): void => {
+    if (typeof c === 'function') {
+      out.push(c)
+      return
     }
+    if (Array.isArray(c)) {
+      for (const k of c) push(k)
+      return
+    }
+    for (const v of normChildren([c])) out.push(v)
   }
-  return node
+  for (const c of children) push(c)
+  return out
 }
 
-// JSX classic factory. tsconfig.jsxFactory: "h" maps `<div className="x">{c}</div>`
-// to `h("div", {className: "x"}, c)`. We forward to the existing builders so
-// the produced NodeProxy AST is byte-identical to `HTML.div.x(c)` — DOMSink
-// then delivers the same surgical updates with no behavior change.
-//
-// Capitalized tags are component functions: `<For each={d}>{fn}</For>` →
-// `h(For, {each: d}, fn)` → `For({each: d}, fn)`.
-//
-// Per-child dispatch has one nuance: when a ViewProxy child has no function
-// sibling, route it through .text() (Prop name-reactive binding — preserves
-// the host element across updates). When there *is* a function sibling, the
-// pair is the builder's data-iteration shape `(VP, fn)` — keep both on the
-// default Node.add path so VP becomes node.data and fn becomes the row
-// generator. Without this distinction `<label>{item.title}</label>` would
-// recreate the label on every update (lost focus/markers), and the
-// `[data, fn]` data-binding shorthand would silently lose its data link.
-export function h(tag: any, props: any, ...children: any[]): any {
+// ── h — the classic jsxFactory ───────────────────────────────────────────────
+
+export function h(
+  tag: string | Component,
+  props: Record<string, unknown> | null,
+  ...children: unknown[]
+): VNode | VNode[] {
   if (typeof tag === 'function') {
-    // Deliver children to a function component BOTH via props.children (the
-    // standard JSX contract jsx.d.ts's ElementChildrenAttribute advertises —
-    // `({ children }) => …`) AND positionally (so the builder-style components
-    // like `For`, which read the row fn as the 2nd positional arg, keep
-    // working). Don't clobber an explicit props.children (the automatic runtime
-    // already put it there).
-    const norm = children.length === 0 ? undefined
-      : children.length === 1 ? children[0]
-      : children
-    const merged = props ? { ...props, children: props.children ?? norm } : { children: norm }
-    return tag(merged, ...children)
+    // JSX children args win over a props.children entry; with no args a
+    // props-passed children (e.g. <For children={fn}/>) survives the default.
+    const p: Record<string, unknown> =
+      children.length > 0
+        ? { ...(props ?? {}), children: normComponentChildren(children) }
+        : { children: [], ...(props ?? {}) }
+    // key never reaches a component (v3 keys rows by DATA identity) — the
+    // automatic runtime already drops it (separate arg); strip the classic
+    // path's props entry so both routes hand the component identical props.
+    delete p.key
+    // Structural builtins stay EAGER (Fragment flattens; For/ErrorBoundary
+    // validate at construction). Any OTHER function tag is a component —
+    // deferred to mount, invoked once under its own scope.
+    if (tag === Fragment || tag === For || tag === ErrorBoundary)
+      return tag(p as any) as VNode | VNode[]
+    return component(tag, p)
   }
-  let node = ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag]
-  node = applyProps(node, props)
-  const flat = children.flat(Infinity)
-  // Has a real ROW FN child? That marks the data-iteration shape, in which case
-  // VPs stay on the data path, not the text path. A row fn is a PLAIN function
-  // — NOT a ViewProxy (`[view]`) and NOT a NodeProxy element (`[NODE]`, also a
-  // callable Proxy with no `[view]`). Excluding NodeProxy elements is the fix:
-  // a VP child with an element sibling (e.g. `<label><em/>{count}</label>`) was
-  // wrongly flipped to the data-iteration path, duplicating the host element.
-  let hasRowFn = false
-  for (const c of flat) {
-    if (typeof c === 'function' && !(c as any)[view] && !(c as any)[NODE]) { hasRowFn = true; break }
+  // `key` is accepted-and-IGNORED (v3 keys rows by DATA identity) — strip it
+  // here or the renderer would forward it as a literal key="…" DOM attribute.
+  // Empty-after-strip collapses to null (byte-parity with a keyless call).
+  if (props !== null && props !== undefined && 'key' in props) {
+    const { key: _key, ...rest } = props
+    props = Object.keys(rest).length > 0 ? rest : null
   }
-  for (const c of flat) {
-    if (c == null || c === false) continue
-    const isVP = typeof c === 'function' && (c as any)[view]
-    node = (isVP && !hasRowFn) ? node.text(c) : node(c)
-  }
-  return node
+  return el(tag, props ?? null, ...normChildren(children))
 }
 
-// `<>{a}{b}</>` → `Fragment(null, a, b)` → `[a, b]`. The enclosing h()'s
-// .flat() pass spreads them as positional siblings.
-export function Fragment(_: any, ...children: any[]): any {
-  return children
+// ── Fragment — flattened children, no host element ───────────────────────────
+
+export function Fragment(props: { children?: unknown }): VNode[] {
+  const c = props?.children
+  return (Array.isArray(c) ? c : c == null ? [] : [c]) as VNode[]
 }
 
-// Automatic JSX runtime entry points. Picked up when a project sets
-// `jsxImportSource: "data"` (or any path that resolves to this module via
-// jsx-runtime). Same NodeProxy/identity guarantees as the classic `h` —
-// these are tiny shims that extract `props.children` and forward to h().
-//
-//   jsx(type, props, key?)   — single static child
-//   jsxs(type, props, key?)  — array of static children
-//   jsxDEV(...)              — dev-mode signature, same body
-//
-// Children arrive bundled in props for the automatic runtime, in contrast
-// to the classic transform where they're variadic positional args.
-function _jsx(type: any, props: any, _key?: any): any {
-  const { children, ...rest } = props || {}
-  const arr = children == null ? []
-    : Array.isArray(children) ? children
-    : [children]
-  return h(type, rest, ...arr)
-}
-export const jsx = _jsx
-export const jsxs = _jsx
-export const jsxDEV = _jsx
+// ── ErrorBoundary — <ErrorBoundary fallback={(err, reset) => vnode}>…</ErrorBoundary>
+// Eager (structural): returns the boundary() record at construction, so a
+// missing fallback throws where the JSX is written, not at mount.
 
-// Keyed-list component over a ViewProxy data source. Forwards to the existing
-// data-binding shape `HTML[tag](each, (node, item, key) => …)` from render —
-// DOMSink keeps DOM identity across updates and reorders. Per-row props go
-// on the element the row fn returns (Node.generate swaps that in for the
-// pre-shaped row template).
-//
-//   <For each={items} tag="li">
-//     {(item) => <li class={{done: item.done}}>{item.title}</li>}
-//   </For>
-//
-// `tag` defaults to 'div' but is replaced when the row fn returns a
-// NodeProxy — Solid-style. Use the matching tag if you want JSX <li>, or
-// omit the inner element and return a Fragment to extend the row template.
-//
-// Props type accepts `children` so `<For>{fn}</For>` (classic transform
-// passes the row fn as a positional arg, but JSX type resolution still
-// wants `children` in the props shape) type-checks under the per-tag
-// JSX types in jsx.d.ts.
-export function For<T>(
-  // `children` is typed as the row fn so the JSX classic transform (which routes
-  // `<For>{arrow}</For>` through the `children` prop) contextually types `item`
-  // to `RowOf<T>`, inferred from `each`. The positional `fn` is the same arrow
-  // for the runtime / builder-style direct call.
-  { each, tag = 'div' }: { each: Data<T>; tag?: string; children?: (item: RowOf<T>, key: string) => any },
-  fn: (item: RowOf<T>, key: any) => any,
-): any {
-  return ((SVG_TAGS.has(tag) ? SVG : HTML) as any)[tag](each, (node: any, item: any, key: any) => {
-    const r = fn(item, key)
-    return Array.isArray(r) ? node(...r.flat(Infinity)) : r
-  })
+export function ErrorBoundary(props: {
+  fallback?: unknown
+  children?: unknown
+}): VNode {
+  const fb = props?.fallback
+  if (typeof fb !== 'function')
+    throw new Error(
+      'data/jsx: <ErrorBoundary> requires fallback={(err, reset) => vnode} — the child to show when the subtree errors',
+    )
+  const c = props?.children
+  return boundary(c ?? [], fb as (err: unknown, reset: () => void) => unknown)
 }
 
-export { HTML, SVG } from '../render/index.ts'
+// ── For — THE iteration form: <For each={view}>{(row, key) => vnode}</For> ──
+
+export function For(props: { each?: unknown; children?: unknown }): ListNode {
+  const each = props?.each
+  if (!isViewLike(each))
+    throw new Error('data/jsx: <For> requires each={view} — a collection $ handle or DataNode')
+  if (viewNodeOf(each).kind === 'scalar')
+    throw new Error('data/jsx: <For each={…}> expects a COLLECTION view, got a scalar')
+  const c = props?.children
+  const kids = Array.isArray(c) ? c : c == null ? [] : [c]
+  if (kids.length !== 1 || typeof kids[0] !== 'function')
+    throw new Error(
+      'data/jsx: <For each={view}> takes exactly ONE child — the row function (row, key) => vnode. ' +
+        'Iteration is ONLY For/list(); a bare view child is reactive text, and the v2 [vp, fn] shorthand is gone.',
+    )
+  return list(each, kids[0] as (row: any, key: RowKey) => VNode)
+}

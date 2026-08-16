@@ -1,690 +1,1280 @@
-import { view } from '../core.ts'
-import type { Data, RowOf } from '../core.ts'
-import { iter, isArray, noop } from '../utils.ts'
-const NS = 'http://www.w3.org/2000/svg'
-// NODE is a sentinel used as the key for the root-level slot when a sink
-// represents a single primitive child rather than a keyed list — DOMSink can
-// then treat "scalar" and "one-element list" uniformly through nodes[NODE].
-// Symbol.for (global registry), not Symbol(): a NodeProxy built by one bundle
-// (e.g. dist/jsx-runtime.js under `jsxImportSource: "data"`) must be readable by
-// render()'s `np[NODE]` in another bundle (dist/index.js / full.js). See the
-// matching note on `value`/`view` in core.ts.
-export const NODE = Symbol.for('data.node')
-const { keys } = Object
+// render — the KEYED render layer (plan §3.4, M4).
+//
+// What this module is:
+// - a minimal ORDERED-CHILDREN element AST (el/text/rtext/list) — the ordered
+//   children list kills the v2 single-static-slot trap: `el('span', null,
+//   '# ', text(cur))` renders "# general", in order, because a static string
+//   is just another child, not a last-wins slot on the node.
+// - render(hostEl, ast) → RenderHandle: one Scope per mount; disposing the
+//   handle tears every subscription/listener/row-scope down synchronously.
+// - THE CENTERPIECE: the keyed list sink. A 'list' child bound to a
+//   collection view maintains Map<RowKey, Element>. Per CommitBatch:
+//     add    → build the row element (its own child Scope) and place it —
+//              at its order position for ordered views (via the batch's
+//              orderInsert), appended for unordered views
+//     remove → element.remove() + dispose that row's Scope (listeners and
+//              rtext subscriptions detach deterministically)
+//     update → re-run ONLY the row's bindings: rowFn(newRow) is re-evaluated
+//              and the row element's TEXT bindings are patched in place
+//              (element identity preserved; per-binding surgical prop updates
+//              come with the full builder DSL in M4.5)
+//     orderMove → a REAL insertBefore of the EXISTING element — identity
+//              (focus/selection/transitions) survives reorders by
+//              construction; the v2 kanban/chat data-id workaround dies here.
+// - mirror(view): the $(view)-swap replacement — a re-pointable view slot.
+//   MirrorNode is an identity operator whose data parent can be swapped;
+//   set(other) routes through a hidden control SourceNode (the between-bounds
+//   pattern), so the swap is a REAL commit: one consolidated batch diffing
+//   old vs new snapshot (removes, adds, updates only for keys whose row
+//   reference changed) — downstream views and the DOM catch up surgically,
+//   overlapping keys keep their elements.
+// - raf(target): the coalescing writer — write(v) schedules ONE commit of the
+//   latest value per animation frame (setTimeout(cb, 16) outside browsers);
+//   flush() commits immediately and cancels the pending frame.
+//
+// Emission legality: MirrorNode emits per SCHEDULE.md clause 8 (≤1 delta per
+// key; add only for not-live keys; no phantom updates — Object.is on the row
+// reference; order script = removes at descending pre indices, then moves
+// against the survivor array, then inserts at ascending final indices). Its
+// tests wrap it in conform().
+//
+// M4.5 slice added for the crossfilter-v3 example (the first M5 migration):
+// - SVG NAMESPACE: `el('svg', …)` switches to createElementNS and children
+//   inherit the namespace (browser semantics), so charts are first-class.
+// - REACTIVE PROPS: `bind(view, fn?)` as a prop value creates a per-binding
+//   surgical attribute subscription — recompute on the view's commit, string-
+//   normalized equality cutoff, setAttribute/removeAttribute only on real
+//   change. A bare handle/node prop value auto-binds (fn = identity).
+// - `text(view, fn?)` — rtext gained the optional format fn.
+// - STRUCTURAL ROW REBUILD: patchRow now reports whether the row's shape
+//   matched; on mismatch (child count / tag / kind changed — e.g. a group
+//   bucket gaining a member) the list sink rebuilds that row in place (same
+//   list position, old row scope disposed, fresh element). Shape-stable rows
+//   keep element identity exactly as before.
+//
+// M4.5b component layer (the last M4.5b slice — component scopes):
+// - COMPONENTS: `component(fn, props)` — a 'component' VNode. The fn is
+//   invoked ONCE, at MOUNT, under its own child Scope (owned by the enclosing
+//   scope — a row's component dies with the row, a mount's with the mount).
+//   onCleanup() / node creation / raf() inside the fn land on that scope; the
+//   output is normalized with the full child vocabulary (arrays flatten, null
+//   renders nothing, a handle is reactive text). The JSX layer routes
+//   function tags here, so `<MyComp/>` defers to mount.
+// - ERROR BOUNDARIES: `boundary(child, fallback)` — a slot owning its
+//   subtree's scope. Mount-phase errors (a component fn / binding read
+//   throwing during materialization) are caught synchronously; EFFECT-phase
+//   errors (a binding or row fn throwing inside a subscription callback)
+//   route to the nearest enclosing boundary via ctx.boundary, and the swap is
+//   deferred ONE MICROTASK — disposing/connecting subscriptions mid-effect-
+//   iteration would splice the very effects array the kernel is walking.
+//   fallback(err, reset) materializes with ctx.boundary = the OUTER boundary,
+//   so a broken fallback escalates outward instead of looping. With no
+//   boundary the kernel contract is unchanged (effect errors collect into the
+//   commit's AggregateError); bindings only take the guarded closure when a
+//   boundary encloses them — zero cost otherwise.
+// - Row fns are deliberately NOT a scope: the list sink re-runs them on row
+//   updates (re-run-to-patch), so lifecycle registrations would accumulate.
+//   They run under runInScope(null, …), so onCleanup() in a bare row fn
+//   throws deterministically — wrap row content in a component instead.
+//
+// Deliberately still NOT here: SSR targets. The AST shape is extensible (each
+// kind is a tagged record) so that lands as new kinds, not a rewrite.
 
-// Top-level entry point: turn a NodeProxy template into actual DOM children
-// of `p`. Returns `p` so `render(parent, …).whatever` chaining works.
-/**
- * Mount a template (built with {@link HTML}/{@link SVG}) into a parent DOM
- * element, wiring any reactive `ViewProxy` data so the DOM updates surgically
- * — only the nodes whose bound value changed are touched, no virtual-DOM diff.
- *
- * The template's ROOT node is a wrapper: its CHILDREN are created into `p`
- * (the root tag itself is not created — `p` is the container). A data-bound
- * child — `HTML.li(items, (li, item) => …)` — becomes one row per item, so a
- * list is `render(container, HTML.ul(HTML.li(items, rowFn)))`: the `ul` wrapper
- * is decorative and the `li` rows are created inside `container`. Putting the
- * data on the wrapper itself (`HTML.ul(items, fn)`) renders nothing — a
- * wrapper's own data/fn are ignored; only its children are scanned.
- *
- * @param p  parent DOM element to render into (the row container)
- * @param np a NodeProxy template whose data-bound children become rows
- * @returns the parent element `p`
- * @example
- * import { $, render, HTML } from 'data'
- * const items = $([{ name: 'a' }, { name: 'b' }])
- * // each item becomes an <li> inside document.body:
- * render(document.body, HTML.ul(HTML.li(items, (li, item) => li.text(item.name))))
- */
-export const render = (p: any, np: any) =>
-  // A top-level Fragment is a plain array of NodeProxy children (it only works
-  // nested because an enclosing h() flattens it). Passed straight to render(),
-  // `np[NODE]` is undefined and Node.render threw a bare "reading 'children'"
-  // TypeError. Treat it like a wrapper whose children render into `p` — the same
-  // semantics a single wrapper template gets.
-  isArray(np)
-    ? Node.render(p, (Node.add(new Node('', null), ...np.filter((c: any) => c != null && c !== false)) as any)[NODE])
-    : Node.render(p, np[NODE])
+import type {
+  CommitBatch, OrderDelta, OriginToken, RowDelta, RowKey,
+} from '../contract/delta.ts'
+import { DataNode, SourceNode, reheight } from '../kernel/node.ts'
+import type { SubscriptionHandle } from '../kernel/node.ts'
+import type { Runtime } from '../kernel/runtime.ts'
+import { Scope, currentScope, runInScope } from '../kernel/scope.ts'
+// Benign module cycle: builders.ts imports el/text from here — both sides
+// only use the other's exports at CALL time (function declarations, hoisted).
+import { normChildren } from './builders.ts'
 
-// DOMSink is the bridge between the reactive protocol and live DOM. One
-// sink per data-bound region in the template; it holds the parent element,
-// the per-key DOM nodes (`this.nodes`), and translates BU1/BR1/BI0/BMV1
-// events into createElement/insertBefore/remove calls. Array sources keep
-// `nodes` as an array so order matches the source; object sources use a
-// keyed object.
-class DOMSink {
-  parent: any
-  node: any
-  p: any
-  nodes: any
-  constructor(parent: any, node: any) {
-    this.parent = parent
-    this.node = node
-    this.p = node.data[view]
-    node.data.connect(this)
-    this.XU0(this.p.value)
-  }
+// The versioned handle symbols (Symbol.for — shared with api/index.ts without
+// importing it, so the render layer stays kernel-only and layering is clean).
+const NODE = Symbol.for('data.v4.node')
+const VALUE = Symbol.for('data.v4.value')
 
-  // Array sources are index-keyed: each DOM slot is bound to the positional
-  // child view `node.data[i]`, and every shift refreshes slot content
-  // positionally (the V1 propagation), with `remove_node` popping the *tail*.
-  // So an insert must MIRROR that — append exactly one node at the new tail
-  // index (bound to `data[tail]`) and let the positional refresh place the
-  // data. Splicing a node *at* position k (the old behaviour) gave that node
-  // a binding to slot k while the existing slot-k node kept its slot-k binding
-  // too: both rendered `data[k]` (a duplicate) and the real tail element was
-  // left with no node (dropped). Surfaced rendering a sort() view — an
-  // array-shaped list with mid-list inserts, which no object-keyed example
-  // (group / object-limit) exercised. During the initial XU0 build `tail`
-  // already equals the iteration index, so this is identical to the old append
-  // for that path; only post-init mid-inserts change.
-  // Object branch is positional-agnostic and keyed directly.
-  create_node(k: any) {
-    if (isArray(this.nodes)) {
-      const tail = this.nodes.length
-      const node = this.node.generate(tail, this.node.data[tail])
-      this.nodes.push(node.create(this.parent))
-    } else {
-      const node = this.node.generate(k, k === NODE ? this.node.data : this.node.data[k])
-      this.nodes[k] = node.create(this.parent)
-    }
-  }
+// ── the AST ──────────────────────────────────────────────────────────────────
 
-  // Array remove always pops the tail because the upstream BR1A protocol
-  // already shifted the data array, so the live DOM array's last slot is
-  // the one that should disappear (the V1 propagation will rewrite the
-  // others' content). Object remove just deletes the named node directly.
-  remove_node(k: any){
-    if (isArray(this.nodes)) {
-      this.nodes.pop().remove()
-    } else {
-      this.nodes[k].remove()
-      delete this.nodes[k]
-    }
-  }
+export interface ElNode {
+  readonly kind: 'el'
+  readonly tag: string
+  readonly props: Readonly<Record<string, unknown>> | null
+  readonly children: readonly VNode[]
+}
+export interface TextNode {
+  readonly kind: 'text'
+  readonly s: string
+}
+export interface RTextNode {
+  readonly kind: 'rtext'
+  readonly view: unknown // scalar view (DataNode with value()) or a handle
+  readonly fn: ((v: any) => unknown) | null // optional format fn over the read
+}
+export interface ListNode {
+  readonly kind: 'list'
+  readonly view: unknown // collection view: DataNode or handle
+  readonly rowFn: (row: any, key: RowKey) => VNode
+}
+export interface ComponentNode {
+  readonly kind: 'component'
+  readonly fn: (props: any) => unknown // invoked ONCE at mount, under an owner Scope
+  readonly props: Readonly<Record<string, unknown>>
+}
+export interface BoundaryNode {
+  readonly kind: 'boundary'
+  readonly child: unknown // VNode | VNode[] — normalized (normChildren) at mount
+  readonly fallback: (err: unknown, reset: () => void) => unknown
+}
+export type VNode = ElNode | TextNode | RTextNode | ListNode | ComponentNode | BoundaryNode
 
-  // ── Index-keyed array path (sparse producers: between/intersect/union/except
-  // bound straight to the DOM) ──────────────────────────────────────────────
-  // Distinct from create_node/remove_node (which are TAIL-relative — correct
-  // for dense splice arrays where tail == index). These bind node[k] ↔ data[k]
-  // at a fixed position so a hole can be removed/filled without shifting
-  // survivors, mirroring the BH1/BF0 protocol. Used only when the array is
-  // sparse (XU0) or for BH1/BF0 events (which dense arrays never emit).
-
-  // A true if any in-bounds slot is a hole (empty or explicit-undefined).
-  _sparse(v: any) {
-    for (let i = 0; i < v.length; i++) if (v[i] === undefined) return true
-    return false
-  }
-
-  // Create the node for present index `k`, inserted before the node at the
-  // smallest present index > k (or appended if none) so DOM order tracks index
-  // order. Idempotent: a BF0 for an already-present slot is a no-op (its content
-  // was already refreshed by core's V1 pre-fire).
-  _create_at(k: any) {
-    if (this.nodes[k]) return
-    const node = this.node.generate(k, this.node.data[k])
-    let next = Infinity
-    for (const j in this.nodes) { const jn = +j; if (jn > k && jn < next) next = jn }
-    this.nodes[k] = node.create(this.parent, next !== Infinity ? this.nodes[next] : undefined)
-  }
-
-  // Append the node for present index `k` to the tail (no positional scan).
-  // Only safe when every later present index is created after this one — i.e.
-  // the in-increasing-order build from an empty node set in `_reconcile_sparse`.
-  _append_at(k: any) {
-    const node = this.node.generate(k, this.node.data[k])
-    this.nodes[k] = node.create(this.parent, undefined)
-  }
-
-  _remove_at(k: any) {
-    this.nodes[k]?.remove()
-    delete this.nodes[k]
-  }
-
-  // Reconcile the live DOM with a sparse array value: drop nodes whose slot
-  // became a hole, create nodes for newly-present slots (positioned by index).
-  // Handles the dense→sparse transition too (a between whose bounds were full
-  // domain, then narrowed): the prior dense nodes are already node[i] ↔ data[i],
-  // so index-keyed removal/creation composes cleanly.
-  _reconcile_sparse(value: any) {
-    this.nodes ??= []
-    const gone = []
-    for (const i in this.nodes) if (value[+i] === undefined) gone.push(+i)
-    for (let j = 0; j < gone.length; j++) this._remove_at(gone[j])
-    // If no node survives the holing pass, the present slots below are visited
-    // in increasing index order from an empty set, so each is a pure tail
-    // append — skip `_create_at`'s O(present) next-scan (which makes a fresh
-    // sparse build O(P²)). When survivors remain (a re-snapshot that fills a
-    // gap between existing nodes) we must position by index via `_create_at`.
-    let survivors = false
-    for (const _ in this.nodes) { survivors = true; break }
-    for (let i = 0; i < value.length; i++)
-      if (value[i] !== undefined && !this.nodes[i])
-        survivors ? this._create_at(i) : this._append_at(i)
-  }
-
-  // Once the parent DOM is detached from the document the binding can never
-  // produce a visible mutation again. We could keep applying changes to the
-  // detached subtree but it just wastes work and corrupts our nodes/buckets
-  // counts (per-group sinks under a removed group container kept getting
-  // BR1/BI0 events while their parent was orphaned, eventually popping past
-  // the end of nodes). Bail out early instead.
-  _detached() {
-    return this.parent?.isConnected === false
-  }
-
-  // Remove EVERY present node from `this.nodes`, regardless of shape: array
-  // entries (skipping holes a sparse remove left — `?.remove()`), object string
-  // keys, AND the NODE-symbol slot (a scalar binding — for-in never enumerates a
-  // Symbol key, so it would otherwise be orphaned and duplicated on the next
-  // update). Operates directly on `this.nodes` so it must run BEFORE any reset.
-  _teardownAll() {
-    const ns = this.nodes
-    if (!ns) return
-    if (isArray(ns)) {
-      for (let i = 0; i < ns.length; i++) ns[i]?.remove()
-    } else {
-      for (const k in ns) ns[k]?.remove()
-    }
-    ns[NODE]?.remove()
-  }
-
-  XR0() {
-    if (this._detached()) return
-    this._teardownAll()
-    this.nodes = isArray(this.nodes) ? [] : {}
-  }
-
-  XU0(value?: any) {
-    if (this._detached()) return
-    // undefined or any primitive: tear down all current nodes (incl. a holey
-    // array tail and the NODE-symbol scalar slot — both of which the old
-    // for-in + tail-pop teardown mishandled, crashing on a hole or duplicating
-    // a scalar), reset, then for a primitive mint the single scalar node.
-    if (value === undefined || typeof value !== 'object') {
-      this._teardownAll()
-      this.nodes = {}
-      if (value !== undefined) this.create_node(NODE)
-      return
-    }
-    const prev_nodes = this.nodes ?? {}
-
-    const arr = isArray(value)
-    // ALL array XU0 re-snapshots reconcile index-keyed (node[i] ↔ data[i]),
-    // sparse or dense. A sparse value (a between/intersect/union/except view
-    // bound straight to a row template) has present rows scattered among holes.
-    // A DENSE value is the simple case — but a dense RE-SNAPSHOT over a
-    // previously-HOLEY nodes array (a brushed `between` whose bounds widened so
-    // every row is now in range) can't take the tail-relative build below: it
-    // would bind node-j to `data[j]` against a holey nodes array, dropping rows
-    // (the v:4 between [3,4,5] → "35" bug). _reconcile_sparse handles both —
-    // it's index-keyed and a no-hole value just creates every slot by index. The
-    // incremental BU1/BI0/BR1 ops stay tail-relative (index == tail for a dense
-    // array), so this only changes the full-resnapshot path.
-    if (arr) return this._reconcile_sparse(value)
-    this.nodes ??= arr ? [] : {}
-    for (const i in value)
-      // Object (keyed) sinks: skip explicit-`undefined` slots that sparse
-      // producers leave at excluded keys. Here create_node is index-relative
-      // (`nodes[k]` bound to `data[k]`), so skipping a hole can't misalign
-      // survivors — it just avoids a phantom row bound to `undefined`.
-      if (!prev_nodes[i] && (arr || value[i] !== undefined))
-        this.create_node(i) // if (this.nodes[k]) maybe reorder
-    // Same V8 quirk: snapshot the keys to drop before mutating, otherwise
-    // remove_node's tail-pop on dense arrays cuts the for-in short and
-    // leaves stale DOM rows behind (visible as empty rows in the
-    // crossfilter flight list when a brush narrows enough to trigger
-    // limit's XU0 fallback).
-    const gone = []
-    for (const i in prev_nodes)
-      if (!(i in value))
-        gone.push(i)
-    for (let j = 0; j < gone.length; j++)
-      this.remove_node(gone[j])
-  }
-
-  BR1(R1: any){
-    if (this._detached()) return
-    for (let i = 0; i < R1.length; i++)
-      this.remove_node(R1[i++])
-  }
-
-  // Array-positional structural splice (a STRUCTURAL source insert/remove
-  // reaching a list, not a length-stable membership flip). For a SPARSE-bound
-  // list (a between/intersect/union/except view bound straight to the DOM) the
-  // splice shifts source indices, so the index-keyed nodes must re-sync against
-  // the post-splice value — the tail-relative BR1/BI0 fallback removed/added the
-  // wrong node and blanked the list. A DENSE list (sort/group/limit) only ever
-  // receives TAIL BR1A/BI0A (its _window reconcile emits tail-only splices plus
-  // content-stable BU1s), so it keeps the cheap tail path — identical to the old
-  // BR1/BI0 fallback, no regression. Detected by whether the current source
-  // value is sparse.
-  BR1A(R1: any){
-    if (this._detached()) return
-    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
-    for (let i = 0; i < R1.length; i++) this.remove_node(R1[i++])
-  }
-
-  BI0A(I0: any){
-    if (this._detached()) return
-    if (this._sparse(this.p.value)) return this._reconcile_sparse(this.p.value)
-    for (let i = 0; i < I0.length; i++) this.create_node(I0[i++])
-  }
-
-  BU1(U1: any){
-    if (this._detached()) return
-    for (let i = 0; i < U1.length; i++) {
-      const name = U1[i++]
-      const value = U1[i]
-      if (!this.nodes[name]) this.create_node(name)
-    }
-  }
-
-  BI0(I0: any) {
-    if (this._detached()) return
-    for (let i = 0; i < I0.length; i++) {
-      const name = I0[i++]
-      const value = I0[i]
-      this.create_node(name)
-    }
-  }
-
-  // Hole remove / hole fill from a sparse producer over an ARRAY. Positional-
-  // stable (no shift): drop/create the node AT index k, leaving survivors put.
-  // Core's View.BH1/BF0 pre-fires the touched child's XU0 (so a fill's content
-  // is already set on the child view _create_at binds, and a remove's child
-  // goes undefined just before its node is dropped) — index-keyed, so no
-  // double-apply. Dense arrays never emit these; they only reach a DOMSink
-  // bound directly to a between/intersect/union/except view.
-  BH1(R1: any) {
-    if (this._detached()) return
-    for (let i = 0; i < R1.length; i += 2) this._remove_at(+R1[i])
-  }
-
-  BF0(I0: any) {
-    if (this._detached()) return
-    for (let i = 0; i < I0.length; i += 2) this._create_at(+I0[i])
-  }
-
-  BR2(BR2: any){}
-
-  // Move-at-depth-1. Rows here are *index-keyed*: each DOM node is bound to
-  // the positional child view `node.data[k]`, and a rank rotation reaches us
-  // as core's Value.BMV1 refreshing the content of every slot in the affected
-  // range (child.XU0, see core.ts) *before* this method runs. So by now each
-  // fixed slot already shows its new row's data — the DOM is correct without
-  // touching node order. Physically relocating the element on top of that
-  // would double-apply the rotation and scramble the list (the regression in
-  // tests/render-reorder.spec.ts). We intentionally do nothing: keep `nodes`
-  // aligned with positions and let the positional content refresh stand.
-  // (True element-identity preservation across reorders would require a
-  // data-keyed row model, which this index-keyed renderer doesn't have.)
-  BMV1(){}
-
-  BU2(U2: any){
-    if (this._detached()) return
-    for (let i = 0; i < U2.length; i++) {
-      const [name] = U2[i++]
-      const value = U2[i]
-      if (!this.nodes[name]) this.create_node(name)
-    }
-  }
-
-  BI2(I2: any){
-    if (this._detached()) return
-    for (let i = 0; i < I2.length; i+=3) {
-      const [name] = I2[i]
-      if (!this.nodes[name]) this.create_node(name)
-    }
-  }
+// A reactive PROP value: `el('path', { d: bind(view, fn) })` — subscribes to
+// the view, recomputes fn(read()) per commit, writes the attribute only when
+// the normalized string actually changed. A bare handle prop value auto-binds.
+export interface BindProp {
+  readonly kind: 'bind'
+  readonly view: unknown
+  readonly fn: ((v: any) => unknown) | null
+}
+export function bind(view: unknown, fn?: (v: any) => unknown): BindProp {
+  return { kind: 'bind', view, fn: fn ?? null }
 }
 
-// true - [true]
-// false - [false]
-// undefined - [undefined]
-// null - [null]
-// '0 - [0]
-// '1 - [1]
+export type Child = VNode | string | number | boolean | null | undefined
 
-class Child {}
-
-// Node is the template AST built up by HTML.div(...).foo(...) chains. It
-// stays declarative until create() runs against a real parent — that's when
-// it becomes a live element. `_` → `-` lets `HTML.foo_bar()` produce the
-// hyphenated `<foo-bar>` custom-element tag without escaping.
-class Node extends Child {
-  ns: any
-  tag: any
-  children: any[]
-  static: any
-  data: any
-  fn: any
-  constructor(tag: any, ns?: any, children: any[] = []) {
-    super()
-    this.ns = ns;
-    this.tag = tag.replaceAll('_', '-');
-    this.children = children;
+export function el(
+  tag: string,
+  props?: Record<string, unknown> | null,
+  ...children: Child[]
+): ElNode {
+  const kids: VNode[] = []
+  for (const c of children) {
+    if (c == null || c === false || c === true) continue
+    if (typeof c === 'string' || typeof c === 'number') kids.push({ kind: 'text', s: String(c) })
+    else kids.push(c)
   }
+  return { kind: 'el', tag, props: props ?? null, children: kids }
+}
 
-  static render(dom: any, node: any) {
-    for (const child of node.children) {
-      if (child.data) {
-        const sink = new DOMSink(dom, child)
-        // Retain EVERY data-bound child's sink on the parent — the view holds
-        // it only by WeakRef, so without a strong ref here a sink whose
-        // `dom.sink` slot was overwritten by a LATER data-bound sibling would be
-        // GC'd and silently stop rendering its list. `dom.sinks` accumulates all
-        // of them; `dom.sink` stays the most-recent for back-compat.
-        ;(dom.sinks ??= []).push(dom.sink = sink)
-        // Non-enumerable so it never shows up in JSON.stringify or
-        // for-in inspection of the element; configurable so a later
-        // bind can replace it. Used by $.fromDOM to walk a clicked
-        // element back to its owning view.
-        Object.defineProperty(dom, '__ripple_sink', { value: sink, configurable: true })
-      } else {
-        child.create(dom)
-      }
-    }
-    return dom
-  }
+export function text(view: unknown, fn?: (v: any) => unknown): RTextNode {
+  return { kind: 'rtext', view, fn: fn ?? null }
+}
 
-  get new(){
-    const node = new Node(this.tag, this.ns, this.children.concat([]))
-    node.static = this.static
-    node.data = this.data
-    node.fn = this.fn
-    return node
-  }
+export function list(view: unknown, rowFn: (row: any, key: RowKey) => VNode): ListNode {
+  return { kind: 'list', view, rowFn }
+}
 
-  get hasdata(){
-    return this.data !== undefined || this.static !== undefined
-  }
+// A component: fn is deferred to MOUNT and invoked once under its own child
+// Scope — the home for onCleanup(), transient views, and raf() writers whose
+// lifetime is "this piece of UI". The JSX layer routes function tags here.
+export function component(
+  fn: (props: any) => unknown,
+  props?: Record<string, unknown> | null,
+): ComponentNode {
+  if (typeof fn !== 'function')
+    throw new Error('data/render: component(fn, props?) expects a function — got ' + typeof fn)
+  return { kind: 'component', fn, props: props ?? {} }
+}
 
-  // The grand dispatch on what `HTML.div(...)` was called with. The same
-  // method handles every shape because the proxy can't know in advance:
-  //   string/number/true   → text content
-  //   NodeProxy            → child template
-  //   undefined/false      → empty (often used by ternaries)
-  //   reactive (has [view]) → bind data to this node's children
-  //   function             → row generator (composes with prior fn)
-  //   object               → static attribute bag
-  static add(node: any, ...args: any[]) {
-    for (const arg of args) {
-      if (typeof arg === 'string' || typeof arg === 'number' || arg === true) {
-        node.static = [arg]
-      } else if (arg instanceof NodeProxy) {
-        const child = (arg as any)[NODE]
-        if (child.static) {
-          iter(child.static, (k: any, v: any) =>
-            node.children.push(child.generate(k, v))
-          )
-        }
-        else if (child.fn && !child.hasdata){
-          node.children.push(child.generate())
-        }
-        else node.children.push((arg as any)[NODE])
-      } else if (typeof arg === 'undefined' || arg === false) {
-        node.static = []
-      } else if (arg[view]) {
-        node.data = arg
-      } else if (typeof arg === 'function') {
-        const fn1 = node.fn
-        node.fn = fn1 ? (n: any, ...args: any[]) => arg(fn1(n, ...args), ...args) : arg
-      } else if (typeof arg === 'object') {
-        node.static = arg
-      } else {
-        throw new Error('unexpted arg', arg)
-      }
-    }
-    return new NodeProxy(node)
-  }
-
-  create(parent: any, before?: any) {
-    const dom = this.ns
-      ? document.createElementNS(NS, this.tag)
-      : document.createElement(this.tag)
-
-    before
-      ? parent.insertBefore(dom, before)
-      : parent.append(dom)
-
-    return Node.render(dom, this)
-  }
-
-  generate(k?: any, v?: any) {
-    // CLONE each template child, don't share it. `this.children.concat([])` was
-    // a shallow copy — every generated row shared the SAME Prop instances, so a
-    // reactive prop attached to the row TEMPLATE (outside the row fn, e.g.
-    // `HTML.li.class('hot', flag)(items, fn)`) connected a PropSink per row that
-    // all mutated the one Prop, whose `parent` ended up pointing only at the LAST
-    // row — so a reactive class/style/attr update landed on one row instead of
-    // all. A fresh Prop/Node per row gives each its own `parent`.
-    let node = new Node(
-      this.tag,
-      this.ns,
-      this.children.map((c: any) =>
-        c instanceof Node ? c.new
-      : c instanceof Prop ? new (c.constructor as any)(c.name, c.value)
-      : c)
+// An error boundary: child mounts under a scope this slot owns; an error from
+// the subtree (mount-phase or effect-phase) tears it down and mounts
+// fallback(err, reset) in its place. reset() re-mounts the try child.
+export function boundary(
+  child: unknown,
+  fallback: (err: unknown, reset: () => void) => unknown,
+): BoundaryNode {
+  if (typeof fallback !== 'function')
+    throw new Error(
+      'data/render: boundary(child, fallback) expects a fallback FUNCTION (err, reset) => vnode',
     )
+  return { kind: 'boundary', child, fallback }
+}
 
-    const content = this.fn
-      ? this.fn(new NodeProxy(node), v, k)
-      : v
+// ── view unwrapping ──────────────────────────────────────────────────────────
 
-    // console.log('generate', {v, k, node, fn: this.fn, content })
+function nodeOf(view: any): DataNode<any> {
+  if (view instanceof DataNode) return view
+  const n = view?.[NODE]
+  if (n instanceof DataNode) return n
+  throw new Error('data/render: expected a view — a DataNode or a $ handle')
+}
 
-    if (content instanceof NodeProxy) {
-// console.log('******************************************')
-    node = (content as any)[NODE]
-      // node = Node.add(node, content)[NODE]
-// console.log('******************************************')
-// node = content[NODE]
-    }
-    else {
-      Text.add(node, content)
-    }
+// A read thunk for text bindings: scalar nodes read value(); handles read
+// [value] (works for child-path handles too — the subscription is on the
+// owning node, and the string-equality cut-off below suppresses no-op writes).
+function readerOf(view: any): () => unknown {
+  if (view instanceof DataNode) {
+    if (view.kind === 'scalar') return () => (view as any).value()
+    throw new Error(
+      'data/render: text() over a raw collection node — pass a scalar view (sum/avg/…/to) or a handle',
+    )
+  }
+  if (view != null && view[NODE] instanceof DataNode) return () => view[VALUE]
+  throw new Error('data/render: text() expects a scalar view or a $ handle')
+}
 
-    return node
+function toText(v: unknown): string {
+  return v == null ? '' : String(v)
+}
+
+// ── reactive attribute binding ───────────────────────────────────────────────
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+function isBindProp(x: unknown): x is BindProp {
+  return x !== null && typeof x === 'object' && (x as any).kind === 'bind' && 'view' in (x as any)
+}
+
+function isView(x: unknown): boolean {
+  if (x instanceof DataNode) return true
+  return x !== null && typeof x === 'object' && (x as any)[NODE] instanceof DataNode
+}
+
+// Attribute value normalization: null/undefined/false remove the attribute,
+// true sets the empty attribute, everything else stringifies.
+function normAttr(v: unknown): string | null {
+  return v == null || v === false ? null : v === true ? '' : String(v)
+}
+
+// LIVE form props: for these, the DOM attribute is only the DEFAULT — once a
+// user has interacted, the browser reads the PROPERTY (a checkbox that was
+// clicked ignores setAttribute('checked')). When the element carries the
+// property, write it directly; the attribute path remains for everything
+// else (and for the test mock, whose El has no form properties).
+function setProp(dom: any, name: string, v: unknown): boolean {
+  if ((name === 'checked' || name === 'value') && name in dom) {
+    if (name === 'checked') dom.checked = v === true || v === ''
+    else dom.value = v == null ? '' : String(v)
+    return true
+  }
+  return false
+}
+
+function applyAttr(dom: any, name: string, next: string | null): void {
+  if (setProp(dom, name, next)) return
+  if (next === null) dom.removeAttribute(name)
+  else dom.setAttribute(name, next)
+}
+
+function bindAttr(
+  dom: any,
+  name: string,
+  view: unknown,
+  fn: ((v: any) => unknown) | null,
+  scope: Scope,
+  boundary: BoundarySlot | null,
+): void {
+  const read = readerOf(view)
+  const compute = () => normAttr(fn === null ? read() : fn(read()))
+  let last = compute()
+  if (last !== null || name === 'checked' || name === 'value') applyAttr(dom, name, last)
+  const run = () => {
+    const next = compute()
+    if (next === last) return // normalized-string cutoff — no redundant DOM writes
+    last = next
+    applyAttr(dom, name, next)
+  }
+  const sub = nodeOf(view).connect({
+    wantsOrder: false,
+    origin: null,
+    // Guarded closure ONLY under a boundary — the no-boundary path is the
+    // plain closure, zero added cost.
+    apply: boundary === null ? run : () => guarded(run, boundary),
+  })
+  scope.add(sub)
+}
+
+// Effect-phase error routing: run fn; a throw goes to the boundary instead of
+// escaping into the kernel's commit-error collection.
+function guarded(fn: () => void, boundary: BoundarySlot): void {
+  try {
+    fn()
+  } catch (e) {
+    boundary.handle(e)
   }
 }
 
-class Prop extends Child {
-  name: any
-  value: any
-  parent: any
-  constructor(name: any, value?: any) {
-    super()
-    this.name = name
-    this.value = value
-  }
+// ── materialization ──────────────────────────────────────────────────────────
 
-  static add(node: any, n?: any, v?: any) {
-    if (arguments.length == 2) v = true
-    typeof n === 'object'
-      ? node.children.push(...keys(n).map(k => new this(k, n[k])))
-      : node.children.push(new this(n, v))
-    return new NodeProxy(node)
-  }
-
-  create(parent: any){
-    this.parent = parent
-    if (this.value?.[view]) {
-      parent.nrefs ??= {}
-      parent.nrefs[this.name] = this.value.connect(this, 'set')
-    } else if (this.name?.[view]) {
-      parent.arefs ??= []
-      parent.arefs.push(this.name.connect(this, 'set'))
-    } else
-      this.set = this.value
-  }
-
-  set set(value: any) {
-    value === false || value === undefined
-      ? (this as any).remove()
-      : (this as any).add(value)
-  }
+interface Ctx {
+  readonly doc: any
+  readonly scope: Scope
+  readonly ns: string | null // element namespace — children inherit (SVG)
+  readonly boundary: BoundarySlot | null // nearest enclosing error boundary
 }
 
-class Attr extends Prop {
-  add(value: any) { this.parent.setAttribute(this.name, value) }
-  remove() { this.parent.removeAttribute(this.name) }
-}
-
-class Class extends Prop {
-  _last: any
-  // Two reactive shapes reach here:
-  //   .class('hot', flag)   — STATIC name, reactive PRESENCE (this.value is a VP):
-  //                           add/remove toggle the fixed class `this.name`.
-  //   className={vp}         — REACTIVE name (this.name is a VP yielding the class
-  //                           string): each change passes the NEW class as `value`,
-  //                           and we must remove the PREVIOUS class first or they
-  //                           accumulate forever (the documented Reactive<string>
-  //                           className never dropping the old class).
-  add(value: any) {
-    const reactiveName = this.name?.[view]
-    const cls = reactiveName ? value : this.name
-    if (reactiveName && this._last !== undefined && this._last !== cls)
-      this.parent.classList.remove(this._last)
-    if (cls != null && cls !== '') this.parent.classList.add(this._last = cls)
-  }
-  remove() {
-    const cls = this.name?.[view] ? this._last : this.name
-    if (cls != null && cls !== '') this.parent.classList.remove(cls)
-    this._last = undefined
-  }
-}
-
-class ID extends Prop {
-  add() { this.parent.id = this.name }
-  remove() { this.parent.removeAttribute('id') }
-}
-
-class Style extends Prop {
-  add(value: any) { this.parent.style.setProperty(this.name, value) }
-  remove() { this.parent.style.removeProperty(this.name) }
-}
-
-class Text extends Prop {
+interface Mounted {
+  vnode: VNode
   dom: any
-  create(parent: any) {
-    parent.appendChild(this.dom = document.createTextNode(''))
-    super.create(parent)
-  }
-  add(){ this.dom.textContent = this.name }
-  remove(){ this.dom.textContent = '' }
+  children: Mounted[] | null
 }
 
-class Event extends Prop {
-  create(parent: any){
-    parent.addEventListener(this.name.toLowerCase(), this.value)
-  }
-}
-
-// Ref runs a one-shot callback with the parent element after creation —
-// the equivalent of React/Solid's `ref={el => …}`. Used for imperative
-// hooks (focus, measure, attach a third-party library) where we need the
-// real DOM node, not a reactive binding. `node.ref(fn)` adds it.
-class Ref extends Prop {
-  create(parent: any) { this.name(parent) }
-}
-
-const props = {
-  attr: Attr,
-  class: Class,
-  on: Event,
-  style: Style,
-  id: ID,
-  text: Text,
-  ref: Ref,
-  nodes: Node,
-}
-
-// NodeProxy is the chainable template handle the user sees. Property reads
-// dispatch on the name:
-//   `prop` (attr/class/on/style/id/text/nodes) → switch into prop-builder mode
-//   `'#foo'`   → shorthand for id="foo"
-//   `'.foo'`   → shorthand for class="foo"
-//   `'k=v'`    → shorthand for attr k="v"
-//   anything else → class shorthand (so `HTML.div.active(...)` adds class
-//                  "active"). Underscores become hyphens.
-// The Proxy wraps `noop` so the result is callable, which is what makes
-// `HTML.div(child1, child2)` work as a method invocation.
-class NodeProxy {
-  node: any
-  prop: any
-  constructor(node: any, prop?: any) {
-    this.node = node;
-    this.prop = prop;
-    return new Proxy(noop, this as any) as any
-  }
-
-  set(){ throw 'cannot set properties' }
-
-  deleteProperty(){ throw 'cannot delete properties' }
-
-  get(t: any, name: any){
-    const n = this.node
-    if (name === NODE) return n
-    else if (typeof name === 'symbol') return
-    else if (name in props) return new NodeProxy(n, name)
-    else if (name.startsWith('#')) return ID.add(n.new, name.slice(1), true)
-    else if (name.startsWith('.')) return Class.add(n.new, name.slice(1), true)
-    else if (name.includes('=')) return Attr.add(n.new, ...(name.split('=') as [any, any]))
-    else return Class.add(n.new, name.replaceAll('_', '-'), true)
-  }
-
-  apply(t: any, m: any, args: any) {
-    // Auto-spread a single array argument so `node(<Fragment>…</Fragment>)`
-    // works equivalently to `node(...children)`. JSX Fragment evaluates to
-    // an array of children; without this, the whole array would land in
-    // Node.add's `typeof === 'object'` branch and become `static`, silently
-    // breaking row templates. Passing a bare array as the only positional
-    // arg wasn't a documented builder pattern, so this is purely additive.
-    if (args.length === 1 && isArray(args[0])) args = args[0]
-    return (props as any)[this.prop ?? 'nodes'].add(this.node.new, ...args)
-  }
-
-  getPrototypeOf(targer?: any){
-    return NodeProxy.prototype
+function materialize(v: VNode, ctx: Ctx): Mounted {
+  switch (v.kind) {
+    case 'text':
+      return { vnode: v, dom: ctx.doc.createTextNode(v.s), children: null }
+    case 'rtext': {
+      const n = nodeOf(v.view)
+      const raw = readerOf(v.view)
+      const fmt = v.fn
+      const read = fmt === null ? raw : () => fmt(raw())
+      const tn = ctx.doc.createTextNode(toText(read()))
+      const run = () => {
+        const s = toText(read())
+        if (s !== tn.textContent) tn.textContent = s
+      }
+      const b = ctx.boundary
+      const sub = n.connect({
+        wantsOrder: false,
+        origin: null,
+        apply: b === null ? run : () => guarded(run, b),
+      })
+      ctx.scope.add(sub) // idempotent if the ambient scope already caught it
+      return { vnode: v, dom: tn, children: null }
+    }
+    case 'el': {
+      // Namespace: <svg> switches to the SVG namespace; children inherit.
+      const ns = v.tag === 'svg' ? SVG_NS : ctx.ns
+      const dom = ns === null ? ctx.doc.createElement(v.tag) : ctx.doc.createElementNS(ns, v.tag)
+      const kidCtx =
+        ns === ctx.ns ? ctx : { doc: ctx.doc, scope: ctx.scope, ns, boundary: ctx.boundary }
+      if (v.props !== null) {
+        for (const k of Object.keys(v.props)) {
+          const pv = v.props[k]
+          if (k.startsWith('on') && typeof pv === 'function') {
+            const evt = k.slice(2).toLowerCase()
+            dom.addEventListener(evt, pv)
+            ctx.scope.onDispose(() => dom.removeEventListener(evt, pv))
+          } else if (isView(pv)) {
+            // checked BEFORE isBindProp: probing .kind on a handle would
+            // route through its proxy (a scalar handle throws on child reads)
+            bindAttr(dom, k, pv, null, ctx.scope, ctx.boundary)
+          } else if (isBindProp(pv)) {
+            bindAttr(dom, k, pv.view, pv.fn, ctx.scope, ctx.boundary)
+          } else if (pv != null && pv !== false) {
+            dom.setAttribute(k, pv === true ? '' : String(pv))
+          }
+        }
+      }
+      const kids: Mounted[] = []
+      for (const c of v.children) kids.push(mountChild(dom, c, kidCtx))
+      return { vnode: v, dom, children: kids }
+    }
+    case 'list':
+    case 'component':
+    case 'boundary':
+      // handled by mountChild (the 'el' child loop and render() at the root)
+      throw new Error('data/render: internal — ' + v.kind + ' must be mounted by its host')
   }
 }
 
-/**
- * Builder for HTML element templates. Any property is an element tag:
- * `HTML.div(...)`, `HTML.li(...)`, `HTML.button(...)`. Pass props/children as
- * arguments and a `(data, rowFn)` pair to bind reactive collections. Compose
- * with {@link render} to mount. `HTML.div.foo.bar(...)` adds classes.
- * @example HTML.ul(items, item => HTML.li(item.name))
- */
-// Public types for the builders. Without an explicit annotation tsup emitted
-// `declare const HTML: {}` (the Proxy's `{}` target type), so every `HTML.div(…)`
-// was a type error in consumers. A NodeProxy is callable (children / a
-// `(data, rowFn)` data binding / prop bags) AND chainable by property
-// (`HTML.div.foo.bar`, `.text(…)`, `.class(…)`, `'#id'`, `'k=v'`). The
-// `(data, rowFn)` overload lists explicit `any` params so a row fn
-// `(node, item) => …` isn't flagged implicit-any under `noImplicitAny`.
-// The `(data, rowFn)` overload is GENERIC over the bound source: passing a
-// `Data<T>` infers `T`, so the row fn's `item` is typed to `RowOf<T>` (the row
-// type) rather than `any` — `HTML.li(rows, (li, item) => li.text(item.field))`
-// now autocompletes and rejects a bogus field. A non-`Data` first arg (string /
-// NodeProxy child) doesn't match this overload and falls through to children.
-export interface NodeBuilder {
-  <T>(data: Data<T>, rowFn: (node: NodeBuilder, item: RowOf<T>, key: string) => any): NodeBuilder
-  (...children: any[]): NodeBuilder
-  [prop: string]: NodeBuilder
+// Mount one child VNode into host. Lists, components, and boundaries own
+// their placement (host-mounted); everything else materializes then appends.
+function mountChild(host: any, c: VNode, ctx: Ctx): Mounted {
+  if (c.kind === 'list') {
+    const binding = new ListBinding(host, c, ctx)
+    ctx.scope.add(binding)
+    return { vnode: c, dom: binding.anchor, children: null }
+  }
+  if (c.kind === 'component') return mountComponent(host, c, ctx)
+  if (c.kind === 'boundary') {
+    const slot = new BoundarySlot(host, c, ctx)
+    ctx.scope.add(slot)
+    return { vnode: c, dom: slot.anchor, children: null }
+  }
+  const m = materialize(c, ctx)
+  host.appendChild(m.dom)
+  return m
 }
-export type Builder = { [tag: string]: NodeBuilder }
 
-export const HTML: Builder = new Proxy({}, {
-  get(t, name) { return new NodeProxy(new Node(name)) },
-}) as any
+// Invoke the component fn ONCE under its own child Scope (owned by the outer
+// scope, so it disposes with its surroundings — row removal, boundary swap,
+// render-handle dispose). The output is normalized with the full child
+// vocabulary and mounted in place; a multi-root return (an array) expands.
+// Exception-safe: a throw (from the fn or a later sibling's mount) disposes
+// the component scope and removes the roots already placed in the host —
+// otherwise an enclosing boundary's swap would leave ghost DOM and live
+// subscriptions it cannot reach.
+function mountComponent(host: any, c: ComponentNode, ctx: Ctx): Mounted {
+  const compScope = new Scope(ctx.scope)
+  const kids: Mounted[] = []
+  try {
+    const out = runInScope(compScope, () => c.fn(c.props))
+    const kidCtx: Ctx = { doc: ctx.doc, scope: compScope, ns: ctx.ns, boundary: ctx.boundary }
+    for (const k of normChildren([out])) kids.push(mountChild(host, k, kidCtx))
+  } catch (e) {
+    ctx.scope.delete(compScope)
+    compScope.dispose()
+    const doms: any[] = []
+    for (const m of kids) collectDoms(m, doms)
+    for (const d of doms) d.remove()
+    throw e
+  }
+  return { vnode: c, dom: null, children: kids }
+}
 
-/**
- * Builder for SVG element templates — the {@link HTML} counterpart that creates
- * nodes in the SVG namespace: `SVG.svg(...)`, `SVG.path(...)`, `SVG.rect(...)`.
- */
-export const SVG: Builder = new Proxy({}, {
-  get(t, name){ return new NodeProxy(new Node(name, true)) },
-}) as any
+// Top-level DOM nodes of a mounted subtree (a component Mounted has dom null
+// and expands through its children).
+function collectDoms(m: Mounted, out: any[]): void {
+  if (m.dom !== null) {
+    out.push(m.dom)
+    return
+  }
+  if (m.children !== null) for (const k of m.children) collectDoms(k, out)
+}
+
+// Row-update patching: re-run the row's TEXT bindings and STATIC props
+// against the fresh rowFn output — a rowFn computing `class` from row data
+// ("todo completed") patches surgically on update. rtext, nested lists, and
+// bind()/handle props are self-updating (their own subscriptions) and are
+// left untouched; listeners are bound ONCE at build (so a handler must read
+// current row state through the source — `items.get(key)[value]` — not its
+// captured row snapshot). Returns whether the shapes matched; a structural
+// mismatch (kind / tag / child count changed — a rowFn whose SHAPE depends
+// on the row) reports false and the list sink REBUILDS that row in place.
+function staticProp(x: unknown): boolean {
+  return typeof x !== 'function' && !isView(x) && !isBindProp(x)
+}
+
+function patchProps(
+  dom: any,
+  prev: Readonly<Record<string, unknown>> | null,
+  next: Readonly<Record<string, unknown>> | null,
+): void {
+  if (prev === next) return
+  if (next !== null) {
+    for (const k of Object.keys(next)) {
+      if (k.startsWith('on')) continue
+      const nv = next[k]
+      if (!staticProp(nv)) continue
+      const pv = prev !== null && k in prev ? prev[k] : undefined
+      if (pv !== undefined && !staticProp(pv)) continue // was reactive: self-updating, leave it
+      const na = normAttr(nv)
+      if (normAttr(pv) !== na) applyAttr(dom, k, na)
+    }
+  }
+  if (prev !== null) {
+    for (const k of Object.keys(prev)) {
+      if (k.startsWith('on') || !staticProp(prev[k])) continue
+      if (next === null || !(k in next)) applyAttr(dom, k, null) // prop dropped
+    }
+  }
+}
+
+function patchRow(m: Mounted, v: VNode): boolean {
+  if (m.vnode.kind !== v.kind) return false
+  if (v.kind === 'text') {
+    if ((m.vnode as TextNode).s !== v.s) m.dom.textContent = v.s
+    m.vnode = v
+    return true
+  }
+  if (v.kind === 'el') {
+    const prev = m.vnode as ElNode
+    if (prev.tag !== v.tag) return false
+    const next = v.children
+    if (m.children === null || m.children.length !== next.length) return false
+    patchProps(m.dom, prev.props, v.props)
+    for (let i = 0; i < next.length; i++) {
+      if (!patchRow(m.children[i], next[i])) return false
+    }
+    m.vnode = v
+    return true
+  }
+  if (v.kind === 'component') {
+    // Identical fn + STRUCTURALLY-equal props → the mounted instance stands
+    // (its bindings self-update). Anything else is a structural mismatch: a
+    // fresh invocation under a fresh scope (row rebuild) is the correct
+    // lifecycle, not a patch. Structural (not reference) equality matters
+    // because a rowFn re-mints its records every update — a component whose
+    // INPUTS didn't change must not rebuild the row (`<Chip>static</Chip>`
+    // survives; `<Chip>{row.t}</Chip>` rebuilds only when row.t moved). A
+    // component whose props embed the row (fresh reference per update) still
+    // rebuilds — the fn consumed that row. Hot rows that must patch
+    // surgically stay on plain elements + bindings.
+    const prev = m.vnode as ComponentNode
+    return prev.fn === v.fn && propsEq(prev.props, v.props)
+  }
+  if (v.kind === 'boundary') {
+    // Same structural rule; the fallback compares by REFERENCE — hoist it
+    // out of the rowFn (a fresh closure per update would rebuild the row and
+    // silently reset a displayed fallback to the try child).
+    const prev = m.vnode as BoundaryNode
+    return prev.fallback === v.fallback && vnodeEq(prev.child, v.child)
+  }
+  return true // rtext / list: self-updating
+}
+
+// Structural VNode-record equality for the component/boundary patch decision.
+// Records compare by shape; functions and views/handles must be REFERENCE-
+// equal (a fresh closure means fresh inputs). Handles are identity-only and
+// probed via the NODE symbol FIRST — reading .kind on a handle proxy would
+// route through its child-path dispatch.
+function vnodeEq(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) if (!vnodeEq(a[i], b[i])) return false
+    return true
+  }
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (a instanceof DataNode || b instanceof DataNode) return false // identity checked above
+  if ((a as any)[NODE] instanceof DataNode || (b as any)[NODE] instanceof DataNode) return false
+  const ka = (a as any).kind
+  if (ka !== (b as any).kind) return false
+  switch (ka) {
+    case 'text':
+      return (a as TextNode).s === (b as TextNode).s
+    case 'el': {
+      const ea = a as ElNode
+      const eb = b as ElNode
+      return ea.tag === eb.tag && propsEq(ea.props, eb.props) && vnodeEq(ea.children, eb.children)
+    }
+    case 'rtext':
+      return (a as RTextNode).view === (b as RTextNode).view && (a as RTextNode).fn === (b as RTextNode).fn
+    case 'bind':
+      return (a as BindProp).view === (b as BindProp).view && (a as BindProp).fn === (b as BindProp).fn
+    case 'list':
+      return (a as ListNode).view === (b as ListNode).view && (a as ListNode).rowFn === (b as ListNode).rowFn
+    case 'component':
+      return (a as ComponentNode).fn === (b as ComponentNode).fn && propsEq((a as ComponentNode).props, (b as ComponentNode).props)
+    case 'boundary':
+      return (a as BoundaryNode).fallback === (b as BoundaryNode).fallback && vnodeEq((a as BoundaryNode).child, (b as BoundaryNode).child)
+  }
+  return false // plain objects (e.g. a row passed as a prop): identity only
+}
+
+function propsEq(
+  a: Readonly<Record<string, unknown>> | null,
+  b: Readonly<Record<string, unknown>> | null,
+): boolean {
+  if (a === b) return true
+  if (a === null || b === null) return false
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  for (const k of ka) {
+    if (!(k in b)) return false
+    if (!vnodeEq(a[k], b[k])) return false // covers children arrays + nested records
+  }
+  return true
+}
+
+// ── error boundary slot ──────────────────────────────────────────────────────
+// Owns the current subtree's Scope + top-level DOM nodes; anchored so a swap
+// lands at the boundary's position even with later siblings. handle()/reset()
+// defer the swap one microtask (see the module header for why); the initial
+// mount catches synchronously (its partials' subscriptions were created in
+// this same tick — disposing them only trims effects-array tails, never an
+// entry a mid-flight effect iteration has yet to reach).
+
+// A host facade redirecting appendChild to insertBefore(anchor): swap-time
+// content (and any descendant list/boundary anchors) lands BEFORE the
+// boundary anchor rather than at the end of the host.
+function hostBefore(host: any, anchor: any): any {
+  return {
+    appendChild: (n: any) => host.insertBefore(n, anchor),
+    insertBefore: (n: any, ref: any) => host.insertBefore(n, ref ?? anchor),
+  }
+}
+
+class BoundarySlot {
+  declare host: any
+  declare doc: any
+  declare ns: string | null
+  declare anchor: any
+  declare vnode: BoundaryNode
+  declare outer: BoundarySlot | null
+  declare scope: Scope | null // the CURRENT subtree's scope (try or fallback)
+  declare doms: any[] // the current subtree's top-level DOM nodes
+  declare broken: boolean // a swap is queued — further errors no-op until it lands
+  declare disposed: boolean
+
+  constructor(host: any, vnode: BoundaryNode, ctx: Ctx) {
+    this.host = host
+    this.doc = ctx.doc
+    this.ns = ctx.ns
+    this.vnode = vnode
+    this.outer = ctx.boundary
+    this.scope = null
+    this.doms = []
+    this.broken = false
+    this.disposed = false
+    this.anchor = ctx.doc.createTextNode('')
+    host.appendChild(this.anchor)
+    try {
+      this.mountTry()
+    } catch (e) {
+      // Only reachable when the TRY child threw and the fallback ALSO failed
+      // with no outer boundary — the slot is stillborn; it isn't registered
+      // on any scope yet, so it must self-clean its anchor.
+      this.disposed = true
+      this.anchor.remove()
+      throw e
+    }
+  }
+
+  // Materialize vs before the anchor under a fresh subtree scope. Runs the
+  // whole mount inside runInScope(scope): connect()'s ambient-scope
+  // registration must land on THIS scope, not on whatever scope was ambient
+  // at mount time — pre-fix, the enclosing mount scope also caught every
+  // subtree subscription handle and retained the torn-down subtree until
+  // unmount. On a mount-phase throw the partials (scope + already-placed
+  // doms) are torn down and the error rethrows to the caller.
+  private mountInto(vs: VNode[], asBoundary: BoundarySlot | null): void {
+    const scope = new Scope(null)
+    const doms: any[] = []
+    const ctx: Ctx = { doc: this.doc, scope, ns: this.ns, boundary: asBoundary }
+    const facade = hostBefore(this.host, this.anchor)
+    try {
+      runInScope(scope, () => {
+        for (const v of vs) collectDoms(mountChild(facade, v, ctx), doms)
+      })
+    } catch (e) {
+      scope.dispose()
+      for (const d of doms) d.remove()
+      throw e
+    }
+    this.scope = scope
+    this.doms = doms
+  }
+
+  private mountTry(): void {
+    try {
+      this.mountInto(normChildren([this.vnode.child]), this)
+    } catch (e) {
+      this.scope = null
+      this.doms = []
+      this.showFallback(e)
+    }
+  }
+
+  // The fallback mounts with ctx.boundary = the OUTER boundary: its own
+  // errors escalate outward. A fallback that throws while MOUNTING also
+  // escalates (or rethrows at the top — an unhandled broken fallback should
+  // be loud, not blank).
+  private showFallback(err: unknown): void {
+    try {
+      const out = (0, this.vnode.fallback)(err, () => this.reset())
+      this.mountInto(normChildren([out]), this.outer)
+    } catch (e) {
+      this.scope = null
+      this.doms = []
+      if (this.outer !== null) this.outer.handle(e)
+      else throw e
+    }
+  }
+
+  // Effect-phase entry point (guarded closures + the list sink route here).
+  handle(err: unknown): void {
+    if (this.broken || this.disposed) return
+    this.broken = true
+    this.queueSwap(() => this.showFallback(err))
+  }
+
+  // Re-mount the try child (the fallback's retry hook). Deferred like
+  // handle() — reset may be invoked from inside an effect.
+  reset(): void {
+    if (this.broken || this.disposed) return
+    this.broken = true
+    this.queueSwap(() => this.mountTry())
+  }
+
+  private queueSwap(run: () => void): void {
+    queueMicrotask(() => {
+      if (this.disposed) return
+      try {
+        this.teardown()
+        run()
+      } finally {
+        // broken resets even when the swap body rethrows (a failing cleanup,
+        // a top-level fallback error) — otherwise the slot bricked while
+        // callers still held a live reset handle.
+        this.broken = false
+      }
+    })
+  }
+
+  // DOM removal proceeds even when a cleanup throws (Scope.dispose completes
+  // its walk and rethrows an AggregateError at the end).
+  private teardown(): void {
+    const scope = this.scope
+    this.scope = null
+    const doms = this.doms
+    this.doms = []
+    try {
+      scope?.dispose()
+    } finally {
+      for (const d of doms) d.remove()
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    try {
+      this.teardown()
+    } finally {
+      this.anchor.remove()
+    }
+  }
+}
+
+// ── devtools registry (zero-cost when unobserved) ────────────────────────────
+// The DOM ↔ data seam the devtools layer builds fromDOM()/highlight()/badges
+// on: row ELEMENT → { view, key } (set once per row build; WeakMap, so rows
+// die naturally), plus the live ListBinding set so a view's row elements are
+// enumerable (WeakMaps aren't). Nothing here is read by the render path
+// itself — one WeakMap.set per row creation and one Set add/delete per list
+// bind/dispose is the entire cost.
+export const domLinks: WeakMap<object, { view: DataNode<any>; key: RowKey }> = new WeakMap()
+export const liveLists: Set<{ view: DataNode<any>; recs: Map<RowKey, { el: any }> }> = new Set()
+
+// ── the keyed list sink ──────────────────────────────────────────────────────
+
+// A row ROOT must resolve to ONE element — the keyed sink's unit of placement
+// and identity (rec.el is inserted/moved/removed as the row). A component
+// root is invoked here (own scope, owned by the row's) and must yield exactly
+// one root; a boundary root can't keep rec.el stable across swaps, so it must
+// be wrapped in an element.
+function materializeRowRoot(v: VNode, ctx: Ctx): Mounted {
+  if (v.kind === 'boundary')
+    throw new Error(
+      'data/render: a row fn returned boundary() as the row ROOT — the keyed list sink ' +
+        'places one stable element per row and a swap would replace it. ' +
+        'Wrap it in an element: el("div", null, boundary(…))',
+    )
+  if (v.kind === 'list')
+    throw new Error(
+      'data/render: a row fn returned list()/<For> as the row ROOT — the keyed list sink ' +
+        'places one stable element per row. Nest it inside an element: el("div", null, list(…))',
+    )
+  if (v.kind === 'component') {
+    const compScope = new Scope(ctx.scope)
+    const out = runInScope(compScope, () => v.fn(v.props))
+    const kids = normChildren([out])
+    if (kids.length !== 1)
+      throw new Error(
+        `data/render: a component used as a row ROOT must return exactly ONE root vnode — ` +
+          `got ${kids.length}. The keyed list sink places one stable element per row.`,
+      )
+    const inner = materializeRowRoot(kids[0], {
+      doc: ctx.doc,
+      scope: compScope,
+      ns: ctx.ns,
+      boundary: ctx.boundary,
+    })
+    return { vnode: v, dom: inner.dom, children: [inner] }
+  }
+  return materialize(v, ctx)
+}
+
+interface RowRec {
+  key: RowKey
+  el: any
+  scope: Scope
+  mounted: Mounted
+}
+
+class ListBinding {
+  declare host: any
+  declare doc: any
+  declare ns: string | null // inherited element namespace for row builds
+  declare anchor: any // marker before which every row element is placed
+  declare view: DataNode<any>
+  declare rowFn: (row: any, key: RowKey) => VNode
+  declare recs: Map<RowKey, RowRec>
+  declare order: RowKey[] | null // mirror of the view's order channel
+  declare sub: SubscriptionHandle
+  declare boundary: BoundarySlot | null // nearest enclosing error boundary
+  declare disposed: boolean
+
+  constructor(host: any, vnode: ListNode, ctx: Ctx) {
+    this.host = host
+    this.doc = ctx.doc
+    this.ns = ctx.ns
+    this.rowFn = vnode.rowFn
+    this.view = nodeOf(vnode.view)
+    this.recs = new Map()
+    this.boundary = ctx.boundary
+    this.disposed = false
+    this.anchor = ctx.doc.createTextNode('')
+    host.appendChild(this.anchor)
+
+    // snapshot-then-deltas (SCHEDULE clause 7): init from the settled state
+    // (+ currentOrder when the view is ordered), then apply every commit.
+    const snap = this.view.snapshot()
+    const ord = this.view.currentOrder()
+    this.order = ord === null ? null : ord.slice()
+    const keys = ord ?? [...snap.keys()]
+    try {
+      for (const k of keys) {
+        const rec = this.buildRow(k, snap.get(k))
+        this.recs.set(k, rec)
+        this.host.insertBefore(rec.el, this.anchor)
+      }
+    } catch (e) {
+      // Exception-safe construction: a mount-phase rowFn throw must leave no
+      // ghosts — already-built rows (elements IN the real host, bindings in
+      // the views' effects arrays) and the anchor are torn down before the
+      // error reaches an enclosing boundary's catch, which cannot see them
+      // (the binding was never registered on ctx.scope).
+      for (const rec of this.recs.values()) {
+        rec.scope.dispose()
+        rec.el.remove()
+      }
+      this.recs.clear()
+      this.anchor.remove()
+      throw e
+    }
+    const b = this.boundary
+    this.sub = this.view.connect({
+      wantsOrder: true,
+      origin: null,
+      apply:
+        b === null
+          ? (batch: CommitBatch<any>) => this.apply(batch)
+          : (batch: CommitBatch<any>) => {
+              try {
+                this.apply(batch)
+              } catch (e) {
+                b.handle(e)
+              }
+            },
+    })
+    ctx.scope.add(this.sub)
+    liveLists.add(this)
+  }
+
+  // Each row owns a child Scope: its rtext/bind subscriptions and listeners
+  // are registered there and die with the row (removeEventListener, finally).
+  // The row FN runs under runInScope(null, …) — it re-runs on updates, so it
+  // is not a scope; onCleanup() inside one throws (wrap in a component).
+  private buildRow(key: RowKey, row: any): RowRec {
+    return this.buildRowFrom(
+      runInScope(null, () => this.rowFn(row, key)),
+      key,
+    )
+  }
+
+  private buildRowFrom(vnode: VNode, key: RowKey): RowRec {
+    const rowScope = new Scope(null)
+    let mounted: Mounted
+    try {
+      mounted = runInScope(rowScope, () =>
+        materializeRowRoot(vnode, {
+          doc: this.doc,
+          scope: rowScope,
+          ns: this.ns,
+          boundary: this.boundary,
+        }),
+      )
+    } catch (e) {
+      // rowScope is unowned (Scope(null)) — a mid-build throw would orphan
+      // the bindings already connected (they'd fire into a detached subtree
+      // forever, and a guarded one could re-tear a healthy fallback). The
+      // row element itself is still detached, so scope disposal suffices.
+      rowScope.dispose()
+      throw e
+    }
+    domLinks.set(mounted.dom, { view: this.view, key })
+    return { key, el: mounted.dom, scope: rowScope, mounted }
+  }
+
+  apply(batch: CommitBatch<any>): void {
+    if (this.disposed) return
+    const placeLater: RowRec[] = []
+    const ordered = this.order !== null || batch.order !== undefined
+
+    // Row phase — membership + content.
+    for (const d of batch.rows as readonly RowDelta<any>[]) {
+      switch (d.op) {
+        case 'add': {
+          const rec = this.buildRow(d.key, d.row)
+          this.recs.set(d.key, rec)
+          if (ordered) placeLater.push(rec) // placed by its orderInsert below
+          else this.host.insertBefore(rec.el, this.anchor)
+          break
+        }
+        case 'remove': {
+          const rec = this.recs.get(d.key)
+          if (rec === undefined) break
+          this.recs.delete(d.key)
+          rec.scope.dispose()
+          rec.el.remove()
+          break
+        }
+        case 'update': {
+          const rec = this.recs.get(d.key)
+          if (rec === undefined) break
+          // Same null-scope discipline as buildRow: without it, an update
+          // arriving while some scope is ambient (a write issued from inside
+          // a component fn) would let a row fn's onCleanup register silently
+          // on that foreign scope instead of throwing.
+          const next = runInScope(null, () => this.rowFn(d.row, d.key))
+          if (!patchRow(rec.mounted, next)) {
+            // Structural change — rebuild the row IN PLACE (same list
+            // position); the old row's scope (listeners, bindings) disposes.
+            const fresh = this.buildRowFrom(next, d.key)
+            this.host.insertBefore(fresh.el, rec.el)
+            rec.el.remove()
+            rec.scope.dispose()
+            this.recs.set(d.key, fresh)
+          }
+          break
+        }
+      }
+    }
+
+    // Order phase — applied AFTER row deltas, in array order (the contract).
+    if (batch.order !== undefined) {
+      if (this.order === null) this.order = [] // view reveals itself as ordered
+      const ord = this.order
+      for (const od of batch.order as readonly OrderDelta[]) {
+        switch (od.op) {
+          case 'orderRemove': {
+            const i = ord[od.index] === od.key ? od.index : ord.indexOf(od.key)
+            if (i >= 0) ord.splice(i, 1)
+            break
+          }
+          case 'orderInsert': {
+            const i = od.index < 0 ? 0 : od.index > ord.length ? ord.length : od.index
+            ord.splice(i, 0, od.key)
+            const rec = this.recs.get(od.key)
+            if (rec !== undefined) this.host.insertBefore(rec.el, this.nextPlaced(i + 1))
+            break
+          }
+          case 'orderMove': {
+            const from =
+              od.from !== undefined && ord[od.from] === od.key ? od.from : ord.indexOf(od.key)
+            if (from < 0) break
+            ord.splice(from, 1)
+            const i = od.index < 0 ? 0 : od.index > ord.length ? ord.length : od.index
+            ord.splice(i, 0, od.key)
+            const rec = this.recs.get(od.key)
+            // THE move: one real insertBefore of the EXISTING element.
+            if (rec !== undefined) this.host.insertBefore(rec.el, this.nextPlaced(i + 1))
+            break
+          }
+        }
+      }
+    }
+
+    // Safety net: any added row the order channel didn't place (e.g. a mirror
+    // that re-pointed from an ordered to an unordered parent) appends.
+    for (const rec of placeLater) {
+      if (rec.el.parentNode == null) this.host.insertBefore(rec.el, this.anchor)
+    }
+  }
+
+  // First already-placed element at or after order position i (added-but-not-
+  // yet-placed keys are skipped); the anchor closes the list.
+  private nextPlaced(i: number): any {
+    const ord = this.order!
+    for (; i < ord.length; i++) {
+      const rec = this.recs.get(ord[i])
+      if (rec !== undefined && rec.el.parentNode != null) return rec.el
+    }
+    return this.anchor
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    liveLists.delete(this)
+    this.sub.dispose()
+    for (const rec of this.recs.values()) {
+      rec.scope.dispose()
+      rec.el.remove()
+    }
+    this.recs.clear()
+    this.anchor.remove()
+  }
+}
+
+// ── render ───────────────────────────────────────────────────────────────────
+
+export interface RenderHandle {
+  readonly scope: Scope
+  dispose(): void
+}
+
+export function render(host: any, ast: VNode | readonly VNode[], _runtime?: Runtime): RenderHandle {
+  const doc = (globalThis as any).document
+  if (doc == null)
+    throw new Error('data/render: no global document — a DOM (or the test mock) must be installed')
+  const mount = new Scope(null) // one Scope per mount — owns everything below
+  const tops: any[] = []
+  const ctx: Ctx = { doc, scope: mount, ns: null, boundary: null }
+  runInScope(mount, () => {
+    const vs = Array.isArray(ast) ? (ast as readonly VNode[]) : [ast as VNode]
+    try {
+      for (const v of vs) collectDoms(mountChild(host, v, ctx), tops)
+    } catch (e) {
+      // Exception-safe mount: an unboundaried throw (a component fn, a
+      // binding's initial read) must not leave live subscriptions or
+      // partially-mounted DOM behind — the caller gets no handle to dispose.
+      mount.dispose()
+      for (const t of tops) t.remove()
+      throw e
+    }
+  })
+  return {
+    scope: mount,
+    dispose() {
+      mount.dispose() // subscriptions, listeners, row scopes, list bindings
+      // tops includes list/boundary anchors already removed by their owner's
+      // dispose — .remove() on a detached node is a no-op.
+      for (const t of tops) t.remove()
+    },
+  }
+}
+
+// ── mirror() — the re-pointable view slot (the v2 $(view)-swap, done right) ──
+
+const MKEY = 'g'
+
+export class MirrorNode<T> extends DataNode<T> {
+  declare view: Map<RowKey, T> // materialized identity copy of the current parent
+  declare order: RowKey[] | null
+  declare ctl: SourceNode<number> // hidden repoint-generation input (between-bounds pattern)
+  declare gen: number
+
+  constructor(runtime: Runtime, parent: DataNode<T>, ctl: SourceNode<number>) {
+    super(runtime, 'operator', 'mirror', [parent, ctl])
+    this.ctl = ctl
+    this.gen = 0
+    this.view = parent.snapshot()
+    const o = parent.currentOrder()
+    this.order = o === null ? null : o.slice()
+  }
+
+  snapshot(): Map<RowKey, T> {
+    if (this.runtime.midBatch) return this.parents[0].snapshot() as Map<RowKey, T>
+    return new Map(this.view)
+  }
+
+  hasRow(key: RowKey): boolean {
+    if (this.runtime.midBatch) return super.hasRow(key)
+    return this.view.has(key)
+  }
+
+  rowAt(key: RowKey): T | undefined {
+    if (this.runtime.midBatch) return super.rowAt(key)
+    return this.view.get(key)
+  }
+
+  each(fn: (key: RowKey, row: T) => void): void {
+    if (this.runtime.midBatch) return super.each(fn)
+    for (const [k, v] of this.view) fn(k, v)
+  }
+
+  rowCount(): number {
+    if (this.runtime.midBatch) return super.rowCount()
+    return this.view.size
+  }
+
+  currentOrder(): readonly RowKey[] | null {
+    if (this.runtime.midBatch) return this.parents[0].currentOrder()
+    return this.order
+  }
+
+  current(): DataNode<T> {
+    return this.parents[0] as DataNode<T>
+  }
+
+  // Re-point at another view. The swap re-parents this node (children/height
+  // bookkeeping) and then writes the hidden control source, so the diff is
+  // emitted as a REAL commit: it consolidates with data writes in the same
+  // batch(), gets a seq, and inherits re-entrancy handling for free.
+  set(next: any): void {
+    const nextNode = nodeOf(next) as DataNode<T>
+    const cur = this.parents[0]
+    if (nextNode === cur) return
+    if (nextNode.kind === 'scalar')
+      throw new Error('data: mirror.set() expects a collection view, got a scalar node')
+    // Cycle check: walking the new parent's ancestry must never reach this
+    // mirror (a mirror pointed at a view derived from itself would loop).
+    const stack: DataNode<any>[] = [nextNode]
+    while (stack.length > 0) {
+      const n = stack.pop()!
+      if (n === this) throw new Error('data: mirror.set() would create a cyclic view')
+      for (const p of n.parents) stack.push(p)
+    }
+    const i = cur.children.indexOf(this)
+    if (i >= 0) cur.children.splice(i, 1)
+    ;(this.parents as DataNode<any>[])[0] = nextNode
+    nextNode.children.push(this)
+    // Keep topological legality for future commits: height only ever grows,
+    // and the growth PROPAGATES to descendants (reheight). Pre-fix, nodes
+    // created downstream BEFORE a repoint kept their construction-time height
+    // — a descendant could then settle BEFORE this mirror in a flush and read
+    // its stale materialized view (the library-v3 PROBE A staleness; STATUS
+    // gap 5, now closed).
+    reheight(this)
+    this.ctl.write(MKEY, [], ++this.gen)
+  }
+
+  dispose(): void {
+    super.dispose()
+    this.ctl.dispose()
+  }
+
+  settle(seq: number, origin: OriginToken): CommitBatch<T> | null {
+    let dataBatch: CommitBatch<T> | null = null
+    let repoint = false
+    if (this.in0 !== null) {
+      if (this.inFrom0 === this.ctl) repoint = true
+      else if (this.inFrom0 === this.parents[0]) dataBatch = this.in0 as CommitBatch<T>
+    }
+    if (this.inMore !== null) {
+      for (const m of this.inMore) {
+        if (m.from === this.ctl) repoint = true
+        else if (m.from === this.parents[0]) dataBatch = m.batch as CommitBatch<T>
+      }
+    }
+    if (repoint) return this.settleRepoint(seq, origin)
+    if (dataBatch === null) return null
+
+    // Identity forwarding: maintain the local copy, re-emit the parent's rows
+    // and order deltas under this node's identity.
+    for (const d of dataBatch.rows) {
+      if (d.op === 'remove') this.view.delete(d.key)
+      else this.view.set(d.key, d.row)
+    }
+    if (dataBatch.order !== undefined) {
+      if (this.order === null) this.order = []
+      applyOrderDeltas(this.order, dataBatch.order)
+    }
+    if (dataBatch.rows.length === 0 && dataBatch.order === undefined) return null
+    return { seq, origin, rows: dataBatch.rows, order: dataBatch.order, scalar: undefined }
+  }
+
+  // The consolidated swap diff: old snapshot vs new snapshot — removes for
+  // keys only in old, adds for keys only in new, updates ONLY for keys in
+  // both whose row REFERENCE changed (Object.is — overlapping keys sharing a
+  // row reference emit nothing, so downstream DOM keeps their elements).
+  // A data batch from the new parent in the same commit is subsumed: the
+  // parent has already settled (lower height), so its snapshot is current.
+  private settleRepoint(seq: number, origin: OriginToken): CommitBatch<T> | null {
+    const next = this.parents[0].snapshot() as Map<RowKey, T>
+    const rows: RowDelta<T>[] = []
+    for (const [k, v] of this.view) {
+      if (!next.has(k)) rows.push({ op: 'remove', key: k, prev: v })
+    }
+    for (const [k, v] of next) {
+      if (this.view.has(k)) {
+        const old = this.view.get(k) as T
+        if (!Object.is(old, v)) rows.push({ op: 'update', key: k, row: v, prev: old, path: [] })
+      } else {
+        rows.push({ op: 'add', key: k, row: v })
+      }
+    }
+    const postO = this.parents[0].currentOrder()
+    const postOrder = postO === null ? null : postO.slice()
+    let order: OrderDelta[] | undefined
+    if (this.order !== null || postOrder !== null) {
+      order = orderScript(this.order ?? [], postOrder ?? [])
+      if (order.length === 0) order = undefined
+    }
+    this.view = next
+    this.order = postOrder
+    if (rows.length === 0 && order === undefined) return null
+    return { seq, origin, rows, order, scalar: undefined }
+  }
+}
+
+function applyOrderDeltas(ord: RowKey[], deltas: readonly OrderDelta[]): void {
+  for (const d of deltas) {
+    if (d.op === 'orderInsert') ord.splice(d.index, 0, d.key)
+    else if (d.op === 'orderRemove') ord.splice(d.index, 1)
+    else {
+      ord.splice(d.from as number, 1)
+      ord.splice(d.index, 0, d.key)
+    }
+  }
+}
+
+// Legal order script pre → post (SCHEDULE clause 8): removes at DESCENDING
+// pre indices (each valid at application time), orderMove per surviving key
+// against the survivor array (the OrderedView reconcile algorithm), then
+// inserts at ASCENDING final indices.
+function orderScript(pre: readonly RowKey[], post: readonly RowKey[]): OrderDelta[] {
+  const preSet = new Set(pre)
+  const postSet = new Set(post)
+  const out: OrderDelta[] = []
+  for (let i = pre.length - 1; i >= 0; i--) {
+    if (!postSet.has(pre[i])) out.push({ op: 'orderRemove', key: pre[i], index: i })
+  }
+  const cur: RowKey[] = []
+  for (const k of pre) if (postSet.has(k)) cur.push(k)
+  const surv: RowKey[] = []
+  for (const k of post) if (preSet.has(k)) surv.push(k)
+  for (let i = 0; i < surv.length; i++) {
+    if (cur[i] === surv[i]) continue
+    const j = cur.indexOf(surv[i], i)
+    out.push({ op: 'orderMove', key: surv[i], index: i, from: j })
+    cur.splice(j, 1)
+    cur.splice(i, 0, surv[i])
+  }
+  for (let i = 0; i < post.length; i++) {
+    if (!preSet.has(post[i])) out.push({ op: 'orderInsert', key: post[i], index: i })
+  }
+  return out
+}
+
+export function mirror<T>(initial: any): MirrorNode<T> {
+  const parent = nodeOf(initial) as DataNode<T>
+  if (parent.kind === 'scalar')
+    throw new Error('data: mirror() expects a collection view, got a scalar node')
+  const ctl = new SourceNode<number>(parent.runtime, { [MKEY]: 0 }, 'mirror:ctl')
+  return new MirrorNode<T>(parent.runtime, parent, ctl)
+}
+
+// ── raf() — the coalescing writer ────────────────────────────────────────────
+
+export interface RafWriter<V = unknown> {
+  (v: V): void
+  flush(): void
+  cancel(): void
+}
+
+// target: a commit function `(v) => …` or anything with `.update(v)` (a $
+// child handle). write(v) schedules ONE commit of the LATEST value per
+// animation frame; flush() commits immediately (pointerup wants the final
+// position without an extra frame's latency); cancel() drops the pending
+// value. Outside a browser the frame is setTimeout(cb, 16).
+export function raf<V>(target: ((v: V) => void) | { update(v: V): void }): RafWriter<V> {
+  const commit: (v: V) => void =
+    typeof target === 'function' ? target : (v: V) => target.update(v)
+  let pending = false
+  let latest: V
+  let handle: any = null
+  const g: any = globalThis
+  const hasRaf = typeof g.requestAnimationFrame === 'function'
+  const fire = () => {
+    pending = false
+    handle = null
+    commit(latest)
+  }
+  const write = ((v: V) => {
+    latest = v
+    if (pending) return
+    pending = true
+    handle = hasRaf ? g.requestAnimationFrame(fire) : setTimeout(fire, 16)
+  }) as RafWriter<V>
+  write.cancel = () => {
+    if (!pending) return
+    pending = false
+    if (hasRaf) g.cancelAnimationFrame(handle)
+    else clearTimeout(handle)
+    handle = null
+  }
+  write.flush = () => {
+    if (!pending) return
+    write.cancel()
+    commit(latest)
+  }
+  currentScope()?.onDispose(() => write.cancel())
+  return write
+}

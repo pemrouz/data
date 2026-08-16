@@ -1,164 +1,37 @@
 {
   "name": "data",
-  "version": "2.0.0",
-  "description": "reactive data for typescript — $() wraps values, chainable operators derive views, render binds to the DOM. work proportional to the path that changed.",
+  "version": "4.0.0",
+  "description": "Reactive data engine — sources, a closed delta algebra, incremental operators, native/wire subscriptions, and a DOM render layer, under the executable SCHEDULE timing contract. The substrate fero replicates over.",
   "type": "module",
-  "sideEffects": [
-    "./register.ts",
-    "./v3/ops/*.ts",
-    "./dist/index.js",
-    "./dist/v2/index.js",
-    "./dist/v2/full.js",
-    "./dist/v2/devtools/index.js"
-  ],
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./v3/types/public.d.ts",
-  "bin": {
-    "data": "./bin/cli.mjs"
-  },
+  "license": "MIT",
+  "author": "pemrouz",
   "exports": {
     ".": {
-      "types": "./v3/types/public.d.ts",
-      "import": "./dist/index.js"
+      "types": "./types/public.d.ts",
+      "import": "./api/index.ts"
     },
     "./jsx-runtime": {
-      "import": "./dist/jsx-runtime.js"
+      "import": "./api/jsx-runtime.ts"
     },
     "./jsx-dev-runtime": {
-      "import": "./dist/jsx-runtime.js"
+      "import": "./api/jsx-runtime.ts"
     },
     "./devtools": {
-      "import": "./dist/devtools.js"
-    },
-    "./v3": {
-      "types": "./v3/types/public.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./v3/jsx-runtime": {
-      "import": "./dist/jsx-runtime.js"
-    },
-    "./v3/devtools": {
-      "import": "./dist/devtools.js"
-    },
-    "./v2": {
-      "types": "./dist/v2/index.d.ts",
-      "import": "./dist/v2/index.js"
-    },
-    "./v2/lean": {
-      "types": "./dist/v2/lean.d.ts",
-      "import": "./dist/v2/lean.js"
-    },
-    "./v2/full": {
-      "types": "./dist/v2/full.d.ts",
-      "import": "./dist/v2/full.js"
-    },
-    "./v2/render": {
-      "types": "./dist/v2/render/index.d.ts",
-      "import": "./dist/v2/render/index.js"
-    },
-    "./v2/devtools": {
-      "types": "./dist/v2/devtools/index.d.ts",
-      "import": "./dist/v2/devtools/index.js"
-    },
-    "./v2/devtools/panel": {
-      "types": "./dist/v2/devtools/panel/index.d.ts",
-      "import": "./dist/v2/devtools/panel/index.js"
-    },
-    "./v2/jsx-runtime": {
-      "types": "./dist/v2/jsx-runtime.d.ts",
-      "import": "./dist/v2/jsx-runtime.js"
-    },
-    "./v2/jsx-dev-runtime": {
-      "types": "./dist/v2/jsx-dev-runtime.d.ts",
-      "import": "./dist/v2/jsx-dev-runtime.js"
+      "import": "./devtools/entry.ts"
     }
   },
-  "files": [
-    "dist",
-    "bin",
-    "v3/types/public.d.ts",
-    "README.md",
-    "AGENTS.md",
-    "llms.txt",
-    "LICENSE"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pemrouz/data.git"
-  },
-  "homepage": "https://pemrouz.github.io/data",
-  "bugs": {
-    "url": "https://github.com/pemrouz/data/issues"
-  },
-  "license": "MIT",
-  "keywords": [
-    "reactive",
-    "reactivity",
-    "signals",
-    "fine-grained",
-    "state-management",
-    "incremental",
-    "crossfilter",
-    "dataframe",
-    "observable",
-    "view",
-    "operators",
-    "dom",
-    "no-virtual-dom",
-    "frp",
-    "javascript",
-    "typescript"
+  "sideEffects": [
+    "./ops/*.ts"
   ],
   "scripts": {
-    "build": "tsup",
-    "typecheck": "tsc -p tsconfig.typecheck.json && tsc -p tsconfig.typecheck.jsx.json && tsc -p tsconfig.typecheck.auto.json && tsc -p tsconfig.typecheck.devtools.json",
-    "typecheck:src": "tsc -p tsconfig.src.json",
-    "typecheck:tooling": "tsc -p tsconfig.tooling.json",
-    "build:examples-jsx": "tsc -p examples/todo-jsx && tsc -p examples/crossfilter-jsx && tsc -p examples/chat && tsc -p examples/chat-v3",
-    "serve": "tsup && npm run build:examples-jsx && npx serve",
-    "test:render": "npx playwright test",
-    "test:data": "node --experimental-strip-types --no-warnings --test index.test.ts",
-    "test:perf": "node --experimental-strip-types --no-warnings --test index.perf.ts",
-    "test": "node --experimental-strip-types --no-warnings --test core.test.ts entry.test.ts index.test.ts differential.test.ts operators/*/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
-    "test:v3": "node --experimental-strip-types --no-warnings --test v3/**/*.test.ts",
-    "typecheck:v3": "tsc -p v3/types && tsc -p v3/types/tsconfig.jsx.json && tsc -p v3/types/tsconfig.auto.json && tsc -p v3/types/tsconfig.public.json",
-    "perf:v3": "node --experimental-strip-types --no-warnings v3/perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc v3/perf/m2-gate.ts",
-    "perf": "node perf/run-gate.mjs",
-    "perf:report": "node perf/_run.mjs",
-    "perf:h7": "node perf/gen-h7.mjs",
-    "test:all": "npm run test && npm run typecheck && npm run test:render",
-    "report": "node tests/report/run.mjs && node tests/report/build.mjs",
-    "report:build": "node tests/report/build.mjs",
-    "prepare": "git config core.hooksPath .githooks || true",
-    "prepublishOnly": "npm run build && npm test && npm run typecheck",
-    "bench:compare": "node --experimental-strip-types --no-warnings comparisons/bench/run-all.ts",
-    "bench:ops": "node --experimental-strip-types --no-warnings comparisons/bench/operators/run-ops.ts",
-    "bench:wasm:build": "asc experiments/wasm/assembly/index.ts --config experiments/wasm/asconfig.json --target release",
-    "bench:wasm:kernels": "node --experimental-strip-types --no-warnings experiments/wasm/bench-kernels.ts",
-    "bench:wasm:pipeline": "node --experimental-strip-types --no-warnings experiments/wasm/bench-pipeline.ts",
-    "bench:wasm:altbackend": "node --experimental-strip-types --no-warnings experiments/wasm/bench-altbackend.ts",
-    "bench:wasm": "npm run bench:wasm:build && npm run bench:wasm:kernels",
-    "test:v4": "node --experimental-strip-types --no-warnings --test v4/**/*.test.ts",
-    "typecheck:v4": "tsc -p v4/types && tsc -p v4/types/tsconfig.jsx.json && tsc -p v4/types/tsconfig.auto.json && tsc -p v4/types/tsconfig.public.json",
-    "perf:v4": "node --experimental-strip-types --no-warnings v4/perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc v4/perf/m2-gate.ts && node --experimental-strip-types --no-warnings v4/perf/m3-replication.ts && node --experimental-strip-types --no-warnings --expose-gc v4/perf/m4-budgets.ts"
+    "test": "node --experimental-strip-types --no-warnings --test api/*.test.ts kernel/*.test.ts ops/*.test.ts seam/*.test.ts conformance/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
+    "typecheck": "tsc -p types && tsc -p types/tsconfig.jsx.json && tsc -p types/tsconfig.auto.json && tsc -p types/tsconfig.public.json",
+    "perf": "node --experimental-strip-types --no-warnings perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc perf/m2-gate.ts && node --experimental-strip-types --no-warnings perf/m3-replication.ts && node --experimental-strip-types --no-warnings --expose-gc perf/m4-budgets.ts",
+    "bench:commit": "node --experimental-strip-types --no-warnings perf/commit.bench.ts",
+    "test:all": "npm test && npm run typecheck && npm run perf"
   },
-  "author": "pemrouz",
   "devDependencies": {
-    "@playwright/test": "^1.49.1",
-    "@preact/signals-core": "^1.14.2",
     "@types/node": "^22.10.2",
-    "@vue/reactivity": "^3.5.34",
-    "assemblyscript": "^0.27.37",
-    "crossfilter2": "^1.5.4",
-    "mobx": "^6.15.3",
-    "react": "^19.2.6",
-    "react-test-renderer": "^19.2.6",
-    "rxjs": "^7.8.2",
-    "serve": "^14.2.4",
-    "solid-js": "^1.9.13",
-    "svelte": "^5.55.7",
-    "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }
 }

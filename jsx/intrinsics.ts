@@ -1,46 +1,107 @@
-// Single source of truth for the JSX type surface — the per-tag attribute
-// interfaces and the `IntrinsicElements` map, shared by BOTH JSX entry points so
-// they can never drift:
-//   - the classic transform's global namespace (jsx/jsx.d.ts, jsxFactory "h")
-//     re-declares `declare global { namespace JSX }` aliasing these, and
-//   - the automatic runtime (jsx-runtime.ts, jsxImportSource "data") exports a
-//     `namespace JSX` aliasing the same — so a consumer under either transform
-//     gets identical per-tag narrowing.
+// jsx/intrinsics.ts — the per-tag JSX type surface (M4.5b types slice).
 //
-// Type-only module (no runtime code) — tsup inlines it into the consumers'
-// emitted .d.ts; the compiled .js is empty.
+// Single source of truth for the v3 JSX types — the per-tag attribute
+// interfaces and the IntrinsicElements map, shared by BOTH JSX entry points so
+// they can never drift (the v2 lesson: the automatic runtime was an all-`any`
+// bag until the surfaces were unified):
+//   - the classic transform's GLOBAL namespace (v3/jsx/jsx.d.ts, jsxFactory
+//     "h") re-declares `declare global { namespace JSX }` aliasing these, and
+//   - the automatic runtime (the v3 jsx-runtime, when it lands) exports a
+//     `namespace JSX` aliasing the same.
 //
-// The runtime accepts arbitrary attrs (className/class/style/on*Event/data-*/
-// aria-*/SVG presentation attrs) and any reactive ViewProxy as a value, so every
-// prop widens with `Reactive<T>` and each interface keeps an open index signature
-// for forward-compat with new attrs.
+// PURE TYPE MODULE with ZERO imports — deliberately: the tsc fixture-gate
+// programs include this file without pulling one line of implementation, and
+// the automatic runtime can alias it without a value dependency. The runtime
+// shapes are therefore stood in for STRUCTURALLY:
+//   - ViewLike  — every v3 handle exposes snapshot() (whole handles, scalar
+//     aggregates, child-path handles — see v3/types/surface.ts), and so does
+//     a raw DataNode; `{ snapshot(): unknown }` matches them all without
+//     naming any of them.
+//   - BindLike  — structurally matches render/index.ts's BindProp
+//     (`bind(view, fn)`; the renderer discriminates on `kind: 'bind'`).
+//   - VNodeLike — any render AST record (el/text/rtext/list): a tagged
+//     `kind`. NB BindLike is itself a VNodeLike structurally, which is
+//     exactly right: a bind() CHILD is legal too (normChildren turns it into
+//     formatted reactive text).
+//
+// Typed to what v3's renderer ACTUALLY accepts (render/index.ts prop
+// dispatch), not to React's vocabulary. v3 HAS:
+//   - on* FUNCTION props → addEventListener(name.slice(2).toLowerCase())
+//   - handle / bind() prop values → per-binding surgical attr subscriptions
+//   - static values through normAttr — null/undefined/false REMOVE the
+//     attribute, true → '' (boolean-attr presence), everything else
+//     stringifies
+//   - 'checked' / 'value' write the DOM PROPERTY when the element carries it
+//     (live form props; the attribute is only the pre-interaction default)
+// and v3 does NOT have (deliberate — attributes are LITERAL):
+//   - no className — the attribute is literally `class`
+//   - no style OBJECTS — `style` is a plain attr string
+//   - no class object-maps ({ done: cond })
+//   - no htmlFor / tabIndex / defaultValue React aliases — `for`, `tabindex`
+//     are the literal attribute names
+//   - no ref props — a non-on* function prop value just stringifies
 
-// ViewProxy is callable (a Proxy(noop)) so `(...) => any` is the closest
-// structural shape; widening every attr with this lets reactive bindings
-// type-check without runtime cost.
-export type AnyVP = ((...a: any[]) => any) & { [k: string | symbol]: any }
-export type Reactive<T> = T | AnyVP
+// ── structural stand-ins for the runtime shapes ──────────────────────────────
 
+export type ViewLike = { snapshot(): unknown }
+export type BindLike = { kind: 'bind' }
+export type VNodeLike = { kind: string }
+
+// Every attribute value widens with Reactive<T>: a static value, a live view
+// (handle / scalar / child handle / DataNode), or a bind(view, fn) record.
+export type Reactive<T> = T | ViewLike | BindLike
+
+// The renderer forwards on{Anything} → addEventListener, so handlers are
+// loosely typed; E defaults to any because this module can't name DOM types
+// (zero imports, no lib assumption).
 export type EventHandler<E = any> = (event: E) => void
 
+// ── children ─────────────────────────────────────────────────────────────────
+//
+// The child vocabulary of normChildren (render/builders.ts): static
+// string/number text; booleans/null/undefined dropped; VNode records (a
+// bind() child passes through the VNodeLike arm — see the header note); a
+// bare handle child is reactive TEXT; nested arrays flatten.
+//
+// FUNCTIONS ARE DELIBERATELY EXCLUDED: a function child under a string tag
+// THROWS at runtime (normChildren's unsupported-child error — iteration is
+// ONLY <For each={view}>{fn}</For>), so `<div>{() => x}</div>` is a COMPILE
+// error here, mirroring the runtime throw. For's row fn is unaffected —
+// component children are checked against the COMPONENT's own props type,
+// not this vocabulary.
+export type ChildLike =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | VNodeLike
+  | ViewLike
+  | readonly ChildLike[]
+
+// ── shared attribute surface ─────────────────────────────────────────────────
+
 export interface DOMAttributes {
-  // ref/key are reserved JSX names; ref fires once with the real element.
-  ref?: (el: any) => void
+  // Accepted for JSX-idiom compatibility and IGNORED by any reconciler
+  // (there is none to inform: row identity comes from the DATA layer's
+  // RowKey, never from markup) — a static key just passes through the
+  // renderer like any other attribute.
   key?: string | number
 
-  // Class bindings — string token list (`className`/`class`) OR an object
-  // map of `{name: cond}` where cond can be a boolean or a reactive view.
-  className?: Reactive<string>
-  class?: Reactive<string> | { [name: string]: Reactive<boolean> }
-
-  // Style: per-property object; values may be reactive.
-  style?: { [k: string]: Reactive<string | number> }
-
+  // The literal global attributes the v3 renderer writes as-is.
+  class?: Reactive<string>
   id?: Reactive<string>
+  for?: Reactive<string>
+  title?: Reactive<string>
+  style?: Reactive<string> // a plain attr STRING — v3 has no style objects
+  hidden?: Reactive<boolean> // normAttr: true → present-empty, false → removed
+  tabindex?: Reactive<number | string>
 
-  // Event handlers. We don't enumerate every DOM event because the runtime
-  // forwards `on{Anything}` -> `addEventListener(name.toLowerCase())`. Common
-  // ones are listed for autocomplete; the index signature catches the rest.
+  children?: ChildLike
+
+  // Event handlers — enumerated only for AUTOCOMPLETE. The renderer forwards
+  // any on* function prop to addEventListener(name lowercased), so the open
+  // index signature below catches every event not listed here.
   onClick?: EventHandler
   onDblClick?: EventHandler
   onChange?: EventHandler
@@ -83,11 +144,15 @@ export interface DOMAttributes {
   onLoad?: EventHandler
   onError?: EventHandler
 
-  children?: any
-  // Catch-all so unknown / future / data-* / aria-* attrs still typecheck.
-  [k: string]: any
+  // Open catch-all: the renderer forwards ANY attribute (data-*, aria-*,
+  // future/unknown attrs, uncommon events), so unknown names must still
+  // type-check. Known names declared above stay strictly checked — declared
+  // members take precedence over the index signature.
+  [attr: string]: any
 }
 
+// aria-* would pass through the index signature anyway; declared here for
+// autocomplete + value narrowing on the common ones (ported from v2).
 export interface AriaAttributes {
   'aria-label'?: Reactive<string>
   'aria-labelledby'?: Reactive<string>
@@ -105,24 +170,19 @@ export interface AriaAttributes {
   role?: Reactive<string>
 }
 
+// ── per-tag attribute interfaces (the v2 tag list, values adapted to v3) ─────
+
 export interface HTMLAttributes extends DOMAttributes, AriaAttributes {
   accesskey?: Reactive<string>
-  autofocus?: Reactive<boolean | ''>
+  autofocus?: Reactive<boolean>
   contenteditable?: Reactive<boolean | 'true' | 'false' | 'inherit'>
   contextmenu?: Reactive<string>
   dir?: Reactive<'ltr' | 'rtl' | 'auto'>
   draggable?: Reactive<boolean | 'true' | 'false'>
-  hidden?: Reactive<boolean>
   lang?: Reactive<string>
   slot?: Reactive<string>
   spellcheck?: Reactive<boolean | 'true' | 'false'>
-  tabindex?: Reactive<number | string>
-  title?: Reactive<string>
   translate?: Reactive<'yes' | 'no'>
-  // React-style alias (lower-case form is also accepted)
-  tabIndex?: Reactive<number | string>
-  for?: Reactive<string>
-  htmlFor?: Reactive<string>
 }
 
 export interface AnchorHTMLAttributes extends HTMLAttributes {
@@ -158,9 +218,9 @@ export interface InputHTMLAttributes extends HTMLAttributes {
   alt?: Reactive<string>
   autocomplete?: Reactive<string>
   capture?: Reactive<boolean | 'user' | 'environment'>
+  // Live form prop: written to the PROPERTY when the element carries it, so
+  // a reactive binding keeps working after user interaction.
   checked?: Reactive<boolean>
-  defaultChecked?: Reactive<boolean>
-  defaultValue?: Reactive<string | number>
   disabled?: Reactive<boolean>
   form?: Reactive<string>
   list?: Reactive<string>
@@ -177,6 +237,7 @@ export interface InputHTMLAttributes extends HTMLAttributes {
   size?: Reactive<number>
   src?: Reactive<string>
   step?: Reactive<number | string>
+  // Live form prop, like checked.
   value?: Reactive<string | number>
 }
 
@@ -193,7 +254,7 @@ export interface TextareaHTMLAttributes extends HTMLAttributes {
   readonly?: Reactive<boolean>
   required?: Reactive<boolean>
   rows?: Reactive<number>
-  value?: Reactive<string>
+  value?: Reactive<string> // live form prop
   wrap?: Reactive<'soft' | 'hard'>
 }
 
@@ -205,7 +266,7 @@ export interface SelectHTMLAttributes extends HTMLAttributes {
   name?: Reactive<string>
   required?: Reactive<boolean>
   size?: Reactive<number>
-  value?: Reactive<string | number>
+  value?: Reactive<string | number> // live form prop
 }
 
 export interface OptionHTMLAttributes extends HTMLAttributes {
@@ -219,7 +280,7 @@ export interface FormHTMLAttributes extends HTMLAttributes {
   action?: Reactive<string>
   method?: Reactive<'get' | 'post' | 'dialog'>
   enctype?: Reactive<string>
-  acceptCharset?: Reactive<string>
+  'accept-charset'?: Reactive<string> // literal attr (v2 had the camel alias)
   autocomplete?: Reactive<string>
   name?: Reactive<string>
   novalidate?: Reactive<boolean>
@@ -241,15 +302,14 @@ export interface ImgHTMLAttributes extends HTMLAttributes {
 }
 
 export interface LabelHTMLAttributes extends HTMLAttributes {
-  for?: Reactive<string>
-  htmlFor?: Reactive<string>
+  for?: Reactive<string> // the literal attribute — v3 has no htmlFor alias
   form?: Reactive<string>
 }
 
 export interface MetaHTMLAttributes extends HTMLAttributes {
   charset?: Reactive<string>
   content?: Reactive<string>
-  httpEquiv?: Reactive<string>
+  'http-equiv'?: Reactive<string> // literal attr (v2 had the camel alias)
   name?: Reactive<string>
 }
 
@@ -308,8 +368,10 @@ export interface CanvasHTMLAttributes extends HTMLAttributes {
 }
 
 export interface SVGAttributes extends DOMAttributes, AriaAttributes {
-  // Subset of the SVG presentation/geometry attribute surface that the
-  // crossfilter example exercises. Index signature catches the rest.
+  // Subset of the SVG presentation/geometry attribute surface (the set the
+  // crossfilter charts exercise); the index signature catches the rest. The
+  // renderer namespaces via the <svg> TAG (children inherit createElementNS),
+  // so these are ordinary el records — no per-attr namespace handling.
   x?: Reactive<number | string>
   y?: Reactive<number | string>
   x1?: Reactive<number | string>
@@ -350,9 +412,11 @@ export interface SVGAttributes extends DOMAttributes, AriaAttributes {
   'stop-opacity'?: Reactive<string>
 }
 
-// JSX namespace surface (the three members TS reads). `Element = any` and the
-// open `[tag: string]: any` are the standard custom-runtime escape hatches.
-export type Element = any
+// ── the JSX namespace surface (aliased by both transforms) ───────────────────
+
+// h() returns a VNode from a string tag and VNode | VNode[] from a component
+// (Fragment returns its children array), so Element covers both.
+export type Element = VNodeLike | VNodeLike[]
 export interface ElementChildrenAttribute { children: {} }
 export interface IntrinsicAttributes { key?: string | number }
 
@@ -484,7 +548,7 @@ export interface IntrinsicElements {
   meta: MetaHTMLAttributes
   base: HTMLAttributes
 
-  // SVG (the runtime dispatches via SVG_TAGS in jsx/index.ts)
+  // SVG (namespaced by the renderer via the enclosing <svg> tag)
   svg: SVGAttributes
   g: SVGAttributes
   path: SVGAttributes

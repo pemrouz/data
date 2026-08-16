@@ -1,650 +1,282 @@
-import { spec } from '../tests/spec.ts'
-import { deepStrictEqual as same, ok, strictEqual } from 'node:assert'
-import { $, value, view } from '../core.ts'
-// Importing 'data/full' to get operator dispatch registered. The lean core
-// would throw on .filter(...) etc. (see commit 860befe).
-import '../full.ts'
-import { walk, classify, summarize, ancestorOf, iterRoots, internalRoot } from './walk.ts'
-import './index.ts'
-import { _devtoolsRoots, _devtoolsInternalRoots } from '../core.ts'
-import { ensureInstrumented, restoreInstrumentation, isInstrumented } from './instrument.ts'
-import { traceTargets, profilers, cascadeRecorders, nextTraceId, newProfileAcc, finalize } from './events.ts'
-import { View } from '../core.ts'
+// devtools tests — the consumption layer over runtime.graph()/onCommit().
+// Builds a real $ chain (filter → za → sum), runs writes under trace/profile/
+// cascades, and asserts: ids line up with graph(), per-operator ms rows exist
+// (the v2 structurally-empty-profile defect), seq is monotonic, the trace
+// subscription detaches on return AND on throw, and graph() is serializable.
 
-// Silence the console.* calls inside $.inspect/$.graph during the test run —
-// the assertions are on return values, not on console output, and the noise
-// would clutter the test output.
-const noop = () => {}
-console.group = noop; console.log = noop; console.table = noop
-console.groupEnd = noop; console.dir = noop; console.warn = noop
+import { test } from 'node:test'
+import assert from 'node:assert'
+import { $, value, node, batch, runtime } from '../api/index.ts'
+import { inspect, graph, trace, profile, cascades, resolveNode } from './index.ts'
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize passes primitives through unchanged' }, () => {
-  strictEqual(summarize(42), 42)
-  strictEqual(summarize(true), true)
-  strictEqual(summarize(null), null)
-  strictEqual(summarize(undefined), undefined)
-  strictEqual(summarize('short'), 'short')
+const same = assert.deepStrictEqual
+const ok = assert.ok
+
+type Row = { region: string; val: number }
+const rows = (): Record<string, Row> => ({
+  a: { region: 'north', val: 10 },
+  b: { region: 'south', val: 20 },
+  c: { region: 'north', val: 30 },
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize truncates long strings to 80 chars with an ellipsis' }, () => {
-  const s = 'x'.repeat(200)
-  const out = summarize(s)
-  strictEqual(out.length, 80)
-  ok(out.endsWith('...'))
+// One chain per test: source → filter → za(window) → sum.
+function chain() {
+  const d = $(rows())
+  const north = d.filter((r: Row) => r.region === 'north')
+  const top = north.za('val', 2)
+  const total = top.sum('val')
+  return { d, north, top, total }
+}
+
+const ids = (x: { d: any; north: any; top: any; total: any }) => ({
+  src: x.d[node].id as number,
+  filter: x.north[node].id as number,
+  za: x.top[node].id as number,
+  sum: x.total[node].id as number,
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize shows array length and object key count' }, () => {
-  strictEqual(summarize([1, 2, 3]), 'Array(3)')
-  strictEqual(summarize({ a: 1, b: 2 }), '{ keys: 2 }')
+// ── inspect ──────────────────────────────────────────────────────────────────
+
+test('inspect: resolves a handle via Symbol.for(data.v4.node) — id/kind/op/height/parents/value', () => {
+  const x = chain()
+  const i = ids(x)
+
+  const src = inspect(x.d)
+  same(src.id, i.src)
+  same(src.kind, 'source')
+  same(src.op, 'source')
+  same(src.height, 0)
+  same(src.parents, [])
+  same(src.value, rows())
+
+  const filt = inspect(x.north)
+  same(filt.kind, 'operator')
+  same(filt.op, 'filter')
+  same(filt.height, 1)
+  same(filt.parents, [i.src])
+
+  const win = inspect(x.top)
+  same(win.op, 'za')
+  same(win.parents, [i.filter])
+  same(win.value, [{ region: 'north', val: 30 }, { region: 'north', val: 10 }]) // ordered → array
+
+  const agg = inspect(x.total)
+  same(agg.kind, 'scalar')
+  same(agg.op, 'sum')
+  same(agg.parents, [i.za])
+  same(agg.value, 40) // scalar nodes report value(), not a snapshot
+
+  // A raw DataNode works too (same resolution surface as a handle).
+  same(inspect(x.d[node]).id, i.src)
+  same(resolveNode(x.north), x.north[node])
+  assert.throws(() => inspect({}), /expected a data handle or DataNode/)
+  assert.throws(() => inspect(42), /expected a data handle or DataNode/)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'summarize shows a function name' }, () => {
-  strictEqual(summarize(function foo() {}), 'Function(foo)')
-  strictEqual(summarize(() => {}), 'Function(anonymous)')
+test('inspect: value tracks writes (reads live state, no caching)', () => {
+  const x = chain()
+  x.d.get('b').set('region', 'north') // b enters filter; val 20 enters window
+  same(inspect(x.total).value, 50) // 30 + 20
+  same(inspect(x.north).value.b, { region: 'north', val: 20 })
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'classify distinguishes operator, connect-style sink and unknown' }, () => {
-  const data: any = $({ x: { v: 1 } })
-  const filtered = data.filter((d: any) => d.v > 0)
-  const sinks: any[] = []
-  data[view].sink((s: any) => sinks.push(s))
-  // The filter is a sink on data — classify it as 'operator'.
-  const op = sinks.find((s: any) => s.constructor.name.includes('Filter'))
-  strictEqual(classify(op), 'operator')
+// ── graph ────────────────────────────────────────────────────────────────────
 
-  const arr: any[] = data.connect([])
-  const arrSinks: any[] = []
-  data[view].sink((s: any) => arrSinks.push(s))
-  const arrSink = arrSinks.find((s: any) => s.constructor.name === 'ArrSink')
-  strictEqual(classify(arrSink), 'connect')
+test('graph: full node list + edge list; ids/edges match the chain topology', () => {
+  const x = chain()
+  const i = ids(x)
+  const g = graph(x.d) // resolve runtime from a handle
 
-  strictEqual(classify({ constructor: { name: 'Random' } }), 'sink')
-  // Keep the ArrSink alive so it isn't GC'd before the test's assertions
-  // are evaluated (see core.ts:325-326 — unref'd sinks get pruned silently).
-  ok(arr)
+  const byId = new Map(g.nodes.map((n) => [n.id, n]))
+  ok(byId.has(i.src) && byId.has(i.filter) && byId.has(i.za) && byId.has(i.sum))
+  same(byId.get(i.filter)!.op, 'filter')
+  same(byId.get(i.za)!.op, 'za')
+  same(byId.get(i.sum)!.kind, 'scalar')
+
+  // Edges: parent → child, derivable purely from nodes[].parents.
+  const has = (from: number, to: number) => g.edges.some((e) => e.from === from && e.to === to)
+  ok(has(i.src, i.filter))
+  ok(has(i.filter, i.za))
+  ok(has(i.za, i.sum))
+  ok(!has(i.src, i.sum)) // no fabricated shortcut edges
+
+  // Heights are topological along every edge.
+  for (const e of g.edges) ok(byId.get(e.from)!.height < byId.get(e.to)!.height)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'ancestorOf is true for self and ancestors, false for descendants' }, () => {
-  const data: any = $({ a: { b: { c: 1 } } })
-  const root = data[view]
-  const a = data.a[view]
-  const c = data.a.b.c[view]
-  ok(ancestorOf(root, root), 'self counts as ancestor')
-  ok(ancestorOf(c, root), 'root is ancestor of grandchild')
-  ok(ancestorOf(c, a), 'a is ancestor of grandchild')
-  ok(!ancestorOf(root, c), 'descendant is not ancestor of root')
+test('graph: serializable — JSON round-trip is exact', () => {
+  const x = chain()
+  const g = graph(x.d)
+  same(JSON.parse(JSON.stringify(g)), g)
 })
 
-spec({ op:'devtools', guarantee:'Robustness', asserts:'ancestorOf depth cap prevents a runaway walk' }, () => {
-  // Build a fake parent chain of depth 100 and assert the default cap of 32
-  // returns false (root not found) instead of looping.
-  let chain = { p: null }
-  let head: any = chain
-  for (let i = 0; i < 100; i++) head = { p: head }
-  const sentinel = chain
-  ok(!ancestorOf(head, sentinel), 'cap should prevent finding distant ancestor')
+test('graph: no-arg uses the default runtime; explicit Runtime accepted; disposed nodes drop out', () => {
+  const x = chain()
+  const i = ids(x)
+  const all = graph() // default runtime — $ handles live there
+  const idSet = new Set(all.nodes.map((n) => n.id))
+  ok(idSet.has(i.src) && idSet.has(i.sum))
+  same(graph(runtime()).nodes.length, all.nodes.length)
+
+  x.total.dispose()
+  ok(!graph().nodes.some((n) => n.id === i.sum))
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk returns kind:root with no children and a summarized value' }, () => {
-  const data: any = $({ a: 1, b: 2 })
-  const tree = walk(data[view])
-  strictEqual(tree.kind, 'root')
-  same(tree.key, [])
-  strictEqual(tree.value, '{ keys: 2 }')
-})
+// ── trace ────────────────────────────────────────────────────────────────────
 
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk shows an operator sink with kind:operator and its ctor name' }, () => {
-  const data: any = $({ x: { active: true }, y: { active: false } })
-  const filtered = data.filter((d: any) => d.active)
-  // Keep the chain alive for the duration of the assertions
-  const lifeline = filtered.length()
-  const tree = walk(data[view])
-  const filterOp = tree.sinks.find((s: any) => s.kind === 'operator' && s.ctor === 'FilterValue')
-  ok(filterOp, 'FilterValue should appear as an operator sink')
-  // Its descendant should include the LengthValue chained off it.
-  const lengthOp = filterOp.sinks.find((s: any) => s.kind === 'operator' && s.ctor === 'LengthValue')
-  ok(lengthOp, 'LengthValue should appear as a sink of the FilterValue')
-  ok(lifeline)
-})
-
-spec({ op:'devtools', guarantee:'Robustness', asserts:'walk prunes dead WeakRef sinks during traversal without crashing' }, () => {
-  const data: any = $({ a: 1 })
-  // Attach an ArrSink that we deliberately do NOT keep a strong ref to.
-  // It survives initial walk because the local var in connect() holds it
-  // briefly; but the next walk after we explicitly drop it should not see it.
-  data.connect([])
-  // Force a walk to trigger any lazy pruning, then walk again.
-  walk(data[view])
-  const tree = walk(data[view])
-  const connects = tree.sinks.filter((s: any) => s.kind === 'connect')
-  // We can't strictly assert 0 here without --expose-gc; what we CAN assert
-  // is that the walk doesn't crash on a dead WeakRef and returns a valid
-  // structure. A retained sink (caught by view.sink's deref check) is fine.
-  ok(Array.isArray(tree.sinks))
-  ok(connects.every((s: any) => s.kind === 'connect'))
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'walk shows a LinkedView as kind:linked-alias and does not recurse into its source' }, () => {
-  const src: any = $({ items: [1, 2, 3] })
-  const linked: any = $(src)
-  const tree = walk(linked[view])
-  strictEqual(tree.kind, 'linked-alias')
-  ok(Array.isArray(tree.aliasOf))
-  // Children/sinks of the source should NOT appear under the alias node.
-  same(tree.children, [])
-  same(tree.sinks, [])
-})
-
-spec({ op:'devtools', guarantee:'Robustness', asserts:'walk marks a re-encountered view kind:cycle instead of recursing' }, () => {
-  // Synthetic check: pre-populate the seen set with the root, then walk —
-  // the function should immediately return a cycle marker rather than recurse.
-  const data: any = $({ a: 1 })
-  const seen = new WeakSet()
-  seen.add(data[view])
-  const tree = walk(data[view], { seen })
-  strictEqual(tree.kind, 'cycle')
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect of a root reports key:[] and parent:null' }, () => {
-  const data: any = $({ a: 1, b: 2 })
-  const out = $.inspect(data)
-  same(out.key, [])
-  strictEqual(out.parent, null)
-  same(out.value, { a: 1, b: 2 })
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect of a child reports its parent and own key' }, () => {
-  const data: any = $({ a: { b: 1 } })
-  const out = $.inspect(data.a)
-  same(out.key, ['a'])
-  ok(out.parent, 'child should report a parent')
-  // parent is a fresh ViewProxy wrapping the parent view; reading [value]
-  // should give the root data.
-  same(out.parent[value], { a: { b: 1 } })
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.inspect lists operator and connect-style sinks attached to a view' }, () => {
-  const data: any = $({ x: { active: true } })
-  const op = data.filter((d: any) => d.active)
-  const arr: any[] = data.connect([])
-  const out = $.inspect(data)
-  ok(out.sinks.some((s: any) => s.kind === 'operator' && s.ctor.startsWith('Filter')))
-  ok(out.sinks.some((s: any) => s.kind === 'connect' && s.ctor === 'ArrSink'))
-  ok(op && arr)
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.graph(proxy) returns the same shape as walk()' }, () => {
-  const data: any = $({ a: 1 })
-  const tree = $.graph(data)
-  strictEqual(tree.kind, 'root')
-  same(tree.key, [])
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', chain:'filter→length', asserts:'$.graph shows a filter→length chain under root.sinks' }, () => {
-  const data: any = $({ x: { active: true, n: 1 }, y: { active: false, n: 2 } })
-  const filtered = data.filter((d: any) => d.active)
-  const counted = filtered.length()
-  const tree = $.graph(data)
-  const filterOp = tree.sinks.find((s: any) => s.kind === 'operator' && s.ctor === 'FilterValue')
-  ok(filterOp, 'FilterValue should appear in root sinks')
-  const lengthOp = filterOp.sinks.find((s: any) => s.kind === 'operator' && s.ctor === 'LengthValue')
-  ok(lengthOp, 'LengthValue should appear under FilterValue')
-  ok(counted)
-})
-
-spec({ op:'devtools', guarantee:'Robustness', asserts:'iterRoots yields every live root and prunes dead WeakRefs' }, () => {
-  // Pin a fresh root, then verify it appears in the iteration.
-  const a: any = $({ x: 1 })
-  const seen: any[] = []
-  for (const v of iterRoots()) seen.push(v)
-  ok(seen.includes(a[view]), 'newly-created root should be enumerable')
-})
-
-spec({ op:'devtools', guarantee:'Selection', asserts:'iterRoots excludes internal roots by default, includes them with {internal:true}' }, () => {
-  const internal: any = $({ panel: 'state' })
-  internalRoot(internal)
-  ok(_devtoolsInternalRoots.has(internal[view]))
-  const publicSeen: any[] = []
-  for (const v of iterRoots()) publicSeen.push(v)
-  ok(!publicSeen.includes(internal[view]), 'internal root should be hidden by default')
-  const allSeen: any[] = []
-  for (const v of iterRoots({ internal: true })) allSeen.push(v)
-  ok(allSeen.includes(internal[view]), 'internal root visible with {internal:true}')
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.graph() with no arg returns root trees for all live roots' }, () => {
-  const a: any = $({ alive: true })
-  const out = $.graph()
-  ok(Array.isArray(out), 'no-arg form returns an array')
-  ok(out.length > 0, 'should include at least the root just created')
-  ok(out.some((t: any) => t.kind === 'root'), 'every entry shape matches walk() root output')
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.fromDOM walks the parentElement chain to the nearest __ripple_sink' }, () => {
-  // Synthesize a DOM element with __ripple_sink directly (we don't need the
-  // real render layer for this unit test — the walking logic is what matters).
-  const data: any = $({ items: { a: 1 } })
-  const fakeSink = { p: data[view] }
-  const grandchild = { parentElement: { parentElement: { __ripple_sink: fakeSink, parentElement: null } } }
-  const proxy = $.fromDOM(grandchild)
-  ok(proxy, 'should find a proxy by walking up')
-  // The returned proxy should resolve to the same value as the original.
-  same(proxy[value], { items: { a: 1 } })
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.fromDOM returns null when no __ripple_sink is in the chain' }, () => {
-  const orphan = { parentElement: { parentElement: null } }
-  strictEqual($.fromDOM(orphan), null)
-})
-
-spec({ op:'devtools', guarantee:'Robustness', asserts:'ensureInstrumented patches View.prototype and restore reverts it byte-identical' }, () => {
-  const origXU0 = View.prototype.XU0
-  const origBU1 = View.prototype.BU1
-  ok(!isInstrumented())
-  ensureInstrumented()
-  ok(isInstrumented())
-  ok(View.prototype.XU0 !== origXU0, 'XU0 should be patched')
-  ok(View.prototype.BU1 !== origBU1, 'BU1 should be patched')
-  restoreInstrumentation()
-  strictEqual(View.prototype.XU0, origXU0, 'XU0 restored to original')
-  strictEqual(View.prototype.BU1, origBU1, 'BU1 restored to original')
-  ok(!isInstrumented())
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'patched verbs preserve byte-identical change records with no listeners attached' }, () => {
-  ensureInstrumented()
-  // Run a small core-test-shaped scenario with instrumentation on but no
-  // listeners — fast-out path should kick in and the result should be
-  // byte-identical to the unpatched run.
-  const data: any = $({ a: 1 })
-  const changes: any[] = data.connect([])
-  data.a = 2
-  data.b = 3
-  delete data.a
-  same(changes, [
-    { type: 'update', value: { a: 1 }, key: [] },
-    { type: 'update', value: 2, key: ['a'] },
-    { type: 'insert', value: 3, key: [], at: 'b' },
-    { type: 'remove', value: 2, key: ['a'] },
-  ])
-  restoreInstrumentation()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'a registered trace receives dispatch events with the right verb and key' }, () => {
-  ensureInstrumented()
-  const data: any = $({ a: 1, b: 2 })
-  const events: any[] = []
-  const id = nextTraceId()
-  traceTargets.set(id, {
-    id, root: data[view], verbs: null, log: false,
-    onEvent: (ev: any) => events.push(ev),
+test('trace: CommitInfo per commit; seq monotonic; node ids ⊆ graph ids; settle order is topological', () => {
+  const x = chain()
+  const i = ids(x)
+  const commits = trace(x.d, () => {
+    x.d.get('a').get('val').update(11) // in-filter, in-window → full chain settles
+    x.d.get('c').get('val').update(31)
   })
-  data.a = 10
-  data.b = 20
-  traceTargets.delete(id)
-  // After the disposer, no more events.
-  data.a = 99
-  ok(events.length >= 2, `expected >=2 events, got ${events.length}`)
-  // Verify we captured the right verb + key for the first mutation.
-  ok(events.some((e: any) => e.verb === 'BU1' && e.key.length === 0))
-  restoreInstrumentation()
+  same(commits.length, 2) // bare writes = one commit each
+
+  // seq IS the cascade id — strictly increasing.
+  for (let k = 1; k < commits.length; k++) ok(commits[k].seq > commits[k - 1].seq)
+
+  const g = graph(x.d)
+  const known = new Set(g.nodes.map((n) => n.id))
+  const heights = new Map(g.nodes.map((n) => [n.id, n.height]))
+  for (const c of commits) {
+    ok(c.nodes.length >= 4) // source, filter, za, sum all settled
+    for (const s of c.nodes) {
+      ok(known.has(s.id))
+      ok(s.deltas >= 1)
+      ok(s.ms >= 0)
+    }
+    // CommitInfo.nodes are in settle order — heights never decrease.
+    for (let k = 1; k < c.nodes.length; k++)
+      ok(heights.get(c.nodes[k].id)! >= heights.get(c.nodes[k - 1].id)!)
+    const touched = new Set(c.nodes.map((s) => s.id))
+    ok(touched.has(i.src) && touched.has(i.filter) && touched.has(i.za) && touched.has(i.sum))
+  }
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'trace ancestor scoping skips events outside the traced subtree' }, () => {
-  ensureInstrumented()
-  const data: any = $({ foo: { x: 1 }, bar: { y: 1 } })
-  // Trace only the foo subtree.
-  const events: any[] = []
-  const id = nextTraceId()
-  traceTargets.set(id, {
-    id, root: data.foo[view], verbs: null, log: false,
-    onEvent: (ev: any) => events.push(ev),
+test('trace: batch() is ONE cascade; consolidation-empty commits emit nothing', () => {
+  const x = chain()
+  const commits = trace(x.d, () => {
+    batch(() => {
+      x.d.get('a').get('val').update(12)
+      x.d.get('c').get('val').update(32)
+    })
   })
-  data.bar.y = 999  // outside subtree — should be skipped
-  const before = events.length
-  data.foo.x = 999  // inside subtree — should fire
-  traceTargets.delete(id)
-  restoreInstrumentation()
-  ok(events.length > before, 'foo mutation should be traced')
-  ok(!events.some((e: any) => e.key.includes('bar')), 'no bar events should leak through')
+  same(commits.length, 1)
+  ok(commits[0].nodes.some((s) => s.id === x.d[node].id))
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'profilers accumulate per-operator counts and times' }, () => {
-  ensureInstrumented()
-  const data: any = $({})
-  const filtered = data.filter((d: any) => d.active)
-  const counted = filtered.length()
-  const acc = newProfileAcc()
-  const id = nextTraceId()
-  profilers.set(id, { id, root: data[view], acc })
-  for (let i = 0; i < 50; i++) data['k' + i] = { active: i % 2 === 0 }
-  profilers.delete(id)
-  restoreInstrumentation()
-  const report = finalize(acc)
-  ok(report.totalEvents >= 50, `expected >=50 events, got ${report.totalEvents}`)
-  ok(report.byOperator.length > 0, 'at least one operator should be tracked')
-  // The hottest operator's totalMs should be >= 0 and counts should be > 0.
-  ok(report.byOperator.every((b: any) => b.count > 0))
-  ok(counted)
+test('trace: subscription detaches on return — later writes are not observed', () => {
+  const x = chain()
+  const commits = trace(x.d, () => {
+    x.d.get('a').get('val').update(13)
+  })
+  same(commits.length, 1)
+  x.d.get('a').get('val').update(14) // after trace returned
+  x.d.get('c').get('val').update(34)
+  same(commits.length, 1) // the returned array is a closed capture
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'re-entrant nested verb calls do not double-count wall time' }, () => {
-  ensureInstrumented()
-  const data: any = $({})
-  const acc = newProfileAcc()
-  const id = nextTraceId()
-  profilers.set(id, { id, root: data[view], acc })
-  // A single insert triggers BI0 on root and XU0 on each child view.
-  // The wall-clock attribution should only apply to the outermost (BI0)
-  // call; nested XU0 calls increment count but not totalMs sum.
-  for (let i = 0; i < 10; i++) data['k' + i] = { x: i }
-  profilers.delete(id)
-  restoreInstrumentation()
-  // sum of all bucket totalMs should be roughly the wall time of those calls.
-  // Just assert it's finite and nonneg — the precise value depends on the
-  // host. The important invariant is that no bucket reports more time than
-  // the entire run took.
-  ok(acc.ms >= 0)
-  ok(acc.ms < 1000, `wall time should be small, got ${acc.ms}`)
+test('trace: subscription detaches when fn throws', () => {
+  const x = chain()
+  let captured: readonly unknown[] = []
+  assert.throws(() =>
+    trace(x.d, () => {
+      x.d.get('a').get('val').update(15)
+      throw new Error('boom')
+    }),
+  /boom/)
+  // A fresh trace still works and the broken one observes nothing further.
+  captured = trace(x.d, () => {
+    x.d.get('a').get('val').update(16)
+  })
+  same(captured.length, 1)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.trace captures subtree events and the disposer stops capture' }, () => {
-  const data: any = $({ a: 1, b: 2 })
-  const events: any[] = []
-  const stop = $.trace(data, { log: false, onEvent: (ev: any) => events.push(ev) })
-  data.a = 10
-  data.b = 20
-  stop()
-  const captured = events.length
-  data.a = 99
-  strictEqual(events.length, captured, 'no further events after dispose')
-  ok(captured >= 2, `expected >=2 events captured, got ${captured}`)
-  $.devtools.disable()
-})
+// ── profile ──────────────────────────────────────────────────────────────────
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.trace ancestor scoping skips events outside the traced subtree' }, () => {
-  const data: any = $({ foo: { x: 1 }, bar: { y: 1 } })
-  const events: any[] = []
-  const stop = $.trace(data.foo, { log: false, onEvent: (ev: any) => events.push(ev) })
-  data.bar.y = 999
-  data.foo.x = 999
-  stop()
-  ok(events.length >= 1, 'foo mutation should be captured')
-  ok(!events.some((e: any) => e.key.includes('bar')), 'bar mutations should not leak')
-  $.devtools.disable()
-})
+test('profile: per-operator rows for the whole chain — structurally-empty profiles are impossible', () => {
+  const x = chain()
+  const i = ids(x)
+  const rowsOut = profile(x.d, () => {
+    for (let k = 0; k < 5; k++) x.d.get('a').get('val').update(100 + k) // monotonic (never the no-op path)
+  })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'$.profile accumulates a report and stop returns byOperator sorted by totalMs' }, () => {
-  const data: any = $({})
-  const filtered = data.filter((d: any) => d.active)
-  const counted = filtered.length()
-  const p = $.profile(data)
-  for (let i = 0; i < 100; i++) data['k' + i] = { active: i % 3 === 0 }
-  const r = p.stop()
-  ok(r.totalEvents >= 100, `expected >=100 events, got ${r.totalEvents}`)
-  ok(r.byOperator.length > 0, 'expected at least one operator bucket')
-  // Sorted by totalMs descending — verify monotonic.
-  for (let i = 1; i < r.byOperator.length; i++) {
-    ok(r.byOperator[i - 1].totalMs >= r.byOperator[i].totalMs, 'sorted by totalMs desc')
+  const byId = new Map(rowsOut.map((r) => [r.id, r]))
+  // EVERY operator in the chain has a row — the v2 defect asserted away.
+  for (const [name, id] of [['source', i.src], ['filter', i.filter], ['za', i.za], ['sum', i.sum]] as const) {
+    const r = byId.get(id)
+    ok(r !== undefined, `missing profile row for ${name}`)
+    same(r!.op, name)
+    same(r!.commits, 5)
+    ok(r!.deltas >= 5)
+    ok(r!.totalMs >= 0)
+    ok(Number.isFinite(r!.totalMs))
   }
-  ok(counted)
-  $.devtools.disable()
+  // Sorted by id, serializable.
+  for (let k = 1; k < rowsOut.length; k++) ok(rowsOut[k].id > rowsOut[k - 1].id)
+  same(JSON.parse(JSON.stringify(rowsOut)), rowsOut)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.profile report() returns a snapshot without stopping' }, () => {
-  const data: any = $({})
-  const p = $.profile(data)
-  data.x = 1
-  const r1 = p.report()
-  data.y = 2
-  const r2 = p.report()
-  ok(r2.totalEvents >= r1.totalEvents, 'report() reflects new events')
-  p.stop()
-  $.devtools.disable()
+test('profile: a write that dies mid-chain profiles only the nodes that settled', () => {
+  const x = chain()
+  const i = ids(x)
+  const rowsOut = profile(x.d, () => {
+    x.d.get('b').get('val').update(21) // b is south — filter emits nothing downstream
+  })
+  const touched = new Set(rowsOut.map((r) => r.id))
+  ok(touched.has(i.src))
+  ok(!touched.has(i.za)) // za never settled a batch — no row, not a zero row
+  ok(!touched.has(i.sum))
 })
 
-spec({ op:'devtools', guarantee:'Robustness', asserts:'$.devtools.disable restores View.prototype byte-identical and drops state' }, () => {
-  const data: any = $({ a: 1 })
-  const origXU0 = View.prototype.XU0
-  $.trace(data, { log: false })
-  ok(View.prototype.XU0 !== origXU0, 'patched after trace()')
-  $.devtools.disable()
-  strictEqual(View.prototype.XU0, origXU0, 'restored after disable()')
-  // After disable, mutations don't accumulate any state.
-  data.a = 2
-  strictEqual(traceTargets.size, 0)
-  strictEqual(profilers.size, 0)
-})
+// ── cascades ─────────────────────────────────────────────────────────────────
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades records one cascade per mutation with frames timed >= 0' }, () => {
-  const data: any = $({ a: 1 })
-  const rec = $.cascades(data)
-  data.a = 2
-  const out = rec.stop()
-  strictEqual(out.length, 1, 'one mutation should produce one cascade')
-  const c = out[0]
-  ok(c.frames.length >= 1, 'cascade should record at least one frame')
-  ok(c.totalMs >= 0, 'totalMs should be non-negative')
-  // Every frame's endMs should be >= startMs (closed by exitCascadeFrame).
-  for (const f of c.frames) {
-    ok(f.endMs >= f.startMs, `frame ${f.i} endMs ${f.endMs} < startMs ${f.startMs}`)
-    ok(f.endMs >= 0, 'endMs must be assigned (default -1 means unclosed)')
-  }
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'insert', asserts:'$.cascades frame parent indices reconstruct a well-formed forest' }, () => {
-  const data: any = $({})
-  const filtered = data.filter((d: any) => d.active)
-  const counted = filtered.length()
-  const rec = $.cascades(data)
-  // One insert fans out to root → filter → length. We don't assert exact
-  // verb names (that depends on internal dispatch order); we assert the
-  // tree shape is well-formed. A cascade can have multiple root frames
-  // because Value.BU1 splits into view.BU1 + view.BI0 (see events.ts
-  // coalescing notes).
-  data.k0 = { active: true }
-  const [c] = rec.stop()
-  ok(c, 'expected at least one cascade')
-  const roots = c.frames.filter((f: any) => f.parent === -1)
-  ok(roots.length >= 1, `cascade must have at least one root frame, got ${roots.length}`)
-  // Every non-root frame's parent must point to a real earlier frame.
-  for (const f of c.frames) {
-    if (f.parent === -1) continue
-    ok(f.parent >= 0 && f.parent < f.i, `parent ${f.parent} of frame ${f.i} out of range`)
-  }
-  ok(counted)
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades subtree root scoping skips cascades outside the subtree' }, () => {
-  const data: any = $({ foo: { x: 1 }, bar: { y: 1 } })
-  const rec = $.cascades(data.foo)
-  data.bar.y = 999  // outside scope
-  data.foo.x = 999  // inside scope
-  const out = rec.stop()
-  ok(out.length >= 1, 'foo mutation should be captured')
-  // No frame should reference a key starting with 'bar'.
-  for (const c of out) {
-    for (const f of c.frames) {
-      ok(!f.key.includes('bar'), `bar leaked into cascade frame: ${f.key.join('.')}`)
+test('cascades: grouped by seq with names resolved from graph()', () => {
+  const x = chain()
+  const i = ids(x)
+  const cs = cascades(x.d, () => {
+    x.d.get('a').get('val').update(200)
+    x.d.get('b').get('region').update('north') // b enters: filter add → window → sum
+  })
+  same(cs.length, 2)
+  ok(cs[1].seq > cs[0].seq)
+  for (const c of cs) {
+    same(typeof c.origin, 'string')
+    for (const n of c.nodes) {
+      same(n.name, `${n.op}#${n.id}`)
+      ok(n.deltas >= 1)
+      ok(n.ms >= 0)
     }
   }
-  $.devtools.disable()
+  // The flow-essay read: the first cascade flows source → filter → za → sum.
+  const names = cs[0].nodes.map((n) => n.name)
+  same(names, [`source#${i.src}`, `filter#${i.filter}`, `za#${i.za}`, `sum#${i.sum}`])
+  // Serializable (postMessage to a panel).
+  same(JSON.parse(JSON.stringify(cs)), cs)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades produces a distinct cascade per task tick' }, async () => {
-  // Within one sync tick, all top-level patched verbs coalesce into a
-  // single cascade (see events.ts). To get N cascades we must yield to
-  // the microtask queue between mutations — a single Promise.resolve()
-  // suffices since the cascade-close is queued via queueMicrotask.
-  const data: any = $({})
-  const rec = $.cascades(data)
-  data.a = 1
-  await Promise.resolve()
-  data.b = 2
-  await Promise.resolve()
-  data.c = 3
-  const out = rec.stop()
-  ok(out.length >= 3, `expected >=3 cascades, got ${out.length}`)
-  // Each cascade's frames must form a contiguous index range starting at 0,
-  // proving they didn't interleave (two open cascades would mix indices).
-  for (const c of out) {
-    for (let i = 0; i < c.frames.length; i++) {
-      strictEqual(c.frames[i].i, i, `frame ${i} has wrong index ${c.frames[i].i}`)
-    }
-  }
-  // Ascending startedAt across cascades.
-  for (let i = 1; i < out.length; i++) {
-    ok(out[i].startedAt >= out[i - 1].startedAt, 'cascades should be in chronological order')
-  }
-  $.devtools.disable()
+test('cascades: dispose semantics — nothing observed outside fn', () => {
+  const x = chain()
+  const cs = cascades(x.d, () => {
+    x.d.get('a').get('val').update(300)
+  })
+  x.d.get('a').get('val').update(301)
+  same(cs.length, 1)
 })
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'batch', asserts:'$.cascades coalesces back-to-back sync mutations into one cascade' }, () => {
-  // The flip side of the previous test: when mutations are back-to-back
-  // sync (no microtask in between), they all belong to the same cascade.
-  // This is the "user clicked once and four things changed" model.
-  const data: any = $({})
-  const rec = $.cascades(data)
-  data.a = 1
-  data.b = 2
-  data.c = 3
-  const out = rec.stop()
-  strictEqual(out.length, 1, `expected 1 coalesced cascade, got ${out.length}`)
-  // The cascade should carry several top-level (parent=-1) frames, one
-  // pair per assignment (view.BU1 + view.BI0).
-  const roots = out[0].frames.filter((f: any) => f.parent === -1)
-  ok(roots.length >= 3, `expected >=3 top-level frames, got ${roots.length}`)
-  $.devtools.disable()
-})
+// ── zero steady-state cost ───────────────────────────────────────────────────
 
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'insert', chain:'filter→length', asserts:'$.cascades fan-out shows chained operators under the root frame' }, () => {
-  const data: any = $({})
-  const a = data.filter((d: any) => d.active).length()
-  const b = data.filter((d: any) => !d.active).length()
-  const rec = $.cascades(data)
-  data.k0 = { active: true }
-  const [c] = rec.stop()
-  ok(c, 'expected one cascade')
-  // The cascade must contain frames for both filter branches (FilterValue
-  // appears twice — one per branch). We can't rely on order, just presence.
-  const filters = c.frames.filter((f: any) => f.ctor === 'FilterValue')
-  ok(filters.length >= 2, `expected >=2 FilterValue frames, got ${filters.length}`)
-  // Each filter frame should have a parent that traces back to the root.
-  for (const f of filters) {
-    ok(f.parent >= 0, 'filter frame should have a parent in this cascade')
-  }
-  ok(a && b)
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades report() snapshots without stopping and clear() empties the buffer' }, () => {
-  const data: any = $({})
-  const rec = $.cascades(data)
-  data.a = 1
-  const r1 = rec.report()
-  data.b = 2
-  const r2 = rec.report()
-  ok(r2.length > r1.length, 'report() should reflect new cascades')
-  rec.clear()
-  ok(rec.report().length === 0, 'clear() should empty the buffer')
-  data.c = 3
-  ok(rec.report().length >= 1, 'recorder still active after clear()')
-  rec.stop()
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Robustness', trigger:'batch', asserts:'$.cascades maxCascades caps the ring buffer, evicting the oldest' }, async () => {
-  const data: any = $({})
-  const rec = $.cascades(data, { maxCascades: 3 })
-  for (let i = 0; i < 10; i++) {
-    data['k' + i] = i
-    await Promise.resolve()  // yield so each mutation closes its cascade
-  }
-  const out = rec.stop()
-  ok(out.length <= 3, `expected <=3 cascades, got ${out.length}`)
-  // Newest preserved — last cascade's id should be the highest in the buffer.
-  const ids = out.map((c: any) => c.id)
-  strictEqual(Math.max(...ids), ids[ids.length - 1])
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Robustness', trigger:'edit', asserts:'$.cascades stop disposer cleans up so further mutations do not append' }, () => {
-  const data: any = $({})
-  const rec = $.cascades(data)
-  data.a = 1
-  const captured = rec.stop().length
-  data.b = 2
-  data.c = 3
-  // After stop(), the recorder is gone — calling report() returns the
-  // (frozen) buffer, not new cascades. We verify by re-installing a fresh
-  // recorder and confirming cascadeRecorders has size 1, not 2.
-  const rec2 = $.cascades(data)
-  strictEqual(cascadeRecorders.size, 1, 'old recorder must be removed after stop()')
-  rec2.stop()
-  ok(captured >= 1)
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades captureState:true records an independent post-cascade snapshot' }, () => {
-  const data: any = $({ a: 1, b: 2 })
-  const rec = $.cascades(data, { captureState: true })
-  data.a = 10
-  const out = rec.stop()
-  ok(out.length >= 1, 'expected at least one cascade')
-  const c = out[0]
-  ok(c.state, 'state snapshot should be present')
-  strictEqual(c.state.a, 10, 'state.a should be the post-mutation value')
-  strictEqual(c.state.b, 2, 'unmutated keys should still appear in the snapshot')
-  // Snapshot is a deep clone — mutating it later must not affect the
-  // live data (verifies we structuredClone'd the value, not aliased it).
-  c.state.a = 999
-  ok(data.a[value] === 10, 'snapshot is independent of live data')
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', trigger:'edit', asserts:'$.cascades captureState defaults to false, leaving state undefined' }, () => {
-  const data: any = $({ a: 1 })
-  const rec = $.cascades(data)  // no captureState option
-  data.a = 2
-  const [c] = rec.stop()
-  strictEqual(c.state, undefined)
-  $.devtools.disable()
-})
-
-spec({ op:'devtools', guarantee:'Robustness', asserts:'$.cascades disable() restores View.prototype and clears the recorders' }, () => {
-  const origXU0 = View.prototype.XU0
-  const data: any = $({ a: 1 })
-  $.cascades(data)
-  ok(View.prototype.XU0 !== origXU0, 'patched after $.cascades()')
-  ok(cascadeRecorders.size === 1)
-  $.devtools.disable()
-  strictEqual(View.prototype.XU0, origXU0, 'restored after disable()')
-  strictEqual(cascadeRecorders.size, 0, 'cascadeRecorders cleared')
-})
-
-spec({ op:'devtools', guarantee:'Fidelity', asserts:'$.highlight adds the highlight class and schedules its removal' }, () => {
-  const data: any = $({ items: {} })
-  const calls: any[] = []
-  // Fake DOMSink with a parent whose classList records add/remove.
-  const fakeParent = {
-    classList: {
-      add(c: any) { calls.push(['add', c]) },
-      remove(c: any) { calls.push(['remove', c]) },
-    },
-  }
-  const fakeSink = {
-    constructor: { name: 'DOMSink' },
-    parent: fakeParent,
-    p: data[view],
-  }
-  data[view].sinks.add(new WeakRef(fakeSink))
-  const n = $.highlight(data, 5)
-  strictEqual(n, 1)
-  same(calls[0], ['add', '__ripple_highlight'])
-  return new Promise((r: any) => setTimeout(() => {
-    same(calls[1], ['remove', '__ripple_highlight'])
-    r()
-  }, 20))
+test('kernel measures only while a hook is live (trace-scoped, not ambient)', () => {
+  // Behavioural proxy for "no ambient instrumentation": two traces on the same
+  // runtime each see exactly their own commits, and [value] reads between them
+  // reflect all writes (tracing never gates the data path).
+  const x = chain()
+  const t1 = trace(x.d, () => x.d.get('a').get('val').update(400))
+  x.d.get('a').get('val').update(401) // untraced
+  const t2 = trace(x.d, () => x.d.get('a').get('val').update(402))
+  same(t1.length, 1)
+  same(t2.length, 1)
+  ok(t2[0].seq > t1[0].seq + 1) // the untraced commit consumed a seq
+  same(x.d.a.val[value], 402)
 })

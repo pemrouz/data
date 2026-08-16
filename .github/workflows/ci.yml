@@ -1,20 +1,20 @@
 name: CI
 
-# Fast, deterministic gates on every push to main and every PR:
+# Fast, deterministic gates on every push and PR:
 #   - the unit suite (`npm test` — node --test reads the .ts sources directly
-#     via --experimental-strip-types, no build step), and
-#   - the public-type gate (`npm run typecheck` — tsc over the consumer fixtures
-#     types/check.ts + types/check.negative.ts, with noCheck:false).
+#     via --experimental-strip-types, no build step). Includes the SCHEDULE
+#     conformance suite (conformance/schedule.test.ts) — the same file fero's
+#     CI rides cross-repo as its data contract.
+#   - the type gate (`npm run typecheck` — four tsc programs: the internal
+#     surface + fixtures, classic JSX, automatic JSX, and the SHIPPED
+#     types/public.d.ts consumer gate; all noCheck:false).
 #
 # Deliberately NOT gated here (run locally instead):
-#   - `npm run perf` — median-of-5 timing assertions, too noisy on shared runners.
-#   - `npm run test:render` — Playwright e2e; the webServer build races the
-#     timeout and the crossfilter specs flake under parallel browsers (see
-#     CLAUDE.md / e2e notes). Add with care + --workers=1 if ever needed.
+#   - `npm run perf` — machine-calibrated absolute budgets (m1–m4); too noisy
+#     on shared runners.
 
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -31,31 +31,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Unit tests
+      - name: Unit + conformance suite
         run: npm test
-      - name: Type gate (public surface)
+      - name: Type gate (four programs)
         run: npm run typecheck
-      # Implementation type-check — BLOCKING. The @ts-nocheck retirement is
-      # complete: every shipped-library file (core, all operators, row, render,
-      # the whole devtools layer, utils, register, the entry files) compiles
-      # clean under `strict` via tsconfig.src.json. This gate now fails the
-      # build on any implementation type error (it was a non-blocking ratchet
-      # during the migration). The root tsconfig's `noCheck` was dropped in the
-      # same change; test/perf tooling files keep a local @ts-nocheck.
-      - name: Implementation type-check (strict)
-        run: npm run typecheck:src
-      # Tooling type-check — BLOCKING. The test/perf/bench files are migrating
-      # off @ts-nocheck one batch at a time into tsconfig.tooling.json (separate
-      # from tsconfig.src.json so the implementation gate stays library-only).
-      # Files not yet migrated keep their local @ts-nocheck and are excluded.
-      - name: Tooling type-check (strict)
-        run: npm run typecheck:tooling
-      # The v3 rewrite (branch v3, PR-gated here): its unit+conformance suite
-      # and its fixture-based type gate. The v3 PERF gates (m1/m2) stay local,
-      # same policy as `npm run perf` — timing assertions are too noisy on
-      # shared runners; run `npm run perf:v3` before merging perf-sensitive
-      # changes.
-      - name: v3 suite (unit + conformance)
-        run: npm run test:v3
-      - name: v3 type gate (fixtures)
-        run: npm run typecheck:v3

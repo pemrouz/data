@@ -1,246 +1,191 @@
-// Devtools public API. Importing this module attaches helpers to the canonical
-// `$` from core, mirroring how `$.random` is exposed (core.ts:32). Read-side
-// only in this file: $.inspect, $.graph, $.fromDOM, $.highlight. Heavyweight
-// machinery (trace/profile and the View.prototype patches that drive them)
-// lives in instrument.ts and gets layered on top.
-import { $, view, _devtoolsRoots, ViewProxy, Operator } from '../core.ts'
-import './augment.ts'  // declare-module merge: types $.inspect/$.graph/… on Dollar
-import { walk, classify, iterRoots, internalRoot } from './walk.ts'
-import { ensureInstrumented, restoreInstrumentation } from './instrument.ts'
-import {
-  VERBS,
-  traceTargets,
-  profilers,
-  cascadeRecorders,
-  flushPendingClose,
-  nextTraceId,
-  newProfileAcc,
-  finalize,
-} from './events.ts'
+// devtools — the CONSUMPTION layer over the kernel's two native
+// observability primitives (plan §3.5): Runtime.graph() (the live registry
+// projection) and Runtime.onCommit() (per-commit CommitInfo carrying per-node
+// {id, deltas, ms} stats, measured only while a hook is subscribed). Nothing
+// here adds engine hooks of its own — every helper is derivable from those
+// two, disposable, and serializable.
+//
+// The v2 structurally-empty-profile defect (a profiler that could return no
+// per-operator rows because instrumentation lived outside the commit loop) is
+// impossible by construction here: profile() aggregates the kernel's OWN
+// CommitInfo stats, which the runtime records for every settled node whenever
+// any onCommit hook is live — so a traced write through a chain necessarily
+// yields one row per operator that settled.
+//
+// highlight()/fromDOM() live in ./dom.ts (they need a DOM and the render
+// layer's element↔node registry); the overlay panel lives in ./panel/ and the
+// data/v4/devtools bundle entry (attach + auto-mount) in ./entry.ts.
 
-// $.inspect(proxy) — print and return a single-view snapshot. Useful in the
-// browser console: `$.inspect(items)` gives you the immediate children + sinks
-// without walking the whole graph.
-$.inspect = function inspect(proxy: any) {
-  const v = proxy?.[view]
-  if (!v) throw new Error('$.inspect requires a ViewProxy')
-  const children: any[] = []
-  v.each?.((name: any) => children.push({ name }))
-  const sinks: any[] = []
-  v.sink?.((s: any) => sinks.push({
-    kind: classify(s),
-    ctor: s.constructor?.name || 'anonymous',
-  }))
-  const out = {
-    key: [...v.key],
-    value: v.value,
-    parent: v.p ? new ViewProxy(v.p) : null,
-    children,
-    sinks,
+import { Runtime } from '../kernel/runtime.ts'
+import type { CommitInfo, GraphNodeInfo } from '../kernel/runtime.ts'
+import { DataNode } from '../kernel/node.ts'
+import { materialize } from '../compat/v2-records.ts'
+import { runtime as defaultRuntime } from '../api/index.ts'
+
+// The public handle exposes its node under this registry symbol (api/index.ts
+// exports it as `node`); Symbol.for makes resolution work across entries.
+const NODE = Symbol.for('data.v4.node')
+
+// Anything the helpers accept as "where is the graph": a Runtime, a raw
+// DataNode, or a public handle (resolved via Symbol.for('data.v4.node')).
+export type DevtoolsTarget = Runtime | DataNode<any> | object | null | undefined
+
+export interface InspectInfo {
+  readonly id: number
+  readonly kind: 'source' | 'operator' | 'scalar'
+  readonly op: string
+  readonly height: number
+  readonly parents: readonly number[]
+  readonly value: unknown
+}
+
+export interface GraphEdge {
+  readonly from: number // parent id
+  readonly to: number // child id
+}
+
+export interface GraphInfo {
+  readonly nodes: readonly GraphNodeInfo[]
+  readonly edges: readonly GraphEdge[]
+}
+
+export interface ProfileRow {
+  readonly id: number
+  readonly op: string
+  commits: number
+  deltas: number
+  totalMs: number
+}
+
+export interface CascadeNode {
+  readonly id: number
+  readonly op: string
+  readonly name: string // `${op}#${id}` — the flow-essay label
+  readonly deltas: number
+  readonly ms: number
+}
+
+export interface Cascade {
+  readonly seq: number // the cascade id — one commit IS one cascade
+  readonly origin: string
+  readonly nodes: readonly CascadeNode[]
+}
+
+// ── resolution ───────────────────────────────────────────────────────────────
+
+export function resolveNode(handleOrNode: unknown): DataNode<any> {
+  if (handleOrNode instanceof DataNode) return handleOrNode
+  if (handleOrNode !== null && typeof handleOrNode === 'object') {
+    const n = (handleOrNode as Record<symbol, unknown>)[NODE]
+    if (n instanceof DataNode) return n
   }
-  // Pretty print for the console; the returned object is the source of truth
-  // (the printout is a courtesy, not the API).
-  if (typeof console !== 'undefined' && console.group) {
-    console.group(`View ${v.key.join('.') || '<root>'}`)
-    console.log('value', v.value)
-    if (children.length) console.table(children)
-    if (sinks.length) console.table(sinks)
-    console.groupEnd()
+  throw new Error('data devtools: expected a data handle or DataNode — got ' + typeof handleOrNode)
+}
+
+function resolveRuntime(target: DevtoolsTarget): Runtime {
+  if (target == null) return defaultRuntime()
+  if (target instanceof Runtime) return target
+  return resolveNode(target).runtime
+}
+
+// ── inspect ──────────────────────────────────────────────────────────────────
+
+// One node's identity + topology + current value. Accepts a public handle
+// (resolves through Symbol.for('data.v4.node')) or a raw node.
+export function inspect(handleOrNode: unknown): InspectInfo {
+  const n = resolveNode(handleOrNode)
+  return {
+    id: n.id,
+    kind: n.kind,
+    op: n.opName,
+    height: n.height,
+    parents: n.parents.map((p) => p.id),
+    value: nodeValue(n),
+  }
+}
+
+function nodeValue(n: DataNode<any>): unknown {
+  if (n.kind === 'scalar') return (n as any).value()
+  return materialize(n.snapshot(), n.currentOrder())
+}
+
+// ── graph ────────────────────────────────────────────────────────────────────
+
+// The full graph as data: the kernel's GraphNodeInfo[] plus a flat edge list
+// (parent → child). Plain JSON — safe to postMessage to a panel or persist.
+export function graph(target?: DevtoolsTarget): GraphInfo {
+  const rt = resolveRuntime(target)
+  const nodes = rt.graph()
+  const edges: GraphEdge[] = []
+  for (const n of nodes) for (const p of n.parents) edges.push({ from: p, to: n.id })
+  return { nodes, edges }
+}
+
+// ── trace ────────────────────────────────────────────────────────────────────
+
+// Runs fn and returns every CommitInfo observed during it. The onCommit
+// subscription is disposed after (even if fn throws) — tracing has zero
+// steady-state cost, and the kernel only measures while a hook is live.
+// Causality is free: seq IS the cascade id, and CommitInfo.nodes are in
+// settle (topological) order.
+export function trace(target: DevtoolsTarget, fn: () => void): CommitInfo[] {
+  const rt = resolveRuntime(target)
+  const out: CommitInfo[] = []
+  const sub = rt.onCommit((c) => out.push(c))
+  try {
+    fn()
+  } finally {
+    sub.dispose()
   }
   return out
 }
 
-// $.graph(proxy?, opts?) — DFS the View graph from `proxy`, or from every
-// live root when no argument is given. Returns the same serializable tree
-// shape that devtools/walk.ts produces, so a panel could ship it over
-// postMessage etc. opts.internal:true includes devtools-internal roots
-// (panel state etc.) when enumerating with no proxy argument.
-$.graph = function graph(proxy: any, opts: any) {
-  if (proxy === undefined) {
-    const trees = []
-    for (const v of iterRoots(opts)) trees.push(walk(v))
-    if (typeof console !== 'undefined' && console.dir) {
-      console.dir(trees, { depth: null })
+// ── profile ──────────────────────────────────────────────────────────────────
+
+// Aggregates trace output per node: {id, op, commits, deltas, totalMs}.
+// Op names resolve from the live graph; a node that settled during fn but was
+// disposed before aggregation still gets a row (op 'disposed').
+export function profile(target: DevtoolsTarget, fn: () => void): ProfileRow[] {
+  const rt = resolveRuntime(target)
+  const commits = trace(rt, fn)
+  const ops = opNames(rt)
+  const acc = new Map<number, ProfileRow>()
+  for (const c of commits) {
+    for (const s of c.nodes) {
+      let row = acc.get(s.id)
+      if (row === undefined) {
+        row = { id: s.id, op: ops.get(s.id) ?? 'disposed', commits: 0, deltas: 0, totalMs: 0 }
+        acc.set(s.id, row)
+      }
+      row.commits += 1
+      row.deltas += s.deltas
+      row.totalMs += s.ms
     }
-    return trees
   }
-  const v = proxy?.[view]
-  if (!v) throw new Error('$.graph requires a ViewProxy or no argument')
-  const tree = walk(v)
-  if (typeof console !== 'undefined' && console.dir) {
-    console.dir(tree, { depth: null })
-  }
-  return tree
+  return [...acc.values()].sort((a, b) => a.id - b.id)
 }
 
-// $.fromDOM(el) — given a DOM element from the devtools console (e.g. $0),
-// walk up the parent chain until we find a __ripple_sink (set in
-// render/index.ts Node.render). Return a proxy for that sink's source view.
-$.fromDOM = function fromDOM(el: any) {
-  let n = el
-  while (n) {
-    if (n.__ripple_sink) {
-      const v = n.__ripple_sink.p
-      return v ? new ViewProxy(v) : null
-    }
-    n = n.parentElement
-  }
-  return null
+// ── cascades ─────────────────────────────────────────────────────────────────
+
+// The flow-essay view: trace output grouped by cascade (seq), each node
+// labelled `${op}#${id}` in settle order — "this write became these deltas,
+// flowing through these views, in this order".
+export function cascades(target: DevtoolsTarget, fn: () => void): Cascade[] {
+  const rt = resolveRuntime(target)
+  const commits = trace(rt, fn)
+  const ops = opNames(rt)
+  return commits.map((c) => ({
+    seq: c.seq,
+    origin: c.origin.description ?? 'anonymous',
+    nodes: c.nodes.map((s) => {
+      const op = ops.get(s.id) ?? 'disposed'
+      return { id: s.id, op, name: `${op}#${s.id}`, deltas: s.deltas, ms: s.ms }
+    }),
+  }))
 }
 
-// $.highlight(proxy, ms?) — for every live DOMSink whose source view matches
-// `proxy`, briefly outline the bound element. Has no effect in non-DOM
-// environments (parent.classList is required).
-$.highlight = function highlight(proxy: any, ms = 1000) {
-  const v = proxy?.[view]
-  if (!v) throw new Error('$.highlight requires a ViewProxy')
-  const targets: any[] = []
-  v.sink?.((s: any) => {
-    if (classify(s) === 'dom' && s.parent?.classList) targets.push(s.parent)
-  })
-  for (const el of targets) el.classList?.add('__ripple_highlight')
-  if (typeof setTimeout !== 'undefined' && targets.length) {
-    setTimeout(() => {
-      for (const el of targets) el.classList?.remove('__ripple_highlight')
-    }, ms)
-  }
-  return targets.length
+function opNames(rt: Runtime): Map<number, string> {
+  const m = new Map<number, string>()
+  for (const n of rt.graph()) m.set(n.id, n.op)
+  return m
 }
-
-// $.trace(proxy, opts?) — install a trace listener for the subtree rooted
-// at proxy. Returns a disposer that removes the listener. Auto-enables
-// instrumentation on first call. Default behavior logs each event to the
-// console; pass { log: false, onEvent } to capture programmatically.
-$.trace = function trace(proxy: any, opts: any = {}) {
-  const v = proxy?.[view]
-  if (!v) throw new Error('$.trace requires a ViewProxy')
-  ensureInstrumented()
-  const id = nextTraceId()
-  traceTargets.set(id, {
-    id,
-    root: v,
-    verbs: opts.verbs ? new Set(opts.verbs) : null,
-    log: opts.log !== false,
-    onEvent: opts.onEvent,
-  })
-  return function dispose() {
-    traceTargets.delete(id)
-  }
-}
-
-// $.profile(proxy?, opts?) — start collecting per-operator counts and
-// timings. Returns { stop, report }. stop() ends the window and returns the
-// final report; report() returns a snapshot without stopping. If
-// opts.durationMs is given, the profile auto-stops after that interval.
-$.profile = function profile(proxy: any, opts: any = {}) {
-  ensureInstrumented()
-  const v = proxy?.[view] || null
-  const acc = newProfileAcc()
-  const id = nextTraceId()
-  profilers.set(id, { id, root: v, acc })
-  let timer: any = null
-  if (opts.durationMs) {
-    timer = setTimeout(stop, opts.durationMs)
-  }
-  function stop() {
-    if (timer) { clearTimeout(timer); timer = null }
-    profilers.delete(id)
-    const r = finalize(acc)
-    if (typeof console !== 'undefined' && console.table && r.byOperator.length) {
-      console.table(r.byOperator)
-    }
-    return r
-  }
-  function report() { return finalize(acc) }
-  return { stop, report }
-}
-
-// $.cascades(proxy?, opts?) — start recording propagation cascades. A
-// cascade is the synchronous tree of verb calls triggered by one root
-// mutation; each frame records its parent index, op constructor, key,
-// verb, and start/end timestamps relative to cascade start. Returns
-// { stop, report, clear }. With no proxy argument, every cascade in the
-// whole graph is captured. opts.maxCascades caps the ring buffer
-// (default 200) so a long-running session doesn't grow unboundedly.
-$.cascades = function cascades(proxy: any, opts: any = {}) {
-  ensureInstrumented()
-  const v = proxy?.[view] || null
-  const id = nextTraceId()
-  const recorder = {
-    id,
-    root: v,
-    opts: {
-      maxCascades: opts.maxCascades ?? 200,
-      captureState: !!opts.captureState,
-    },
-    cascades: [],
-    current: null,
-    stack: null,
-    cascadeStartT: 0,
-    nextCascadeId: 1,
-    rootView: null,
-  }
-  cascadeRecorders.set(id, recorder)
-  return {
-    stop() {
-      flushPendingClose(recorder)
-      cascadeRecorders.delete(id)
-      return recorder.cascades.slice()
-    },
-    report() {
-      flushPendingClose(recorder)
-      return recorder.cascades.slice()
-    },
-    clear() {
-      flushPendingClose(recorder)
-      recorder.cascades.length = 0
-    },
-  }
-}
-
-// $.devtools — explicit control for users who want to pre-warm or fully
-// tear down the instrumentation patches. trace/profile auto-enable; this
-// is for the "I want to time my whole app startup" or "I want to confirm
-// View.prototype is byte-identical to original" cases.
-$.devtools = {
-  enable: ensureInstrumented,
-  disable() {
-    traceTargets.clear()
-    profilers.clear()
-    cascadeRecorders.clear()
-    restoreInstrumentation()
-  },
-  // `panel.open(proxy?)` opens the overlay rooted at `proxy` (or the first
-  // live root if omitted). `panel.close()` tears it down. `panel.shell`
-  // returns the live panel object — `{ host, root, dock, destroy }` — for
-  // tests / advanced scripting that need to reach into the closed shadow.
-  panel: {
-    open(proxy: any) { return mountPanel(proxy) },
-    close() { return unmountPanel() },
-    get shell() { return getPanelShell() },
-  },
-}
-
-// Auto-mount the in-page overlay panel on import, unless the URL carries
-// ?nopanel — useful for consumers who import devtools just for the console
-// API and don't want the visible UI. Lazy-imported so the panel bundle is
-// only fetched when this code runs; when the consumer's bundler splits
-// modules, the panel chunk is separable from the read-side helpers above.
-let mountPanel: (proxy?: unknown) => unknown = () => undefined
-let unmountPanel: () => void = () => {}
-let getPanelShell: () => unknown = () => null
-if (typeof document !== 'undefined') {
-  const noPanel =
-    typeof location !== 'undefined' && /(?:^|[?&])nopanel(?:[=&]|$)/.test(location.search)
-  void import('./panel/index.ts').then((m: any) => {
-    mountPanel = m.mount
-    unmountPanel = m.unmount
-    getPanelShell = m.getShell
-    if (!noPanel) m.mount()
-  })
-}
-
-// Re-export so consumers can `import { walk, classify } from 'data/devtools'`
-// without reaching into the internal walk.ts module.
-export { walk, classify, summarize, ancestorOf } from './walk.ts'
-export { $ }

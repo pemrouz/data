@@ -1,359 +1,252 @@
-// Unit tests for the JSX adapter. The contract: h(...) must produce a
-// NodeProxy whose render output is structurally identical to the equivalent
-// HTML/SVG builder chain. We assert this by rendering both into a recording
-// DOM stub and comparing the mutation trace — same calls in the same order.
-import { spec } from '../tests/spec.ts'
-import { deepStrictEqual as same, ok } from 'node:assert'
-import { $, value } from '../core.ts'
-import { render } from '../render/index.ts'
-import { h, Fragment, For, HTML, SVG, jsx, jsxs } from './index.ts'
+// jsx/jsx.test.ts — the classic JSX transform (h / Fragment / For), M4.5b.
+//
+// The JSX layer is SUGAR: every structural test's ground truth is the
+// equivalent el()/text()/list() record (deepStrictEqual — the builders.test.ts
+// discipline), and the end-to-end cases render through the real keyed sink
+// over real SourceNodes with the mock DOM's op counters.
+// Covers: h ≡ el (props pass through unchanged, incl. bind() prop values);
+// fragments flatten IN ORDER with static + reactive text interleaved (the v3
+// kill of the v2 single-static-slot trap, asserted explicitly); function
+// components (children received, arrays/fragments returned); For over a
+// SourceNode — add/update/remove reflect in DOM with element identity
+// preserved on update; For's error surface (each validation, exactly-one-fn
+// child, the dead [vp, fn] shorthand); a bare handle child = reactive TEXT
+// (no auto-iteration) updating in place; onClick wiring + dispose detach.
 
-// Recording DOM stub. Each "element" is a plain object; every mutation
-// pushes a tuple onto the shared log. Comparing two logs verb-by-verb is
-// enough to detect any divergence between the JSX and builder paths.
-function recordingDom() {
-  const log: any[] = []
-  let nextId = 0
-  function make(kind: any, tag: any, ns?: any): any {
-    const id = nextId++
-    const el: any = {
-      _id: id, _kind: kind, _tag: tag, _ns: ns,
-      isConnected: true,
-      classList: {
-        add(c: any) { log.push(['class+', id, c]) },
-        remove(c: any) { log.push(['class-', id, c]) },
-      },
-      style: {
-        setProperty(n: any, v: any) { log.push(['style+', id, n, v]) },
-        removeProperty(n: any) { log.push(['style-', id, n]) },
-      },
-      setAttribute(n: any, v: any) { log.push(['attr+', id, n, v]) },
-      removeAttribute(n: any) { log.push(['attr-', id, n]) },
-      append(c: any) { log.push(['append', id, c._id]) },
-      insertBefore(c: any, b: any) { log.push(['insertBefore', id, c._id, b ? b._id : null]) },
-      appendChild(c: any) { log.push(['appendChild', id, c._id]) },
-      addEventListener(n: any, fn: any) { log.push(['on+', id, n]) },
-      remove() { log.push(['remove', id]) },
-      get textContent() { return el._text ?? '' },
-      // Coerce reactive values (ViewProxy is a Proxy(noop)) to a stable tag
-      // so two traces using different proxy instances of the same logical
-      // binding compare equal under deepStrictEqual.
-      set textContent(v: any) {
-        log.push(['text', id, typeof v === 'function' ? '<reactive>' : v])
-        el._text = v
-      },
-      set id(v: any) { log.push(['id', el._id, v]) },
-    }
-    return el
-  }
-  ;(globalThis as any).document = {
-    createElement(t: any) { return make('html', t) },
-    createElementNS(ns: any, t: any) { return make('svg', t, ns) },
-    createTextNode() { return make('text', '#text') },
-  }
-  return log
+import { test } from 'node:test'
+import assert from 'node:assert'
+import { installMockDom, El } from './../render/mock-dom.ts'
+
+const dom = installMockDom() // must precede any render() call
+
+import { Runtime } from '../kernel/runtime.ts'
+import { SourceNode } from '../kernel/node.ts'
+import { sum } from '../ops/aggregate.ts'
+import { render, el, text, list, bind } from '../render/index.ts'
+import { h, Fragment, For } from './index.ts'
+import { jsx } from './runtime.ts'
+import { handleFor } from '../api/index.ts'
+
+const same = assert.deepStrictEqual
+const eq = assert.strictEqual
+const ok = assert.ok
+
+type Row = { t: string; val: number }
+
+function host(): El {
+  return dom.document.createElement('host')
 }
 
-// Render a template into a fresh recording root and return the log. The
-// root id is 0; everything underneath gets sequential ids — so the same
-// template always produces the same id assignments, making the logs of two
-// runs directly comparable.
-function trace(template: any) {
-  const log = recordingDom()
-  const root: any = document.createElement('div')
-  render(root, template)
-  return log
+function scalar() {
+  const rt = new Runtime()
+  const src = new SourceNode<Row>(rt, { a: { t: 'A', val: 2 }, b: { t: 'B', val: 3 } })
+  return { rt, src, s: sum(src, 'val') } // s starts at 5
 }
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a static div with className and child matches the builder trace' }, () => {
-  const a = trace(h('div', { className: 'a b' }, 'hi'))
-  const b = trace(HTML.div.a.b('hi'))
-  same(a, b)
+// ── h ≡ el: the records are identical ────────────────────────────────────────
+
+test('h(tag, props, ...children) produces the exact el() record; props pass through unchanged', () => {
+  same(h('div', null), el('div'))
+  same(h('div', { class: 'x' }, 'hi'), el('div', { class: 'x' }, 'hi'))
+  same(
+    h('div', null, h('span', null, 'a'), 'b', 42),
+    el('div', null, el('span', null, 'a'), 'b', 42),
+  )
+  same(h('input', { id: 'go', type: 'checkbox' }), el('input', { id: 'go', type: 'checkbox' }))
+  // null/undefined/boolean children drop; nested arrays flatten (normChildren)
+  same(h('div', null, null, undefined, false, true, ['a', ['b']]), el('div', null, 'a', 'b'))
+  // reactive prop values pass through UNCHANGED — binding is the renderer's job
+  const { s } = scalar()
+  const f = (v: number) => `M0,${v}`
+  same(h('path', { d: bind(s, f) }), el('path', { d: bind(s, f) }))
+  same(h('span', { title: s }), el('span', { title: s })) // bare view prop, same record
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'id and attribute props match the builder trace' }, () => {
-  const a = trace(h('input', { id: 'go', type: 'checkbox', placeholder: 'name' }))
-  const b = trace(HTML.input['#go']['type=checkbox']['placeholder=name']())
-  same(a, b)
+// ── fragments ────────────────────────────────────────────────────────────────
+
+test('fragments flatten IN ORDER: static + reactive text interleave stays ordered (the v2 single-static-slot trap is dead)', () => {
+  const { src, s } = scalar()
+  // record level: the fragment disappears, children land flattened in order
+  same(
+    h('div', null, 'x', h(Fragment, null, 'a', h('b', null)), 'y'),
+    el('div', null, 'x', 'a', el('b'), 'y'),
+  )
+  // static BEFORE the reactive value AND static after — three ordered children.
+  // In v2 this exact shape rendered "5total:  items" (last-wins static slot);
+  // here a static string is just another ordered child.
+  same(
+    h('span', null, h(Fragment, null, 'total: ', s, ' items')),
+    el('span', null, 'total: ', text(s), ' items'),
+  )
+  const hst = host()
+  render(hst, h('span', null, h(Fragment, null, 'total: ', s, ' items')) as any)
+  eq(hst.text, 'total: 5 items') // ORDER holds
+  src.write('a', ['val'], 7) // sum 5 → 10
+  eq(hst.text, 'total: 10 items') // reactive middle updates in place, order still holds
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a boolean attribute renders as an empty string' }, () => {
-  const a = trace(h('input', { autofocus: true }))
-  const b = trace(HTML.input['autofocus=']())
-  same(a, b)
+test('a fragment at the ROOT renders (render() accepts VNode[]); empty fragment is []', () => {
+  const hst = host()
+  const handle = render(hst, h(Fragment, null, h('i', null, 'a'), 'b') as any)
+  eq(hst.text, 'ab')
+  eq(hst.children.length, 2)
+  handle.dispose()
+  eq(hst.children.length, 0)
+  same(h(Fragment, null), [])
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'onEvent props attach event listeners like .on()' }, () => {
-  const noop = () => {}
-  const a = trace(h('button', { onClick: noop }, 'go'))
-  const b = trace(HTML.button.on('click', noop)('go'))
-  same(a, b)
+// ── components ───────────────────────────────────────────────────────────────
+
+test('function component: DEFERRED to mount — h returns a component record, fn invoked once with { ...props, children }', () => {
+  let calls = 0
+  const Card = (p: { title: string; children: unknown[] }) => (
+    calls++, h('div', { class: 'card', title: p.title }, p.children)
+  )
+  // record level: a DEFERRED component record — fn untouched, children
+  // normalized; the fn is NOT invoked at h() time.
+  const rec: any = h(Card as any, { title: 't' }, 'x', h('i', null, 'y'))
+  eq(rec.kind, 'component')
+  eq(rec.fn, Card)
+  same(rec.props.children, [{ kind: 'text', s: 'x' }, el('i', null, 'y')])
+  eq(calls, 0)
+  // mount: invoked ONCE, output renders in place
+  const hst = host()
+  render(hst, rec)
+  eq(calls, 1)
+  eq(hst.children[0].attrs['class'], 'card')
+  eq(hst.children[0].attrs['title'], 't')
+  eq(hst.text, 'xy')
+  // a component returning a FRAGMENT (VNode[]) expands into its parent
+  const Pair = () => h(Fragment, null, h('i', null, 'a'), h('i', null, 'b'))
+  const hst2 = host()
+  render(hst2, h('div', null, h(Pair as any, null)) as any)
+  eq(hst2.text, 'ab')
+  eq(hst2.children[0].children.length, 2) // both <i> directly under the div
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a style object matches the per-key .style chain' }, () => {
-  const a = trace(h('div', { style: { color: 'red', display: 'none' } }))
-  const b = trace(HTML.div.style({ color: 'red', display: 'none' }))
-  same(a, b)
-})
+// ── For — the ONLY iteration form ────────────────────────────────────────────
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a reactive class object matches the builder at construction' }, () => {
-  const flag: any = $(true)
-  const a = trace(h('li', { class: { done: flag } }))
-  const b = trace(HTML.li.class({ done: flag }))
-  // trace is identical at construction time; mutate and assert the same
-  // class+/class- events fire on both
-  same(a, b)
-})
-
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'SVG tags dispatch through the SVG namespace' }, () => {
-  const a = trace(h('svg', null, h('path', { d: 'M0,0' })))
-  const b = trace(SVG.svg(SVG.path['d=M0,0']()))
-  same(a, b)
-  // sanity: at least one createElementNS call recorded
-  ok(a.some(([k]) => k === 'attr+'))
-})
-
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a Fragment flattens its children into the parent' }, () => {
-  const a = trace(h('div', null, h(Fragment, null, 'a', 'b')))
-  // flattened, only the last static "wins" per Node.add — same for builder
-  const b = trace(HTML.div('a', 'b'))
-  same(a, b)
-})
-
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'For routes VP children through .text() like the builder' }, () => {
-  const data: any = $({ x: { title: 'one' }, y: { title: 'two' } })
-  const a = trace(
+test('For over a SourceNode via render(): add / update / remove reflect in DOM, identity preserved on update', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ t: string }>(rt, { a: { t: 'A' }, b: { t: 'B' } })
+  const hnd = handleFor(src)
+  const hst = host()
+  render(
+    hst,
     h('ul', null,
-      h(For, { each: data, tag: 'li' },
-        (item: any, k: any) => h('span', null, item.title)
-      )
-    )
+      h(For as any, { each: hnd }, (r: { t: string }, k: unknown) =>
+        h('li', { 'data-k': String(k) }, r.t),
+      ),
+    ) as any,
   )
-  // The JSX form routes VP children through .text() (preserves element
-  // identity across reactive updates) — the matching builder form uses
-  // span.text(...) for the same reason. Without this, the two render paths
-  // produce different traces (data binding vs text binding) even though the
-  // visible DOM is the same.
-  const b = trace(
-    HTML.ul(
-      HTML.li(data, (li: any, item: any, k: any) => HTML.span.text(item.title))
-    )
-  )
-  same(a, b)
+  const ul = hst.children[0]
+  eq(hst.text, 'AB')
+  eq(ul.children[0].attrs['data-k'], 'a') // the row fn receives the KEY
+
+  // add: exactly one new row subtree
+  dom.reset()
+  src.write('c', [], { t: 'C' })
+  eq(hst.text, 'ABC')
+  eq(dom.ops.created, 2) // li + its text node
+  eq(dom.ops.removed, 0)
+
+  // update: ONE text write, element identity preserved
+  const liA = ul.children[0]
+  dom.reset()
+  src.write('a', ['t'], 'A2')
+  eq(hst.text, 'A2BC')
+  eq(ul.children[0], liA) // the SAME element, patched in place
+  eq(dom.ops.textWrites, 1)
+  eq(dom.ops.created, 0)
+  eq(dom.ops.inserted, 0)
+  eq(dom.ops.removed, 0)
+
+  // remove: ONE removal, survivors untouched
+  dom.reset()
+  src.remove('b')
+  eq(hst.text, 'A2C')
+  eq(dom.ops.removed, 1)
+  eq(dom.ops.created, 0)
+  eq(ul.children[0], liA)
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'a For row fn returning a Fragment extends the pre-shaped row' }, () => {
-  const data: any = $({ a: { title: 'one' }, b: { title: 'two' } })
-  const a = trace(
-    h('ul', null,
-      h(For, { each: data, tag: 'li' },
-        (item: any) => h(Fragment, null,
-          h('span', null, item.title),
-          h('button', null, 'x'),
-        )
-      )
-    )
-  )
-  const b = trace(
-    HTML.ul(
-      HTML.li(data, (li: any, item: any) => li(HTML.span(item.title), HTML.button('x')))
-    )
-  )
-  same(a, b)
+test('For accepts a raw DataNode as each; the For record IS list(view, fn)', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ t: string }>(rt, { a: { t: 'A' } })
+  const fn = (r: { t: string }) => h('li', null, r.t) as any
+  same(h(For as any, { each: src }, fn), list(src, fn))
+  const hst = host()
+  render(hst, h(For as any, { each: src }, fn) as any) // a list at the root works
+  eq(hst.text, 'A')
+  src.write('b', [], { t: 'B' })
+  eq(hst.text, 'AB')
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'a reactive VP attribute matches the .attr() builder form' }, () => {
-  const checked: any = $(true)
-  const a = trace(h('input', { type: 'checkbox', checked }))
-  const b = trace(HTML.input['type=checkbox'].attr('checked', checked)())
-  same(a, b)
+test('For error surface: each validation, exactly-one-row-fn child, the v2 [vp, fn] shorthand is DEAD', () => {
+  const rt = new Runtime()
+  const src = new SourceNode<{ t: string; val?: number }>(rt, { a: { t: 'A', val: 1 } })
+  const hnd = handleFor(src)
+  const s = sum(src, 'val')
+  const fn = (r: any) => h('li', null, r.t) as any
+
+  assert.throws(() => h(For as any, null, fn), /each=/) // each missing
+  assert.throws(() => h(For as any, { each: { not: 'a view' } }, fn), /each=/) // not a view
+  assert.throws(() => h(For as any, { each: s }, fn), /COLLECTION/) // scalar node
+  assert.throws(() => h(For as any, { each: handleFor(s) }, fn), /COLLECTION/) // scalar handle
+  assert.throws(() => h(For as any, { each: src }), /ONE child/) // no child
+  assert.throws(() => h(For as any, { each: src }, fn, fn), /ONE child/) // two children
+  assert.throws(() => h(For as any, { each: src }, 'nope'), /ONE child/) // non-fn child
+
+  // NO auto-iteration and NO [vp, fn] shorthand: a function child under a
+  // string tag throws — a view child can never silently flip to iteration.
+  assert.throws(() => h('div', null, hnd, fn), /unsupported child/)
 })
 
-spec({ op:'jsx', guarantee:'Propagation', trigger:'construct', asserts:'a reactive VP child binds via DOMSink and writes its initial value' }, () => {
-  // <span>{vp}</span> sets node.data = vp; the parent's render creates a
-  // DOMSink for the span, which mounts a textNode that updates incrementally.
-  // We can't directly compare to span.text(vp) (different render path) but
-  // can assert the JSX form produces a working reactive binding.
-  const vp: any = $(42)
-  const log = trace(h('div', null, h('span', null, vp)))
-  // At minimum: a div, an inner span, and a textNode were created — and
-  // textContent was written to reflect the initial value.
-  ok(log.some(([k]) => k === 'append' || k === 'appendChild'))
-  ok(log.some(([k]) => k === 'text'))
+// ── bare handle child = reactive TEXT ────────────────────────────────────────
+
+test('a bare handle child is reactive TEXT (never iteration) and updates in place', () => {
+  const { src, s } = scalar()
+  const shnd = handleFor(s)
+  same(h('span', null, shnd), el('span', null, text(shnd)))
+  // even a COLLECTION handle child is text — iteration is ONLY <For>
+  const chnd = handleFor(src)
+  same(h('div', null, chnd), el('div', null, text(chnd)))
+
+  const hst = host()
+  render(hst, h('span', null, shnd) as any)
+  eq(hst.text, '5')
+  dom.reset()
+  src.write('a', ['val'], 7) // sum 5 → 10
+  eq(hst.text, '10')
+  eq(dom.ops.textWrites, 1) // surgical: one text write, no rebuild
+  eq(dom.ops.created, 0)
+  dom.reset()
+  src.write('a', ['t'], 'AA') // sum unchanged → string-equality cutoff
+  eq(dom.ops.textWrites, 0)
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', via:['ref'], asserts:'a ref callback fires once with the real DOM element' }, () => {
-  let captured: any = null
-  trace(h('div', null,
-    h('input', { type: 'checkbox', ref: (el: any) => { captured = el } })
-  ))
-  // The mock makes input have _kind: 'html' and _tag: 'input' — proves the
-  // ref fired with the actual created element, not a NodeProxy or template.
-  // (Wrapped in a <div> because top-level <input> never gets created as an
-  // element — only its children render into the root.)
-  ok(captured && captured._kind === 'html' && captured._tag === 'input',
-     'ref should receive the created input element')
+// ── events ───────────────────────────────────────────────────────────────────
+
+test('events wire: onClick attaches a listener, fires via the mock handlers list, detaches on dispose', () => {
+  let clicks = 0
+  const onClick = () => clicks++
+  const hst = host()
+  const handle = render(hst, h('button', { onClick }, 'go') as any)
+  const btn = hst.children[0]
+  eq(btn.handlers.length, 1)
+  eq(btn.handlers[0].type, 'click') // on* → lowercase event name
+  ;(btn.handlers[0].fn as () => void)()
+  eq(clicks, 1)
+  handle.dispose()
+  eq(btn.handlers.length, 0) // removeEventListener ran with the mount scope
+  ok(dom.ops.unlistened >= 1)
 })
 
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', shape:'object', asserts:'node(Fragment) auto-spreads its children as siblings' }, () => {
-  // The crossfilter-jsx port relies on this: a row generator can return
-  // node(<Fragment>...</Fragment>) and have the children land as siblings.
-  // NodeProxy.apply detects the single-array arg and spreads — without that
-  // fix the array would land in Node.add's `typeof === 'object'` branch and
-  // become `node.static`, silently breaking the row template.
-  const data: any = $({ a: { title: 'one' }, b: { title: 'two' } })
-  const a = trace(
-    h('ul', null,
-      h(For, { each: data, tag: 'li' },
-        (item: any) => h(Fragment, null,
-          h('span', null, item.title),
-          h('button', null, 'x'),
-        )
-      )
-    )
-  )
-  const b = trace(
-    HTML.ul(
-      HTML.li(data, (li: any, item: any) =>
-        li(HTML.span.text(item.title), HTML.button('x')))
-    )
-  )
-  same(a, b)
-})
-
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'the automatic runtime bundles children into props and matches h()' }, () => {
-  // Automatic-runtime signature: jsx(type, { children, ...rest }, key?).
-  // Output should match the classic h(type, rest, ...children) call.
-  const a = trace(jsx('div', { className: 'box', children: 'hi' }))
-  const b = trace(h('div', { className: 'box' }, 'hi'))
-  same(a, b)
-})
-
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', asserts:'jsxs spreads a children array as siblings' }, () => {
-  const a = trace(jsxs('ul', { children: [
-    h('li', null, 'one'),
-    h('li', null, 'two'),
-  ]}))
-  const b = trace(h('ul', null,
-    h('li', null, 'one'),
-    h('li', null, 'two'),
-  ))
-  same(a, b)
-})
-
-// Regression (#42): a VP child with an ELEMENT (NodeProxy) sibling was flipped
-// onto the data-iteration path (hasRowFn counted the NodeProxy as a row fn),
-// duplicating the host element. A NodeProxy is excluded from the row-fn check now.
-spec({ op:'jsx', guarantee:'Identity', trigger:'construct', issue:'#42', asserts:'a VP child with an element sibling does not duplicate the host' }, () => {
-  let labels = 0
-  const make = (tag: any) => {
-    if (tag === 'label') labels++
-    return {
-      tag, children: [] as any[], isConnected: true,
-      classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
-      append(...k: any[]) { this.children.push(...k) }, appendChild(k: any) { this.children.push(k); return k },
-      insertBefore(k: any) { this.children.push(k); return k },
-      remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
-      set textContent(v: any) { (this as any)._t = v }, get textContent() { return (this as any)._t ?? '' },
-    }
-  }
-  ;(globalThis as any).document = { createElement: make, createElementNS: (_n: any, t: any) => make(t), createTextNode: () => make('#text') }
-  render(make('div'), h('section', null, h('label', null, h('em', null, 'cnt:'), $(5))))
-  same(labels, 1) // one <label>, not one-per-key of the object VP (was duplicated)
-})
-
-// Regression (#49): a top-level Fragment (`render(root, <>…</>)`) is a plain
-// array; np[NODE] was undefined and Node.render threw. render() now treats it
-// as a wrapper whose children render into the parent (with their static text).
-spec({ op:'jsx', guarantee:'Robustness', trigger:'construct', issue:'#49', asserts:'a top-level Fragment renders its children without crashing' }, () => {
-  const log = recordingDom()
-  const root: any = document.createElement('div')
-  render(root, h(Fragment, null, h('div', null, 'x'), h('div', null, 'y')))
-  const texts = log.filter((e: any) => e[0] === 'text').map((e: any) => e[2])
-  same(texts, ['x', 'y'])
-})
-
-// Regression (#45): className={vp} (reactive class string) accumulated classes —
-// add/remove both used the current value, so the old class was never removed.
-spec({ op:'jsx', guarantee:'Propagation', trigger:'edit', issue:'#45', asserts:'a reactive className swaps the class instead of accumulating' }, () => {
-  const ops: any[] = []
-  const make = (tag: any): any => ({
-    tag, children: [] as any[], isConnected: true,
-    classList: { add: (c: any) => ops.push('+' + c), remove: (c: any) => ops.push('-' + c) },
-    style: { setProperty() {}, removeProperty() {} },
-    append(...k: any[]) { this.children.push(...k) }, appendChild(k: any) { this.children.push(k); return k },
-    insertBefore(k: any) { this.children.push(k); return k },
-    remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
-    set textContent(v: any) {}, get textContent() { return '' },
-  })
-  ;(globalThis as any).document = { createElement: make, createElementNS: (_n: any, t: any) => make(t), createTextNode: () => make('#text') }
-  const cls: any = $('red')
-  render(make('div'), h('section', null, h('div', { className: cls })))
-  cls[value] = 'blue'
-  cls[value] = 'green'
-  same(ops, ['+red', '-red', '+blue', '-blue', '+green'])
-})
-
-// Regression (#46): function components now receive props.children.
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#46', asserts:'a function component receives props.children' }, () => {
-  const make = (tag: any): any => ({
-    tag, children: [] as any[], isConnected: true,
-    classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
-    append(...k: any[]) { this.children.push(...k) }, appendChild(k: any) { this.children.push(k); return k },
-    insertBefore(k: any) { this.children.push(k); return k },
-    remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
-    set textContent(v: any) { (this as any)._t = v }, get textContent() { return (this as any)._t ?? '' },
-    get text() { return (this.tag === '#text' ? (this as any)._t : '') + this.children.map((c: any) => c.text).join('') },
-  })
-  ;(globalThis as any).document = { createElement: make, createElementNS: (_n: any, t: any) => make(t), createTextNode: () => make('#text') }
-  const Card = (props: any) => h('div', null, props.children)
-  const root = make('div')
-  render(root, h('section', null, h(Card, null, 'hi')))
-  same(root.text, 'hi')
-  // automatic-runtime form too
-  const root2 = make('div')
-  render(root2, h('section', null, jsx(Card, { children: 'yo' })))
-  same(root2.text, 'yo')
-})
-
-// Regression (#47): `once={fn}` must NOT register an event listener (it's not
-// an on-Event prop); a ViewProxy onClick must not either.
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#47', asserts:'the on* heuristic excludes once={fn} and ViewProxy handlers' }, () => {
-  const listeners: any[] = []
-  const make = (tag: any): any => ({
-    tag, children: [] as any[], isConnected: true,
-    classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
-    append(...k: any[]) { this.children.push(...k) }, appendChild(k: any) { this.children.push(k); return k },
-    insertBefore(k: any) { this.children.push(k); return k },
-    remove() {}, setAttribute() {}, removeAttribute() {},
-    addEventListener: (n: any) => listeners.push(n),
-    set textContent(v: any) {}, get textContent() { return '' },
-  })
-  ;(globalThis as any).document = { createElement: make, createElementNS: (_n: any, t: any) => make(t), createTextNode: () => make('#text') }
-  render(make('div'), h('section', null,
-    h('button', { once: () => {}, onClick: () => {} }, 'x')))
-  same(listeners, ['click']) // 'once' did NOT become a 'ce' listener
-})
-
-// Regression (#48): an HTML <title> is created in the HTML namespace, not SVG.
-spec({ op:'jsx', guarantee:'Fidelity', trigger:'construct', issue:'#48', asserts:'an HTML title uses createElement, not the SVG namespace' }, () => {
-  const kinds: any[] = []
-  ;(globalThis as any).document = {
-    createElement: (t: any) => (kinds.push(['html', t]), mkEl(t)),
-    createElementNS: (_n: any, t: any) => (kinds.push(['svg', t]), mkEl(t)),
-    createTextNode: () => mkEl('#text'),
-  }
-  function mkEl(tag: any) {
-    return {
-      tag, children: [] as any[], isConnected: true,
-      classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} },
-      append(...k: any[]) { this.children.push(...k) }, appendChild(k: any) { this.children.push(k); return k },
-      insertBefore(k: any) { this.children.push(k); return k },
-      remove() {}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
-      set textContent(v: any) {}, get textContent() { return '' },
-    }
-  }
-  render(mkEl('div'), h('head', null, h('title', null, 'My Page')))
-  ok(kinds.some(([k, t]) => k === 'html' && t === 'title'), JSON.stringify(kinds))
-  ok(!kinds.some(([k, t]) => k === 'svg' && t === 'title'), JSON.stringify(kinds))
+test('key is stripped from element props — never a literal DOM attribute', () => {
+  // key is accepted-and-IGNORED (rows key by DATA identity). Pre-fix it fell
+  // through to the renderer and landed as a literal key="…" attribute.
+  same(h('li', { key: 'k1', class: 'row' }, 'x'), el('li', { class: 'row' }, 'x'))
+  same(h('li', { key: 7 }), el('li', null))
+  // and via the automatic runtime's props.children path (same h underneath)
+  same(jsx('li', { key: 'k1', class: 'row', children: 'x' }), el('li', { class: 'row' }, 'x'))
 })

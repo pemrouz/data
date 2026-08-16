@@ -1,93 +1,129 @@
-// Consumer-perspective NEGATIVE type-check fixture — the rejection half of the
-// gate. Every `@ts-expect-error` below marks a pattern that MUST NOT type-check.
-// tsc fails the gate two ways: a marked line that compiles clean reports TS2578
-// ("Unused '@ts-expect-error' directive"), and an unmarked line that errors
-// fails normally. So this file locks in the type surface's REJECTIONS — the half
-// a purely-positive fixture (types/check.ts) can never guard, and the reason a
-// type that silently widens to `any` would otherwise go unnoticed.
-import { $, value, HTML } from '../full.ts'
+// types/check.negative.ts — NEGATIVE fixtures: every `@ts-expect-error`
+// marks a pattern that MUST NOT type-check. tsc fails the gate both ways:
+// a marked line that compiles clean reports TS2578 ("Unused '@ts-expect-error'
+// directive"), and an unmarked line that errors fails normally — so this file
+// locks in the surface's REJECTIONS (the half a positive fixture can't guard,
+// and how a type that silently widens to `any` gets caught). v2 idiom
+// (types/check.negative.ts) carried over to v3.
 
-const obj = $({ a: { n: 1 }, b: { n: 5 } })
+import { typedDollar as $, value } from './surface.ts'
 
-// Read the raw underlying value with the `value` SYMBOL, never the string
-// `.value` — `proxy.value` would mint a child view named "value". On a
-// fixed-shape source the string access is a type error; keep it that way.
-// @ts-expect-error — use proxy[value], not proxy.value
-obj.value
-void obj[value] // the correct symbol read compiles
+type Row = { region: string; val: number; nested: { deep: number } }
+const d = $({
+  a: { region: 'north', val: 10, nested: { deep: 1 } },
+  b: { region: 'south', val: 20, nested: { deep: 2 } },
+} as Record<string, Row>)
+const fixed = $({ a: { on: true }, b: { on: false } })
+const prices = $([10, 20, 30])
+const north = d.filter((r) => r.region === 'north')
 
-// length(fn) buckets are `{ value: count }`: reading `counts[k]` AS a number is
-// the documented `[object Object]`/`NaN` trap. It must NOT be a number.
-const counts = obj.length(r => (r.n > 3 ? 'hi' : 'lo'))
-// @ts-expect-error — read counts.hi.value, not counts.hi
-const _trap: number = counts.hi
-void _trap
+// ── bare assignment / delete are NOT the write surface (methods only) ────────
+// @ts-expect-error — bare child assignment is rejected (use .set / .get(k).update)
+d.a = { region: 'x', val: 0, nested: { deep: 0 } }
+// @ts-expect-error — bare leaf assignment is rejected (use .update / .set)
+d.a.val = 13
+// @ts-expect-error — [value] whole-view assignment is a v2 idiom, gone in v3
+d[value] = {}
+// @ts-expect-error — delete is not the write surface (use .get(k).remove())
+delete d.a
+// @ts-expect-error — fixed-shape children are readonly too
+fixed.a.on = true
 
-// A predicate parameter is the real row type, not `any` — a bogus field errors.
-// @ts-expect-error — `bogus` is not a field of the row
-obj.filter(d => d.bogus > 3)
+// ── wrong update types ───────────────────────────────────────────────────────
+// @ts-expect-error — a string is not assignable to the number leaf 'val'
+d.a.val.update('yes')
+// @ts-expect-error — a partial row is not a Row (nested missing)
+d.get('a').update({ region: 'x', val: 1 })
+// @ts-expect-error — deep leaf updates are type-checked as well
+d.a.nested.deep.update('deep')
+// @ts-expect-error — child set(k, v) value-checks against the field
+d.a.set('val', 'not-a-number')
+// @ts-expect-error — root set(k, row) row-checks
+d.set('c', 42)
+// @ts-expect-error — insert takes the row type
+d.insert(42)
+// @ts-expect-error — patch pairs are [key, row]-typed
+d.patch([['a', 42]])
 
-// `between` bounds are numeric (or reactive number VPs); string bounds rejected.
-// @ts-expect-error — string is not a valid numeric bound
-obj.between('n', ['a', 'b'])
+// ── wrong column names (ColOf key-checking) ──────────────────────────────────
+// @ts-expect-error — 'amont' is not a column of Row
+d.sum('amont')
+// @ts-expect-error — 'typo' is not a column (sort)
+d.az('typo')
+// @ts-expect-error — 'typo' is not a column (compare)
+d.gt('typo', 3)
+// @ts-expect-error — 'typo' is not a column (between)
+d.between('typo', [0, 1])
+// @ts-expect-error — 'typo' is not a column (max)
+d.max('typo')
 
-// Option B: a child is a bare `Data<boolean>`, so BARE assignment of any raw value
-// is rejected (the runtime still accepts it, but it's no longer the typed surface).
-const todos = $({ a: { done: false } })
-// @ts-expect-error — raw `true` is not assignable to a child view `Data<boolean>`; use [value]/.update
-todos.a.done = true
-// The TYPED write surface ([value] / .update) still value-checks against the field:
-// @ts-expect-error — a string is not assignable to a boolean field (via .update)
-todos.a.done.update('yes')
-// @ts-expect-error — same rejection through the [value] hatch
-todos.a.done[value] = 'yes'
+// ── wrong value types in operator args ───────────────────────────────────────
+// @ts-expect-error — between bounds are numeric
+d.between('val', ['a', 'b'])
+// @ts-expect-error — the threshold is typed from the column (number, not string)
+d.gt('val', 'high')
+// @ts-expect-error — a window size is Reactive<number>, not a string
+d.za('val', 'ten')
+// @ts-expect-error — a View<string> child is not a Reactive<number> threshold
+d.gt('val', $({ s: 'x' }).s)
+// @ts-expect-error — the predicate row is Row, not any ('bogus' does not exist)
+d.filter((r) => r.bogus > 3)
+// @ts-expect-error — map's row is typed too
+d.map((r) => r.bogus)
+// @ts-expect-error — reduce's init is a plain identity element, never a view
+d.reduce((acc: number, r) => acc + r.val, d.sum('val'))
 
-// Column/key args are checked against the row shape (ColOf<T>): a typo'd column
-// on an object-row source is a hard error across aggregate/sort/between/compare.
-// (A scalar-row or dynamic-`Record<string, scalar>` source still accepts any
-// string — that fallback is exercised positively in types/check.ts.)
-// @ts-expect-error — 'amont' is not a column of the row { n: number }
-obj.sum('amont')
-// @ts-expect-error — 'typo' is not a column
-obj.between('typo', [0, 1])
-// @ts-expect-error — 'typo' is not a column
-obj.az('typo')
-// @ts-expect-error — 'typo' is not a column
-obj.gt('typo', 3)
+// ── aggregate value types are precise (never `any`) ──────────────────────────
+// @ts-expect-error — max('region') is string | undefined, not number
+const _m1: number = d.max('region')[value]
+// @ts-expect-error — avg may be undefined on the empty set
+const _m2: number = d.avg('val')[value]
+// @ts-expect-error — some() is a boolean scalar, not a number
+const _m3: number = d.some((r) => r.val > 0)[value]
 
-// max/min carry the COLUMN's element type, not `any` (under the old Data<any>
-// every one of these compiled clean). The aggregate value is also `| undefined`
-// for the empty set on avg/max/min.
-const named = $([{ name: 'x' }])
-// @ts-expect-error — max('name') is string | undefined, not assignable to number
-const _nm: number = named.max('name')[value]
-void _nm
-// @ts-expect-error — max('n') is number | undefined, not assignable to string
-const _mx: string = obj.max('n')[value]
-void _mx
-// @ts-expect-error — avg may be undefined on an empty set, not a bare number
-const _av: number = obj.avg('n')[value]
-void _av
+// ── calling operators on scalars ─────────────────────────────────────────────
+// @ts-expect-error — a Scalar<number> has no row operators
+d.length().filter((r: unknown) => r)
+// @ts-expect-error — a Scalar<number> has no sort
+d.sum('val').za('val')
+// @ts-expect-error — a Scalar<number> has no children sugar
+d.length().val
 
-// filter('key', value): the value slot is tied to the column's type (was `any`).
-// @ts-expect-error — a string is not assignable to the number column 'n'
-obj.filter('n', 'not-a-number')
-// @ts-expect-error — the partial-shape object form is column-typed too
-obj.filter({ n: 'not-a-number' })
+// ── operator views are read-only projections ─────────────────────────────────
+// @ts-expect-error — no update on an operator-view child (write through the source)
+north.a.update({ region: 'x', val: 0, nested: { deep: 0 } })
+// @ts-expect-error — no remove on an operator-view child
+north.get('a').remove()
+// @ts-expect-error — no insert on an operator view
+north.insert({ region: 'x', val: 0, nested: { deep: 0 } })
+// @ts-expect-error — no set on an operator view
+north.set('a', { region: 'x', val: 0, nested: { deep: 0 } })
+// @ts-expect-error — no patch on an operator view
+north.patch([['a', { region: 'x', val: 0, nested: { deep: 0 } }]])
+// @ts-expect-error — operator-view children are readonly (no bare assignment either)
+north.a.val = 5
 
-// The builder row-fn `item` is typed to the source's row (B4), not `any`.
-const rows = $([{ n: 1 }])
-// @ts-expect-error — `bogus` is not a field of the row { n: number }
-HTML.li(rows, (li, item) => li.text(item.bogus))
+// ── child handles are path ADDRESSES, not views ──────────────────────────────
+// (the runtime would dispatch .filter against the OWNING source — forbidden here)
+// @ts-expect-error — no operator methods on a child handle
+d.a.filter((r: Row) => true)
+// @ts-expect-error — no connect on a child handle (a runtime throw today)
+d.a.val.connect([])
 
-// Devtools helpers are typed ONLY when `data/devtools` is imported (this file
-// doesn't). On the base `$`, `inspect` is not a member (B6). `random`/`debug`
-// ARE always present, so those are exercised positively in check.devtools.ts.
-// @ts-expect-error — $.inspect requires importing data/devtools
-$.inspect(rows)
+// ── addressing mistakes ──────────────────────────────────────────────────────
+// @ts-expect-error — 'zzz' is not a key of the fixed-shape source
+fixed.get('zzz')
+// @ts-expect-error — use [value] (the symbol), not .value — no child named 'value' here
+fixed.value
+// @ts-expect-error — connect(fn) is not a valid sink (use connect(anchor, fn))
+d.connect(() => {})
+// @ts-expect-error — a mirror repoints only to a view of the SAME shape
+d.mirror().set(prices)
+// @ts-expect-error — v2's length(fn) histogram is not on the v3 surface (lengthBuckets gap)
+d.length((r: Row) => r.region)
+// @ts-expect-error — 'join' is RESERVED but unimplemented: no signature yet
+d.join(north)
+// @ts-expect-error — 'page' is RESERVED but unimplemented: no signature yet
+d.page(2)
 
-// --- DEFERRED negatives (become valid @ts-expect-error once the B-tier lands) ---
-// Each of these COMPILES CLEAN today (the surface is loose there), so marking it
-// now would itself fail as an unused directive. The owning B-tier commit both
-// tightens the type AND moves the case up here under `@ts-expect-error`:
-//   reduce reactive-init guard:    obj.reduce((a, r) => a + r.n, $(0)) // init: R accepts a VP
+void north; void prices

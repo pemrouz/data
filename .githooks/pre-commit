@@ -1,62 +1,28 @@
 #!/bin/sh
-# Pre-commit: (1) GATE the commit on the public type surface, then (2) keep the
-# test report in sync.
+# Pre-commit: GATE the commit on the four type programs (types/tsconfig*.json —
+# the internal surface + fixtures, classic JSX, automatic JSX, and the SHIPPED
+# public.d.ts consumer gate) whenever a TS source / fixture / tsconfig /
+# package.json is staged. Same gate CI enforces — no "passed local, failed CI"
+# surprises. Bypass with: git commit --no-verify
 #
-# (1) Type gate — when a TS source / fixture / tsconfig / package.json is staged,
-#     run `npm run typecheck` (the four noCheck:false configs — base, classic-jsx,
-#     automatic-jsx, devtools) and BLOCK the commit on any type error, so the same
-#     gate CI enforces also runs locally (no "passed local, failed CI" surprises).
-#     The implementation ratchet (`npm run typecheck:src`) runs ADVISORY, matching
-#     CI's non-blocking treatment. Bypass everything with:  git commit --no-verify
-#
-#     Speed knob: the full gate is ~4 `tsc` cold-starts (~25s). To trim it to just
-#     the core public surface (~7s), change `npm run typecheck` below to
-#     `npx tsc -p tsconfig.typecheck.json` (CI still runs the full four).
-#
-# (2) Report — when code or tests changed, refresh the registry + report/index.html
-#     (the published Pages report) and include them in THIS commit. RECORDS results,
-#     does NOT gate on test failures (the report just shows them red). Switch to the
-#     fast structure-only refresh by changing `npm run report` to `npm run report:build`.
+# The unit suite + perf gates run per the working conventions (npm test /
+# npm run perf before committing behavior changes) — not here, to keep the
+# hook fast.
 
 staged=$(git diff --cached --name-only --diff-filter=ACM)
 
-# ---- (1) Type-check gate (blocking) ------------------------------------------
 if echo "$staged" | grep -qE '\.tsx?$|tsconfig.*\.json$|package\.json$'; then
   if command -v npm >/dev/null 2>&1; then
-    echo "[typecheck] checking the public type surface (npm run typecheck)…"
+    echo "[typecheck] the four type programs (npm run typecheck)…"
     out=$(npm run --silent typecheck 2>&1)
     if [ $? -ne 0 ]; then
       echo "[typecheck] ✗ type errors — commit blocked:"
       echo "$out" | grep -E 'error TS' | head -20
-      echo "[typecheck] fix the types, or bypass with:  git commit --no-verify"
+      echo "[typecheck] (bypass with git commit --no-verify)"
       exit 1
     fi
-    echo "[typecheck] ✓ public type surface clean"
-    # Implementation ratchet — advisory only (the @ts-nocheck migration is in
-    # progress; CI also runs this non-blocking).
-    if ! npm run --silent typecheck:src >/dev/null 2>&1; then
-      echo "[typecheck] ⚠ implementation ratchet (typecheck:src) has errors — advisory, not blocking"
-    fi
-  else
-    echo "[typecheck] npm not found; skipping type gate"
+    echo "[typecheck] ✓ clean"
   fi
-fi
-
-# ---- (2) Test report refresh (advisory, unchanged) ---------------------------
-# Only refresh when code or tests changed; skip docs/config-only commits.
-echo "$staged" | grep -qE '\.ts$' || exit 0
-
-command -v node >/dev/null 2>&1 || { echo "[report] node not found; skipping report refresh"; exit 0; }
-
-echo "[report] refreshing the test report (full run)…"
-SPEC_COLLECT=1 node --experimental-strip-types tests/collect-registry.ts >/dev/null 2>&1 \
-  || echo "[report] registry refresh skipped (collect-registry failed)"
-
-if npm run report >/dev/null 2>&1; then
-  git add tests/registry.json report/index.html
-  echo "[report] updated report/index.html (+ registry.json)"
-else
-  echo "[report] report build failed — committing without refresh (run 'npm run report' manually)"
 fi
 
 exit 0
