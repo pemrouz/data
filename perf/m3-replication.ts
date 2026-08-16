@@ -12,11 +12,14 @@
 // ~0.53× and frame-512 at ~0.13×.
 //
 // What gates NOW:
-// 1. absolute ceiling, dev-machine-calibrated: frame-16 ≤ 3.0 µs/rec.
-//    Observed 0.79–1.55 µs/rec across runs on this machine (WSL wall-clock
-//    variance is real); the retired v2 referent sat at ~6 µs/rec, so 3.0
-//    still catches that regression class, a lost lane fast path, or an
-//    accidental per-record reshape/allocation.
+// 1. absolute ceiling on the BEST (minimum) round: frame-16 ≤ 2.5 µs/rec.
+//    Min-of-rounds is the noise-robust estimator for an absolute wall-clock
+//    gate: scheduler contention only ever INFLATES a round (observed
+//    median spread 0.79–3.95 µs/rec on this WSL machine when the battery
+//    runs back-to-back with other work), while a real regression raises the
+//    floor itself. The retired v2 referent sat at ~6 µs/rec; best-of ≤ 2.5
+//    catches that class, a lost lane fast path, or a per-record
+//    reshape/allocation, without flaking under load.
 // 2. CROSS-LANE STATE EQUALITY: all three framings replay the IDENTICAL
 //    script, so their live sets and derived sums must agree exactly — a
 //    silently-diverging lane fails long before any ratio matters.
@@ -143,12 +146,13 @@ const med = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1]
 }
 
 const f16 = med(info.f16)
-console.log(`lane/frame16 ${f16.toFixed(3)} µs/rec   lane/rec ${med(info.rec).toFixed(3)}   lane/frame512 ${med(info.f512).toFixed(3)}`)
+const f16best = Math.min(...info.f16)
+console.log(`lane/frame16 ${f16.toFixed(3)} µs/rec (best ${f16best.toFixed(3)})   lane/rec ${med(info.rec).toFixed(3)}   lane/frame512 ${med(info.f512).toFixed(3)}`)
 console.log('---')
-const CEIL = 3.0
-console.log(`frame-16 ceiling ${f16.toFixed(3)} µs/rec (gate ≤ ${CEIL}); frame-16 batching is the D1 design point`)
-if (f16 > CEIL) {
-  console.log(`FAIL: M3 replication gate exceeded (${f16.toFixed(3)} > ${CEIL})`)
+const CEIL = 2.5
+console.log(`frame-16 best-of-rounds ${f16best.toFixed(3)} µs/rec (gate ≤ ${CEIL}); frame-16 batching is the D1 design point`)
+if (f16best > CEIL) {
+  console.log(`FAIL: M3 replication gate exceeded (best ${f16best.toFixed(3)} > ${CEIL})`)
   process.exit(1)
 }
 console.log(`PASS: M3 replication lane within budget (three framings state-equal; sinks ${e16.sink()})`)
