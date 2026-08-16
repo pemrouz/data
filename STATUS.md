@@ -1,13 +1,14 @@
 # v4 — status
 
-*v4 = v3 + the fero wishlist. Scaffolded 2026-08-01 as a full copy of `v3/`
-(v3 tip `ac37717`) with the `data.v3`/`data/v3` identities rebranded to
-`data.v4`/`data/v4`. v3 stays frozen-green as the A/B reference. The wishlist
-source of truth is fero-v2's [v3/DESIGN-DATA3.md](../../fero-v2/v3/DESIGN-DATA3.md)
-(W1–W17); this file tracks their landing here. Consumer: fero v4
-(fero-v2/v4/), which migrates onto this tree once the P1 set lands.*
+*v4 = v3 + the fero wishlist, NOW THE REPO ROOT (promoted 2026-08-16; the v2
+root surface, the frozen v3/ tree, the site, examples, and e2e layer live on
+at the `v3` branch tip). Scaffolded 2026-08-01 as a full copy of `v3/` (v3
+tip `ac37717`) with identities rebranded `data.v3` → `data.v4`. The wishlist
+source of truth is fero-v2's [DESIGN-DATA3.md](../fero-v2/v3/DESIGN-DATA3.md)
+(W1–W17); this file tracks their landing. Consumer: fero v4 (fero-v2/v4/),
+whose substrate imports `../../../data/api/index.ts`.*
 
-Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
+Run: `npm test` / `npm run typecheck` / `npm run perf`.
 
 ## Wishlist ledger
 
@@ -52,3 +53,25 @@ Run: `npm run test:v4` / `typecheck:v4` / `perf:v4` (root package.json).
 - 2026-08-01 — scaffold: `cp -r v3 v4`, symbol/entry rebrand sed (0 residual
   `data.v3` refs), root scripts `test:v4`/`typecheck:v4`/`perf:v4` added;
   test:v4 286/286.
+- 2026-08-03..16 — the ADVERSARIAL RE-EVALUATION (28-agent review, every
+  serious finding double-verified) and its fix series, 7 data-side commits:
+  wireSink application-order emission + keyDomain-from-key-identity (W1
+  egress was desyncing replicas on compound array-born batches and
+  mislabeling derived views); clause-7 mid-batch attach deferral
+  (`attachSettled` — SCHEDULE_VERSION 3 → 4); ingest/lane reject delivery
+  surviving a throwing effect sink; clause-10 edge pins (clean string-vivify,
+  array-delete precedence, the four deleted-marker merges); the shipped-types
+  catch-up (Reserved +7, some/every col overloads, promote → Writes,
+  module-level ingest/lane/HOT/mount declared, surface.ts synced, fixtures);
+  SCHEDULE.md drift repairs (header version, CI claim, clause-6 origin
+  wording). Suite 330/330. fero-side: the lens write-builtin backdoor closed
+  (set/update/patch/remove route through issue(); insert/ingest/raf/dispose
+  throw; first()/last() wrap as lenses) and the ./internals entry repaired —
+  fero 299/299 + 18/18 contract clauses.
+- 2026-08-16 — THE ROOT PROMOTION: perf gates made self-contained (see
+  Baseline), then the v4 tree moved to the repo root and everything else
+  retired (v2 surface, v3/, site, examples, e2e, benches, dist, tsup,
+  Playwright; package.json → name `data` v4.0.0, source-served exports, CI =
+  test+typecheck, hook = the four-program type gate). fero re-pointed to
+  `../../data/api/index.ts` + `../../data/conformance/schedule.test.ts`.
+  Full battery green in both repos post-move.
