@@ -4,9 +4,10 @@
 root surface, the frozen v3/ tree, the site, examples, and e2e layer live on
 at the `v3` branch tip). Scaffolded 2026-08-01 as a full copy of `v3/` (v3
 tip `ac37717`) with identities rebranded `data.v3` → `data.v4`. The wishlist
-source of truth is fero-v2's [DESIGN-DATA3.md](../fero-v2/v3/DESIGN-DATA3.md)
-(W1–W17); this file tracks their landing. Consumer: fero v4 (fero-v2/v4/),
-whose substrate imports `../../../data/api/index.ts`.*
+source of truth is fero-v2's DESIGN-DATA3.md (at fero's `master` branch tip
+under `v3/` — retired from its v4 root, promoted the same day as ours)
+(W1–W17); this file tracks their landing. Consumer: fero v4 (`../fero-v2`,
+its repo root), whose substrate imports `../../data/api/index.ts`.*
 
 Run: `npm test` / `npm run typecheck` / `npm run perf`.
 
@@ -75,3 +76,10 @@ Run: `npm test` / `npm run typecheck` / `npm run perf`.
   test+typecheck, hook = the four-program type gate). fero re-pointed to
   `../../data/api/index.ts` + `../../data/conformance/schedule.test.ts`.
   Full battery green in both repos post-move.
+- 2026-08-16 (later) — FERO'S OWN ROOT PROMOTION: fero-v2 moved its v4 tree
+  to its repo root too (branch `v4`, package `fero` 4.0.0; its v2 surface +
+  frozen v3 tree — incl. DESIGN-DATA3.md — live on at its `master` tip). The
+  seam is now exactly one directory apart: substrate imports
+  `../../data/api/index.ts`, contract ride
+  `../data/conformance/schedule.test.ts`. fero battery green post-move
+  (299/299 + 18/18 + perf 36/36).

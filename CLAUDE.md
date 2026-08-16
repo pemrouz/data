@@ -12,8 +12,8 @@ render layer (builders + classic/automatic JSX + a devtools panel), all under
 the EXECUTABLE timing contract [contract/SCHEDULE.md](contract/SCHEDULE.md)
 (`SCHEDULE_VERSION`, currently 4).
 
-**fero (`../fero-v2/v4`) is the only consumer.** Its substrate imports exactly
-one entry — `../../../data/api/index.ts` — and its CI runs this repo's
+**fero (`../fero-v2`) is the only consumer.** Its substrate imports exactly
+one entry — `../../data/api/index.ts` — and its CI runs this repo's
 [conformance/schedule.test.ts](conformance/schedule.test.ts) against data HEAD
 (`test:contract`, chained into fero's `npm test`). There is no npm audience,
 no site, no dist: the package is SOURCE-SERVED (`exports` point at `.ts`
@@ -69,16 +69,16 @@ findings fixed — see the 2026-08 log entries).
 
 ## The fero coupling (keep it tight)
 
-- fero's substrate (`../fero-v2/v4/api/substrate.ts`) imports ONE entry:
-  `../../../data/api/index.ts`, using `$`, `value`, `node`, `lane`, `ingest`,
+- fero's substrate (`../fero-v2/api/substrate.ts`) imports ONE entry:
+  `../../data/api/index.ts`, using `$`, `value`, `node`, `lane`, `ingest`,
   `DataNode`, `exportContract`. Renaming/moving any of these is a fero-breaking
   change — update fero in the same session and run its suite.
 - fero's `npm test` chains `test:contract` →
-  `../../data/conformance/schedule.test.ts`. Keep that path valid.
+  `../data/conformance/schedule.test.ts`. Keep that path valid.
 - The `lane()` record shape (`HOT` tags ≅ fero kernel REC: `{type:0|1|2,
   key: [rowKey, ...fieldPath], value, at?}`) and the v2-record profile are
   wire-stability surfaces.
-- After ANY seam/kernel/api change: `cd ../fero-v2/v4 && npm test` (299+ tests
+- After ANY seam/kernel/api change: `cd ../fero-v2 && npm test` (299+ tests
   + the contract ride). fero's perf pins (`npm run perf` there) guard the seam
   budgets from the consumer side.
 
