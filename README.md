@@ -11,6 +11,9 @@ via `connect()`, wire batches via `wireSink()`); a render layer binds views
 to the DOM (builders or JSX). Work is proportional to the change, not the
 data.
 
+**Live:** https://pemrouz.github.io/data/ — the landing page runs this very
+engine in the browser (its source is [site/](site)).
+
 Everything runs under an **executable timing contract** —
 [contract/SCHEDULE.md](contract/SCHEDULE.md) (`SCHEDULE_VERSION 4`): batch
 commit semantics, read-your-writes, effect isolation, origin-token echo

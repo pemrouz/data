@@ -15,9 +15,10 @@ the EXECUTABLE timing contract [contract/SCHEDULE.md](contract/SCHEDULE.md)
 **fero (`../fero-v2`) is the only consumer.** Its substrate imports exactly
 one entry — `../../data/api/index.ts` — and its CI runs this repo's
 [conformance/schedule.test.ts](conformance/schedule.test.ts) against data HEAD
-(`test:contract`, chained into fero's `npm test`). There is no npm audience,
-no site, no dist: the package is SOURCE-SERVED (`exports` point at `.ts`
-files; everything runs via `--experimental-strip-types`).
+(`test:contract`, chained into fero's `npm test`). There is no npm audience and
+no dist: the package is SOURCE-SERVED (`exports` point at `.ts` files;
+everything runs via `--experimental-strip-types`). The landing page lives in
+[site/](site) and runs THIS engine in the browser (see Layout and Commands).
 
 History: the v2 proxy library, the v3 kernel rewrite, the landing site, the
 gallery examples, and the Playwright e2e layer were all retired at the v4 root
@@ -41,6 +42,7 @@ findings fixed — see the 2026-08 log entries).
 | [render/](render) [jsx/](jsx) [devtools/](devtools) | DOM render layer (el/text/list/bind/component + HTML/SVG builders + mock-dom tests), classic `h` + automatic runtime JSX, devtools + overlay panel. |
 | [types/](types) | The FOUR type-gate programs (`npm run typecheck`): `tsconfig.json` (surface.ts + check.ts + check.negative.ts), `tsconfig.jsx.json` (classic JSX), `tsconfig.auto.json` (automatic, `jsxImportSource: "data"`), `tsconfig.public.json` (**[public.d.ts](types/public.d.ts) — the SHIPPED types** `exports["."].types` serves, checked via check.public.ts with positives + biting `@ts-expect-error` negatives). |
 | [perf/](perf) | The four gates `npm run perf` runs (see below) + `commit.bench.ts` (informational absolute tracker). |
+| [site/](site) | The landing page (https://pemrouz.github.io/data/): `page.html` + `sections/<name>.{html,css,js}` assembled by `build.mjs`; `strip.mjs` type-strips the api cone + the conformance suite into `lib/` and extracts the law into `gen/` (both gitignored — built in CI by [.github/workflows/pages.yml](.github/workflows/pages.yml) on every push). [site/REAL.md](site/REAL.md) is the honesty rule (every printed digit `data-attested`), `tools/audit.mjs` its gate; `sections/<name>.md` hold each section's notes and measurements. |
 
 ## Commands
 
@@ -51,6 +53,7 @@ findings fixed — see the 2026-08 log entries).
 | `npm run perf` | m1 (single-tick: chain/bare ratio ≤ 3 + absolute ceilings), m2 (brush/batch flagship shapes, absolute ceilings), m3 (hot-lane replication: frame-16 ≤ 3 µs/rec + CROSS-LANE state equality), m4 (allocation + sink-cost budgets, B1–B5). All SELF-CONTAINED and machine-calibrated (the v2-relative referents were retired at the promotion; the final A/B numbers are recorded in each gate's header + STATUS.md). Don't widen a ceiling to make a failing gate pass — investigate. |
 | `npm run test:all` | All three above. |
 | `npm run bench:commit` | Informational commit-machinery absolute costs. |
+| `node site/strip.mjs && node site/build.mjs` | Builds the landing page's engine (`site/lib`, `site/gen`) and `site/index.html`; `node site/tools/serve.mjs site 4176` serves it, and `node site/tools/audit.mjs http://localhost:4176/ --proofs 18` is the honesty gate (must report 0 problems). Re-run strip after any engine source change. |
 
 ## The contract discipline (the most important convention here)
 
