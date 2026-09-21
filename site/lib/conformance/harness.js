@@ -1,0 +1,66 @@
+// conformance/harness.ts — wrap any node in the conformance kit.
+//
+// conform(node): every emitted batch is legality-checked, folded by the
+// replay sink, and asserted ≡ the node's materialized state — any protocol
+// bug fails on the INTRODUCING commit. Every operator's test suite wraps its
+// nodes with these; an operator that passes its tests has, by construction,
+// also proven its change-stream legal and replayable.
+
+import { LegalityChecker } from './legality.js'
+import { ReplaySink, deepEq } from './replay.js'
+                                                               
+                                                 
+
+export function conform   (node             )       {
+  const checker = new LegalityChecker   (node.opName)
+  const replay = new ReplaySink   (node.opName)
+  const order = node.currentOrder()
+  checker.init(node.snapshot(), order ?? undefined)
+  replay.init(node.snapshot(), order ?? undefined)
+  node.connect({
+    wantsOrder: true,
+    origin: null,
+    apply(batch                ) {
+      checker.apply(batch)
+      replay.apply(batch)
+      replay.assertMatches(node.snapshot(), node.currentOrder() ?? undefined, batch.seq)
+    },
+  })
+}
+
+// Scalar nodes: value-shaped replay (node must expose value()).
+export function conformScalar(node                                        )       {
+  const checker = new LegalityChecker(node.opName)
+  const replay = new ReplaySink(node.opName)
+  checker.init(new Map())
+  replay.initScalar(node.value())
+  node.connect({
+    wantsOrder: false,
+    origin: null,
+    apply(batch                    ) {
+      checker.apply(batch)
+      replay.apply(batch)
+      replay.assertScalar(node.value(), batch.seq)
+    },
+  })
+}
+
+// Deep-equality oracle check: assert a node's materialized state equals a
+// naive plain-JS recompute (the independent per-operator oracle).
+export function assertOracle   (
+  node             ,
+  oracle                      ,
+  msg = 'oracle mismatch',
+)       {
+  const actual = node.snapshot()
+  const expected = oracle()
+  if (actual.size !== expected.size)
+    throw new Error(`${msg}: size actual ${actual.size} != oracle ${expected.size}`)
+  for (const [k, v] of expected) {
+    if (!actual.has(k)) throw new Error(`${msg}: missing key ${String(k)}`)
+    // structural equality (property-order-insensitive, NaN-aware) — a keyed
+    // record whose property order is history-dependent must still oracle-check
+    if (!deepEq(actual.get(k), v))
+      throw new Error(`${msg}: value at ${String(k)}: ${JSON.stringify(actual.get(k))} != ${JSON.stringify(v)}`)
+  }
+}

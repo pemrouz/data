@@ -16,6 +16,10 @@ Build & serve, from the repo root:
 
 Deploy: `.github/workflows/pages.yml` runs exactly that build on push and publishes `site/`
 minus the dev-only material (shots/, ref/, tools/, the notes, the two build scripts).
+INTERIM (2026-09-21): while the repo's Actions are locked, Pages serves main's root by the
+built-in branch deploy — so lib/, gen/ and index.html are tracked (regenerate before you
+commit) and the root index.html redirects to site/; the page is at
+https://pemrouz.github.io/data/site/ until the workflow deploys it as the root again.
 
 Layout: `page.html` (masthead, footer, the importmap markers) · `sections/<name>.{html,css,js}`
 in the order lede · race · argument · operators · start · devtools · contract · wire · gallery

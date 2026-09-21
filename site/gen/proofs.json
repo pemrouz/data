@@ -1,0 +1,164 @@
+[
+ {
+  "index": 0,
+  "line": 39,
+  "name": "SCHEDULE_VERSION is exported at runtime and matches this suite",
+  "clause": "version",
+  "gist": "SCHEDULE_VERSION — the constant this suite executes; a clause change without a bump fails here.",
+  "inherited": false,
+  "source": "test('SCHEDULE_VERSION is exported at runtime and matches this suite', () => {\n  same(SCHEDULE_VERSION, 4) // v2: clause 10 deep-path law (W3); v3: clause 11 value domain (W15); v4: clause 7 mid-batch attach\n})"
+ },
+ {
+  "index": 1,
+  "line": 44,
+  "name": "clause 1: bare write = synchronous batch of one; Object.is-equal write emits nothing",
+  "clause": 1,
+  "gist": "Clause 1 — a bare write is a SYNCHRONOUS batch of one; central Object.is no-op drop.",
+  "inherited": false,
+  "source": "test('clause 1: bare write = synchronous batch of one; Object.is-equal write emits nothing', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, { a: { n: 1 } })\n  conform(src)\n  const batches = capture<Row>(src)\n\n  src.write('a', ['n'], 2)\n  same(batches.length, 1) // delivered BEFORE write() returned — no microtask hop\n  same(batches[0].rows.length, 1)\n  same(src.snapshot().get('a'), { n: 2 })\n\n  src.write('a', ['n'], 2) // Object.is at the written leaf — dropped centrally\n  same(batches.length, 1) // no phantom batch\n})"
+ },
+ {
+  "index": 2,
+  "line": 60,
+  "name": "clause 2: mid-batch reads see all writes so far; no effect fires until batch close",
+  "clause": 2,
+  "gist": "Clause 2 — read-your-writes mid-batch: sources AND derived reads consistent; no emission until close.",
+  "inherited": false,
+  "source": "test('clause 2: mid-batch reads see all writes so far; no effect fires until batch close', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, { a: { n: 1 } })\n  const big = filter(src, (r: Row) => r.n > 10)\n  conform(src)\n  conform(big)\n  const srcBatches = capture<Row>(src)\n  const bigBatches = capture<Row>(big)\n\n  rt.batch(() => {\n    src.write('a', ['n'], 50)\n    same(src.get('a'), { n: 50 }) // (a) source read post-write mid-batch\n    ok(big.hasRow('a')) // (b) derived read consistent mid-batch (pull recompute)\n    same(srcBatches.length, 0) // ...but NO effect fired, no record emitted\n    same(bigBatches.length, 0)\n  })\n  same(srcBatches.length, 1) // one consolidated commit at close\n  same(bigBatches.length, 1)\n})"
+ },
+ {
+  "index": 3,
+  "line": 81,
+  "name": "clause 3: height-ordered propagation, exactly once, parents settled before a child sink fires",
+  "clause": 3,
+  "gist": "Clause 3 — topological flush: exactly-once per node per commit; no sink sees a half-applied graph.",
+  "inherited": false,
+  "source": "test('clause 3: height-ordered propagation, exactly once, parents settled before a child sink fires', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, { a: { n: 5 }, b: { n: 20 } })\n  const lo = filter(src, (r: Row) => r.n < 100)\n  const hi = filter(src, (r: Row) => r.n > 1)\n  const both = intersect(lo, hi)\n  conform(both)\n\n  let applies = 0\n  both.connect({\n    wantsOrder: false,\n    origin: null,\n    apply(b: CommitBatch<Row>) {\n      applies++\n      // No half-applied graph: when this child's effect observes the commit,\n      // BOTH parents are already settled to post-write state.\n      ok(lo.hasRow('c'))\n      ok(hi.hasRow('c'))\n      same(b.rows.length, 1)\n    },\n  })\n\n  src.write('c', [], { n: 7 })\n  same(applies, 1) // exactly once, not once per parent path through the diamond\n})"
+ },
+ {
+  "index": 4,
+  "line": 108,
+  "name": "clause 4: a throwing effect never starves siblings; failures collect into one AggregateError",
+  "clause": 4,
+  "gist": "Clause 4 — effects run LAST, exception-isolated; failures aggregate into ONE AggregateError.",
+  "inherited": false,
+  "source": "test('clause 4: a throwing effect never starves siblings; failures collect into one AggregateError', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, {})\n  const total = sum(src, 'n')\n  const seen: number[] = []\n\n  src.connect({\n    wantsOrder: false,\n    origin: null,\n    apply() {\n      // Effects run after ALL operator state settles: the downstream\n      // aggregate already reflects this commit's write.\n      same((total as any).value(), 3)\n      throw new Error('sink boom')\n    },\n  })\n  src.connect({ wantsOrder: false, origin: null, apply: (b: CommitBatch<Row>) => seen.push(b.seq) })\n\n  assert.throws(\n    () => src.write('a', [], { n: 3 }),\n    (e: unknown) => e instanceof AggregateError && /1 effect\\(s\\) failed during commit/.test((e as Error).message),\n  )\n  same(seen.length, 1) // the sibling sink still received the commit\n  same(src.snapshot().get('a'), { n: 3 }) // and the write itself committed\n})"
+ },
+ {
+  "index": 5,
+  "line": 135,
+  "name": "clause 5: effect-issued writes drain FIFO as separate next commits",
+  "clause": 5,
+  "gist": "Clause 5 — re-entrancy: a write inside an effect queues as the NEXT commit, FIFO; cycles hit the cap.",
+  "inherited": false,
+  "source": "test('clause 5: effect-issued writes drain FIFO as separate next commits', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, {})\n  conform(src)\n  const commits: string[][] = []\n  let armed = true\n  src.connect({\n    wantsOrder: false,\n    origin: null,\n    apply(b: CommitBatch<Row>) {\n      commits.push(b.rows.map((d) => String(d.key)))\n      if (armed) {\n        armed = false\n        src.write('second', [], { n: 2 }) // queued — must NOT join this commit\n        src.write('third', [], { n: 3 }) // queued behind it, FIFO\n      }\n    },\n  })\n\n  src.write('first', [], { n: 1 })\n  // Three separate commits, program order: the re-entrant writes were not\n  // folded into the triggering batch and not reordered.\n  same(commits, [['first'], ['second'], ['third']])\n})"
+ },
+ {
+  "index": 6,
+  "line": 160,
+  "name": "clause 5: an unbounded write cascade throws at the cycle cap, not an infinite loop",
+  "clause": 5,
+  "gist": "Clause 5 — re-entrancy: a write inside an effect queues as the NEXT commit, FIFO; cycles hit the cap.",
+  "inherited": true,
+  "source": "test('clause 5: an unbounded write cascade throws at the cycle cap, not an infinite loop', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<{ n: number }>(rt, { k: { n: 0 } })\n  let i = 0\n  src.connect({\n    wantsOrder: false,\n    origin: null,\n    apply() {\n      src.write('k', ['n'], ++i) // always-fresh value: a genuine cycle\n    },\n  })\n  assert.throws(() => src.write('k', ['n'], -1), /re-entrant write cascade exceeded 1000 commits/)\n})"
+ },
+ {
+  "index": 7,
+  "line": 175,
+  "name": "clause 6: same-origin sinks are suppressed (source AND derived); re-entrant writes carry issue-time origin",
+  "clause": 6,
+  "gist": "Clause 6 — origin tokens: batch carries its origin; suppression is a declarative identity compare; issue-time capture for queued writes.",
+  "inherited": false,
+  "source": "test('clause 6: same-origin sinks are suppressed (source AND derived); re-entrant writes carry issue-time origin', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, {})\n  const mine = Symbol('peer-A')\n  const view = filter(src, (r: Row) => r.n > 0)\n\n  const asMine = capture<Row>(src, mine)\n  const asOther = capture<Row>(src, Symbol('peer-B'))\n  const asNull = capture<Row>(src, null)\n  const derivedAsMine = capture<Row>(view, mine)\n\n  ingest(src, [{ t: 'add', k: 'a', v: { n: 1 } }], { origin: mine })\n  same(asMine.length, 0) // echo suppressed at the kernel effect loop\n  same(derivedAsMine.length, 0) // suppression reaches DERIVED sinks too\n  same(asOther.length, 1)\n  same(asNull.length, 1)\n  same(asNull[0].origin, mine) // the batch itself carries the producing origin\n\n  // Issue-time origin capture: a write queued from inside an effect keeps the\n  // origin that was installed WHEN IT WAS ISSUED — the next commit carries it,\n  // so the issuing side's own sinks stay suppressed for the cascade too.\n  let armed = true\n  src.connect({\n    wantsOrder: false,\n    origin: null,\n    apply() {\n      if (armed) {\n        armed = false\n        rt.withOrigin(mine, () => src.write('b', [], { n: 2 }))\n      }\n    },\n  })\n  ingest(src, [{ t: 'add', k: 'c', v: { n: 3 } }], { origin: mine })\n  same(asMine.length, 0) // neither the trigger nor the cascade echoed back\n  same(asOther.length, 3) // trigger + cascade both reached the other peer\n  same(asOther[2].origin, mine)\n})"
+ },
+ {
+  "index": 8,
+  "line": 214,
+  "name": "clause 7: init(snapshot) then apply per commit — no gap, no overlap",
+  "clause": 7,
+  "gist": "Clause 7 — snapshot-then-deltas: init reflects settled state; then every commit exactly once, in order.",
+  "inherited": false,
+  "source": "test('clause 7: init(snapshot) then apply per commit — no gap, no overlap', () => {\n  const rt = new Runtime()\n  const backing = new InMemoryBacking<Row>(rt, { a: { n: 1 } })\n  backing.source.write('b', [], { n: 2 }) // pre-subscribe commit — must be in init, not replayed\n\n  const seqs: number[] = []\n  let snapshotAtInit: Map<any, Row> | null = null\n  backing.subscribe({\n    wantsOrder: false,\n    init(snap) {\n      snapshotAtInit = new Map(snap)\n    },\n    apply(b) {\n      seqs.push(b.seq)\n    },\n  })\n\n  same(snapshotAtInit!.size, 2) // fully-settled state at init — the pre-subscribe write included\n  backing.source.write('c', [], { n: 3 })\n  backing.source.write('a', ['n'], 9)\n  same(seqs.length, 2) // every subsequent commit, exactly once each\n  ok(seqs[0] < seqs[1]) // in commit order — no reordering, no overlap\n})"
+ },
+ {
+  "index": 9,
+  "line": 242,
+  "name": "clause 7: sink()/connect() attached INSIDE batch() — init is the settled commit, apply starts at the NEXT commit",
+  "clause": 7,
+  "gist": "Clause 7 addendum (SCHEDULE_VERSION 4) — an attach INSIDE an open batch() observes the batch boundary: the whole attach defers to that batch's commit. Pre-v4 the init snapshot read the half-applied batch (read-your-writes) and apply() then redelivered the same batch — a mid-batch subscriber double-counted every pending write.",
+  "inherited": false,
+  "source": "test('clause 7: sink()/connect() attached INSIDE batch() — init is the settled commit, apply starts at the NEXT commit', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, { a: { n: 1 } })\n  conform(src)\n  const h = handleFor(src)\n\n  // sink(): no gap (init carries writes made before AND after the attach in\n  // the batch), no overlap (the batch's own deltas are not redelivered).\n  let snap: Map<unknown, Row> | null = null\n  const applies: unknown[] = []\n  rt.batch(() => {\n    src.write('b', [], { n: 2 }) // before the attach\n    h.sink({\n      init: (s: Map<unknown, Row>) => (snap = new Map(s)),\n      apply: (b: unknown) => applies.push(b),\n    })\n    src.write('c', [], { n: 3 }) // after the attach, same batch\n    ok(snap === null) // nothing delivered mid-batch (clause 2b)\n  })\n  same([...snap!.keys()].sort(), ['a', 'b', 'c']) // no gap — the whole settled batch\n  same(applies.length, 0) // no overlap — the attach batch is not redelivered\n  src.write('c', ['n'], 9)\n  same(applies.length, 1) // delivery starts at the NEXT commit, exactly once\n\n  // connect([]): one settled whole-value opening record, no per-key\n  // duplicates for the attach batch, then one record per subsequent commit.\n  const recs: any[] = []\n  rt.batch(() => {\n    src.write('d', [], { n: 4 })\n    h.connect(recs)\n  })\n  same(recs.length, 1)\n  same(recs[0].type, 'update')\n  same(recs[0].key, [])\n  ok('d' in recs[0].value) // settled state including the mid-batch write\n  src.remove('d')\n  same(recs.length, 2)\n  same(recs[1].type, 'remove')\n\n  // A write-free batch never commits — the attach lands at batch close\n  // against the unchanged state.\n  const recs2: any[] = []\n  rt.batch(() => h.connect(recs2))\n  same(recs2.length, 1)\n\n  // dispose() before the deferred attach ran cancels it entirely.\n  const recs3: any[] = []\n  rt.batch(() => {\n    src.write('e', [], { n: 5 })\n    h.connect(recs3).dispose()\n  })\n  same(recs3.length, 0)\n  src.write('e', ['n'], 6)\n  same(recs3.length, 0)\n})"
+ },
+ {
+  "index": 10,
+  "line": 299,
+  "name": "clause 8: A→B→A and add+remove annihilate; multi-write batches consolidate to one delta per key",
+  "clause": 8,
+  "gist": "Clause 8 — emission legality: consolidation ≤1 delta/key; net-zero flips annihilate to NOTHING.",
+  "inherited": false,
+  "source": "test('clause 8: A→B→A and add+remove annihilate; multi-write batches consolidate to one delta per key', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, { a: { n: 1 } })\n  conform(src) // legality-checks every emission this test does produce\n  const batches = capture<Row>(src)\n\n  rt.batch(() => {\n    src.write('a', ['n'], 2)\n    src.write('a', ['n'], 3)\n    src.write('a', ['n'], 1) // net-zero at the leaf: A→B→C→A\n    src.insert // (no-op read; keep the batch write-only)\n    src.write('ghost', [], { n: 9 })\n    src.remove('ghost') // add + remove annihilate\n  })\n  same(batches.length, 0) // the ENTIRE batch consolidated away — no commit, no phantom events\n\n  rt.batch(() => {\n    src.write('a', ['n'], 5)\n    src.write('a', ['n'], 6)\n    src.write('b', [], { n: 7 })\n  })\n  same(batches.length, 1)\n  same(batches[0].rows.length, 2) // ≤1 delta per key: a's two writes consolidated\n  const a = batches[0].rows.find((d) => d.key === 'a')!\n  ok(a.op === 'update' && (a as any).prev.n === 1) // first prev, last row\n})"
+ },
+ {
+  "index": 11,
+  "line": 327,
+  "name": "clause 10a: remove(key, path) deletes the field; the delta is a deleted-marked update",
+  "clause": 10,
+  "gist": "Clause 10a — nested-field removal: property deleted, delta carries deleted:true, no phantom.",
+  "inherited": false,
+  "source": "test('clause 10a: remove(key, path) deletes the field; the delta is a deleted-marked update', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<{ a?: { b?: number; c?: number } }>(rt, { r: { a: { b: 1, c: 2 } } })\n  conform(src)\n  const batches = capture<any>(src)\n\n  src.remove('r', ['a', 'b'])\n  same(batches.length, 1)\n  const d = batches[0].rows[0] as any\n  same(d.op, 'update')\n  same(d.deleted, true)\n  same(d.path, ['a', 'b'])\n  same(src.snapshot().get('r'), { a: { c: 2 } }) // property GONE, not undefined\n  ok(!Object.hasOwn(src.snapshot().get('r')!.a!, 'b')) // enumeration changed\n  same((d.prev as any).a.b, 1) // prev carries the deleted leaf's value\n\n  // Array-element deletion is refused loudly — a sparse hole is version-broken.\n  const arr = new SourceNode<{ xs: (number | undefined)[] }>(rt, { r: { xs: [1, 2, 3] } })\n  assert.throws(() => arr.remove('r', ['xs', 1]), /sparse hole/)\n  // The refusal outranks the undefined-leaf no-op: an OWNED slot holding\n  // explicit `undefined` still throws; only an out-of-range index is the\n  // clause-10b absent-target no-op (pinned at SCHEDULE_VERSION 4).\n  arr.write('r', ['xs'], [1, undefined, 3])\n  assert.throws(() => arr.remove('r', ['xs', 1]), /sparse hole/)\n  arr.remove('r', ['xs', 9]) // out of range — silent 10b no-op\n  same(arr.snapshot().get('r')!.xs, [1, undefined, 3])\n})"
+ },
+ {
+  "index": 12,
+  "line": 356,
+  "name": "clause 10b: every absent-target remove is a silent no-op, never a throw or a write",
+  "clause": 10,
+  "gist": "Clause 10b — removes are idempotent everywhere: non-live key, absent ancestor, un-owned leaf.",
+  "inherited": false,
+  "source": "test('clause 10b: every absent-target remove is a silent no-op, never a throw or a write', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<any>(rt, { r: { a: { b: 1 } }, s: { flat: 0 }, u: { x: undefined } })\n  conform(src)\n  const batches = capture<any>(src)\n\n  src.remove('ghost') // non-live key\n  src.remove('ghost', ['a']) // non-live key, deep\n  src.remove('r', ['nope', 'deep']) // absent ancestor\n  src.remove('r', ['a', 'nope']) // un-owned leaf\n  src.remove('s', ['flat', 'under-scalar']) // scalar ancestor\n  src.remove('u', ['x']) // owned-but-undefined leaf: absence ≡ undefined at the leaf\n  same(batches.length, 0) // not one emission, not one throw\n  same(src.snapshot().get('r'), { a: { b: 1 } }) // and not one write\n})"
+ },
+ {
+  "index": 13,
+  "line": 373,
+  "name": "clause 10c: vivify-under-null/scalar on live rows; deep write to a non-live key throws",
+  "clause": 10,
+  "gist": "Clause 10c — deep writes vivify under null/scalar on LIVE rows; stay loud on dead keys.",
+  "inherited": false,
+  "source": "test('clause 10c: vivify-under-null/scalar on live rows; deep write to a non-live key throws', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<any>(rt, { r: { a: null, s: 5 } })\n  conform(src)\n\n  src.write('r', ['a', 'deep'], 1) // null intermediate → vivified object\n  same(src.snapshot().get('r').a, { deep: 1 })\n  src.write('r', ['s', 'deep'], 2) // scalar intermediate → vivified object\n  same(src.snapshot().get('r').s, { deep: 2 })\n  // A STRING intermediate vivifies CLEAN (SCHEDULE_VERSION 4): spreading the\n  // string would leak its index characters ({'0':'a','1':'b',...}) into the\n  // vivified object — junk that would replicate to every peer.\n  src.write('r', ['t'], 'abc')\n  src.write('r', ['t', 'deep'], 3)\n  same(src.snapshot().get('r').t, { deep: 3 })\n  assert.throws(() => src.write('dead', ['a'], 1), /not live/) // a deep write cannot invent a row\n})"
+ },
+ {
+  "index": 14,
+  "line": 394,
+  "name": "clause 8: same-batch field-write/field-delete merges — annihilate, keep-delete, drop-marker, restore",
+  "clause": 8,
+  "gist": "Clause 8 × 10a — same-batch field-write + field-delete consolidation. The four merge shapes recordUpdate implements; a regression in the keeps-the-marker branch would emit the exact update-to-undefined shape clause 10a outlaws.",
+  "inherited": false,
+  "source": "test('clause 8: same-batch field-write/field-delete merges — annihilate, keep-delete, drop-marker, restore', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<any>(rt, { a: { n: 1 }, b: { n: 2 }, c: { n: 3 }, d: { n: 4 } })\n  conform(src)\n  const batches = capture<any>(src)\n\n  // (1) set-then-delete of a NEVER-OWNED field: annihilates (net zero).\n  rt.batch(() => {\n    src.write('a', ['tmp'], 5)\n    src.remove('a', ['tmp'])\n  })\n  same(batches.length, 0)\n  ok(!Object.hasOwn(src.snapshot().get('a'), 'tmp'))\n\n  // (2) set-then-delete of an OWNED field: ONE update keeping deleted:true —\n  // never an update-to-undefined.\n  rt.batch(() => {\n    src.write('b', ['n'], 9)\n    src.remove('b', ['n'])\n  })\n  same(batches.length, 1)\n  const d2 = batches[0].rows[0]\n  same(d2.op, 'update')\n  same(d2.deleted, true)\n  same(d2.path, ['n'])\n  ok(!Object.hasOwn(d2.row, 'n')) // the field is GONE on the merged row\n  same(d2.prev.n, 2) // first prev\n\n  // (3) delete-then-set: the marker DROPS — one plain field update.\n  rt.batch(() => {\n    src.remove('c', ['n'])\n    src.write('c', ['n'], 7)\n  })\n  same(batches.length, 2)\n  const d3 = batches[1].rows[0]\n  same(d3.op, 'update')\n  same(d3.deleted, undefined)\n  same(d3.path, ['n'])\n  same(d3.row.n, 7)\n  same(d3.prev.n, 3)\n\n  // (4) delete-then-restore the SAME value: annihilates (no phantom update).\n  rt.batch(() => {\n    src.remove('d', ['n'])\n    src.write('d', ['n'], 4)\n  })\n  same(batches.length, 2) // nothing new emitted\n  same(src.snapshot().get('d').n, 4)\n})"
+ },
+ {
+  "index": 15,
+  "line": 445,
+  "name": "clause 10d: a poison record never aborts its siblings; rejects collect into one AggregateError",
+  "clause": 10,
+  "gist": "Clause 10d — ingest isolates per record: siblings commit, rejects surface after the flush.",
+  "inherited": false,
+  "source": "test('clause 10d: a poison record never aborts its siblings; rejects collect into one AggregateError', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<Row>(rt, {})\n  conform(src)\n  const batches = capture<Row>(src)\n\n  // Default: loud — AggregateError AFTER the good records committed + emitted.\n  assert.throws(\n    () =>\n      ingest(src, [\n        { t: 'add', k: 'a', v: { n: 1 } },\n        { t: 'update', k: 'ghost', path: ['n'], v: 9 }, // poison: deep write to a dead key\n        { t: 'add', k: 'b', v: { n: 2 } }, // the pre-v4 bug LOST this one\n      ]),\n    (e: unknown) => e instanceof AggregateError && /rejected 1 of 3/.test((e as Error).message),\n  )\n  same(batches.length, 1) // ONE batch, already flushed before the throw\n  same(src.snapshot().size, 2) // both siblings committed\n  same(src.snapshot().get('b'), { n: 2 })\n\n  // onReject: consumed, no throw, report returned.\n  const rejects: number[] = []\n  const report = ingest(\n    src,\n    [\n      { t: 'update', k: 'a', path: ['n'], v: 10 },\n      { t: 'update', k: 'ghost2', path: ['n'], v: 9 },\n    ],\n    { onReject: (rj) => rejects.push(rj.index) },\n  )\n  same(report, { applied: 1, rejected: 1 })\n  same(rejects, [1])\n  same(src.snapshot().get('a'), { n: 10 })\n})"
+ },
+ {
+  "index": 16,
+  "line": 481,
+  "name": "clause 9: coalescing changes commit COUNT, never semantics — default stays sync per chunk",
+  "clause": 9,
+  "gist": "Clause 9 — coalescing is opt-in sugar: same final state, fewer commits; default stays sync.",
+  "inherited": false,
+  "source": "test('clause 9: coalescing changes commit COUNT, never semantics — default stays sync per chunk', async () => {\n  const rt = new Runtime()\n  // Already-resolved next() promises: both chunks settle back-to-back in one\n  // tick (an async generator's resumption takes extra hops and would defeat\n  // the same-tick premise — the seam suite pinned this construction).\n  const chunks = [[{ n: 1 }], [{ n: 2 }]]\n  const mkIter = () => {\n    let i = 0\n    return {\n      [Symbol.asyncIterator]: () => ({\n        next: () =>\n          Promise.resolve(\n            i < chunks.length ? { value: chunks[i++], done: false as const } : { value: undefined, done: true as const },\n          ),\n      }),\n    }\n  }\n  const sync = fromAsync(rt, mkIter())\n  const syncBatches = capture<{ n: number }>(sync.source)\n  await new Promise((r) => setTimeout(r, 20))\n  same(sync.status(), 'ready')\n  same(syncBatches.length, 2) // the DEFAULT: one synchronous commit per chunk (clause 1)\n\n  const co = fromAsync(rt, mkIter(), { coalesce: 'microtask' })\n  const coBatches = capture<{ n: number }>(co.source)\n  await new Promise((r) => setTimeout(r, 20))\n  same(co.status(), 'ready')\n  same(coBatches.length, 1) // opted in: one merged commit...\n  same(co.source.rowCount(), sync.source.rowCount()) // ...identical final state — sugar, not semantics\n})"
+ },
+ {
+  "index": 17,
+  "line": 513,
+  "name": "clause 11: NUL/unicode keys are total; undefined/NaN are first-class; by-ref values are shared-immutable",
+  "clause": 11,
+  "gist": "Clause 11 — the value-domain portability table: NUL keys, first-class NaN/undefined, by-ref immutability.",
+  "inherited": false,
+  "source": "test('clause 11: NUL/unicode keys are total; undefined/NaN are first-class; by-ref values are shared-immutable', () => {\n  const rt = new Runtime()\n  const src = new SourceNode<any>(rt, {})\n  conform(src)\n\n  // NUL and friends in KEYS — no separator assumption may leak (the v2 \\x00 bug class).\n  const evil = ['\\x00', 'a\\x00b', '\\x00\\x00', 'ключ🔑', 'a.b[c]']\n  for (const k of evil) src.write(k, [], { n: k.length })\n  for (const k of evil) ok(src.hasRow(k), `key ${JSON.stringify(k)} lost`)\n  src.remove('a\\x00b')\n  ok(!src.hasRow('a\\x00b') && src.hasRow('\\x00')) // no over-matching via separators\n\n  // undefined and NaN as first-class VALUES (dense — the row exists).\n  src.write('u', [], undefined)\n  ok(src.hasRow('u') && src.rowAt('u') === undefined)\n  src.write('nan', [], { x: NaN })\n  ok(Number.isNaN((src.rowAt('nan') as any).x)) // in-engine NaN survives (wire codecs own their fate)\n\n  // By-ref surfaces share the SAME reference (the shared-immutable contract).\n  const row = { deep: { v: 1 } }\n  let seen: any\n  src.connect({ wantsOrder: false, origin: null, apply: (b: any) => (seen = b.rows[0]?.row) })\n  src.write('r', [], row)\n  ok(seen === row)\n})"
+ }
+]

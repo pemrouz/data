@@ -1,0 +1,1431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data — only do the work that changed</title>
+  <meta name="description" content="A reactive data engine for TypeScript. $() wraps a value; chainable operators derive views incrementally; sinks deliver consolidated deltas; render binds to the DOM. Work scales with the change, not the dataset.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230c0c0d'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+<!-- importmap -->
+<script type="importmap">{"imports":{"data":"./lib/api/index.js","data/contract":"./lib/contract/index.js","data/conform":"./lib/conformance/harness.js","data/replay":"./lib/conformance/replay.js","data/legality":"./lib/conformance/legality.js","data/schedule-suite":"./lib/conformance/schedule.test.js","data/shim-test":"./shim/test.js","data/devtools":"./lib/devtools/index.js","data/devtools-dom":"./lib/devtools/dom.js","data/devtools-panel":"./lib/devtools/panel/index.js","mobx":"https://esm.sh/mobx@6.15.3","solid-js":"https://esm.sh/solid-js@1.9.12","@preact/signals-core":"https://esm.sh/@preact/signals-core@1.14.1","@vue/reactivity":"https://esm.sh/@vue/reactivity@3.5.34","crossfilter2":"https://esm.sh/crossfilter2@1.5.4","rxjs":"https://esm.sh/rxjs@7.8.2","rxjs/operators":"https://esm.sh/rxjs@7.8.2/operators","react":"https://esm.sh/react@19.2.6","react-dom":"https://esm.sh/react-dom@19.2.6","react-dom/client":"https://esm.sh/react-dom@19.2.6/client","svelte/store":"https://esm.sh/svelte@5.55.5/store"}}</script>
+<link rel="modulepreload" href="./lib/api/index.js">
+<link rel="modulepreload" href="./lib/compat/v2-records.js">
+<link rel="modulepreload" href="./lib/contract/delta.js">
+<link rel="modulepreload" href="./lib/contract/index.js">
+<link rel="modulepreload" href="./lib/jsx/index.js">
+<link rel="modulepreload" href="./lib/jsx/runtime.js">
+<link rel="modulepreload" href="./lib/kernel/node.js">
+<link rel="modulepreload" href="./lib/kernel/runtime.js">
+<link rel="modulepreload" href="./lib/kernel/scope.js">
+<link rel="modulepreload" href="./lib/kernel/store.js">
+<link rel="modulepreload" href="./lib/ops/aggregate.js">
+<link rel="modulepreload" href="./lib/ops/between.js">
+<link rel="modulepreload" href="./lib/ops/bucket.js">
+<link rel="modulepreload" href="./lib/ops/membership.js">
+<link rel="modulepreload" href="./lib/ops/misc.js">
+<link rel="modulepreload" href="./lib/ops/ordered.js">
+<link rel="modulepreload" href="./lib/ops/quantile.js">
+<link rel="modulepreload" href="./lib/ops/reactive.js">
+<link rel="modulepreload" href="./lib/ops/registry.js">
+<link rel="modulepreload" href="./lib/ops/rowops.js">
+<link rel="modulepreload" href="./lib/ops/setops.js">
+<link rel="modulepreload" href="./lib/render/builders.js">
+<link rel="modulepreload" href="./lib/render/index.js">
+<link rel="modulepreload" href="./lib/seam/index.js">
+<!-- /importmap -->
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./variants.css">
+  <link rel="stylesheet" href="./sections/lede.css">
+  <link rel="stylesheet" href="./sections/race.css">
+  <link rel="stylesheet" href="./sections/argument.css">
+  <link rel="stylesheet" href="./sections/operators.css">
+  <link rel="stylesheet" href="./sections/start.css">
+  <link rel="stylesheet" href="./sections/devtools.css">
+  <link rel="stylesheet" href="./sections/contract.css">
+  <link rel="stylesheet" href="./sections/wire.css">
+  <link rel="stylesheet" href="./sections/gallery.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div id="copy-live" class="sr-only" aria-live="polite"></div>
+
+<svg class="sr-only" aria-hidden="true" focusable="false">
+  <symbol id="i-github" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+</svg>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <a class="mark" href="./index.html"><b>$</b> data</a>
+    <span class="rule"></span>
+    <span class="date">a reactive data engine for typescript</span>
+    <nav class="mast-nav">
+      <a href="#race">demo</a>
+      <a href="#operators">operators</a>
+      <a href="#start">start</a>
+      <a href="#contract">contract</a>
+      <a class="icon-link" href="https://github.com/pemrouz/data" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><use href="#i-github"/></svg></a>
+    </nav>
+  </header>
+
+  <main id="main">
+
+  <!-- ===== lede ===== -->
+<section class="lede" id="lede">
+  <div class="opt" data-section="lede">
+
+    <!-- a · the old claim, refilled for v4 -->
+    <div data-variant="a" data-label="the old claim">
+      <p class="kicker">the original sin of reactive UI</p>
+      <h1 class="headline">Only do the work that <em>changed</em>.</h1>
+      <p class="standfirst">
+        Almost every reactive system re-runs the whole computation when a single
+        value changes. <b>data</b> is a reactive data engine that moves only the
+        change: <code>$()</code> wraps a value, operators derive incrementally-maintained
+        views, sinks deliver consolidated deltas, render binds to the DOM. Work
+        scales with the change, not the dataset.
+      </p>
+      <p class="lede-sub">
+        Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+        fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+        analytics, grids, live feeds.
+      </p>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-a" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+    <!-- b · the claim with a live figure — REAL: the figure is $(trades) on the page's one
+         runtime (sections/lede.js): rows rendered by the keyed list sink, the delta line printed
+         from trades.sink({ apply }), seq from the batch, rows from rowCount(); the trust line's
+         figures come from gen/manifest.json (build) and contract.SCHEDULE_VERSION (runtime). -->
+    <div data-variant="b" data-label="the claim with a live figure">
+      <p class="kicker">one write, one path</p>
+      <h1 class="headline">Only the change <em>moves</em>.</h1>
+      <div class="lede-grid">
+        <div class="lede-text">
+          <p class="standfirst">
+            Almost every reactive system re-runs the whole computation when a single
+            value changes. <b>data</b> is a reactive data engine that moves only the
+            change: <code>$()</code> wraps a value, operators derive incrementally-maintained
+            views, sinks deliver consolidated deltas, render binds to the DOM. Work
+            scales with the change, not the dataset.
+          </p>
+          <p class="lede-sub">
+            Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+            fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+            analytics, grids, live feeds.
+          </p>
+        </div>
+
+        <figure class="lede-fig" id="lede-fig-b" aria-label="one deep-path write on a live source, the cell the list sink re-renders, and the single delta the sink delivers">
+          <div class="fig-head">
+            <span class="fig-src"><b>$</b>(trades)</span>
+            <span class="fig-head-r">object-born · keyed · <span id="lede-rowcount-b" data-attested="runtime"></span> rows</span>
+          </div>
+          <div class="fig-write">
+            <span class="fig-lab">write</span>
+            <code>trades<span class="tok-pun">.</span>t3<span class="tok-pun">.</span>qty<span class="tok-pun">.</span>update<span class="tok-pun">(</span><span class="tok-num" id="lede-write-val-b"></span><span class="tok-pun">)</span></code>
+          </div>
+          <table class="fig-table" aria-label="trades">
+            <thead><tr><th>key</th><th>sym</th><th>side</th><th class="num">qty</th><th class="num">px</th></tr></thead>
+            <tbody id="lede-rows-b"></tbody>
+          </table>
+          <div class="fig-delta">
+            <span class="fig-lab">delta</span>
+            <span class="d-line" id="lede-delta-b"><span class="d-verb" id="lede-op-b" data-attested="runtime"></span> <span class="d-key" id="lede-key-b" data-attested="runtime"></span> <span class="d-path" id="lede-path-b" data-attested="runtime"></span> <span class="d-prev" id="lede-prev-b" data-attested="runtime"></span> <span class="d-arr">→</span> <span class="d-next" id="lede-next-b" data-attested="runtime"></span></span>
+            <span class="fig-seq">seq <b id="lede-seq-b" data-attested="runtime"></b></span>
+          </div>
+        </figure>
+      </div>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-b" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b id="lede-deps-b" data-attested="build">—</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION <span id="lede-ver-b" data-attested="runtime">—</span> <span class="sep">·</span> <b id="lede-tests-b" data-attested="build">—</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+    <!-- c · the duality claim -->
+    <div data-variant="c" data-label="the duality claim">
+      <p class="kicker">change &amp; derivation</p>
+      <h1 class="headline">A table and its <span class="nb">change-stream</span> are <em>one thing</em>.</h1>
+      <p class="standfirst">
+        A write is a delta — three row verbs, <code>add</code> · <code>update</code> ·
+        <code>remove</code>, in one batch envelope — and every operator consumes and
+        emits exactly that. So a filter, a count, a grouping stays live for the price
+        of the change, not the table. <b>data</b> keeps the table and its stream as
+        one thing: wrap a value in <code>$()</code>, chain operators, bind to the DOM.
+      </p>
+      <p class="lede-sub">
+        Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+        fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+        analytics, grids, live feeds.
+      </p>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-c" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== race ===== -->
+<section class="race" id="race">
+  <div class="opt" data-section="race">
+
+    <!-- ===== a · nine engines — the old race, verbatim in form ===== -->
+    <div data-variant="a" data-label="nine engines">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · flip through nine</span>
+        <div class="race-ctrl">
+          <span class="ctrl carousel">
+            <button id="race-prev-a" type="button" title="previous engine" aria-label="previous engine">‹</button>
+            <select id="race-lib-a" aria-label="reactive engine"></select>
+            <button id="race-next-a" type="button" title="next engine" aria-label="next engine">›</button>
+            <span class="race-pos" id="race-pos-a">1 / 9</span>
+          </span>
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-a" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-a">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-a" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <!-- workload 1: the streaming order book, one engine card at a time -->
+      <div class="race-grid" id="race-grid-a">
+        <div class="rcard is-data" id="race-card-a">
+          <div class="rcard-head">
+            <span class="rcard-name"><span id="race-name-a">data</span><span class="rcard-ver" id="race-ver-a">v4</span></span>
+            <span class="rcard-tag" id="race-tag-a">length(bucket)×2 · filter→length · avg — O(1)/tick</span>
+            <span class="rcard-cpu" id="race-cpu-a">—</span>
+          </div>
+          <div class="ob-body" id="race-ob-a">
+            <canvas class="ob-depth" id="race-depth-a" aria-label="depth chart"></canvas>
+            <div class="ob-ladder" id="race-ladder-a"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rcard-wave">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub"><b id="race-ratio-a">baseline</b> · dashed line = 16ms / 60fps budget</span></div>
+            <canvas id="race-wave-a" aria-label="cpu per frame"></canvas>
+          </div>
+          <div class="rcard-foot">
+            <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">data baseline</span><b class="fstat-v fstat-base" id="race-base-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-a">—</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- workload 2: the same engine, brushing 231k rows -->
+      <div class="race-md-label">↓ same engine · interactive brushing · 231,083 flight rows — drag any chart</div>
+      <div class="race-multidim" id="race-md-a">
+        <div class="rb-row">
+          <div class="rb-meta">
+            <div class="rb-name is-data"><span id="race-md-name-a">data</span><span class="rb-ver" id="race-md-ver-a">v4</span></div>
+            <div class="rb-tag" id="race-md-tag-a">between → intersect → length(fn) · O(Δ)/brush</div>
+          </div>
+          <div class="rb-charts" id="race-charts-a"></div>
+          <div class="rb-top"><ol id="race-top-a"></ol></div>
+          <div class="rb-stats">
+            <div class="rb-count"><b id="race-active-a">—</b><span class="rb-dim"> / </span><span id="race-total-a">231,083</span></div>
+            <div class="rb-lat">
+              <span class="rb-lat-row"><span class="rb-lat-k">p50</span><span class="rb-lat-v"><b id="race-p50-a">—</b><span class="rb-lat-u">ms</span></span></span>
+              <span class="rb-lat-row"><span class="rb-lat-k">p95</span><span class="rb-lat-v"><b id="race-p95-a">—</b><span class="rb-lat-u">ms</span></span></span>
+              <span class="rb-lat-row"><span class="rb-lat-k">n</span><span class="rb-lat-v"><b id="race-n-a">0</b></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="race-caption">
+        The <b>same engine</b> you pick above, doing two jobs. Top: one order-book tick
+        stream through the same depth-chart-and-ladder viz — every tick is a deep-path
+        write, and <b>data</b> moves a couple of bucket counters per delta
+        (<code>length(bucket)</code> is aggregate-decomposable: O(1) per change); every
+        peer re-walks all 150,000 orders once per frame (O(N)), and the green baseline
+        is <b>data</b> against the 16 ms budget. Bottom: the same library filtering
+        231,083 flight rows as you brush — a brush is one
+        <code>filters.get(name).update([lo, hi])</code>, and <code>between</code> walks
+        only the rows entering or leaving the window. Every implementation is the real
+        library doing the idiomatic thing; every number is this machine's.
+      </p>
+    </div>
+
+    <!-- ===== b · one engine · two workloads — no peers, two columns ===== -->
+    <div data-variant="b" data-label="one engine · two workloads">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · every number measured on this page</span>
+        <div class="race-ctrl">
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-b" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-b">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-b" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <div class="race-two" id="race-two-b">
+        <!-- left: the order book -->
+        <div class="rcard race-two-card">
+          <div class="rcard-head">
+            <span class="rcard-name">order book</span>
+            <span class="rcard-tag">150,000 orders · length(bucket)×2 · filter→length · avg</span>
+            <span class="rcard-cpu" id="race-cpu-b">—</span>
+          </div>
+          <div class="ob-body ob-body-slim" id="race-ob-b">
+            <canvas class="ob-depth" id="race-depth-b" aria-label="depth chart"></canvas>
+            <div class="ob-ladder" id="race-ladder-b"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rcard-wave rcard-wave-slim">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub">one commit per frame · dashed line = 16ms / 60fps budget</span></div>
+            <canvas id="race-wave-b" aria-label="cpu per frame"></canvas>
+          </div>
+        </div>
+        <!-- right: brushing -->
+        <div class="rcard race-two-card">
+          <div class="rcard-head">
+            <span class="rcard-name">brushing</span>
+            <span class="rcard-tag">231,083 flight rows · between → intersect → length(fn)</span>
+            <span class="rcard-cpu" id="race-brush-cpu-b">—</span>
+          </div>
+          <div class="rb-grid" id="race-charts-b"></div>
+          <div class="rb-readout"><span class="rb-readout-hint">drag any chart —</span> <b id="race-active-b">—</b> of <span id="race-total-b">231,083</span> rows · <b class="rb-readout-ms" id="race-ms-b">—</b></div>
+        </div>
+      </div>
+
+      <div class="rcard-foot race-two-foot">
+        <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">commits / sec</span><b class="fstat-v fstat-base" id="race-cps-b">—</b></div>
+      </div>
+
+      <p class="race-caption">
+        Two workloads, one engine, nothing to hide behind. Left: a 150,000-order book
+        ticking at the rate you set — each tick is one deep-path write, all of a frame's
+        ticks land in <b>one</b> consolidated commit, and <code>length(bucket)×2</code>,
+        <code>filter→length</code> and <code>avg</code> move a counter apiece, so the frame
+        cost is the flat line under the 16 ms budget. Right: 231,083 flight rows under four
+        brushes — a brush is one <code>filters.get(name).update([lo, hi])</code>;
+        <code>between</code> walks only the rows crossing the boundary, and
+        <code>intersect</code> and <code>length(fn)</code> fold the deltas. The figures
+        are this machine's, measured as you watch.
+      </p>
+    </div>
+
+    <!-- ===== c · follow one write — the write's journey in four cards ===== -->
+    <div data-variant="c" data-label="follow one write">
+      <div class="race-head">
+        <span class="race-title">follow one write · trades.t3.qty.update(v) · four sinks</span>
+        <div class="race-ctrl">
+          <span class="ctrl fw-seq">seq <b id="race-seq-c">—</b></span>
+          <span class="ctrl fw-dimctl">SCHEDULE_VERSION 4 · SCHEMA_VERSION 3</span>
+          <button id="race-tour-c" type="button" title="play a scripted drag through both thresholds">▶ play the crossings</button>
+        </div>
+      </div>
+
+      <div class="fw-grid">
+        <!-- 1 · write -->
+        <div class="fw-plate" id="fw-write-c">
+          <div class="fw-head"><span class="fw-no">1</span><h3>Write</h3><code class="fw-cap">render(list(trades))</code></div>
+          <table class="fw-rows" id="fw-rows-c" aria-label="the trades source"></table>
+          <p class="fw-hint">drag the number — every move is <code>trades.t3.qty.update(v)</code></p>
+<pre class="code">const trades = $({ t3: { sym: 'NVDA', qty: 500, … }, … })
+batch(() => samples.forEach(v => trades.t3.qty.update(v)))</pre>
+        </div>
+
+        <!-- 2 · delta -->
+        <div class="fw-plate" id="fw-delta-c">
+          <div class="fw-head"><span class="fw-no">2</span><h3>Delta</h3><code class="fw-cap">trades.sink({ init, apply })</code></div>
+          <p class="fw-big" id="fw-big-c">—</p>
+          <p class="fw-meta" id="fw-meta-c">—</p>
+          <pre class="fw-json" id="fw-json-c"></pre>
+<pre class="code">trades.sink({
+  init:  snapshot => show(snapshot),
+  apply: b => show(b),  // { seq, origin, rows, order, scalar }
+})</pre>
+        </div>
+
+        <!-- 3 · flow -->
+        <div class="fw-plate" id="fw-flow-c">
+          <div class="fw-head"><span class="fw-no">3</span><h3>Flow</h3><code class="fw-cap">runtime().onCommit(c => …)</code></div>
+          <svg class="fw-graph" id="fw-graph-c" viewBox="0 0 586 200" role="img" aria-label="The operator graph: trades feeds buys, which feeds largest, typical and volume">
+            <path class="edge" id="fw-e-buys-c"    d="M120 96 L170 96"/>
+            <path class="edge" id="fw-e-largest-c" d="M280 96 C312 96 308 30 340 30"/>
+            <path class="edge" id="fw-e-typical-c" d="M280 96 L340 96"/>
+            <path class="edge" id="fw-e-volume-c"  d="M280 96 C312 96 308 162 340 162"/>
+            <g class="gn" id="fw-n-trades-c">
+              <text class="h" x="10" y="77">h0 · source</text>
+              <rect class="box" x="10" y="83" width="110" height="26" rx="3"/>
+              <text class="name" x="65" y="100.5">trades</text>
+              <text class="emit" x="65" y="122"></text>
+              <text class="sub" x="65" y="133">4 rows</text>
+            </g>
+            <g class="gn" id="fw-n-buys-c">
+              <text class="h" x="170" y="77">h1 · filter</text>
+              <rect class="box" x="170" y="83" width="110" height="26" rx="3"/>
+              <text class="name" x="225" y="100.5">buys</text>
+              <text class="emit" x="225" y="122"></text>
+              <text class="sub" x="225" y="133">3 rows</text>
+            </g>
+            <g class="gn" id="fw-n-largest-c">
+              <text class="h" x="468" y="34">h2 · za('qty', 2)</text>
+              <rect class="box" x="340" y="17" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="34.5">largest</text>
+              <text class="emit" x="400" y="56"></text>
+              <text class="sub" x="400" y="67"></text>
+            </g>
+            <g class="gn" id="fw-n-typical-c">
+              <text class="h" x="468" y="100">h2 · median('px')</text>
+              <rect class="box" x="340" y="83" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="100.5">typical</text>
+              <text class="emit" x="400" y="122"></text>
+              <text class="sub" x="400" y="133">187.5</text>
+            </g>
+            <g class="gn" id="fw-n-volume-c">
+              <text class="h" x="468" y="166">h2 · sum('qty')</text>
+              <rect class="box" x="340" y="149" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="166.5">volume</text>
+              <text class="emit" x="400" y="188"></text>
+              <text class="sub" x="400" y="199" style="display:none"></text>
+            </g>
+          </svg>
+          <p class="fw-trace" id="fw-trace-c">—</p>
+<pre class="code">const buys = trades.filter(t => t.side === 'buy')
+const largest = buys.za('qty', 2), typical = buys.median('px')
+const volume = buys.sum('qty');    runtime().onCommit(trace)</pre>
+        </div>
+
+        <!-- 4 · sink -->
+        <div class="fw-plate" id="fw-sink-c">
+          <div class="fw-head"><span class="fw-no">4</span><h3>Sink</h3><code class="fw-cap">two sinks · one batch</code></div>
+          <div class="fw-twin">
+            <div class="fw-half">
+              <div class="fw-scap">dom · <code>render(list(largest))</code></div>
+              <ol class="fw-ranked" id="fw-ranked-c"></ol>
+              <div class="fw-ops" id="fw-ops-c">—</div>
+            </div>
+            <div class="fw-half">
+              <div class="fw-scap">wire · <code>WireBatch → ingest(replica)</code></div>
+              <div class="fw-chips" id="fw-chips-c"></div>
+              <div class="fw-rep" id="fw-rep-c">—</div>
+            </div>
+          </div>
+          <pre class="fw-json" id="fw-wire-c"></pre>
+<pre class="code">render(ol, list(largest, t => li(b(t.sym), t.qty)))
+wireSink(largest, wb => ingest(replica, wb.records))</pre>
+        </div>
+      </div>
+
+      <p class="race-caption" id="fw-caption-c">
+        You dragged one number and watched it travel. The write became one delta carrying its
+        path and its previous value; it flowed through exactly the views that read it —
+        <b>typical</b> never lit, because a median over <code>px</code> learns nothing from a
+        <code>qty</code> — and two sinks received the same consolidated batch: one rendered a
+        list with a single DOM instruction, one replayed it into a replica that stayed identical.
+        That is the whole engine — three row verbs, three order verbs, one envelope, and work
+        proportional to the change.
+      </p>
+    </div>
+
+    <!-- ===== d · nine engines · two workloads — b's two columns under a's carousel (THE PICK) ===== -->
+    <div data-variant="d" data-label="nine engines · two workloads">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · flip through nine</span>
+        <div class="race-ctrl">
+          <span class="ctrl carousel">
+            <button id="race-prev-d" type="button" title="previous engine" aria-label="previous engine">‹</button>
+            <select id="race-lib-d" aria-label="reactive engine"></select>
+            <button id="race-next-d" type="button" title="next engine" aria-label="next engine">›</button>
+            <span class="race-pos" id="race-pos-d" data-literal>1 / 9</span>
+          </span>
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-d" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-d" data-literal title="the requested rate — the strip's ticks / sec is what was applied">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-d" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <div class="race-two rd-two">
+        <!-- left: the order book — re-tagged by the engine you pick -->
+        <div class="rcard race-two-card rd-card is-data" id="race-card-d">
+          <div class="rcard-head rd-head">
+            <span class="rd-kick">order book · <b id="race-rows-d">—</b> orders · deep-path writes</span>
+            <span class="rcard-cpu" id="race-cpu-d">—</span>
+            <span class="rcard-name"><span id="race-name-d">data</span><span class="rcard-ver" id="race-ver-d" data-literal>v4</span></span>
+            <span class="rcard-tag" id="race-tag-d" data-literal>length(bucket)×2 · filter→length · avg×2 — O(1)/tick</span>
+          </div>
+          <div class="ob-body rd-ob" id="race-ob-d">
+            <div class="rd-build" id="race-build-d" hidden><span class="rd-build-k">building the order book</span><span class="rd-build-stage" id="race-build-stage-d">generating rows</span><b id="race-build-ms-d"></b><span class="rd-build-bar"><i id="race-build-bar-d"></i></span></div>
+            <canvas class="ob-depth rd-depth" id="race-depth-d" aria-label="depth chart"></canvas>
+            <div class="ob-ladder rd-ladder" id="race-ladder-d"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rd-tape"><span class="rd-tape-k">last deltas</span><div class="rd-tape-line" id="race-tape-d"></div></div>
+          <div class="rcard-wave rd-wave">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub"><b id="race-ratio-d">baseline</b> · dashed line = <span data-literal>16 ms / 60 fps</span> budget</span></div>
+            <canvas id="race-wave-d" aria-label="cpu per frame"></canvas>
+          </div>
+        </div>
+        <!-- right: brushing — the real flights on the real engine; re-tagged and raced by the engine you pick, like the book -->
+        <div class="rcard race-two-card rd-card is-data" id="race-brush-card-d">
+          <div class="rcard-head rd-head">
+            <span class="rd-kick">brushing · <span id="race-fl-kick-d">loading the flights</span> · drag any chart</span>
+            <span class="rcard-cpu" id="race-brush-cpu-d" title="the session's median brush (p50) — the readout's ms is the last brush">—</span>
+            <span class="rcard-name"><span id="race-md-name-d">data</span><span class="rcard-ver" id="race-md-ver-d" data-literal>v4</span></span>
+            <span class="rcard-tag" id="race-md-tag-d" data-literal>between → intersect → length(fn) · O(Δ)/brush</span>
+          </div>
+          <div class="rb-grid rd-grid" id="race-charts-d">
+            <div class="rd-build rd-fbuild" id="race-fbuild-d" hidden><span class="rd-build-k">loading the flights</span><span class="rd-build-stage" id="race-fbuild-stage-d">fetching</span><b id="race-fbuild-ms-d"></b><span class="rd-build-bar"><i id="race-fbuild-bar-d"></i></span></div>
+          </div>
+          <div class="rd-readout">
+            <span class="rd-count"><b id="race-active-d">—</b> of <b id="race-total-d">—</b> rows · <b id="race-ms-d">—</b> ms</span>
+            <span class="rd-lat"><span><span data-literal>p50</span> <b id="race-p50-d">—</b></span><span><span data-literal>p95</span> <b id="race-p95-d">—</b></span><span>n <b id="race-n-d">—</b></span><span class="rd-vs" id="race-brush-vs-d" hidden title="data's median for the same brushes, measured in this tab, and this engine's median over it"><span data-literal>data p50</span> <b id="race-brush-base-d">—</b> · <b id="race-brush-ratio-d">—</b></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rcard-foot race-two-foot rd-foot">
+        <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">data baseline</span><b class="fstat-v fstat-base" id="race-base-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-d">—</b></div>
+      </div>
+
+      <p class="race-caption">
+        The <b>same engine</b> you pick above, doing two jobs. Left: a <b id="race-cap-n-d"></b>-order book
+        ticking at the rate you set — every tick is one deep-path write, a frame's ticks land
+        in <b>one</b> commit, and <b>data</b> moves a bucket counter apiece
+        (<code>length(bucket)</code> is aggregate-decomposable: <span data-literal>O(1)</span> per delta) while every
+        peer re-walks the whole book once per frame (O(N)); green is <b>data</b> against the
+        <span data-literal>16 ms</span> budget. Right: <b id="race-cap-f-d">the</b> flight rows under four brushes — a brush is
+        one <code>filters.get(name).update([lo, hi])</code>; <code>between</code> walks only
+        the rows crossing the boundary, <code>intersect</code> and <code>length(fn)</code>
+        fold the deltas, and the ms/brush is that write, settle included, timed on every
+        pointer move as you drag — under a peer, the same moves through that library's
+        filters and histograms, in the same window. Every implementation is the real library
+        doing the idiomatic thing; crossfilter's index is incremental too, and its walk is a
+        tighter loop over the same crossing rows.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== argument ===== -->
+<section class="essay" id="argument">
+  <div class="opt" data-section="argument">
+
+    <!-- a · the old form verbatim: head → lead → claim → one write → four rows → close -->
+    <div data-variant="a" data-label="the old form · one write, four rows">
+      <div class="sec-head"><span class="sec-no" data-literal>01</span><h2>The argument</h2></div>
+      <p class="lead-para">
+        A change is small. You set one field on one row. Yet most reactive stacks
+        respond by re-running everything downstream — re-filtering the whole list,
+        re-summing every number, diffing an entire tree — and then trusting a
+        memoiser to paper over the waste.
+      </p>
+      <p>
+        <b>data</b> takes the change literally. A write carries its exact path,
+        and each operator in the chain does work scoped to that path alone:
+      </p>
+      <pre class="code" data-hl="off">trades.t3.qty.update<span class="tok-pun">(</span><span class="tok-num">380</span><span class="tok-pun">)</span>   <span class="tok-com">// one delta · path ['qty'] · prev 500</span></pre>
+      <ul class="prop-list">
+        <li><span class="op">filter</span> re-tests the predicate for <em>one</em> row</li>
+        <li><span class="op">za</span> moves <em>one</em> rank</li>
+        <li><span class="op">sum</span> nudges a running total in O(1)</li>
+        <li><span class="op">render</span> rewrites only the single bound cell</li>
+      </ul>
+      <p class="muted">
+        No diff pass. No list re-render. No selector re-run over 231,083 rows. The
+        cost of an update is the length of the path it travels — which is why the
+        race above holds at any rate, and why it scales to datasets that make
+        recompute-everything systems stall.
+      </p>
+    </div>
+
+    <!-- b · the same claim, then the path itself as a strip: write → delta → views → dom.
+         REAL (2026-09-14): trades = $({ t1…t5 }), buys = filter, largest = za('qty', 2),
+         volume = sum('qty'); the DOM cell is render(host, text(trades.t3.qty)); every
+         figure is attested from the engine's sinks / CommitInfo / a MutationObserver. -->
+    <div data-variant="b" data-label="the path as a strip · run it">
+      <div class="sec-head"><span class="sec-no" data-literal>01</span><h2>The argument</h2></div>
+      <p class="lead-para">
+        A change is small. You set one field on one row. Yet most reactive stacks
+        respond by re-running everything downstream — re-filtering the whole list,
+        re-summing every number, diffing an entire tree — and then trusting a
+        memoiser to paper over the waste.
+      </p>
+      <p>
+        <b>data</b> takes the change literally. A write carries its exact path,
+        and each operator in the chain does work scoped to that path alone:
+      </p>
+
+      <div class="arg-strip" id="arg-strip-b">
+        <div class="arg-card" data-step="0">
+          <span class="arg-k">write</span>
+          <code class="arg-code" id="arg-call-b">trades<span class="arg-path">.t3.qty</span>.update<span class="tok-pun">(</span><span class="tok-num" id="arg-call-v-b"></span><span class="tok-pun">)</span></code>
+          <span class="arg-cell"><span class="arg-cell-k">source</span><span class="arg-cell-v dimv">trades · <b id="arg-rows-b"></b> rows</span></span>
+          <span class="arg-cell"><span class="arg-cell-k" data-literal>row t3</span><span class="arg-cell-v dimv"><span id="arg-row-sym-b"></span> · qty <b id="arg-row-b"></b></span></span>
+          <span class="arg-sub">one call · one deep path</span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="1">
+          <span class="arg-k">delta</span>
+          <code class="arg-code" id="arg-delta-b"></code>
+          <span class="arg-cell"><span class="arg-cell-k">batch</span><span class="arg-cell-v dimv">seq <b id="arg-seq-b"></b> · rows <b id="arg-nrows-b"></b></span></span>
+          <span class="arg-sub">one row verb · carries prev</span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="2">
+          <span class="arg-k">views</span>
+          <div class="arg-chips">
+            <span class="arg-chip is-same"><b>buys</b><i id="arg-buys-b"></i></span>
+            <span class="arg-chip is-hot"><b>largest</b><i id="arg-largest-b"></i></span>
+            <span class="arg-chip is-hot"><b>volume</b><i id="arg-volume-b"></i></span>
+          </div>
+          <span class="arg-sub arg-sub-wrap" id="arg-nodes-b"></span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="3">
+          <span class="arg-k">dom</span>
+          <div class="arg-dom">
+            <span class="arg-cell"><span class="arg-cell-k">bound</span><span class="arg-cell-v dimv">qty → text node</span></span>
+            <span class="arg-cell"><span class="arg-cell-k" data-literal>t3 · qty</span><span class="arg-cell-v" id="arg-cell-b" data-attested="runtime"></span></span>
+            <span class="arg-dom-stat"><b class="hot" id="arg-mo-text-b"></b> text · <b id="arg-mo-add-b"></b> added · <b id="arg-mo-rem-b"></b> removed</span>
+          </div>
+          <span class="arg-sub">render · the one bound cell</span>
+        </div>
+      </div>
+      <div class="arg-run">
+        <button type="button" class="stream-btn" id="arg-run-b">run it ▸</button>
+        <span class="arg-status" id="arg-status-b">seq <b id="arg-st-seq-b"></b> · origin <span id="arg-st-origin-b"></span> · <b id="arg-st-nodes-b"></b> nodes settled · write → dom in <b id="arg-st-ms-b"></b> ms · this machine · <b id="arg-st-text-b"></b> text node</span>
+      </div>
+
+      <p class="muted">
+        No diff pass. No list re-render. No selector re-run over the whole table. The
+        cost of an update is the length of the path it travels — which is why the
+        race above holds at any rate, and why it scales to datasets that make
+        recompute-everything systems stall.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== operators ===== -->
+<section class="operators" id="operators">
+  <div class="opt" data-section="operators">
+
+    <!-- ======================= a · the catalogue, four kickers ======================= -->
+    <div data-variant="a" data-label="catalogue · four category kickers · six live cards">
+      <div class="sec-head"><span class="sec-no" data-literal>02</span><h2>The operator surface</h2></div>
+      <p class="lead-para">
+        One source, many derived views. Wrap a collection in <code>$()</code> and
+        chain operators; each returns a view maintained incrementally from the deltas
+        its source emits — the same three row verbs and three order verbs, in and out.
+        Every row below runs live off one shared <code>$(trades)</code> feed — pick a
+        side, drag a bound, watch the top-5 reshuffle, see the groups recount as
+        <code>qty</code> and <code>px</code> tick.
+        <button data-stream-toggle type="button" class="stream-btn" id="op-pause-a">⏸ pause</button>
+      </p>
+      <p class="op-feedline" id="op-feedline-a"><span class="op-fl-src">$(trades)</span> · <b id="op-fl-n-a">12</b> rows · seq <span class="op-seq" id="op-fl-seq-a">0</span> · <span class="op-fl-delta" id="op-fl-delta-a">—</span></p>
+
+      <!-- ---- rowop ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">rowop <b>10</b></span><span class="op-kicker-def">one row in, one row out — the delta passes straight through</span></div>
+      <div class="catalogue">
+        <details class="cat-item" open>
+          <summary class="cat-row"><span class="cat-op">filter</span><span class="cat-desc">rows matching a predicate</span><code class="cat-sig" id="op-sig-filter-a">trades.filter(t =&gt; t.side === 'buy')</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="filter-a">
+            <div class="demo-chips" id="op-filter-chips-a"></div>
+            <div class="demo-stat"><span id="op-filter-n-a">—</span><span class="stat-avg" id="op-filter-avg-a">—</span></div>
+            <div class="op-rows" id="op-filter-rows-a"></div>
+            <div class="op-more" id="op-filter-more-a" hidden></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">map</span><span class="cat-desc">per-row transform</span><code class="cat-sig">trades.map(t =&gt; t.qty * t.px)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">gt / lt / gte / lte</span><span class="cat-desc">single-threshold comparison</span><code class="cat-sig">trades.gt('qty', 300)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">between</span><span class="cat-desc">column in a reactive range</span><code class="cat-sig" id="op-sig-between-a">trades.between('px', [100, 200])</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="between-a">
+            <div class="split split-2 op-between">
+              <div class="split-col">
+                <div class="col-head"><span class="col-head-label">bounds</span><span class="col-head-count">a value handle — drag to write it</span></div>
+                <label class="op-bound"><span>lo</span><input type="range" id="op-bw-lo-a" min="0" max="500" step="5" value="100" aria-label="lower bound"><b id="op-bw-lo-v-a">100</b></label>
+                <label class="op-bound"><span>hi</span><input type="range" id="op-bw-hi-a" min="0" max="500" step="5" value="200" aria-label="upper bound"><b id="op-bw-hi-v-a">200</b></label>
+                <div class="op-bigcount"><b id="op-bw-n-a">—</b><span>of <i id="op-bw-total-a">12</i> rows · px ∈ [<i id="op-bw-range-a">100, 200</i>]</span></div>
+                <p class="op-law" id="op-bw-law-a"><b>const bounds = $([100, 200])</b> · trades.between('px', bounds) · a drag is one write — <i>bounds.set(0, 100)</i> — and the view re-bounds</p>
+              </div>
+              <div class="split-col">
+                <div class="col-head"><span class="col-head-label" id="op-bw-label-a">between('px', [100, 200])</span><span class="col-head-count" id="op-bw-count-a">—</span></div>
+                <div class="op-rows" id="op-bw-rows-a"></div>
+                <div class="op-more" id="op-bw-more-a" hidden></div>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">intersect</span><span class="cat-desc">rows in every view, by key</span><code class="cat-sig">buys.intersect(large)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">union / except</span><span class="cat-desc">set algebra over views</span><code class="cat-sig">buys.except(large)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+      </div>
+
+      <!-- ---- aggregate-decomposable ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">aggregate-decomposable <b>7</b></span><span class="op-kicker-def">maintained from the delta alone — prev out, next in</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">sum / avg</span><span class="cat-desc">a running scalar, nudged per delta</span><code class="cat-sig">trades.avg('px')</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="avg-a">
+            <div class="op-scalars">
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">avg('px')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-avg-v-a">—</span><span class="op-nudge" id="op-avg-d-a"></span></div>
+                <canvas class="op-spark" id="op-avg-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">sum('qty')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-sum-v-a">—</span><span class="op-nudge" id="op-sum-d-a"></span></div>
+                <canvas class="op-spark" id="op-sum-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+            </div>
+            <p class="op-law" id="op-avg-law-a">—</p>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">length</span><span class="cat-desc">row count, or counts per key</span><code class="cat-sig">trades.length(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">group</span><span class="cat-desc">rows nested under a computed key</span><code class="cat-sig">trades.group(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="group-a">
+            <div class="op-buckets" id="op-group-a"></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">lengthBuckets</span><span class="cat-desc">counts per key; empties stay at 0</span><code class="cat-sig">trades.lengthBuckets(t =&gt; band(t.qty))</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">some / every</span><span class="cat-desc">any / all rows matching</span><code class="cat-sig">trades.some(t =&gt; t.qty &gt; 1000)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+      </div>
+
+      <!-- ---- holistic ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">holistic <b>13</b></span><span class="op-kicker-def">needs an order or the whole set — an index does the work</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">az / za</span><span class="cat-desc">sorted; with n, the top-n</span><code class="cat-sig">buys.za('qty', 5)</code><span class="cat-x">O(Δ log n)</span></summary>
+          <div class="cat-demo" data-demo="za-a">
+            <div class="col-head"><span class="col-head-label">buys.za('qty', 5)</span><span class="col-head-count" id="op-za-note-a">—</span></div>
+            <div class="op-ranked" id="op-za-rows-a"></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">top / limit</span><span class="cat-desc">the first n of an ordered view</span><code class="cat-sig">trades.az('px').top(3)</code><span class="cat-x">O(Δ log n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">reverse</span><span class="cat-desc">the order, flipped</span><code class="cat-sig">trades.reverse()</code><span class="cat-x">O(n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">max / min</span><span class="cat-desc">the extreme, by column or row</span><code class="cat-sig">trades.max('px')</code><span class="cat-x">O(Δ log n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">reduce</span><span class="cat-desc">a fold with an add and a remove</span><code class="cat-sig">trades.reduce(add, remove, 0)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">distinct</span><span class="cat-desc">first-seen unique by projection</span><code class="cat-sig">trades.distinct(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">to</span><span class="cat-desc">whole-value transform, sees prev</span><code class="cat-sig">trades.to(v =&gt; Object.keys(v).length)</code><span class="cat-x">O(n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">quantile / percentile / median</span><span class="cat-desc">R-type-7 over a column</span><code class="cat-sig">trades.median('px')</code><span class="cat-x">O(Δ log n)</span></summary>
+          <div class="cat-demo" data-demo="median-a">
+            <div class="op-scalars">
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">median('px')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-med-v-a">—</span><span class="op-nudge" id="op-med-d-a"></span></div>
+                <canvas class="op-spark" id="op-med-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">percentile('px', 90)</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-p90-v-a">—</span><span class="op-nudge" id="op-p90-d-a"></span></div>
+                <canvas class="op-spark" id="op-p90-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+            </div>
+            <p class="op-law" id="op-med-law-a">—</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- ---- iter ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">iter <b>3</b></span><span class="op-kicker-def">side effects and projections — no view state of their own</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">tap</span><span class="cat-desc">a side effect per change record</span><code class="cat-sig">trades.tap(c =&gt; log(c))</code><span class="cat-x">O(1)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">keys / values</span><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">O(1)</span></summary>
+        </details>
+      </div>
+
+      <p class="cat-foot muted">Every row is the real operator on a live feed; the cost column is the class of work a change costs, not a benchmark. 33 operators in 4 categories — exactly what <code>exportContract()</code> reports.</p>
+    </div>
+
+    <!-- ======================= b · the reference grid, one shared panel (THE PICK — wired to the real engine) ======================= -->
+    <div data-variant="b" data-label="reference grid · four cards · one shared demo panel">
+      <div class="sec-head"><span class="sec-no" data-literal>02</span><h2>The operator surface</h2></div>
+      <p class="lead-para">
+        One source, many derived views. Wrap a collection in <code>$()</code> and
+        chain operators; each returns a view maintained incrementally from the deltas
+        its source emits — the same three row verbs and three order verbs, in and out.
+        All <b id="op-n-ops-b"></b> below run live off one shared <code>$(trades)</code> feed — pick any
+        operator and its result ticks in the panel as <code>qty</code> and <code>px</code> move.
+        <button data-stream-toggle type="button" class="stream-btn" id="op-pause-b">⏸ pause</button>
+      </p>
+      <p class="op-feedline" id="op-feedline-b"><span class="op-fl-src">$(trades)</span> · <b id="op-fl-n-b"></b> rows · seq <span class="op-seq" id="op-fl-seq-b"></span> · <span class="op-fl-delta" id="op-fl-delta-b">—</span></p>
+
+      <div class="op-grid" id="op-grid-b">
+        <div class="op-card" data-cat="rowop">
+          <span class="op-kicker-label">rowop <b data-cat-n></b></span>
+          <p class="op-card-def">one row in, one row out — the delta passes straight through</p>
+          <div class="demo-chips op-chips" data-cat="rowop"></div>
+        </div>
+        <div class="op-card" data-cat="aggregate-decomposable">
+          <span class="op-kicker-label">aggregate-decomposable <b data-cat-n></b></span>
+          <p class="op-card-def">maintained from the delta alone — prev out, next in</p>
+          <div class="demo-chips op-chips" data-cat="aggregate-decomposable"></div>
+        </div>
+        <div class="op-card" data-cat="holistic">
+          <span class="op-kicker-label">holistic <b data-cat-n></b></span>
+          <p class="op-card-def">needs an order or the whole set — an index does the work</p>
+          <div class="demo-chips op-chips" data-cat="holistic"></div>
+        </div>
+        <div class="op-card" data-cat="iter">
+          <span class="op-kicker-label">iter <b data-cat-n></b></span>
+          <p class="op-card-def">side effects and projections — no view state of their own</p>
+          <div class="demo-chips op-chips" data-cat="iter"></div>
+        </div>
+      </div>
+
+      <div class="op-panel" id="op-panel-b">
+        <div class="op-panel-l">
+          <div class="op-panel-head"><span class="op-panel-name" id="op-panel-name-b">filter</span><span class="op-panel-cat" id="op-panel-cat-b"></span></div>
+          <pre class="code op-panel-sig" id="op-panel-sig-b" data-hl="off"></pre>
+          <p class="op-panel-desc" id="op-panel-desc-b"></p>
+          <p class="op-panel-note" id="op-panel-note-b"></p>
+        </div>
+        <div class="op-panel-r" id="op-panel-result-b"></div>
+        <!-- the peers strip: cost per change for THIS operator across the race's nine engines,
+             MEASURED in this tab on demand (sections/operators/bench.js) — a dash until then -->
+        <div class="op-peers" id="op-peers-b" aria-label="cost per change, nine engines, measured in this tab">
+          <div class="op-peers-title">cost per change<span class="nb"> · this operator</span><span class="nb"> · nine engines</span></div>
+          <div class="op-peers-rows" id="op-peers-rows-b"></div>
+          <div class="op-peers-act">
+            <button type="button" class="stream-btn" id="op-measure-b">measure ▸</button>
+            <button type="button" class="stream-btn" id="op-load-peers-b">load peers ▸</button>
+            <span class="op-peers-status" id="op-peers-status-b" aria-live="polite"></span>
+          </div>
+          <p class="op-peers-mono" id="op-peers-mono-b"></p>
+          <p class="op-peers-foot muted">the multiple is data's cost as the unit; peers re-walk the source on every change — nothing prints here until it has been timed in this tab</p>
+        </div>
+      </div>
+
+      <p class="cat-foot muted">Every chip is the real operator on a live feed. The cost word is the class of work a change costs; the multiple is that cost against eight peers doing the idiomatic thing — re-walking the source per change — measured in this tab on demand, and the figure on the panel is the peak, the widest gap. <b id="op-foot-n-b"></b> operators in <b id="op-foot-c-b"></b> categories — exactly what <code>exportContract()</code> reports.</p>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== start ===== -->
+<section class="quickstart" id="start">
+  <div class="opt" data-section="start">
+
+    <!-- ── a · the old layout ─────────────────────────────────────────── -->
+    <div data-variant="a" data-label="the old layout" id="start-a">
+      <div class="sec-head"><span class="sec-no" data-literal>03</span><h2>From zero</h2></div>
+
+      <button class="install" type="button" id="start-copy-a"
+        data-copy="import { $, batch, render, el, list } from './data/api/index.ts'"
+        title="click to copy"
+        aria-label="Copy the import line: import { $, batch, render, el, list } from './data/api/index.ts'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'./data/api/index.ts'</span><span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">source-served — no package, no dist, no build step. Node runs it with <code>--experimental-strip-types</code>; the browser gets the same files type-stripped.</p>
+
+      <div class="entries">
+        <div class="entry"><code>api/</code><span>the public surface — <code>$()</code>, the verbs, the operators, <code>batch</code>, <code>runtime</code>. The one entry you import.</span></div>
+        <div class="entry"><code>seam/</code><span>the outside-world boundary — <code>ingest</code>, <code>lane</code>, <code>wireSink</code>, <code>mount</code></span></div>
+        <div class="entry"><code>render/ + jsx/</code><span><code>el</code> / <code>list</code> / <code>text</code>, the <code>HTML</code> / <code>SVG</code> builders, classic + automatic JSX</span></div>
+        <div class="entry"><code>devtools/</code><span>the inspector panel + DOM overlay — mounts on demand, never auto</span></div>
+      </div>
+
+      <div class="snips">
+        <div class="snip">
+          <h3>a source and its views</h3>
+<pre class="code">import { $ } from './data/api/index.ts'
+
+const trades = $({
+  t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },
+  t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },
+  t3: { sym: 'NVDA', side: 'buy',  qty: 500, px: 118.4 },
+})
+const buys    = trades.filter(t =&gt; t.side === 'buy')
+const largest = buys.za('qty', 2)
+const volume  = buys.sum('qty')
+
+trades.t3.qty.update(380)   // → update t3 .qty 500 → 380</pre>
+        </div>
+        <div class="snip">
+          <h3>bound to the DOM</h3>
+<pre class="code">import { render, el, list, batch }
+  from './data/api/index.ts'
+
+const ol = document.querySelector('ol')
+
+render(ol, list(largest, t =&gt;
+  el('li', null, el('b', null, t.sym), t.qty)))
+
+batch(() =&gt; {
+  trades.t3.qty.update(380)
+  trades.t1.qty.update(260)
+})   // one commit, one paint</pre>
+        </div>
+      </div>
+      <p class="muted jsx-note">
+        JSX works too (<code>jsxImportSource: "data"</code> — classic <code>h</code> or the automatic runtime).
+        <code>render()</code> does per-key surgical updates — element identity and focus survive across changes.
+      </p>
+      <div class="cta">
+        <a class="cta-link" href="./README.md">read the readme →</a>
+        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+      </div>
+    </div>
+
+    <!-- ── b · twelve lines ───────────────────────────────────────────── -->
+    <div data-variant="b" data-label="twelve lines" id="start-b">
+      <div class="sec-head"><span class="sec-no" data-literal>03</span><h2>From zero</h2></div>
+
+      <div class="twelve-head">
+        <span class="race-title">twelve lines · one import · no build step</span>
+        <button class="stream-btn" type="button" id="start-run-b" title="run the write again — the value alternates">↻ replay</button>
+      </div>
+
+      <!-- the twelve lines EXECUTE against the page's engine (start.js); every `// →` is read off the
+           engine / the DOM the moment its line runs, so the .out cells start empty and are attested as
+           they print. The .src cells are the program text — literal. -->
+      <div class="code twelve" id="start-twelve-b" data-hl="off" aria-label="twelve lines of data v4, with what each line produces">
+        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from './data/api/index.ts'</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const trades  = $({ t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>                    t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>                    t3: { sym: 'NVDA', side: 'buy',  qty: 500, px: 118.4 } })</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const buys    = trades.filter(t =&gt; t.side === 'buy')</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const largest = buys.za('qty', 2)</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const volume  = buys.sum('qty')</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>trades.sink({ apply: b =&gt; console.log(b) })</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>render(ol, list(largest, t =&gt; el('li', null, el('b', null, t.sym), t.qty)))</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal id="start-write-b">batch(() =&gt; trades.t3.qty.update(380))</span><span class="out"></span></div>
+      </div>
+
+      <!-- the ol line 10 renders into — the engine's real DOM output, live -->
+      <div class="twelve-foot"><span class="twelve-foot-label">ol · live</span><ol class="twelve-ol" id="start-ol-b"></ol></div>
+
+      <div class="cta">
+        <a class="cta-link" href="./README.md">read the readme →</a>
+        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== devtools ===== -->
+<section class="devtools-section" id="devtools">
+  <div class="opt" data-section="devtools">
+
+    <!-- a · the old form: prose, a mount button, a slide-in right-edge dock -->
+    <div data-variant="a" data-label="the old form · mount on demand">
+      <div class="sec-head"><span class="sec-no" data-literal>04</span><h2>See your graph</h2></div>
+      <p class="lead-para">
+        <code>devtools/</code> ships an inspector panel and a DOM overlay. The
+        panel is a right-edge dock: the live graph as a <b>Tree</b> or a
+        <b>DAG</b>, every commit's deltas as they settle, and the settle time
+        of each node. It mounts on demand — never on its own — and the console
+        API alone (<code>$.inspect</code>, <code>$.graph</code>,
+        <code>$.trace</code>, <code>$.profile</code>, <code>$.cascades</code>)
+        doesn't pay the panel's bytes. The overlay walks the other way:
+        <code>$.fromDOM($0)</code> picks any bound element back to the view
+        that rendered it; <code>$.highlight(view)</code> lights up its rows.
+      </p>
+      <div class="dt-actions">
+        <button id="devtools-mount-a" type="button" class="stream-btn">mount the inspector on this page ▸</button>
+        <span class="muted" id="devtools-status-a">not mounted · this page runs a five-node graph</span>
+      </div>
+      <p class="muted dt-foot">
+        Everything the panel shows is a projection of two runtime primitives —
+        <code>runtime().graph()</code> and <code>runtime().onCommit(c =&gt; …)</code>
+        — so the numbers are the kernel's own, measured only while a hook is live.
+      </p>
+      <aside class="dt-dock dt-dock-fixed" id="devtools-dock-a" data-mode="tabs" aria-label="data devtools inspector (preview)" hidden></aside>
+    </div>
+
+    <!-- b · an inline preview: the same dock drawn as a card beside the prose -->
+    <div data-variant="b" data-label="inline preview · two columns">
+      <div class="sec-head"><span class="sec-no" data-literal>04</span><h2>See your graph</h2></div>
+      <div class="dt-cols">
+        <div class="dt-prose">
+          <p class="lead-para">
+            <code>devtools/</code> ships an inspector panel and a DOM overlay.
+            The panel is a right-edge dock — this is it, drawn inline over a
+            five-node graph this section runs on the page's engine, with a
+            scripted writer feeding it real writes. <code>devtools/index.ts</code>
+            alone — the graph, trace and profile helpers this page imports —
+            never loads the panel; the <code>data/devtools</code> entry also
+            docks it on import unless the URL says <code>?nopanel</code>, and
+            <code>devtools/panel/</code> mounts only through <code>mountPanel()</code>.
+          </p>
+          <ul class="prop-list dt-props">
+            <li><span class="op">Tree / DAG</span><span class="d">the live graph — <em>id · kind · op · height · parents</em>, from <code>runtime().graph()</code></span></li>
+            <li><span class="op">Events</span><span class="d">one line per commit: the write, the cascade in settle order, <em>deltas per node</em></span></li>
+            <li><span class="op">settle ms</span><span class="d">per-node timing from <code>onCommit</code> — measured only while a hook is live</span></li>
+            <li><span class="op" data-literal>$.fromDOM($0)</span><span class="d">the overlay: any bound element → the view that rendered it; <code>$.highlight(view)</code> lights its rows</span></li>
+          </ul>
+          <p class="muted dt-foot">
+            Console-only: <code>$.inspect(h)</code> · <code>$.graph()</code> ·
+            <code>$.trace(fn)</code> · <code>$.profile(fn)</code> · <code>$.cascades(fn)</code>.
+            <code>$.trace</code> subscribes for the duration of <code>fn</code> and disposes after — tracing has zero steady-state cost.
+          </p>
+        </div>
+        <div class="dt-side">
+          <aside class="dt-dock dt-dock-card" id="devtools-dock-b" data-mode="split" aria-label="data devtools inspector (inline, live)"></aside>
+          <div class="dt-actions dt-actions-b">
+            <button id="devtools-open-b" type="button" class="stream-btn">open the real panel ▸</button>
+            <span class="muted" id="devtools-panel-status-b">lazy — devtools/panel/ loads on click</span>
+          </div>
+          <p class="muted dt-under"><code>$.devtools.panel.open()</code> / <code>.close()</code> drive it from the console in any page that imports <code>data/devtools</code> — <code>$.inspect(h)</code> alone stays in the console.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== contract ===== -->
+<section class="contract" id="contract">
+  <div class="opt" data-section="contract">
+
+    <!-- ===== a · prose + list · run the suite ===== -->
+    <div data-variant="a" data-label="prose + list · run the suite">
+      <div class="sec-head"><span class="sec-no" data-literal>05</span><h2>The contract</h2></div>
+      <p class="lead-para">
+        Everything runs under an executable timing contract — <code>SCHEDULE.md</code>,
+        <code>SCHEDULE_VERSION 4</code>: eleven numbered clauses, each pinned by a test, and
+        the same test file runs in the consumer's CI against data HEAD.
+      </p>
+
+      <ol class="clauses" id="clauses-a">
+        <li class="clause" data-clause="1"><span class="clause-no">01</span><span class="clause-body"><b class="clause-title">Apply phase</b> <span class="clause-gist">every write routes through the runtime's commit</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="2"><span class="clause-no">02</span><span class="clause-body"><b class="clause-title">Read-your-writes</b> <span class="clause-gist">source reads see post-write values inside the batch</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="3"><span class="clause-no">03</span><span class="clause-body"><b class="clause-title">Flush phase</b> <span class="clause-gist">consolidated batches settle height-ordered at batch close</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="4"><span class="clause-no">04</span><span class="clause-body"><b class="clause-title">Effects last, isolated</b> <span class="clause-gist">effect sinks run after settle; a throwing sink can't corrupt state (<code>AggregateError</code>)</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="5"><span class="clause-no">05</span><span class="clause-body"><b class="clause-title">Re-entrancy</b> <span class="clause-gist">a write inside an effect queues as the <em>next</em> commit</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="6"><span class="clause-no">06</span><span class="clause-body"><b class="clause-title">Origin tokens</b> <span class="clause-gist">every batch carries its origin; replicas suppress their own echo</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="7"><span class="clause-no">07</span><span class="clause-body"><b class="clause-title">Snapshot-then-deltas</b> <span class="clause-gist">a sink attached between commits gets <code>init(snapshot)</code> then only deltas (a mid-batch attach defers to the commit)</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="8"><span class="clause-no">08</span><span class="clause-body"><b class="clause-title">Emission legality</b> <span class="clause-gist">at most one row delta per key per batch; <code>add</code> on an existing key is illegal; consolidation rules</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="9"><span class="clause-no">09</span><span class="clause-body"><b class="clause-title">Coalescing</b> <span class="clause-gist">opt-in <code>coalesce('microtask' | 'frame')</code> — sugar, not semantics</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="10"><span class="clause-no">10</span><span class="clause-body"><b class="clause-title">The deep-path law</b> <span class="clause-gist">replication of nested writes: <code>pathCopy</code> / <code>pathDelete</code> (SCHEDULE_VERSION 2, fero W3)</span></span><span class="clause-n">4 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="11"><span class="clause-no">11</span><span class="clause-body"><b class="clause-title">The value-domain portability table</b> <span class="clause-gist">which JS values cross the wire intact (SCHEDULE_VERSION 3, W15)</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+      </ol>
+
+      <div class="dt-actions">
+        <button id="suite-run-a" type="button" class="stream-btn">run the suite in this tab ▸</button>
+        <span class="muted" id="suite-status-a"></span>
+        <a class="cta-link" href="./contract/SCHEDULE.md">read SCHEDULE.md →</a>
+      </div>
+
+      <div class="suite-log" id="suite-log-a" hidden aria-live="polite">
+        <div class="suite-log-head"><span class="suite-log-file">conformance/schedule.test.ts</span><span class="suite-log-cmd">node:test → browser shim · this tab</span></div>
+        <ol class="suite-lines" id="suite-lines-a"></ol>
+        <div class="suite-sum" id="suite-sum-a"></div>
+      </div>
+
+      <p class="muted contract-foot"><code>conform(node)</code> attaches a legality checker and a replay sink to any view: every commit is re-folded and the fold must equal the view.</p>
+    </div>
+
+    <!-- ===== b · law · proof table (THE PICK — wired to the real engine) ===== -->
+    <div data-variant="b" data-label="law · proof table">
+      <div class="sec-head"><span class="sec-no" data-literal>05</span><h2>The contract</h2></div>
+      <p class="lead-para">
+        Everything runs under an executable timing contract — <code>SCHEDULE.md</code>,
+        <code>SCHEDULE_VERSION <b id="c-ver-b" data-attested="runtime">—</b></code>: eleven numbered clauses, each pinned by a test, and
+        the same test file runs in the consumer's CI against data HEAD.
+      </p>
+
+      <div class="law" id="law-b">
+        <div class="law-head"><span>law</span><span>proof · <span class="law-head-file">conformance/schedule.test.ts</span> · executed in this tab</span><span class="law-head-ok pending" id="law-head-ok-b" title="SCHEDULE_VERSION is exported at runtime and matches this suite">·</span></div>
+
+        <div class="law-row pending" data-clause="1">
+          <div class="law-l"><span class="clause-no" data-literal>01</span><span class="law-title">Apply phase</span><span class="law-gist">every write routes through the runtime's commit</span><span class="law-n" id="law-n-1-b"></span></div>
+<pre class="code law-proof" id="law-proof-1-b">const trades = $({ t3: { sym: 'AAPL', qty: 500 } }), got = []
+trades.sink({ apply: b =&gt; got.push(b) })
+trades.t3.qty.update(380)  // a bare write = a synchronous batch of one
+print(`seq ${got[0].seq}: ${show(got[0].rows[0])} — delivered before update() returned`)
+// →
+trades.t3.qty.update(380)  // Object.is-equal at the leaf
+print(`nothing emitted: still ${got.length} batch, seq still ${runtime().seq}`)
+// →</pre>
+          <span class="law-ok" id="law-ok-1-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="2">
+          <div class="law-l"><span class="clause-no" data-literal>02</span><span class="law-title">Read-your-writes</span><span class="law-gist">source reads see post-write values inside the batch</span><span class="law-n" id="law-n-2-b"></span></div>
+<pre class="code law-proof" id="law-proof-2-b">const rows = $([{ sym: 'AAPL', qty: 200 }, { sym: 'NVDA', qty: 90 }]); let fired = 0
+rows.sink({ apply: b =&gt; print(`at batch close: the sink fires once (seq ${b.seq}) · fired ${++fired}`) })
+batch(() =&gt; {
+  rows.insert({ sym: 'MSFT', qty: 40 })
+  print(`mid-batch: rowCount() → ${rows.rowCount()}, the read sees the write · sinks fired: ${fired}`)
+})
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-2-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="3">
+          <div class="law-l"><span class="clause-no" data-literal>03</span><span class="law-title">Flush phase</span><span class="law-gist">consolidated batches settle height-ordered at batch close</span><span class="law-n" id="law-n-3-b"></span></div>
+<pre class="code law-proof" id="law-proof-3-b">const rows = $([{ qty: 50 }, { qty: 120 }, { qty: 300 }])
+const big = rows.filter(r =&gt; r.qty &gt; 100), n = big.length()  // height 1, height 2
+const name = { [rows[node].id]: 'source', [big[node].id]: 'filter', [n[node].id]: 'length' }
+const hook = runtime().onCommit(c =&gt; print(`seq ${c.seq} settled ${c.nodes.map(x =&gt; name[x.id]).join(' → ')}, each once`))
+big.sink({ apply: () =&gt; print(`the sink fires after settle: n already reads ${n[value]}`) })
+rows.get(0).set('qty', 500); hook.dispose()  // 50 → 500 joins big; n 2 → 3
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-3-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="4">
+          <div class="law-l"><span class="clause-no" data-literal>04</span><span class="law-title">Effects last, isolated</span><span class="law-gist">effect sinks run after settle; a throwing sink can't corrupt state</span><span class="law-n" id="law-n-4-b"></span></div>
+<pre class="code law-proof" id="law-proof-4-b">const rows = $([{ qty: 1 }, { qty: 2 }]), was = rows.rowCount(); let sibling = 0
+rows.sink({ apply() { throw new Error('boom') } })
+rows.sink({ apply: () =&gt; sibling++ })
+try { rows.insert({ qty: 3 }) } catch (e) { print(`${e.constructor.name} after the drain: ${e.errors.length} sink failed (${e.errors[0].message})`) }
+print(`state intact: rowCount ${was} → ${rows.rowCount()}, the write committed · the sibling sink still fired ${sibling}×`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-4-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="5">
+          <div class="law-l"><span class="clause-no" data-literal>05</span><span class="law-title">Re-entrancy</span><span class="law-gist">a write inside an effect queues as the next commit</span><span class="law-n" id="law-n-5-b"></span></div>
+<pre class="code law-proof" id="law-proof-5-b">const a = $({ n: 1 }), b = $({ n: 0 }), log = []
+a.sink({ apply: c =&gt; { log.push(`seq ${c.seq}: a.n = ${a.n[value]}`); b.n.update(a.n[value] * 2) } })
+b.sink({ apply: c =&gt; log.push(`seq ${c.seq}: b.n = ${b.n[value]}`) })
+a.n.update(21)  // an effect that writes
+print(`${log.join(' · ')} — the effect's write became the NEXT commit`)
+// →</pre>
+          <span class="law-ok" id="law-ok-5-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="6">
+          <div class="law-l"><span class="clause-no" data-literal>06</span><span class="law-title">Origin tokens</span><span class="law-gist">every batch carries its origin; replicas suppress their own echo</span><span class="law-n" id="law-n-6-b"></span></div>
+<pre class="code law-proof" id="law-proof-6-b">const mine = Symbol('peer-A'), replica = $({}), calls = { mine: 0, other: 0 }
+replica.sink({ origin: mine, apply: () =&gt; calls.mine++ })  // declares what it must not hear
+replica.sink({ apply: b =&gt; { calls.other++; calls.echo = b.origin === mine } })
+ingest(replica, [{ t: 'add', k: 'a', v: { n: 1 } }], { origin: mine })
+print(`peer-A's own sink: ${calls.mine} applies, skipped · the other sink: ${calls.other} apply, batch.origin === mine: ${calls.echo}`)
+// →</pre>
+          <span class="law-ok" id="law-ok-6-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="7">
+          <div class="law-l"><span class="clause-no" data-literal>07</span><span class="law-title">Snapshot-then-deltas</span><span class="law-gist">a sink attached between commits gets init(snapshot) then only deltas</span><span class="law-n" id="law-n-7-b"></span></div>
+<pre class="code law-proof" id="law-proof-7-b">const rows = $([{ qty: 1 }, { qty: 2 }]), got = {}
+const sink = { init: s =&gt; (got.init = s.size), apply: b =&gt; (got.first ??= b.seq) }
+batch(() =&gt; { rows.insert({ qty: 3 }); rows.sink(sink); rows.insert({ qty: 4 }) })  // attached mid-batch
+print(`init saw ${got.init} rows — the settled batch (seq ${runtime().seq}), both inserts · applies so far: ${got.first ?? 'none'}`)
+rows.get(0).set('qty', 9)
+print(`apply first fired at seq ${got.first} — the NEXT commit`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-7-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="8">
+          <div class="law-l"><span class="clause-no" data-literal>08</span><span class="law-title">Emission legality</span><span class="law-gist">at most one row delta per key per batch; add on an existing key is illegal</span><span class="law-n" id="law-n-8-b"></span></div>
+<pre class="code law-proof" id="law-proof-8-b">const rows = $([{ qty: 1 }]), t = $({ t: { qty: 500 } }), got = []
+rows.sink({ apply: b =&gt; got.push(b) }); t.sink({ apply: b =&gt; got.push(b) })
+batch(() =&gt; { const k = rows.insert({ qty: 2 }); rows.get(k).remove() })  // add + remove, one batch
+print(`add + remove annihilated: ${got.length} batches delivered, no delta`)
+batch(() =&gt; { t.t.qty.update(1); t.t.qty.update(2); t.t.qty.update(3) })  // three writes, one key
+print(`${got.length} batch, ${got[0].rows.length} delta: ${show(got[0].rows[0])} — first prev, last value`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-8-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="9">
+          <div class="law-l"><span class="clause-no" data-literal>09</span><span class="law-title">Coalescing</span><span class="law-gist">opt-in coalesce('microtask' | 'frame') — sugar, not semantics</span><span class="law-n" id="law-n-9-b"></span></div>
+<pre class="code law-proof" id="law-proof-9-b">const q = () =&gt; [[{ n: 1 }], [{ n: 2 }]], commits = { sync: 0, co: 0 }  // two chunks that settle in one tick
+const feed = (c = q()) =&gt; ({ [Symbol.asyncIterator]: () =&gt; ({ next: () =&gt; Promise.resolve({ done: !c.length, value: c.shift() }) }) })
+const sync = fromAsync(runtime(), feed()), co = fromAsync(runtime(), feed(), { coalesce: 'microtask' })
+handleFor(sync.source).sink({ apply: () =&gt; commits.sync++ }); handleFor(co.source).sink({ apply: () =&gt; commits.co++ })
+while (sync.status() === 'pending' || co.status() === 'pending') await new Promise(r =&gt; setTimeout(r))
+print(`default: ${q().length} chunks → ${commits.sync} commits · coalesce('microtask'): ${commits.co} commit · same ${co.source.rowCount()} rows each`)
+// →</pre>
+          <span class="law-ok" id="law-ok-9-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="10">
+          <div class="law-l"><span class="clause-no" data-literal>10</span><span class="law-title">The deep-path law</span><span class="law-gist">replication of nested writes: pathCopy / pathDelete</span><span class="law-n" id="law-n-10-b"></span></div>
+<pre class="code law-proof" id="law-proof-10-b">const t = $({ t3: { meta: { tag: 'old', book: null } } }), got = []; t.sink({ apply: b =&gt; got.push(...b.rows) })
+t.t3.meta.tag.remove()  // nested remove: first-class (pathDelete)
+t.t9.meta.tag.remove()  // absent target: idempotent no-op
+t.t3.meta.book.depth.update(3)  // null intermediate: vivified (pathCopy)
+print(`${show(got[0])} · deleted: ${got[0].deleted} · row.meta = ${JSON.stringify(got[0].row.meta)}`)
+print(`${got.length} deltas for three writes — the absent-target remove emitted nothing · ${show(got[1])}, vivified from null`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-10-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="11">
+          <div class="law-l"><span class="clause-no" data-literal>11</span><span class="law-title">The value-domain portability table</span><span class="law-gist">which JS values cross the wire intact</span><span class="law-n" id="law-n-11-b"></span></div>
+<pre class="code law-proof" id="law-proof-11-b">const src = $({})
+ingest(src, [{ t: 'add', k: '\x00key', v: { px: NaN, at: undefined } }])
+const row = src.get('\x00key')[value]
+print(`${src.rowCount()} row · key ${JSON.stringify('\x00key')} live: ${row !== undefined} — a NUL byte is just a key`)
+print(`px is NaN: ${Number.isNaN(row.px)} · row owns 'at': ${'at' in row}, at === undefined: ${row.at === undefined} — both first-class`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-11-b">·</span>
+        </div>
+
+        <div class="law-foot">
+          <span class="law-foot-suite"><b>conformance/schedule.test.ts</b> · <span id="law-sum-b" aria-live="polite">loading the suite…</span> · runs in data's CI and fero's</span>
+          <span class="law-foot-actions"><button id="law-run-b" type="button" class="stream-btn">run the suite in this tab ▸</button><a class="cta-link" href="./contract/SCHEDULE.md">read SCHEDULE.md →</a></span>
+        </div>
+      </div>
+
+      <p class="muted contract-foot">Every proof above is a real program run in this tab against the page's engine — the code is literal, <code>print()</code> writes its <code>// →</code> line, <code>show(delta)</code> formats a row delta as <code>op key .path prev → next</code>. <code>conform(node)</code> attaches a legality checker and a replay sink to any view: every commit is re-folded and the fold must equal the view.</p>
+    </div>
+
+  </div>
+</section>
+
+  <!-- ===== wire ===== -->
+<section class="wire" id="wire">
+  <div class="opt" data-section="wire">
+
+    <!-- ===== a · two runtimes, one delta (REAL: two engines in this tab, joined by wireSink → ingest) ===== -->
+    <div data-variant="a" data-label="two engines, one delta" id="wire-a">
+      <div class="sec-head"><span class="sec-no" data-literal>06</span><h2>Across the wire</h2></div>
+      <p class="lead-para">
+        Every commit can leave the runtime as a <code>WireBatch</code> — JSON-safe, replayable in
+        application order — and enter another one through <code>ingest()</code> or the hot
+        <code>lane()</code>. The two runtimes below are joined by nothing but that wire; write on
+        either side and the other side receives exactly the change.
+      </p>
+
+      <div class="wire-card" id="wire-card-a">
+
+        <!-- here · runtime A (the page's default runtime) -->
+        <div class="wire-col wire-here">
+          <div class="wire-kicker"><span>here · runtime A</span><span class="tag">rows <b id="wire-rows-here-a"></b></span></div>
+          <div class="wire-tbl" id="wire-tbl-here-a" role="grid" aria-label="runtime A — here; click a row to write its qty">
+            <div class="wire-th" role="row"><span>key</span><span>sym</span><span>side</span><span class="th-qty">qty</span><span class="th-px">px</span></div>
+          </div>
+          <div class="wire-last" id="wire-last-here-a"><code>wireSink(here, cross, { origin: fromWire })</code></div>
+        </div>
+
+        <!-- the wire -->
+        <div class="wire-seam">
+          <div class="wire-kicker"><span>the wire</span><span class="tag">JSON-safe</span></div>
+          <div class="wire-track" id="wire-track-a" aria-hidden="true">
+            <span class="wire-line"></span>
+            <span class="wire-trail" id="wire-trail-a"></span>
+            <span class="wire-dot" id="wire-dot-a"></span>
+            <span class="wire-echo" id="wire-echo-a"></span>
+          </div>
+          <div class="wire-dir"><span id="wire-dir-a">A → B</span><span id="wire-via-a">wireSink → ingest</span></div>
+          <pre class="wire-batch" id="wire-batch-a" aria-label="the latest WireBatch"><span class="tok-com">// nothing on the wire yet</span></pre>
+          <div class="wire-count" id="wire-count-a">
+            <div>crossed <b id="wire-crossed-a"></b> · echoed back <b id="wire-echoed-a"></b></div>
+            <div class="wire-meas" id="wire-meas-a" hidden></div>
+          </div>
+        </div>
+
+        <!-- there · runtime B (a second Runtime, seeded only by the wire's opening snapshot) -->
+        <div class="wire-col wire-there">
+          <div class="wire-kicker"><span>there · runtime B</span><span class="tag">rows <b id="wire-rows-there-a"></b></span></div>
+          <div class="wire-tbl" id="wire-tbl-there-a" role="grid" aria-label="runtime B — there, the replica; click a row to write its qty">
+            <div class="wire-th" role="row"><span>key</span><span>sym</span><span>side</span><span class="th-qty">qty</span><span class="th-px">px</span></div>
+            <div class="wire-empty" id="wire-empty-there-a">empty — seeded by the wire's opening snapshot</div>
+          </div>
+          <div class="wire-last" id="wire-last-there-a"><code>wireSink(there, cross, { origin: fromWire, initial: false })</code></div>
+        </div>
+
+      </div>
+
+      <div class="wire-status" id="wire-status-a">fold(wire) ≡ there · <span class="pending">waiting for the wire …</span></div>
+      <p class="muted wire-foot">origin tokens: each side ignores batches that carry its own origin — <span data-literal>clause 6</span>.</p>
+    </div>
+
+    <!-- ===== off · hidden (?wire=off removes the section) ===== -->
+    <div data-variant="off" data-label="hidden"></div>
+
+  </div>
+</section>
+
+  <!-- ===== gallery ===== -->
+<section class="gallery-section" id="gallery">
+  <div class="opt" data-section="gallery">
+
+    <!-- a · the old grid: one feature card (fero) + three cards (essay · proof · tooling) -->
+    <div data-variant="a" data-label="the old grid">
+      <div class="sec-head"><span class="sec-no" data-literal>07</span><h2>Built with it</h2></div>
+      <p class="lead-para">
+        One consumer today, and the essay that explains the idea. <b>fero</b> runs on
+        the engine in production; the essay is why the engine has the shape it has; the
+        proof and the tooling are the same source, running in this tab.
+      </p>
+
+      <div class="gallery">
+        <div class="gcard gcard-feature g-fero">
+          <span class="gcard-tag">consumer · in production</span>
+          <h3><a href="./seam/index.ts">fero</a></h3>
+          <div class="g-fero-body">
+            <div class="g-fero-text">
+              <p>
+                Its substrate imports one entry — <code>../../data/api/index.ts</code> — and
+                uses seven names from it. Its <code>npm test</code> runs data's conformance
+                suite against data HEAD, so a clause edit that forgets its
+                <code>SCHEDULE_VERSION</code> bump fails in both repos before it ships. The
+                lane record shape is a wire-stability surface: fero's kernel records enter
+                the engine verbatim, and that shape does not move.
+              </p>
+              <div class="g-names" aria-label="the seven names"><span class="g-name"><b>$</b></span><span class="g-name">value</span><span class="g-name">node</span><span class="g-name">lane</span><span class="g-name">ingest</span><span class="g-name">DataNode</span><span class="g-name">exportContract</span></div>
+              <span class="gcard-links"><a href="./seam/index.ts">the seam →</a><a href="./conformance/schedule.test.ts">the contract ride</a></span>
+            </div>
+            <dl class="g-kv" aria-label="the coupling">
+              <dt>entry</dt><dd><code>../../data/api/index.ts</code></dd>
+              <dt>ride</dt><dd><code>conformance/schedule.test.ts</code> <span class="g-kv-note g-nb">· fero's CI · against data HEAD</span></dd>
+              <dt>wire</dt><dd><code>{ type: 0|1|2, key: [rowKey, <span class="g-nb">…fieldPath</span>], value, at? }</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <span class="gcard-tag">essay · change &amp; derivation</span>
+          <h3><a href="./flow/">Write the view, flow the change</a></h3>
+          <p>An eight-section essay on the duality at the core of the engine: a table and its stream of changes are the same thing in two forms, so a view — a filter, a count, a grouping — stays live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, and none of the bookkeeping.</p>
+          <span class="gcard-links"><a href="./flow/">read →</a></span>
+        </div>
+
+        <div class="gcard g-proof">
+          <span class="gcard-tag">proof · live</span>
+          <h3><a href="./conformance/schedule.test.ts">18 of 18 in this tab</a></h3>
+          <p>The executable contract — one version assert and seventeen clause tests — running here through <code>node:test</code> / <code>node:assert</code> shims over the same source the page serves. The same file rides in fero's CI.</p>
+          <div class="g-run" id="g-run-a" aria-live="off">
+            <div class="g-cells" id="g-cells-a" aria-hidden="true">
+              <span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span>
+            </div>
+            <div class="g-runline">
+              <span class="g-runclause" id="g-runclause-a">schedule.test.ts</span>
+              <span class="g-runcount" id="g-runcount-a">0 / 18</span>
+              <button class="g-rerun" id="g-rerun-a" type="button" title="run the suite again">▶ again</button>
+            </div>
+          </div>
+          <span class="gcard-links"><a href="./conformance/schedule.test.ts">schedule.test.ts →</a><a href="./contract/SCHEDULE.md">SCHEDULE.md</a></span>
+        </div>
+
+        <div class="gcard">
+          <span class="gcard-tag">tooling</span>
+          <h3><a href="#devtools">See your graph</a></h3>
+          <p>The devtools panel: the live graph as Tree / DAG, per-commit deltas, per-node settle ms, and a DOM overlay for the render layer. <code>devtools/index.ts</code> and <code>devtools/dom.ts</code>, the same source the engine ships. Mounts on demand — never on import.</p>
+          <span class="gcard-links"><a href="#devtools">mount it ↑</a><a href="./devtools/index.ts">devtools/</a></span>
+        </div>
+      </div>
+      <p class="cat-foot muted"><code>examples/</code> returns with the v4 gallery — crossfilter, chat, to-do.</p>
+    </div>
+
+    <!-- b · fero only: one wide feature card (what fero is | the coupling as a kv panel) -->
+    <div data-variant="b" data-label="fero only">
+      <div class="sec-head"><span class="sec-no" data-literal>07</span><h2>Built with it</h2></div>
+      <p class="lead-para">
+        One consumer in production today: <b>fero</b>, a replicated, durable data kernel —
+        deterministic core, real-TCP and real-WAL shells — whose every write and replica is a
+        data source under this contract. Its CI runs data's conformance suite against data
+        HEAD, so a clause that changes without its version bump fails there before it fails
+        here.
+      </p>
+
+      <div class="gallery g-solo-b">
+        <div class="gcard gcard-feature g-fero-b">
+          <div class="g-fero-b-text">
+            <span class="gcard-tag">consumer · in production</span>
+            <h3><a href="https://github.com/pemrouz/fero">fero</a></h3>
+            <p>
+              A deterministic kernel proven both ways from the same bytes — a seeded simulation
+              drives a thousand chaos trajectories a run, and the same kernel runs over real TCP
+              and a real write-ahead log. Per-cell last-writer-wins replication heals tail loss
+              from partitions and dial races, membership is a committed view, and durability
+              carries a restore-from-WAL proof: kill a whole cluster at any seed and no write it
+              confirmed to disk is lost.
+            </p>
+            <span class="gcard-links"><a href="https://github.com/pemrouz/fero">fero →</a></span>
+          </div>
+          <dl class="g-kv-b" aria-label="the coupling">
+            <dt>runs on</dt><dd><code>data v4</code></dd>
+            <dt>ride</dt><dd><code>conformance/schedule.test.ts</code><span class="g-kv-b-note">in fero's CI · against data HEAD</span></dd>
+            <dt>contract</dt><dd><code>SCHEDULE_VERSION <b id="g-ver-b" data-attested="runtime">—</b></code></dd>
+          </dl>
+        </div>
+      </div>
+      <p class="cat-foot muted"><code>examples/</code> returns with the <span data-literal>v4</span> gallery — crossfilter, chat, to-do.</p>
+    </div>
+
+  </div>
+</section>
+
+  </main>
+
+  <footer>
+    <a href="./llms.txt" title="condensed API map for LLMs">llms.txt</a>
+    <a href="./contract/SCHEDULE.md" title="the timing contract">SCHEDULE.md</a>
+    <span class="engine-line"><span id="engine">engine · loading</span> · this page runs <code>api/index.ts</code>, type-stripped, unbundled · <b id="mods" data-attested="measured">—</b> modules · <b id="kb" data-attested="measured">—</b> KB · SCHEDULE_VERSION <b id="ver" data-attested="runtime">—</b></span>
+    <span class="spacer"></span>
+    <a class="icon-link" href="https://github.com/pemrouz/data" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg></a>
+    <span class="lic">MIT</span>
+  </footer>
+
+</div>
+
+<noscript><p class="muted" style="padding:2rem 0">This page runs the engine in your browser and needs JavaScript. Source and docs: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
+<script src="./variants.js"></script>
+<script type="module" src="./engine.js"></script>
+<script type="module" src="./sections/lede.js"></script>
+<script type="module" src="./sections/race.js"></script>
+<script type="module" src="./sections/argument.js"></script>
+<script type="module" src="./sections/operators.js"></script>
+<script type="module" src="./sections/start.js"></script>
+<script type="module" src="./sections/devtools.js"></script>
+<script type="module" src="./sections/contract.js"></script>
+<script type="module" src="./sections/wire.js"></script>
+<script type="module" src="./sections/gallery.js"></script>
+</body>
+</html>

@@ -7,6 +7,10 @@ name: Deploy the site to GitHub Pages
 # gitignored, so the deployed page is always THIS commit's engine. The dev-only material
 # (shots/, ref/, tools/, the notes, the two build scripts) stays out of the artifact.
 #
+# INTERIM (2026-09-21): the repo's Actions are locked (billing) and Pages serves main's root by the
+# built-in branch deploy, so site/lib, site/gen and site/index.html are tracked and a root
+# index.html redirects into site/ — see .gitignore. When this workflow runs again, un-track them.
+#
 # One-time setup: Settings → Pages → Build and deployment → Source = "GitHub Actions"; the
 # github-pages environment's deployment-branch policy allows main (v4 is the working branch —
 # it merges into main by fast-forward, and only main deploys).
@@ -31,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

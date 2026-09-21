@@ -1,0 +1,234 @@
+{
+ "dependencies": 0,
+ "tests": 330,
+ "SCHEDULE_VERSION": 4,
+ "SCHEMA_VERSION": 3,
+ "operators": {
+  "filter": {
+   "category": "rowop",
+   "declarative": false
+  },
+  "map": {
+   "category": "rowop",
+   "declarative": false
+  },
+  "gt": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "lt": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "gte": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "lte": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "sum": {
+   "category": "aggregate-decomposable",
+   "declarative": true
+  },
+  "avg": {
+   "category": "aggregate-decomposable",
+   "declarative": true
+  },
+  "length": {
+   "category": "aggregate-decomposable",
+   "declarative": true
+  },
+  "between": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "intersect": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "union": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "except": {
+   "category": "rowop",
+   "declarative": true
+  },
+  "group": {
+   "category": "aggregate-decomposable",
+   "declarative": false
+  },
+  "lengthBuckets": {
+   "category": "aggregate-decomposable",
+   "declarative": false
+  },
+  "az": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "za": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "top": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "limit": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "reverse": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "max": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "min": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "some": {
+   "category": "aggregate-decomposable",
+   "declarative": false
+  },
+  "every": {
+   "category": "aggregate-decomposable",
+   "declarative": false
+  },
+  "reduce": {
+   "category": "holistic",
+   "declarative": false
+  },
+  "distinct": {
+   "category": "holistic",
+   "declarative": false
+  },
+  "tap": {
+   "category": "iter",
+   "declarative": false
+  },
+  "to": {
+   "category": "holistic",
+   "declarative": false
+  },
+  "keys": {
+   "category": "iter",
+   "declarative": true
+  },
+  "values": {
+   "category": "iter",
+   "declarative": true
+  },
+  "quantile": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "percentile": {
+   "category": "holistic",
+   "declarative": true
+  },
+  "median": {
+   "category": "holistic",
+   "declarative": true
+  }
+ },
+ "reserved": [
+  "get",
+  "set",
+  "update",
+  "insert",
+  "remove",
+  "patch",
+  "ingest",
+  "connect",
+  "snapshot",
+  "raf",
+  "first",
+  "last",
+  "mirror",
+  "dispose",
+  "sink",
+  "promote",
+  "each",
+  "rowCount",
+  "filter",
+  "between",
+  "gt",
+  "lt",
+  "gte",
+  "lte",
+  "az",
+  "za",
+  "top",
+  "limit",
+  "page",
+  "length",
+  "sum",
+  "avg",
+  "max",
+  "min",
+  "some",
+  "every",
+  "intersect",
+  "union",
+  "except",
+  "group",
+  "distinct",
+  "map",
+  "to",
+  "reduce",
+  "tap",
+  "median",
+  "percentile",
+  "quantile",
+  "keys",
+  "values",
+  "reverse",
+  "join"
+ ],
+ "exports": [
+  "$",
+  "DataNode",
+  "ErrorBoundary",
+  "For",
+  "Fragment",
+  "HOT",
+  "HTML",
+  "InMemoryBacking",
+  "Runtime",
+  "SVG",
+  "batch",
+  "bind",
+  "boundary",
+  "component",
+  "domLinks",
+  "el",
+  "exportContract",
+  "fromAsync",
+  "h",
+  "handleFor",
+  "ingest",
+  "jsx",
+  "jsxDEV",
+  "jsxs",
+  "lane",
+  "list",
+  "liveLists",
+  "materialize",
+  "mount",
+  "node",
+  "normChildren",
+  "onCleanup",
+  "render",
+  "runtime",
+  "text",
+  "value",
+  "wireSink"
+ ],
+ "builtAt": "2026-09-21T00:34:36.643Z"
+}
