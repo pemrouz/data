@@ -1,0 +1,69 @@
+<section class="devtools-section" id="devtools">
+  <div class="opt" data-section="devtools">
+
+    <!-- a · the old form: prose, a mount button, a slide-in right-edge dock -->
+    <div data-variant="a" data-label="the old form · mount on demand">
+      <div class="sec-head"><span class="sec-no">04</span><h2>See your graph</h2></div>
+      <p class="lead-para">
+        <code>devtools/</code> ships an inspector panel and a DOM overlay. The
+        panel is a right-edge dock: the live graph as a <b>Tree</b> or a
+        <b>DAG</b>, every commit's deltas as they settle, and the settle time
+        of each node. It mounts on demand — never on its own — and the console
+        API alone (<code>$.inspect</code>, <code>$.graph</code>,
+        <code>$.trace</code>, <code>$.profile</code>, <code>$.cascades</code>)
+        doesn't pay the panel's bytes. The overlay walks the other way:
+        <code>$.fromDOM($0)</code> picks any bound element back to the view
+        that rendered it; <code>$.highlight(view)</code> lights up its rows.
+      </p>
+      <div class="dt-actions">
+        <button id="devtools-mount-a" type="button" class="stream-btn">mount the inspector on this page ▸</button>
+        <span class="muted" id="devtools-status-a">not mounted · this page runs a five-node graph</span>
+      </div>
+      <p class="muted dt-foot">
+        Everything the panel shows is a projection of two runtime primitives —
+        <code>runtime().graph()</code> and <code>runtime().onCommit(c =&gt; …)</code>
+        — so the numbers are the kernel's own, measured only while a hook is live.
+      </p>
+      <aside class="dt-dock dt-dock-fixed" id="devtools-dock-a" data-mode="tabs" aria-label="data devtools inspector (preview)" hidden></aside>
+    </div>
+
+    <!-- b · an inline preview: the same dock drawn as a card beside the prose -->
+    <div data-variant="b" data-label="inline preview · two columns">
+      <div class="sec-head"><span class="sec-no">04</span><h2>See your graph</h2></div>
+      <div class="dt-cols">
+        <div class="dt-prose">
+          <p class="lead-para">
+            <code>devtools/</code> ships an inspector panel and a DOM overlay.
+            The panel is a right-edge dock — this is it, drawn inline over a
+            five-node graph this section runs on the page's engine, with a
+            scripted writer feeding it real writes. <code>devtools/index.ts</code>
+            alone — the graph, trace and profile helpers this page imports —
+            never loads the panel; the <code>data/devtools</code> entry also
+            docks it on import unless the URL says <code>?nopanel</code>, and
+            <code>devtools/panel/</code> mounts only through <code>mountPanel()</code>.
+          </p>
+          <ul class="prop-list dt-props">
+            <li><span class="op">Tree / DAG</span><span class="d">the live graph — <em>id · kind · op · height · parents</em>, from <code>runtime().graph()</code></span></li>
+            <li><span class="op">Events</span><span class="d">one line per commit: the write, the cascade in settle order, <em>deltas per node</em></span></li>
+            <li><span class="op">settle ms</span><span class="d">per-node timing from <code>onCommit</code> — measured only while a hook is live</span></li>
+            <li><span class="op" data-literal>$.fromDOM($0)</span><span class="d">the overlay: any bound element → the view that rendered it; <code>$.highlight(view)</code> lights its rows</span></li>
+          </ul>
+          <p class="muted dt-foot">
+            Console-only: <code>$.inspect(h)</code> · <code>$.graph()</code> ·
+            <code>$.trace(fn)</code> · <code>$.profile(fn)</code> · <code>$.cascades(fn)</code>.
+            <code>$.trace</code> subscribes for the duration of <code>fn</code> and disposes after — tracing has zero steady-state cost.
+          </p>
+        </div>
+        <div class="dt-side">
+          <aside class="dt-dock dt-dock-card" id="devtools-dock-b" data-mode="split" aria-label="data devtools inspector (inline, live)"></aside>
+          <div class="dt-actions dt-actions-b">
+            <button id="devtools-open-b" type="button" class="stream-btn">open the real panel ▸</button>
+            <span class="muted" id="devtools-panel-status-b">lazy — devtools/panel/ loads on click</span>
+          </div>
+          <p class="muted dt-under"><code>$.devtools.panel.open()</code> / <code>.close()</code> drive it from the console in any page that imports <code>data/devtools</code> — <code>$.inspect(h)</code> alone stays in the console.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>

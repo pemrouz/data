@@ -1,0 +1,102 @@
+/* sections/wire.css — §06 Across the wire (id="wire"). Everything scoped under #wire.
+   Reuses v2.css grammar: .sec-head / .lead-para / .muted, the card recipe (bg-2 + rule),
+   mono kickers, .tok-* for the printed batch, one accent. */
+section.wire { padding: 3.25rem 0; border-top: 1px solid var(--rule); }
+/* ?wire=off — the "off" variant is an empty div; when it is the shown one, the whole
+   section goes (not in ?all=1, where every variant stacks). */
+html:not(.opt-all) section.wire:has(> .opt > [data-variant="off"]:not([hidden])) { display: none; }
+#wire .lead-para code { white-space: nowrap; }
+
+/* ── the card: here | the wire | there ─────────────────────────────────────── */
+#wire .wire-card {
+  display: grid; grid-template-columns: minmax(0, 1fr) 17.5rem minmax(0, 1fr);
+  background: var(--bg-2); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden;
+  margin: 0.25rem 0 0;
+}
+#wire .wire-col { display: flex; flex-direction: column; min-width: 0; padding: 0.95rem 1.15rem 0.9rem; }
+#wire .wire-kicker { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.75rem; font: 500 0.7rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+#wire .wire-kicker .tag { color: var(--faint); letter-spacing: 0.06em; text-transform: none; font-weight: 400; }
+#wire .wire-kicker .tag b { color: var(--accent); font-weight: 500; }
+
+/* ── the keyed table (ob-ladder grammar: mono, tabular, tiny uppercase head) ── */
+#wire .wire-tbl { font: 0.78rem var(--mono); font-variant-numeric: tabular-nums; line-height: 1; }
+#wire .wire-th, #wire .wire-tr { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) 2.6rem 4.2rem 3.6rem; column-gap: 0.55rem; align-items: center; }
+#wire .wire-th { padding: 0 0.4rem 0.4rem; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--rule); }
+#wire .th-qty, #wire .th-px { text-align: right; }
+#wire .wire-tr { height: 33px; padding: 0 0.4rem; border-bottom: 1px solid var(--rule); cursor: pointer; }
+#wire .wire-tr:last-child { border-bottom: 0; }
+#wire .wire-tr:hover { background: var(--bg-3); }
+#wire .wire-tr.in { animation: wire-rowin 240ms ease-out; }
+@keyframes wire-rowin { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+/* the replica before the opening snapshot lands: exactly what runtime B holds — nothing */
+#wire .wire-empty { padding: 0.9rem 0.4rem; font: 0.68rem/1.5 var(--mono); color: var(--faint); }
+#wire .c-k { color: var(--faint); }
+#wire .c-sym { color: var(--ink); font-weight: 500; }
+#wire .c-side { color: var(--dim); }
+#wire .c-px { text-align: right; color: var(--dim); }
+/* the editable-looking qty: a boxed value that lights on hover and flashes on a write */
+#wire .c-qty { justify-self: end; min-width: 3.9rem; text-align: right; padding: 0.3rem 0.45rem; border: 1px solid var(--rule); border-radius: 3px; background: var(--bg); color: var(--ink); transition: border-color 120ms ease; }
+#wire .wire-tr:hover .c-qty { border-color: var(--dim); }
+#wire .c-qty.flash { animation: wire-flash 600ms ease-out; }
+@keyframes wire-flash { 0% { background: var(--accent); border-color: var(--accent); color: var(--bg); } 100% { background: var(--bg); border-color: var(--rule); } }
+/* the column's foot: the last thing this runtime did, in the real spelling */
+#wire .wire-last { margin-top: auto; padding-top: 0.8rem; min-height: 2.9rem; font: 0.68rem/1.5 var(--mono); color: var(--faint); overflow: hidden; }
+#wire .wire-last b { color: var(--ink); font-weight: 500; }
+#wire .wire-last code { font: inherit; color: inherit; }
+
+/* ── the seam: the void between the two runtimes ───────────────────────────── */
+#wire .wire-seam { display: flex; flex-direction: column; min-width: 0; padding: 0.95rem 1rem 0.9rem; background: var(--bg); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+#wire .wire-track { position: relative; height: 22px; margin: 0.15rem 0 0.35rem; }
+#wire .wire-line { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--faint); opacity: 0.5; }
+#wire .wire-line::before, #wire .wire-line::after { content: ''; position: absolute; top: -3px; width: 1px; height: 7px; background: var(--faint); }
+#wire .wire-line::before { left: 0; } #wire .wire-line::after { right: 0; }
+#wire .wire-trail { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--accent); opacity: 0; transform: scaleX(0); transform-origin: left center; }
+#wire .wire-dot, #wire .wire-echo { position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; opacity: 0; transform: translate(0, -50%); }
+#wire .wire-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+#wire .wire-echo { border: 1px solid var(--accent); background: transparent; }
+#wire .wire-dir { display: flex; justify-content: space-between; gap: 0.5rem; font: 0.62rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+#wire .wire-dir b { color: var(--dim); font-weight: 500; }
+#wire .wire-dir .echo { color: var(--dim); }
+/* the printed batch — pre.code's voice, no box (the seam is the box) */
+#wire .wire-batch { margin: 0.75rem 0 0; padding: 0; font: 0.7rem/1.55 var(--mono); color: var(--ink); white-space: pre; overflow: hidden; min-height: calc(0.7rem * 1.55 * 9); }
+#wire .wire-batch.in { animation: wire-in 240ms ease-out; }
+#wire .wire-batch .hot { color: var(--accent); font-weight: 600; }
+@keyframes wire-in { from { opacity: 0.35; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+#wire .wire-count { margin-top: auto; padding-top: 0.8rem; font: 0.68rem/1.5 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* the measured line under the counters: bytes on the wire, the labelled hold, the ingest cost — this tab */
+#wire .wire-meas { white-space: normal; }
+#wire .wire-count b { color: var(--ink); font-weight: 500; }
+
+/* ── under the card ────────────────────────────────────────────────────────── */
+#wire .wire-status { margin: 0.9rem 0 0; font: 0.8rem var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+#wire .wire-status .seq { color: var(--accent); font-weight: 500; }
+#wire .wire-status .ok { color: var(--pos); }
+#wire .wire-status .bad { color: var(--neg); }
+#wire .wire-status .pending { color: var(--faint); }
+#wire .wire-foot { font-size: 0.9rem; max-width: 70ch; margin: 0.55rem 0 0; }
+
+/* ── below 1000px: the three columns stack; the seam becomes a horizontal strip
+   with the wire running top → bottom down its left edge ───────────────────── */
+@media (max-width: 999px) {
+  #wire .wire-card { grid-template-columns: minmax(0, 1fr); }
+  #wire .wire-seam {
+    display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 0.9rem;
+    border-left: 0; border-right: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  }
+  #wire .wire-seam .wire-kicker { grid-column: 1 / -1; }
+  #wire .wire-track { grid-column: 1; grid-row: 2 / 5; height: auto; margin: 0.2rem 0 0.1rem; }
+  #wire .wire-dir { grid-column: 2; grid-row: 2; }
+  #wire .wire-batch { grid-column: 2; grid-row: 3; margin-top: 0.6rem; }
+  #wire .wire-count { grid-column: 2; grid-row: 4; margin-top: 0; }
+  #wire .wire-line { left: 50%; right: auto; top: 0; bottom: 0; width: 1px; height: auto; }
+  #wire .wire-line::before, #wire .wire-line::after { top: auto; left: -3px; width: 7px; height: 1px; }
+  #wire .wire-line::before { top: 0; } #wire .wire-line::after { bottom: 0; }
+  #wire .wire-trail { left: 50%; right: auto; top: 0; bottom: 0; width: 1px; height: auto; transform: scaleY(0); transform-origin: center top; }
+  #wire .wire-dot, #wire .wire-echo { left: 50%; top: 0; margin: -3.5px 0 0 0; transform: translate(-50%, 0); }
+}
+@media (max-width: 460px) {
+  #wire .wire-status { font-size: 0.72rem; }
+  #wire .wire-col { padding: 0.85rem 0.85rem 0.8rem; }
+  #wire .wire-seam { padding: 0.85rem 0.85rem 0.8rem; }
+  #wire .wire-th, #wire .wire-tr { grid-template-columns: 1.5rem minmax(0, 1fr) 2.4rem 4rem 3.4rem; column-gap: 0.45rem; }
+}

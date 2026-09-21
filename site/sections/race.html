@@ -1,0 +1,342 @@
+<section class="race" id="race">
+  <div class="opt" data-section="race">
+
+    <!-- ===== a · nine engines — the old race, verbatim in form ===== -->
+    <div data-variant="a" data-label="nine engines">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · flip through nine</span>
+        <div class="race-ctrl">
+          <span class="ctrl carousel">
+            <button id="race-prev-a" type="button" title="previous engine" aria-label="previous engine">‹</button>
+            <select id="race-lib-a" aria-label="reactive engine"></select>
+            <button id="race-next-a" type="button" title="next engine" aria-label="next engine">›</button>
+            <span class="race-pos" id="race-pos-a">1 / 9</span>
+          </span>
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-a" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-a">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-a" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <!-- workload 1: the streaming order book, one engine card at a time -->
+      <div class="race-grid" id="race-grid-a">
+        <div class="rcard is-data" id="race-card-a">
+          <div class="rcard-head">
+            <span class="rcard-name"><span id="race-name-a">data</span><span class="rcard-ver" id="race-ver-a">v4</span></span>
+            <span class="rcard-tag" id="race-tag-a">length(bucket)×2 · filter→length · avg — O(1)/tick</span>
+            <span class="rcard-cpu" id="race-cpu-a">—</span>
+          </div>
+          <div class="ob-body" id="race-ob-a">
+            <canvas class="ob-depth" id="race-depth-a" aria-label="depth chart"></canvas>
+            <div class="ob-ladder" id="race-ladder-a"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rcard-wave">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub"><b id="race-ratio-a">baseline</b> · dashed line = 16ms / 60fps budget</span></div>
+            <canvas id="race-wave-a" aria-label="cpu per frame"></canvas>
+          </div>
+          <div class="rcard-foot">
+            <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">data baseline</span><b class="fstat-v fstat-base" id="race-base-a">—</b></div>
+            <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-a">—</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- workload 2: the same engine, brushing 231k rows -->
+      <div class="race-md-label">↓ same engine · interactive brushing · 231,083 flight rows — drag any chart</div>
+      <div class="race-multidim" id="race-md-a">
+        <div class="rb-row">
+          <div class="rb-meta">
+            <div class="rb-name is-data"><span id="race-md-name-a">data</span><span class="rb-ver" id="race-md-ver-a">v4</span></div>
+            <div class="rb-tag" id="race-md-tag-a">between → intersect → length(fn) · O(Δ)/brush</div>
+          </div>
+          <div class="rb-charts" id="race-charts-a"></div>
+          <div class="rb-top"><ol id="race-top-a"></ol></div>
+          <div class="rb-stats">
+            <div class="rb-count"><b id="race-active-a">—</b><span class="rb-dim"> / </span><span id="race-total-a">231,083</span></div>
+            <div class="rb-lat">
+              <span class="rb-lat-row"><span class="rb-lat-k">p50</span><span class="rb-lat-v"><b id="race-p50-a">—</b><span class="rb-lat-u">ms</span></span></span>
+              <span class="rb-lat-row"><span class="rb-lat-k">p95</span><span class="rb-lat-v"><b id="race-p95-a">—</b><span class="rb-lat-u">ms</span></span></span>
+              <span class="rb-lat-row"><span class="rb-lat-k">n</span><span class="rb-lat-v"><b id="race-n-a">0</b></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="race-caption">
+        The <b>same engine</b> you pick above, doing two jobs. Top: one order-book tick
+        stream through the same depth-chart-and-ladder viz — every tick is a deep-path
+        write, and <b>data</b> moves a couple of bucket counters per delta
+        (<code>length(bucket)</code> is aggregate-decomposable: O(1) per change); every
+        peer re-walks all 150,000 orders once per frame (O(N)), and the green baseline
+        is <b>data</b> against the 16 ms budget. Bottom: the same library filtering
+        231,083 flight rows as you brush — a brush is one
+        <code>filters.get(name).update([lo, hi])</code>, and <code>between</code> walks
+        only the rows entering or leaving the window. Every implementation is the real
+        library doing the idiomatic thing; every number is this machine's.
+      </p>
+    </div>
+
+    <!-- ===== b · one engine · two workloads — no peers, two columns ===== -->
+    <div data-variant="b" data-label="one engine · two workloads">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · every number measured on this page</span>
+        <div class="race-ctrl">
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-b" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-b">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-b" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <div class="race-two" id="race-two-b">
+        <!-- left: the order book -->
+        <div class="rcard race-two-card">
+          <div class="rcard-head">
+            <span class="rcard-name">order book</span>
+            <span class="rcard-tag">150,000 orders · length(bucket)×2 · filter→length · avg</span>
+            <span class="rcard-cpu" id="race-cpu-b">—</span>
+          </div>
+          <div class="ob-body ob-body-slim" id="race-ob-b">
+            <canvas class="ob-depth" id="race-depth-b" aria-label="depth chart"></canvas>
+            <div class="ob-ladder" id="race-ladder-b"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rcard-wave rcard-wave-slim">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub">one commit per frame · dashed line = 16ms / 60fps budget</span></div>
+            <canvas id="race-wave-b" aria-label="cpu per frame"></canvas>
+          </div>
+        </div>
+        <!-- right: brushing -->
+        <div class="rcard race-two-card">
+          <div class="rcard-head">
+            <span class="rcard-name">brushing</span>
+            <span class="rcard-tag">231,083 flight rows · between → intersect → length(fn)</span>
+            <span class="rcard-cpu" id="race-brush-cpu-b">—</span>
+          </div>
+          <div class="rb-grid" id="race-charts-b"></div>
+          <div class="rb-readout"><span class="rb-readout-hint">drag any chart —</span> <b id="race-active-b">—</b> of <span id="race-total-b">231,083</span> rows · <b class="rb-readout-ms" id="race-ms-b">—</b></div>
+        </div>
+      </div>
+
+      <div class="rcard-foot race-two-foot">
+        <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-b">—</b></div>
+        <div class="fstat"><span class="fstat-k">commits / sec</span><b class="fstat-v fstat-base" id="race-cps-b">—</b></div>
+      </div>
+
+      <p class="race-caption">
+        Two workloads, one engine, nothing to hide behind. Left: a 150,000-order book
+        ticking at the rate you set — each tick is one deep-path write, all of a frame's
+        ticks land in <b>one</b> consolidated commit, and <code>length(bucket)×2</code>,
+        <code>filter→length</code> and <code>avg</code> move a counter apiece, so the frame
+        cost is the flat line under the 16 ms budget. Right: 231,083 flight rows under four
+        brushes — a brush is one <code>filters.get(name).update([lo, hi])</code>;
+        <code>between</code> walks only the rows crossing the boundary, and
+        <code>intersect</code> and <code>length(fn)</code> fold the deltas. The figures
+        are this machine's, measured as you watch.
+      </p>
+    </div>
+
+    <!-- ===== c · follow one write — the write's journey in four cards ===== -->
+    <div data-variant="c" data-label="follow one write">
+      <div class="race-head">
+        <span class="race-title">follow one write · trades.t3.qty.update(v) · four sinks</span>
+        <div class="race-ctrl">
+          <span class="ctrl fw-seq">seq <b id="race-seq-c">—</b></span>
+          <span class="ctrl fw-dimctl">SCHEDULE_VERSION 4 · SCHEMA_VERSION 3</span>
+          <button id="race-tour-c" type="button" title="play a scripted drag through both thresholds">▶ play the crossings</button>
+        </div>
+      </div>
+
+      <div class="fw-grid">
+        <!-- 1 · write -->
+        <div class="fw-plate" id="fw-write-c">
+          <div class="fw-head"><span class="fw-no">1</span><h3>Write</h3><code class="fw-cap">render(list(trades))</code></div>
+          <table class="fw-rows" id="fw-rows-c" aria-label="the trades source"></table>
+          <p class="fw-hint">drag the number — every move is <code>trades.t3.qty.update(v)</code></p>
+<pre class="code">const trades = $({ t3: { sym: 'NVDA', qty: 500, … }, … })
+batch(() => samples.forEach(v => trades.t3.qty.update(v)))</pre>
+        </div>
+
+        <!-- 2 · delta -->
+        <div class="fw-plate" id="fw-delta-c">
+          <div class="fw-head"><span class="fw-no">2</span><h3>Delta</h3><code class="fw-cap">trades.sink({ init, apply })</code></div>
+          <p class="fw-big" id="fw-big-c">—</p>
+          <p class="fw-meta" id="fw-meta-c">—</p>
+          <pre class="fw-json" id="fw-json-c"></pre>
+<pre class="code">trades.sink({
+  init:  snapshot => show(snapshot),
+  apply: b => show(b),  // { seq, origin, rows, order, scalar }
+})</pre>
+        </div>
+
+        <!-- 3 · flow -->
+        <div class="fw-plate" id="fw-flow-c">
+          <div class="fw-head"><span class="fw-no">3</span><h3>Flow</h3><code class="fw-cap">runtime().onCommit(c => …)</code></div>
+          <svg class="fw-graph" id="fw-graph-c" viewBox="0 0 586 200" role="img" aria-label="The operator graph: trades feeds buys, which feeds largest, typical and volume">
+            <path class="edge" id="fw-e-buys-c"    d="M120 96 L170 96"/>
+            <path class="edge" id="fw-e-largest-c" d="M280 96 C312 96 308 30 340 30"/>
+            <path class="edge" id="fw-e-typical-c" d="M280 96 L340 96"/>
+            <path class="edge" id="fw-e-volume-c"  d="M280 96 C312 96 308 162 340 162"/>
+            <g class="gn" id="fw-n-trades-c">
+              <text class="h" x="10" y="77">h0 · source</text>
+              <rect class="box" x="10" y="83" width="110" height="26" rx="3"/>
+              <text class="name" x="65" y="100.5">trades</text>
+              <text class="emit" x="65" y="122"></text>
+              <text class="sub" x="65" y="133">4 rows</text>
+            </g>
+            <g class="gn" id="fw-n-buys-c">
+              <text class="h" x="170" y="77">h1 · filter</text>
+              <rect class="box" x="170" y="83" width="110" height="26" rx="3"/>
+              <text class="name" x="225" y="100.5">buys</text>
+              <text class="emit" x="225" y="122"></text>
+              <text class="sub" x="225" y="133">3 rows</text>
+            </g>
+            <g class="gn" id="fw-n-largest-c">
+              <text class="h" x="468" y="34">h2 · za('qty', 2)</text>
+              <rect class="box" x="340" y="17" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="34.5">largest</text>
+              <text class="emit" x="400" y="56"></text>
+              <text class="sub" x="400" y="67"></text>
+            </g>
+            <g class="gn" id="fw-n-typical-c">
+              <text class="h" x="468" y="100">h2 · median('px')</text>
+              <rect class="box" x="340" y="83" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="100.5">typical</text>
+              <text class="emit" x="400" y="122"></text>
+              <text class="sub" x="400" y="133">187.5</text>
+            </g>
+            <g class="gn" id="fw-n-volume-c">
+              <text class="h" x="468" y="166">h2 · sum('qty')</text>
+              <rect class="box" x="340" y="149" width="120" height="26" rx="3"/>
+              <text class="name" x="400" y="166.5">volume</text>
+              <text class="emit" x="400" y="188"></text>
+              <text class="sub" x="400" y="199" style="display:none"></text>
+            </g>
+          </svg>
+          <p class="fw-trace" id="fw-trace-c">—</p>
+<pre class="code">const buys = trades.filter(t => t.side === 'buy')
+const largest = buys.za('qty', 2), typical = buys.median('px')
+const volume = buys.sum('qty');    runtime().onCommit(trace)</pre>
+        </div>
+
+        <!-- 4 · sink -->
+        <div class="fw-plate" id="fw-sink-c">
+          <div class="fw-head"><span class="fw-no">4</span><h3>Sink</h3><code class="fw-cap">two sinks · one batch</code></div>
+          <div class="fw-twin">
+            <div class="fw-half">
+              <div class="fw-scap">dom · <code>render(list(largest))</code></div>
+              <ol class="fw-ranked" id="fw-ranked-c"></ol>
+              <div class="fw-ops" id="fw-ops-c">—</div>
+            </div>
+            <div class="fw-half">
+              <div class="fw-scap">wire · <code>WireBatch → ingest(replica)</code></div>
+              <div class="fw-chips" id="fw-chips-c"></div>
+              <div class="fw-rep" id="fw-rep-c">—</div>
+            </div>
+          </div>
+          <pre class="fw-json" id="fw-wire-c"></pre>
+<pre class="code">render(ol, list(largest, t => li(b(t.sym), t.qty)))
+wireSink(largest, wb => ingest(replica, wb.records))</pre>
+        </div>
+      </div>
+
+      <p class="race-caption" id="fw-caption-c">
+        You dragged one number and watched it travel. The write became one delta carrying its
+        path and its previous value; it flowed through exactly the views that read it —
+        <b>typical</b> never lit, because a median over <code>px</code> learns nothing from a
+        <code>qty</code> — and two sinks received the same consolidated batch: one rendered a
+        list with a single DOM instruction, one replayed it into a replica that stayed identical.
+        That is the whole engine — three row verbs, three order verbs, one envelope, and work
+        proportional to the change.
+      </p>
+    </div>
+
+    <!-- ===== d · nine engines · two workloads — b's two columns under a's carousel (THE PICK) ===== -->
+    <div data-variant="d" data-label="nine engines · two workloads">
+      <div class="race-head">
+        <span class="race-title">one engine · two workloads · flip through nine</span>
+        <div class="race-ctrl">
+          <span class="ctrl carousel">
+            <button id="race-prev-d" type="button" title="previous engine" aria-label="previous engine">‹</button>
+            <select id="race-lib-d" aria-label="reactive engine"></select>
+            <button id="race-next-d" type="button" title="next engine" aria-label="next engine">›</button>
+            <span class="race-pos" id="race-pos-d" data-literal>1 / 9</span>
+          </span>
+          <label class="ctrl rate-ctrl">rate
+            <input id="race-rate-d" type="range" min="1.8" max="3.5" step="0.05" value="3.3" aria-label="tick rate">
+            <span class="rate" id="race-rate-out-d" data-literal title="the requested rate — the strip's ticks / sec is what was applied">2.0k ticks/sec</span>
+          </label>
+          <button id="race-toggle-d" type="button">⏸ pause</button>
+        </div>
+      </div>
+
+      <div class="race-two rd-two">
+        <!-- left: the order book — re-tagged by the engine you pick -->
+        <div class="rcard race-two-card rd-card is-data" id="race-card-d">
+          <div class="rcard-head rd-head">
+            <span class="rd-kick">order book · <b id="race-rows-d">—</b> orders · deep-path writes</span>
+            <span class="rcard-cpu" id="race-cpu-d">—</span>
+            <span class="rcard-name"><span id="race-name-d">data</span><span class="rcard-ver" id="race-ver-d" data-literal>v4</span></span>
+            <span class="rcard-tag" id="race-tag-d" data-literal>length(bucket)×2 · filter→length · avg×2 — O(1)/tick</span>
+          </div>
+          <div class="ob-body rd-ob" id="race-ob-d">
+            <div class="rd-build" id="race-build-d" hidden><span class="rd-build-k">building the order book</span><span class="rd-build-stage" id="race-build-stage-d">generating rows</span><b id="race-build-ms-d"></b><span class="rd-build-bar"><i id="race-build-bar-d"></i></span></div>
+            <canvas class="ob-depth rd-depth" id="race-depth-d" aria-label="depth chart"></canvas>
+            <div class="ob-ladder rd-ladder" id="race-ladder-d"><div class="ob-ladder-h"><span>price</span><span>qty</span><span>cum</span></div></div>
+          </div>
+          <div class="rd-tape"><span class="rd-tape-k">last deltas</span><div class="rd-tape-line" id="race-tape-d"></div></div>
+          <div class="rcard-wave rd-wave">
+            <div class="pane-h">cpu per frame<span class="pane-h-sub"><b id="race-ratio-d">baseline</b> · dashed line = <span data-literal>16 ms / 60 fps</span> budget</span></div>
+            <canvas id="race-wave-d" aria-label="cpu per frame"></canvas>
+          </div>
+        </div>
+        <!-- right: brushing — the real flights on the real engine; re-tagged and raced by the engine you pick, like the book -->
+        <div class="rcard race-two-card rd-card is-data" id="race-brush-card-d">
+          <div class="rcard-head rd-head">
+            <span class="rd-kick">brushing · <span id="race-fl-kick-d">loading the flights</span> · drag any chart</span>
+            <span class="rcard-cpu" id="race-brush-cpu-d" title="the session's median brush (p50) — the readout's ms is the last brush">—</span>
+            <span class="rcard-name"><span id="race-md-name-d">data</span><span class="rcard-ver" id="race-md-ver-d" data-literal>v4</span></span>
+            <span class="rcard-tag" id="race-md-tag-d" data-literal>between → intersect → length(fn) · O(Δ)/brush</span>
+          </div>
+          <div class="rb-grid rd-grid" id="race-charts-d">
+            <div class="rd-build rd-fbuild" id="race-fbuild-d" hidden><span class="rd-build-k">loading the flights</span><span class="rd-build-stage" id="race-fbuild-stage-d">fetching</span><b id="race-fbuild-ms-d"></b><span class="rd-build-bar"><i id="race-fbuild-bar-d"></i></span></div>
+          </div>
+          <div class="rd-readout">
+            <span class="rd-count"><b id="race-active-d">—</b> of <b id="race-total-d">—</b> rows · <b id="race-ms-d">—</b> ms</span>
+            <span class="rd-lat"><span><span data-literal>p50</span> <b id="race-p50-d">—</b></span><span><span data-literal>p95</span> <b id="race-p95-d">—</b></span><span>n <b id="race-n-d">—</b></span><span class="rd-vs" id="race-brush-vs-d" hidden title="data's median for the same brushes, measured in this tab, and this engine's median over it"><span data-literal>data p50</span> <b id="race-brush-base-d">—</b> · <b id="race-brush-ratio-d">—</b></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rcard-foot race-two-foot rd-foot">
+        <div class="fstat"><span class="fstat-k">liquid orders</span><b class="fstat-v" id="race-liquid-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">avg bid</span><b class="fstat-v" id="race-avg-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">data baseline</span><b class="fstat-v fstat-base" id="race-base-d">—</b></div>
+        <div class="fstat"><span class="fstat-k">ticks / sec</span><b class="fstat-v" id="race-tps-d">—</b></div>
+      </div>
+
+      <p class="race-caption">
+        The <b>same engine</b> you pick above, doing two jobs. Left: a <b id="race-cap-n-d"></b>-order book
+        ticking at the rate you set — every tick is one deep-path write, a frame's ticks land
+        in <b>one</b> commit, and <b>data</b> moves a bucket counter apiece
+        (<code>length(bucket)</code> is aggregate-decomposable: <span data-literal>O(1)</span> per delta) while every
+        peer re-walks the whole book once per frame (O(N)); green is <b>data</b> against the
+        <span data-literal>16 ms</span> budget. Right: <b id="race-cap-f-d">the</b> flight rows under four brushes — a brush is
+        one <code>filters.get(name).update([lo, hi])</code>; <code>between</code> walks only
+        the rows crossing the boundary, <code>intersect</code> and <code>length(fn)</code>
+        fold the deltas, and the ms/brush is that write, settle included, timed on every
+        pointer move as you drag — under a peer, the same moves through that library's
+        filters and histograms, in the same window. Every implementation is the real library
+        doing the idiomatic thing; crossfilter's index is incremental too, and its walk is a
+        tighter loop over the same crossing rows.
+      </p>
+    </div>
+
+  </div>
+</section>

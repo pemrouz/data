@@ -1,0 +1,122 @@
+/* §05 The contract — scoped under #contract. Reuses v2.css grammar
+   (.sec-head, .lead-para, .dt-actions, .stream-btn, .cta-link, pre.code + .tok-*). */
+section.contract { padding: 3.25rem 0; border-top: 1px solid var(--rule); }
+#contract .lead-para code { white-space: nowrap; }
+
+/* ---------- a · the clause list (bare rows, like .prop-list) ---------- */
+#contract .clauses { list-style: none; margin: 0.25rem 0 0.5rem; padding: 0; }
+#contract .clause {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto 1.1rem;
+  column-gap: 0.9rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+#contract .clause:last-child { border-bottom: 0; }
+#contract .clause-no { font: 500 0.78rem var(--mono); color: var(--accent); letter-spacing: 0.1em; font-variant-numeric: tabular-nums; }
+#contract .clause-body { min-width: 0; }
+#contract .clause-title { color: var(--ink); font-weight: 600; margin-right: 0.35rem; }
+#contract .clause-gist { color: var(--dim); }
+#contract .clause-gist em { font-style: normal; color: var(--ink); }
+#contract .clause-gist code { font-size: 0.84em; color: var(--accent); }
+#contract .clause-n { font: 0.7rem var(--mono); color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+#contract .clause-ok { font: 600 0.85rem var(--mono); color: var(--pos); text-align: right; line-height: 1; border-radius: 2px; transition: color 160ms ease; }
+/* while the suite runs: every check goes dark, then lights as its tests land */
+#contract .clause.pending .clause-ok { color: var(--rule); }
+#contract .clause.pending .clause-n { color: var(--rule); }
+#contract .clause.hit .clause-ok { animation: contract-okflash 600ms ease-out; }
+@keyframes contract-okflash { 0% { background: var(--accent); color: var(--bg); } 100% { background: transparent; } }
+
+/* the run row — .dt-actions from v2.css; status + link sit beside the button */
+#contract .dt-actions { margin-top: 1.25rem; }
+#contract .dt-actions .muted { font: 0.78rem var(--mono); font-variant-numeric: tabular-nums; }
+#contract .dt-actions .muted b { color: var(--pos); font-weight: 500; }
+#contract .dt-actions .cta-link { margin-left: 0.5rem; }
+#contract .stream-btn:disabled { color: var(--faint); border-color: var(--rule); cursor: default; }
+
+/* the canned log — a pre.code-style box, one line per test */
+#contract .suite-log { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 6px; margin: 1rem 0 0; font: 0.76rem/1.55 var(--mono); overflow: hidden; }
+#contract .suite-log[hidden] { display: none; }
+#contract .suite-log-head { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 1rem; border-bottom: 1px solid var(--rule); background: var(--bg-3); font-size: 0.7rem; letter-spacing: 0.04em; color: var(--faint); text-transform: uppercase; }
+#contract .suite-log-file { color: var(--dim); text-transform: none; letter-spacing: 0; }
+#contract .suite-lines { list-style: none; margin: 0; padding: 0.55rem 1rem 0.35rem; min-height: 1.5rem; }
+#contract .suite-line { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; column-gap: 0.6rem; align-items: baseline; padding: 0.1rem 0; animation: contract-linein 220ms ease-out; }
+#contract .suite-ok { color: var(--pos); font-weight: 600; }
+#contract .suite-name { color: var(--dim); min-width: 0; }
+#contract .suite-name b { color: var(--ink); font-weight: 500; }
+#contract .suite-ms { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#contract .suite-sum { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; padding: 0.6rem 1rem 0.65rem; border-top: 1px solid var(--rule); color: var(--dim); font-size: 0.78rem; min-height: 1rem; }
+#contract .suite-sum:empty { display: none; }
+#contract .suite-sum b { color: var(--pos); font-weight: 600; }
+#contract .suite-sum .sep { color: var(--faint); }
+#contract .suite-sum .ver { color: var(--accent); }
+@keyframes contract-linein { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: none; } }
+
+#contract .contract-foot { font-size: 0.9rem; max-width: 70ch; margin: 1.25rem 0 0; }
+#contract .contract-foot code { font-size: 0.86em; }
+
+/* ---------- b · law · proof table (boxed rows, like .catalogue) — wired to the real engine ---------- */
+#contract .law { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin: 0.25rem 0 0; }
+#contract .law-head, #contract .law-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.45fr) 1.1rem;
+  column-gap: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-2);
+}
+#contract .law-head { padding: 0.5rem 1rem; background: var(--bg-3); font: 500 0.66rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); align-items: baseline; }
+#contract .law-head-file { text-transform: none; letter-spacing: 0; color: var(--dim); }
+#contract .law-head-ok { text-align: right; color: var(--faint); font-size: 0.8rem; letter-spacing: 0; transition: color 180ms ease; }
+#contract .law-head-ok.pass { color: var(--pos); }
+#contract .law-head-ok.fail { color: var(--warn); }
+#contract .law-row { align-items: start; }
+#contract .law-row:hover { background: var(--bg-3); }
+#contract .law-l { display: grid; grid-template-columns: 2.1rem minmax(0, 1fr); column-gap: 0.7rem; row-gap: 0.15rem; align-items: baseline; padding-top: 0.45rem; }
+#contract .law-l .clause-no { grid-row: 1 / span 3; align-self: start; padding-top: 0.15rem; }
+#contract .law-title { font: 500 0.92rem var(--mono); color: var(--ink); letter-spacing: -0.01em; }
+#contract .law-gist { font-size: 0.85rem; line-height: 1.45; color: var(--dim); }
+/* the per-clause proof line: "N tests · M ms" — N from gen/proofs.json (build), M measured around the real run */
+#contract .law-n { grid-column: 2; font: 0.68rem var(--mono); color: var(--faint); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; margin-top: 0.2rem; min-height: 1em; }
+#contract .law-n b { color: var(--dim); font-weight: 500; }
+#contract .law-row.fail .law-n, #contract .law-row.fail .law-n b { color: var(--warn); }
+/* the proof: code lines (.law-src) and executed-output lines (.law-out, attested runtime) */
+#contract pre.law-proof { margin: 0; border: 0; background: var(--bg); border-radius: 4px; padding: 0.65rem 0.85rem; font-size: 0.74rem; line-height: 1.6; color: var(--ink); }
+/* every line wraps with a hanging indent (the whole literal program stays readable at any width — nothing hides behind a scrollbar) */
+#contract pre.law-proof { white-space: pre-wrap; overflow-wrap: anywhere; }
+#contract pre.law-proof .law-src, #contract pre.law-proof .law-out { display: block; padding-left: 1.6em; text-indent: -1.6em; }
+#contract pre.law-proof .law-out { color: var(--faint); font-style: italic; transition: color 220ms ease; }
+#contract pre.law-proof .law-out[data-attested] { color: var(--dim); }
+#contract pre.law-proof .law-out.bad { color: var(--warn); font-style: normal; }
+/* the ✓ column: '·' while pending, ✓ (pos) when the clause's tests passed in this tab, ✗ (warn) when one failed */
+#contract .law-ok { font: 600 0.85rem var(--mono); color: var(--faint); text-align: right; padding-top: 0.6rem; line-height: 1; transition: color 180ms ease; }
+#contract .law-row.pass .law-ok { color: var(--pos); }
+#contract .law-row.fail .law-ok { color: var(--warn); }
+#contract .law-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1.5rem; padding: 0.6rem 1rem; background: var(--bg-3); font: 0.76rem var(--mono); color: var(--dim); }
+#contract .law-foot b { color: var(--ink); font-weight: 500; }
+#contract .law-foot-suite b[data-attested] { color: var(--pos); }
+#contract .law-foot-suite b.fail { color: var(--warn); }
+#contract .law-foot-suite b[data-attested="measured"] { color: var(--ink); }
+#contract .law-foot-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+#contract .law-foot .stream-btn { margin-left: 0; }
+#contract .law-foot .cta-link { font-size: 0.78rem; }
+@media (prefers-reduced-motion: reduce) {
+  #contract .law-ok, #contract .law-head-ok, #contract pre.law-proof .law-out { transition: none; }
+}
+
+@media (max-width: 900px) {
+  #contract .law-head, #contract .law-row { grid-template-columns: minmax(0, 1fr) 1.1rem; row-gap: 0.65rem; }
+  #contract .law-head > :nth-child(2) { display: none; }
+  /* pin the placement: law + ✓ on row 1, the proof full-width on row 2 */
+  #contract .law-l { grid-column: 1; grid-row: 1; padding-top: 0; }
+  #contract .law-ok { grid-column: 2; grid-row: 1; padding-top: 0.15rem; }
+  #contract pre.law-proof { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 560px) {
+  #contract .clause { grid-template-columns: 1.8rem minmax(0, 1fr) 1.1rem; }
+  #contract .clause-n { display: none; }
+  #contract .dt-actions .cta-link { margin-left: 0; }
+}

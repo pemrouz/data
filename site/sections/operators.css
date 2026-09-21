@@ -1,0 +1,210 @@
+/* sections/operators.css — §02 The operator surface. Everything here is scoped under
+   #operators and layers on v2.css: the catalogue/cat-row grammar, demo chips, split
+   columns, gbuckets, scalar cells and count bars all come from there. */
+
+/* ---------- shared: the feed line under the lead-para ---------- */
+#operators .op-feedline { margin: -0.35rem 0 1.5rem; font: 0.74rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#operators .op-feedline .op-fl-src { color: var(--accent); }
+#operators .op-feedline b { color: var(--dim); font-weight: 500; }
+#operators .op-feedline .op-seq { color: var(--ink); }
+#operators .op-feedline .op-fl-delta { color: var(--dim); }
+#operators .stream-btn { vertical-align: baseline; }
+
+/* ---------- a: category kickers ---------- */
+#operators .op-kicker { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.9rem; margin: 2rem 0 0.6rem; }
+#operators .op-feedline + .op-kicker { margin-top: 0.25rem; }
+#operators .op-kicker-label { font: 500 0.72rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+#operators .op-kicker-label b { color: var(--accent); font-weight: 500; margin-left: 0.3em; }
+#operators .op-kicker-def { font: 0.78rem var(--mono); color: var(--faint); }
+#operators .op-kicker-def::before { content: '— '; color: var(--rule); }
+#operators .catalogue { margin-bottom: 0; }
+#operators .cat-foot { margin-top: 1.5rem; }
+
+/* the row: a wider op column (three-name groups), a smaller cost word than the old ×-figure */
+#operators .cat-row { grid-template-columns: 12rem minmax(0, 1.2fr) minmax(0, 1.5fr) auto; }
+#operators .cat-op { white-space: normal; line-height: 1.3; }
+#operators .cat-x { font-size: 0.95rem; font-weight: 600; letter-spacing: 0; white-space: nowrap; }
+@media (max-width: 880px) {
+  /* v2's reflow spans desc + sig full-width; pin the cost word beside the name on row 1 */
+  #operators .cat-row { grid-template-columns: 1fr auto; }
+  #operators .cat-op { grid-row: 1; grid-column: 1; }
+  #operators .cat-x { grid-row: 1; grid-column: 2; }
+  #operators .cat-desc { grid-row: 2; }
+  #operators .cat-sig { grid-row: 3; }
+}
+
+/* the live cards keep a stable height so ticks never shift the page */
+#operators .cat-demo[data-demo="filter-a"]  { min-height: 13.5rem; }
+#operators .cat-demo[data-demo="between-a"] { min-height: 12.5rem; }
+#operators .cat-demo[data-demo="za-a"]      { min-height: 10.5rem; }
+#operators .cat-demo[data-demo="group-a"]   { min-height: 12rem; }
+#operators .cat-demo[data-demo="avg-a"],
+#operators .cat-demo[data-demo="median-a"]  { min-height: 10rem; }
+
+/* ---------- blotter rows (filter / between / panel lists) ---------- */
+#operators .op-rows { min-width: 0; }
+#operators .op-row { align-items: center; column-gap: 0.6rem; padding: 0.26rem 0; }
+/* one grid template per column set (rows carry data-cols) */
+#operators .op-row[data-cols="k-sym-side-bar-qty-px"] { grid-template-columns: 2.6rem 3.6rem 2.8rem minmax(2rem, 1fr) 3.6rem 4.8rem; }
+#operators .op-row[data-cols="k-sym-side-px"]         { grid-template-columns: 2.6rem minmax(3.6rem, 1fr) 2.8rem 4.8rem; }
+#operators .op-row[data-cols="k-sym-side-notional"]   { grid-template-columns: 2.6rem minmax(3.6rem, 1fr) 2.8rem 6rem; }
+#operators .op-row[data-cols="rank-k-sym-qty"]        { grid-template-columns: 1.4rem 2.6rem minmax(3.6rem, 1fr) 3.6rem; }
+#operators .op-row[data-cols="rank-k-sym-px"]         { grid-template-columns: 1.4rem 2.6rem minmax(3.6rem, 1fr) 4.8rem; }
+#operators .op-row[data-cols="rank-k-sym-side-qty"]   { grid-template-columns: 1.4rem 2.6rem minmax(3.6rem, 1fr) 2.8rem 3.6rem; }
+#operators .op-row[data-cols="k-side-qty"]            { grid-template-columns: 2.6rem minmax(2.8rem, 1fr) 3.6rem; }
+@media (max-width: 560px) {
+  #operators .op-row[data-cols="k-sym-side-bar-qty-px"] { grid-template-columns: 2.4rem minmax(3.4rem, 1fr) 2.6rem 3.4rem 4.6rem; }
+  #operators .op-row[data-cols="k-sym-side-bar-qty-px"] .op-bar { display: none; }
+}
+#operators .op-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#operators .op-k { color: var(--faint) !important; }
+#operators .op-sym { font-weight: 500; }
+#operators .op-side { color: var(--faint); }
+#operators .op-side.buy { color: var(--pos); }
+#operators .op-side.sell { color: var(--neg); }
+#operators .op-qty, #operators .op-px, #operators .op-notional { text-align: right; color: var(--ink); }
+#operators .op-px { color: var(--dim); }
+#operators .op-rank { color: var(--accent); }
+#operators .op-bar { display: block; height: 6px; background: var(--bg); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+#operators .op-bar i { display: block; height: 100%; background: var(--accent); opacity: 0.85; transition: width 180ms ease; }
+#operators .op-more { padding: 0.3rem 0 0; font: 0.72rem var(--mono); color: var(--faint); }
+#operators .op-flash { animation: cellflash 600ms ease-out; border-radius: 2px; }
+/* the tenor palette, re-keyed to the six symbols on the feed */
+#operators [data-sym="AAPL"] { color: var(--ten-1y); }
+#operators [data-sym="MSFT"] { color: var(--ten-2y); }
+#operators [data-sym="NVDA"] { color: var(--ten-5y); }
+#operators [data-sym="AMZN"] { color: var(--ten-10y); }
+#operators [data-sym="TSLA"] { color: var(--ten-30y); }
+#operators [data-sym="GOOG"] { color: var(--peer); }
+
+/* ---------- between: two bounds and a count ---------- */
+#operators .op-bound { display: grid; grid-template-columns: 1.4rem 1fr 3rem; align-items: center; gap: 0.6rem; padding: 0.3rem 0; font: 0.74rem var(--mono); color: var(--faint); }
+#operators .op-bound input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
+#operators .op-bound b { text-align: right; color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+#operators .op-bigcount { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px solid var(--rule); font: 0.74rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#operators .op-bigcount b { font: 600 1.5rem var(--mono); color: var(--accent); line-height: 1; }
+#operators .op-bigcount i { font-style: normal; color: var(--dim); }
+
+/* ---------- za: the ranked list slides into place ---------- */
+#operators .op-ranked { position: relative; height: 8.4rem; overflow: hidden; }
+#operators .op-ranked .op-row { position: absolute; left: 0; right: 0; top: 0; height: 1.68rem; margin: 0; border-bottom: 1px solid var(--rule); transition: transform 320ms cubic-bezier(.2,.7,.2,1); will-change: transform; }
+
+/* ---------- group: buckets in a grid ---------- */
+#operators .op-buckets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem 1.25rem; }
+#operators .op-buckets .gbucket { margin: 0; min-width: 0; }
+#operators .op-buckets .grow { font-variant-numeric: tabular-nums; }
+#operators .op-buckets .grow .op-k { margin-right: 0.4rem; }
+#operators .op-buckets .gcount.op-flash { color: var(--bg); }
+@media (max-width: 720px) { #operators .op-buckets { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- scalar cells with a sparkline (avg / median / panel scalars) ---------- */
+#operators .op-scalars { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+#operators .op-spark-cell { min-width: 0; }
+#operators .scalar-label { text-transform: none; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#operators .op-bigrow { display: flex; align-items: baseline; gap: 0.6rem; }
+#operators .op-bigrow .scalar-val { font-size: 1.45rem; }
+#operators .op-nudge { font: 500 0.74rem var(--mono); font-variant-numeric: tabular-nums; color: var(--faint); opacity: 0; transition: opacity 900ms ease 300ms; }
+#operators .op-nudge.show { opacity: 1; transition: none; }
+#operators .op-nudge.pos { color: var(--pos); }
+#operators .op-nudge.neg { color: var(--neg); }
+#operators .op-spark { display: block; width: 100%; height: 40px; margin-top: 0.5rem; }
+#operators .op-law { margin: 0.7rem 0 0; font: 0.74rem/1.5 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#operators .op-law b { color: var(--dim); font-weight: 500; }
+#operators .op-law i { font-style: normal; color: var(--accent); }
+@media (max-width: 600px) { #operators .op-scalars { grid-template-columns: 1fr; } }
+
+/* ---------- b: the reference grid ---------- */
+#operators .op-grid { display: grid; grid-template-columns: 1fr 0.95fr 1.35fr 0.7fr;   /* columns ∝ chip count: 10 · 7 · 13 · 3 */ gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+#operators .op-card { background: var(--bg-2); padding: 1rem 1.1rem 1.15rem; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+#operators .op-card:hover { background: var(--bg-3); }
+#operators .op-card-def { margin: 0; font: 0.8rem/1.45 var(--sans); color: var(--dim); }
+#operators .op-card .demo-chips { margin: 0.15rem 0 0; gap: 0.28rem; }
+#operators .op-card .chip { padding: 0.22rem 0.5rem; font-size: 0.74rem; }
+@media (max-width: 900px) { #operators .op-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { #operators .op-grid { grid-template-columns: 1fr; } }
+
+/* ---------- b: the shared demo panel ---------- */
+/* three areas: l = the descriptor, r = the ticking result, p = the peers strip.
+   p sits BENEATH the result (right column) by default, BESIDE it as a third
+   column from 1100px, and stacks last on a phone. */
+#operators .op-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-areas: "l r" "l p"; align-content: start; gap: 1.25rem 2rem; background: var(--bg-2); border: 1px solid var(--rule); border-radius: 8px; padding: 1.1rem 1.25rem 1.25rem; font: 0.78rem var(--mono); min-height: 16rem; margin-bottom: 1rem; }
+#operators .op-panel-l { grid-area: l; }
+#operators .op-panel-r { grid-area: r; }
+#operators .op-peers { grid-area: p; }
+#operators .op-panel-l, #operators .op-panel-r, #operators .op-peers { min-width: 0; }
+#operators .op-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 0.75rem; margin-bottom: 0.7rem; }
+#operators .op-panel-name { font: 600 1.1rem var(--mono); color: var(--accent); letter-spacing: -0.01em; }
+#operators .op-panel-cat { font: 500 0.66rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-left: auto; text-align: right; }
+#operators .op-panel-cat b { color: var(--accent); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 0.8rem; }
+/* the headline multiple beside the cost word: "O(Δ) · 58× peak" */
+#operators .op-panel-cat .op-x { display: inline-block; color: var(--ink); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 0.8rem; font-variant-numeric: tabular-nums; border-radius: 2px; padding: 0 0.1em; margin: 0 -0.1em; }
+#operators .op-panel-cat .op-x.op-flash { animation: cellflash 600ms ease-out; }
+#operators .op-panel-cat .op-xw { color: var(--faint); }
+#operators .op-panel pre.code { margin: 0 0 0.75rem; padding: 0.75rem 0.9rem; background: var(--bg); white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; }
+#operators .op-panel-desc { margin: 0 0 0.4rem; font: 0.92rem/1.5 var(--sans); color: var(--ink); }
+#operators .op-panel-note { margin: 0; font: 0.74rem/1.5 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#operators .op-panel-note i { font-style: normal; color: var(--dim); }
+#operators .op-panel-r .col-head { margin-bottom: 0.3rem; }
+#operators .op-panel-r .col-head-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#operators .op-panel-r .op-row { padding: 0.24rem 0; }
+#operators .op-panel-r .op-scalars { grid-template-columns: 1fr; }
+#operators .op-panel-r .scalar-cell { background: var(--bg); }
+#operators .op-panel-r .bool-grid { grid-template-columns: 1fr; }
+#operators .op-panel-r .bool-cell { background: var(--bg); }
+#operators .op-panel-r .tcount-row { grid-template-columns: 4.6rem 1fr 2rem; }
+#operators .op-panel-r .tcount-label { font-size: 0.74rem; }
+#operators .op-panel-r .kchip.op-flash { color: var(--bg); }
+#operators .op-log { display: grid; gap: 0.15rem; }
+#operators .op-log-row { padding: 0.28rem 0; border-bottom: 1px solid var(--rule); color: var(--dim); animation: rowin 240ms ease-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#operators .op-log-row:first-child { color: var(--ink); }
+#operators .op-log-row b { color: var(--accent); font-weight: 500; }
+#operators .op-log-row .op-k { color: var(--faint); }
+#operators .op-buckets.op-buckets-b { grid-template-columns: 1fr 1fr; }
+
+/* ---------- b: the peers strip (MEASURED in this tab; bars ∝ measured cost per change; a dash until then) ---------- */
+#operators .op-peers { border-top: 1px solid var(--rule); padding-top: 0.9rem; }
+#operators .op-peers-title { font: 500 0.66rem/1.5 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-bottom: 0.5rem; }
+#operators .op-peers-title .nb { white-space: nowrap; }   /* "· word" wraps as a unit — no dangling separator at a line end */
+#operators .op-peers-rows { display: grid; gap: 0.12rem; }
+#operators .op-peer { display: grid; grid-template-columns: 6.4rem minmax(2rem, 1fr) 3.1rem; align-items: center; column-gap: 0.55rem; padding: 0.12rem 0; font: 0.72rem var(--mono); font-variant-numeric: tabular-nums; }
+#operators .op-peer-name { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#operators .op-peer-bar { display: block; height: 7px; background: var(--bg); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+#operators .op-peer-fill { display: block; height: 100%; width: 0; min-width: 3px; background: var(--peer); opacity: 0.85; transition: width 250ms cubic-bezier(.2,.7,.2,1); }
+#operators .op-peer-x { text-align: right; color: var(--faint); white-space: nowrap; }
+#operators .op-peer-x.is-off { color: var(--rule); }   /* unmeasured: a dash, un-attested, no digits */
+#operators .op-peer.is-data .op-peer-x.is-off { color: var(--rule); font-weight: 400; }
+#operators .op-peer.is-data .op-peer-name, #operators .op-peer.is-data .op-peer-x { color: var(--accent); font-weight: 600; }
+#operators .op-peer.is-data .op-peer-fill { background: var(--accent); opacity: 1; }
+#operators .op-peers-foot { margin: 0.6rem 0 0; font: 0.7rem/1.5 var(--mono); }
+/* the actions under the rows: measure ▸ · load peers ▸ · a status word; then the mono provenance line */
+#operators .op-peers-act { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.45rem; margin-top: 0.7rem; }
+#operators .op-peers-act .stream-btn { margin-left: 0; }
+#operators .op-peers-act .stream-btn:disabled { color: var(--faint); border-color: var(--rule); cursor: default; }
+#operators .op-peers-status { font: 0.7rem var(--mono); color: var(--accent); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#operators .op-peers-mono { margin: 0.55rem 0 0; font: 0.7rem/1.5 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#operators .op-peers-mono b { color: var(--dim); font-weight: 500; }
+/* between's two bound sliders inside the panel result (reuses variant a's .op-bound row grammar) */
+#operators .op-bounds-b { margin: -0.1rem 0 0.4rem; }
+#operators .op-panel-r code.col-head-label, #operators .op-panel-r code.scalar-label, #operators .op-panel-r code.bool-key { font-family: var(--mono); background: transparent; padding: 0; }
+#operators .op-panel-r code.col-head-label { color: var(--accent); }
+#operators .op-panel-r code.scalar-label { color: var(--faint); }
+#operators .op-panel-r code.bool-key { color: var(--dim); }
+#operators .op-panel-note code { font-family: var(--mono); color: var(--dim); background: transparent; padding: 0; }
+#operators .op-nudge[data-attested] { font-variant-numeric: tabular-nums; }
+/* the measured peak on each chip — a faint superscript, wide viewports only; empty until measured */
+#operators .op-chip-x { display: none; font: 400 0.52rem var(--mono); color: var(--faint); margin-left: 0.28em; vertical-align: 0.45em; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+#operators .chip.on .op-chip-x { color: var(--bg); opacity: 0.75; }
+@media (min-width: 1100px) {
+  #operators .op-panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.9fr); grid-template-areas: "l r p"; column-gap: 1.5rem; }
+  #operators .op-peers { border-top: 0; padding-top: 0; border-left: 1px solid var(--rule); padding-left: 1.25rem; }
+  #operators .op-chip-x { display: inline; margin-left: 0.22em; }
+  /* the superscripts widen every chip; trim the chip so the holistic card stays at five rows */
+  #operators .op-card .chip { padding: 0.2rem 0.4rem; font-size: 0.72rem; }
+  #operators .op-card .demo-chips { gap: 0.22rem; }
+  #operators .op-chip-x { margin-left: 0.18em; }
+}
+@media (max-width: 760px) { #operators .op-panel { grid-template-columns: 1fr; grid-template-areas: "l" "r" "p"; } }
+
+/* the ranked list positions rows by transform, so its enter animation is opacity-only */
+@keyframes op-fadein { from { opacity: 0; } to { opacity: 1; } }
+#operators .op-ranked .op-row { animation: op-fadein 240ms ease-out; }

@@ -1,0 +1,226 @@
+<section class="operators" id="operators">
+  <div class="opt" data-section="operators">
+
+    <!-- ======================= a · the catalogue, four kickers ======================= -->
+    <div data-variant="a" data-label="catalogue · four category kickers · six live cards">
+      <div class="sec-head"><span class="sec-no">02</span><h2>The operator surface</h2></div>
+      <p class="lead-para">
+        One source, many derived views. Wrap a collection in <code>$()</code> and
+        chain operators; each returns a view maintained incrementally from the deltas
+        its source emits — the same three row verbs and three order verbs, in and out.
+        Every row below runs live off one shared <code>$(trades)</code> feed — pick a
+        side, drag a bound, watch the top-5 reshuffle, see the groups recount as
+        <code>qty</code> and <code>px</code> tick.
+        <button data-stream-toggle type="button" class="stream-btn" id="op-pause-a">⏸ pause</button>
+      </p>
+      <p class="op-feedline" id="op-feedline-a"><span class="op-fl-src">$(trades)</span> · <b id="op-fl-n-a">12</b> rows · seq <span class="op-seq" id="op-fl-seq-a">0</span> · <span class="op-fl-delta" id="op-fl-delta-a">—</span></p>
+
+      <!-- ---- rowop ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">rowop <b>10</b></span><span class="op-kicker-def">one row in, one row out — the delta passes straight through</span></div>
+      <div class="catalogue">
+        <details class="cat-item" open>
+          <summary class="cat-row"><span class="cat-op">filter</span><span class="cat-desc">rows matching a predicate</span><code class="cat-sig" id="op-sig-filter-a">trades.filter(t =&gt; t.side === 'buy')</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="filter-a">
+            <div class="demo-chips" id="op-filter-chips-a"></div>
+            <div class="demo-stat"><span id="op-filter-n-a">—</span><span class="stat-avg" id="op-filter-avg-a">—</span></div>
+            <div class="op-rows" id="op-filter-rows-a"></div>
+            <div class="op-more" id="op-filter-more-a" hidden></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">map</span><span class="cat-desc">per-row transform</span><code class="cat-sig">trades.map(t =&gt; t.qty * t.px)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">gt / lt / gte / lte</span><span class="cat-desc">single-threshold comparison</span><code class="cat-sig">trades.gt('qty', 300)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">between</span><span class="cat-desc">column in a reactive range</span><code class="cat-sig" id="op-sig-between-a">trades.between('px', [100, 200])</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="between-a">
+            <div class="split split-2 op-between">
+              <div class="split-col">
+                <div class="col-head"><span class="col-head-label">bounds</span><span class="col-head-count">a value handle — drag to write it</span></div>
+                <label class="op-bound"><span>lo</span><input type="range" id="op-bw-lo-a" min="0" max="500" step="5" value="100" aria-label="lower bound"><b id="op-bw-lo-v-a">100</b></label>
+                <label class="op-bound"><span>hi</span><input type="range" id="op-bw-hi-a" min="0" max="500" step="5" value="200" aria-label="upper bound"><b id="op-bw-hi-v-a">200</b></label>
+                <div class="op-bigcount"><b id="op-bw-n-a">—</b><span>of <i id="op-bw-total-a">12</i> rows · px ∈ [<i id="op-bw-range-a">100, 200</i>]</span></div>
+                <p class="op-law" id="op-bw-law-a"><b>const bounds = $([100, 200])</b> · trades.between('px', bounds) · a drag is one write — <i>bounds.set(0, 100)</i> — and the view re-bounds</p>
+              </div>
+              <div class="split-col">
+                <div class="col-head"><span class="col-head-label" id="op-bw-label-a">between('px', [100, 200])</span><span class="col-head-count" id="op-bw-count-a">—</span></div>
+                <div class="op-rows" id="op-bw-rows-a"></div>
+                <div class="op-more" id="op-bw-more-a" hidden></div>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">intersect</span><span class="cat-desc">rows in every view, by key</span><code class="cat-sig">buys.intersect(large)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">union / except</span><span class="cat-desc">set algebra over views</span><code class="cat-sig">buys.except(large)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+      </div>
+
+      <!-- ---- aggregate-decomposable ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">aggregate-decomposable <b>7</b></span><span class="op-kicker-def">maintained from the delta alone — prev out, next in</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">sum / avg</span><span class="cat-desc">a running scalar, nudged per delta</span><code class="cat-sig">trades.avg('px')</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="avg-a">
+            <div class="op-scalars">
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">avg('px')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-avg-v-a">—</span><span class="op-nudge" id="op-avg-d-a"></span></div>
+                <canvas class="op-spark" id="op-avg-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">sum('qty')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-sum-v-a">—</span><span class="op-nudge" id="op-sum-d-a"></span></div>
+                <canvas class="op-spark" id="op-sum-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+            </div>
+            <p class="op-law" id="op-avg-law-a">—</p>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">length</span><span class="cat-desc">row count, or counts per key</span><code class="cat-sig">trades.length(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">group</span><span class="cat-desc">rows nested under a computed key</span><code class="cat-sig">trades.group(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+          <div class="cat-demo" data-demo="group-a">
+            <div class="op-buckets" id="op-group-a"></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">lengthBuckets</span><span class="cat-desc">counts per key; empties stay at 0</span><code class="cat-sig">trades.lengthBuckets(t =&gt; band(t.qty))</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">some / every</span><span class="cat-desc">any / all rows matching</span><code class="cat-sig">trades.some(t =&gt; t.qty &gt; 1000)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+      </div>
+
+      <!-- ---- holistic ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">holistic <b>13</b></span><span class="op-kicker-def">needs an order or the whole set — an index does the work</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">az / za</span><span class="cat-desc">sorted; with n, the top-n</span><code class="cat-sig">buys.za('qty', 5)</code><span class="cat-x">O(Δ log n)</span></summary>
+          <div class="cat-demo" data-demo="za-a">
+            <div class="col-head"><span class="col-head-label">buys.za('qty', 5)</span><span class="col-head-count" id="op-za-note-a">—</span></div>
+            <div class="op-ranked" id="op-za-rows-a"></div>
+          </div>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">top / limit</span><span class="cat-desc">the first n of an ordered view</span><code class="cat-sig">trades.az('px').top(3)</code><span class="cat-x">O(Δ log n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">reverse</span><span class="cat-desc">the order, flipped</span><code class="cat-sig">trades.reverse()</code><span class="cat-x">O(n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">max / min</span><span class="cat-desc">the extreme, by column or row</span><code class="cat-sig">trades.max('px')</code><span class="cat-x">O(Δ log n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">reduce</span><span class="cat-desc">a fold with an add and a remove</span><code class="cat-sig">trades.reduce(add, remove, 0)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">distinct</span><span class="cat-desc">first-seen unique by projection</span><code class="cat-sig">trades.distinct(t =&gt; t.sym)</code><span class="cat-x">O(Δ)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">to</span><span class="cat-desc">whole-value transform, sees prev</span><code class="cat-sig">trades.to(v =&gt; Object.keys(v).length)</code><span class="cat-x">O(n)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">quantile / percentile / median</span><span class="cat-desc">R-type-7 over a column</span><code class="cat-sig">trades.median('px')</code><span class="cat-x">O(Δ log n)</span></summary>
+          <div class="cat-demo" data-demo="median-a">
+            <div class="op-scalars">
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">median('px')</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-med-v-a">—</span><span class="op-nudge" id="op-med-d-a"></span></div>
+                <canvas class="op-spark" id="op-med-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+              <div class="scalar-cell op-spark-cell">
+                <span class="scalar-label">percentile('px', 90)</span>
+                <div class="op-bigrow"><span class="scalar-val" id="op-p90-v-a">—</span><span class="op-nudge" id="op-p90-d-a"></span></div>
+                <canvas class="op-spark" id="op-p90-spark-a" height="40" aria-hidden="true"></canvas>
+              </div>
+            </div>
+            <p class="op-law" id="op-med-law-a">—</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- ---- iter ---- -->
+      <div class="op-kicker"><span class="op-kicker-label">iter <b>3</b></span><span class="op-kicker-def">side effects and projections — no view state of their own</span></div>
+      <div class="catalogue">
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">tap</span><span class="cat-desc">a side effect per change record</span><code class="cat-sig">trades.tap(c =&gt; log(c))</code><span class="cat-x">O(1)</span></summary>
+        </details>
+        <details class="cat-item">
+          <summary class="cat-row"><span class="cat-op">keys / values</span><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">O(1)</span></summary>
+        </details>
+      </div>
+
+      <p class="cat-foot muted">Every row is the real operator on a live feed; the cost column is the class of work a change costs, not a benchmark. 33 operators in 4 categories — exactly what <code>exportContract()</code> reports.</p>
+    </div>
+
+    <!-- ======================= b · the reference grid, one shared panel (THE PICK — wired to the real engine) ======================= -->
+    <div data-variant="b" data-label="reference grid · four cards · one shared demo panel">
+      <div class="sec-head"><span class="sec-no">02</span><h2>The operator surface</h2></div>
+      <p class="lead-para">
+        One source, many derived views. Wrap a collection in <code>$()</code> and
+        chain operators; each returns a view maintained incrementally from the deltas
+        its source emits — the same three row verbs and three order verbs, in and out.
+        All <b id="op-n-ops-b"></b> below run live off one shared <code>$(trades)</code> feed — pick any
+        operator and its result ticks in the panel as <code>qty</code> and <code>px</code> move.
+        <button data-stream-toggle type="button" class="stream-btn" id="op-pause-b">⏸ pause</button>
+      </p>
+      <p class="op-feedline" id="op-feedline-b"><span class="op-fl-src">$(trades)</span> · <b id="op-fl-n-b"></b> rows · seq <span class="op-seq" id="op-fl-seq-b"></span> · <span class="op-fl-delta" id="op-fl-delta-b">—</span></p>
+
+      <div class="op-grid" id="op-grid-b">
+        <div class="op-card" data-cat="rowop">
+          <span class="op-kicker-label">rowop <b data-cat-n></b></span>
+          <p class="op-card-def">one row in, one row out — the delta passes straight through</p>
+          <div class="demo-chips op-chips" data-cat="rowop"></div>
+        </div>
+        <div class="op-card" data-cat="aggregate-decomposable">
+          <span class="op-kicker-label">aggregate-decomposable <b data-cat-n></b></span>
+          <p class="op-card-def">maintained from the delta alone — prev out, next in</p>
+          <div class="demo-chips op-chips" data-cat="aggregate-decomposable"></div>
+        </div>
+        <div class="op-card" data-cat="holistic">
+          <span class="op-kicker-label">holistic <b data-cat-n></b></span>
+          <p class="op-card-def">needs an order or the whole set — an index does the work</p>
+          <div class="demo-chips op-chips" data-cat="holistic"></div>
+        </div>
+        <div class="op-card" data-cat="iter">
+          <span class="op-kicker-label">iter <b data-cat-n></b></span>
+          <p class="op-card-def">side effects and projections — no view state of their own</p>
+          <div class="demo-chips op-chips" data-cat="iter"></div>
+        </div>
+      </div>
+
+      <div class="op-panel" id="op-panel-b">
+        <div class="op-panel-l">
+          <div class="op-panel-head"><span class="op-panel-name" id="op-panel-name-b">filter</span><span class="op-panel-cat" id="op-panel-cat-b"></span></div>
+          <pre class="code op-panel-sig" id="op-panel-sig-b" data-hl="off"></pre>
+          <p class="op-panel-desc" id="op-panel-desc-b"></p>
+          <p class="op-panel-note" id="op-panel-note-b"></p>
+        </div>
+        <div class="op-panel-r" id="op-panel-result-b"></div>
+        <!-- the peers strip: cost per change for THIS operator across the race's nine engines,
+             MEASURED in this tab on demand (sections/operators/bench.js) — a dash until then -->
+        <div class="op-peers" id="op-peers-b" aria-label="cost per change, nine engines, measured in this tab">
+          <div class="op-peers-title">cost per change<span class="nb"> · this operator</span><span class="nb"> · nine engines</span></div>
+          <div class="op-peers-rows" id="op-peers-rows-b"></div>
+          <div class="op-peers-act">
+            <button type="button" class="stream-btn" id="op-measure-b">measure ▸</button>
+            <button type="button" class="stream-btn" id="op-load-peers-b">load peers ▸</button>
+            <span class="op-peers-status" id="op-peers-status-b" aria-live="polite"></span>
+          </div>
+          <p class="op-peers-mono" id="op-peers-mono-b"></p>
+          <p class="op-peers-foot muted">the multiple is data's cost as the unit; peers re-walk the source on every change — nothing prints here until it has been timed in this tab</p>
+        </div>
+      </div>
+
+      <p class="cat-foot muted">Every chip is the real operator on a live feed. The cost word is the class of work a change costs; the multiple is that cost against eight peers doing the idiomatic thing — re-walking the source per change — measured in this tab on demand, and the figure on the panel is the peak, the widest gap. <b id="op-foot-n-b"></b> operators in <b id="op-foot-c-b"></b> categories — exactly what <code>exportContract()</code> reports.</p>
+    </div>
+
+  </div>
+</section>

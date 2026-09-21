@@ -1,0 +1,109 @@
+<section class="gallery-section" id="gallery">
+  <div class="opt" data-section="gallery">
+
+    <!-- a · the old grid: one feature card (fero) + three cards (essay · proof · tooling) -->
+    <div data-variant="a" data-label="the old grid">
+      <div class="sec-head"><span class="sec-no">07</span><h2>Built with it</h2></div>
+      <p class="lead-para">
+        One consumer today, and the essay that explains the idea. <b>fero</b> runs on
+        the engine in production; the essay is why the engine has the shape it has; the
+        proof and the tooling are the same source, running in this tab.
+      </p>
+
+      <div class="gallery">
+        <div class="gcard gcard-feature g-fero">
+          <span class="gcard-tag">consumer · in production</span>
+          <h3><a href="./seam/index.ts">fero</a></h3>
+          <div class="g-fero-body">
+            <div class="g-fero-text">
+              <p>
+                Its substrate imports one entry — <code>../../data/api/index.ts</code> — and
+                uses seven names from it. Its <code>npm test</code> runs data's conformance
+                suite against data HEAD, so a clause edit that forgets its
+                <code>SCHEDULE_VERSION</code> bump fails in both repos before it ships. The
+                lane record shape is a wire-stability surface: fero's kernel records enter
+                the engine verbatim, and that shape does not move.
+              </p>
+              <div class="g-names" aria-label="the seven names"><span class="g-name"><b>$</b></span><span class="g-name">value</span><span class="g-name">node</span><span class="g-name">lane</span><span class="g-name">ingest</span><span class="g-name">DataNode</span><span class="g-name">exportContract</span></div>
+              <span class="gcard-links"><a href="./seam/index.ts">the seam →</a><a href="./conformance/schedule.test.ts">the contract ride</a></span>
+            </div>
+            <dl class="g-kv" aria-label="the coupling">
+              <dt>entry</dt><dd><code>../../data/api/index.ts</code></dd>
+              <dt>ride</dt><dd><code>conformance/schedule.test.ts</code> <span class="g-kv-note g-nb">· fero's CI · against data HEAD</span></dd>
+              <dt>wire</dt><dd><code>{ type: 0|1|2, key: [rowKey, <span class="g-nb">…fieldPath</span>], value, at? }</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <span class="gcard-tag">essay · change &amp; derivation</span>
+          <h3><a href="./flow/">Write the view, flow the change</a></h3>
+          <p>An eight-section essay on the duality at the core of the engine: a table and its stream of changes are the same thing in two forms, so a view — a filter, a count, a grouping — stays live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, and none of the bookkeeping.</p>
+          <span class="gcard-links"><a href="./flow/">read →</a></span>
+        </div>
+
+        <div class="gcard g-proof">
+          <span class="gcard-tag">proof · live</span>
+          <h3><a href="./conformance/schedule.test.ts">18 of 18 in this tab</a></h3>
+          <p>The executable contract — one version assert and seventeen clause tests — running here through <code>node:test</code> / <code>node:assert</code> shims over the same source the page serves. The same file rides in fero's CI.</p>
+          <div class="g-run" id="g-run-a" aria-live="off">
+            <div class="g-cells" id="g-cells-a" aria-hidden="true">
+              <span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span><span class="g-cell"></span>
+            </div>
+            <div class="g-runline">
+              <span class="g-runclause" id="g-runclause-a">schedule.test.ts</span>
+              <span class="g-runcount" id="g-runcount-a">0 / 18</span>
+              <button class="g-rerun" id="g-rerun-a" type="button" title="run the suite again">▶ again</button>
+            </div>
+          </div>
+          <span class="gcard-links"><a href="./conformance/schedule.test.ts">schedule.test.ts →</a><a href="./contract/SCHEDULE.md">SCHEDULE.md</a></span>
+        </div>
+
+        <div class="gcard">
+          <span class="gcard-tag">tooling</span>
+          <h3><a href="#devtools">See your graph</a></h3>
+          <p>The devtools panel: the live graph as Tree / DAG, per-commit deltas, per-node settle ms, and a DOM overlay for the render layer. <code>devtools/index.ts</code> and <code>devtools/dom.ts</code>, the same source the engine ships. Mounts on demand — never on import.</p>
+          <span class="gcard-links"><a href="#devtools">mount it ↑</a><a href="./devtools/index.ts">devtools/</a></span>
+        </div>
+      </div>
+      <p class="cat-foot muted"><code>examples/</code> returns with the v4 gallery — crossfilter, chat, to-do.</p>
+    </div>
+
+    <!-- b · fero only: one wide feature card (what fero is | the coupling as a kv panel) -->
+    <div data-variant="b" data-label="fero only">
+      <div class="sec-head"><span class="sec-no">07</span><h2>Built with it</h2></div>
+      <p class="lead-para">
+        One consumer in production today: <b>fero</b>, a replicated, durable data kernel —
+        deterministic core, real-TCP and real-WAL shells — whose every write and replica is a
+        data source under this contract. Its CI runs data's conformance suite against data
+        HEAD, so a clause that changes without its version bump fails there before it fails
+        here.
+      </p>
+
+      <div class="gallery g-solo-b">
+        <div class="gcard gcard-feature g-fero-b">
+          <div class="g-fero-b-text">
+            <span class="gcard-tag">consumer · in production</span>
+            <h3><a href="https://github.com/pemrouz/fero">fero</a></h3>
+            <p>
+              A deterministic kernel proven both ways from the same bytes — a seeded simulation
+              drives a thousand chaos trajectories a run, and the same kernel runs over real TCP
+              and a real write-ahead log. Per-cell last-writer-wins replication heals tail loss
+              from partitions and dial races, membership is a committed view, and durability
+              carries a restore-from-WAL proof: kill a whole cluster at any seed and no write it
+              confirmed to disk is lost.
+            </p>
+            <span class="gcard-links"><a href="https://github.com/pemrouz/fero">fero →</a></span>
+          </div>
+          <dl class="g-kv-b" aria-label="the coupling">
+            <dt>runs on</dt><dd><code>data v4</code></dd>
+            <dt>ride</dt><dd><code>conformance/schedule.test.ts</code><span class="g-kv-b-note">in fero's CI · against data HEAD</span></dd>
+            <dt>contract</dt><dd><code>SCHEDULE_VERSION <b id="g-ver-b" data-attested="runtime">—</b></code></dd>
+          </dl>
+        </div>
+      </div>
+      <p class="cat-foot muted"><code>examples/</code> returns with the <span data-literal>v4</span> gallery — crossfilter, chat, to-do.</p>
+    </div>
+
+  </div>
+</section>

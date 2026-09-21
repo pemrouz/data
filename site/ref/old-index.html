@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data — only do the work that changed</title>
+  <meta name="description" content="A small reactive data library for TypeScript. $() wraps a value; chainable operators derive views; render binds to the DOM. One edit walks one path — work scales with the change, not the dataset.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230c0c0d'/%3E%3Ctext x='3' y='13' font-family='monospace' font-size='14' font-weight='600' fill='%23ff5e3a'%3E%24%3C/text%3E%3C/svg%3E">
+  <link rel="canonical" href="https://pemrouz.github.io/data/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="data">
+  <meta property="og:url" content="https://pemrouz.github.io/data/">
+  <meta property="og:title" content="data — only do the work that changed">
+  <meta property="og:description" content="$() wraps a value; chainable operators derive views; render binds to the DOM. Work scales with the change, not the dataset.">
+  <meta property="og:image" content="https://pemrouz.github.io/data/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="data — only do the work that changed. A reactive data library for TypeScript; work scales with the change, not the dataset.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="data — only do the work that changed">
+  <meta name="twitter:description" content="Reactive data for TypeScript. Work scales with the change, not the dataset — no virtual DOM, no diffing.">
+  <meta name="twitter:image" content="https://pemrouz.github.io/data/assets/og.png">
+  <link rel="alternate" type="text/markdown" href="./llms.txt" title="llms.txt — condensed API map for LLMs">
+  <link rel="sitemap" type="application/xml" href="./sitemap.xml">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "data",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Cross-platform (browser, Node.js)",
+    "description": "A small, dependency-free reactive data library for TypeScript and JavaScript. $() wraps a value or collection into a reactive proxy; chainable operators derive live views; render binds them to the DOM with no virtual DOM. Work is proportional to the path that changed, not the size of the data.",
+    "url": "https://pemrouz.github.io/data/",
+    "downloadUrl": "https://www.npmjs.com/package/data",
+    "installUrl": "https://www.npmjs.com/package/data",
+    "codeRepository": "https://github.com/pemrouz/data",
+    "programmingLanguage": ["TypeScript", "JavaScript"],
+    "license": "https://opensource.org/licenses/MIT",
+    "author": { "@type": "Person", "name": "pemrouz" },
+    "keywords": "reactive, signals, fine-grained, incremental, crossfilter, dataframe, state-management, frp, no-virtual-dom",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+  <!-- peers (mobx/solid/react/…) load from esm.sh on carousel selection — warm the connection early -->
+  <link rel="preconnect" href="https://esm.sh" crossorigin>
+  <link rel="dns-prefetch" href="https://esm.sh">
+  <link rel="stylesheet" href="./assets/v2.css">
+  <link rel="stylesheet" href="./assets/multidim.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div id="copy-live" class="sr-only" aria-live="polite"></div>
+
+<!-- icon sprite: github + npm marks defined once, referenced via <use> in the masthead and footer -->
+<svg class="sr-only" aria-hidden="true" focusable="false">
+  <symbol id="i-github" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  <symbol id="i-npm" viewBox="0 0 24 24"><path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/></symbol>
+</svg>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <a class="mark" href="./index.html"><b>$</b> data</a>
+    <span class="rule"></span>
+    <span class="date">incremental computation for typescript</span>
+    <nav class="mast-nav">
+      <a href="#race">demo</a>
+      <a href="#operators">operators</a>
+      <a href="#quickstart">start</a>
+      <a href="#gallery">gallery</a>
+      <a class="icon-link" href="https://github.com/pemrouz/data" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><use href="#i-github"/></svg></a>
+      <a class="icon-link" href="https://www.npmjs.com/package/data" aria-label="npm" title="npm"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><use href="#i-npm"/></svg></a>
+    </nav>
+  </header>
+
+  <main id="main">
+  <!-- ===== lede ===== -->
+  <section class="lede">
+    <p class="kicker">the original sin of reactive UI</p>
+    <h1 class="headline">Only do the work that <em>changed</em>.</h1>
+    <p class="standfirst">
+      Almost every reactive system re-runs the whole computation when a single
+      value changes. <b>data</b> re-runs only the path that changed — work scales
+      with the edit, not the dataset. Wrap a value in <code>$()</code>, chain
+      operators, bind to the DOM. No virtual DOM, no diffing.
+    </p>
+    <p class="lede-sub">
+      Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+      fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+      analytics, grids, live feeds.
+    </p>
+    <div class="cta">
+      <button class="install" type="button" data-copy="npm install data" title="click to copy" aria-label="Copy install command: npm install data"><span class="dim" aria-hidden="true">$</span> npm install data</button>
+      <a class="cta-link" href="#quickstart">quickstart ↓</a>
+      <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+    </div>
+    <p class="trust">≈29 kB gzip <span class="sep">·</span> <b>0</b> dependencies <span class="sep">·</span> no virtual DOM <span class="sep">·</span> MIT</p>
+    <noscript><p class="muted" style="margin-top:1.5rem">This page's demos need JavaScript. Source &amp; docs: <a href="https://github.com/pemrouz/data">github.com/pemrouz/data</a></p></noscript>
+  </section>
+
+  <!-- ===== the race ===== -->
+  <section class="race" id="race">
+    <div class="race-head">
+      <span class="race-title">one engine · two workloads · flip through nine</span>
+      <div class="race-ctrl">
+        <span class="ctrl carousel">
+          <button id="race-prev" title="previous engine" aria-label="previous engine">‹</button>
+          <select id="race-lib" aria-label="reactive engine"></select>
+          <button id="race-next" title="next engine" aria-label="next engine">›</button>
+          <span class="race-pos" id="race-pos">1 / 9</span>
+        </span>
+        <label class="ctrl rate-ctrl">rate
+          <input id="race-rate" type="range" min="1.8" max="3.5" step="0.05" value="3.4">
+          <span class="rate" id="race-rate-out">—</span>
+        </label>
+        <button id="race-toggle">⏸ pause</button>
+      </div>
+    </div>
+
+    <!-- workload 1: streaming order book (carousel-selected engine) -->
+    <div class="race-grid" id="race-grid"></div>
+    <p class="race-status" id="race-status"></p>
+
+    <!-- workload 2: the same engine, brushing 231k rows — co-located below -->
+    <div class="race-md-label">↓ same engine · interactive brushing · 231,083 flight rows — drag any chart</div>
+    <div class="race-multidim" id="race-multidim"></div>
+
+    <p class="race-caption">
+      The <b>same engine</b> you pick above, doing two jobs. Top: one realistic
+      order-book tick stream through the same depth-chart-and-ladder viz —
+      <b>data</b> moves a couple of bucket counters per tick (O(1)); every peer
+      re-walks all 150,000 orders once per frame (O(N)), and the green baseline
+      is <b>data</b> against the 16ms budget. Bottom: the same library filtering
+      231,083 flight rows live as you brush, with its real per-interaction
+      latency. Every implementation is the real library doing the idiomatic thing.
+    </p>
+  </section>
+
+  <!-- ===== §1 the argument ===== -->
+  <section class="essay" id="why">
+    <div class="sec-head"><span class="sec-no">01</span><h2>The argument</h2></div>
+    <p class="lead-para">
+      A change is small. You set one field on one row. Yet most reactive stacks
+      respond by re-running everything downstream — re-filtering the whole list,
+      re-summing every number, diffing an entire tree — and then trusting a
+      memoiser to paper over the waste.
+    </p>
+    <p>
+      <b>data</b> takes the change literally. A mutation carries its exact path,
+      and each operator in the chain does work scoped to that path alone:
+    </p>
+    <pre class="code">orders[42].bid = 99.85</pre>
+    <ul class="prop-list">
+      <li><span class="op">filter</span> re-tests the predicate for <em>one</em> row</li>
+      <li><span class="op">length(bucket)</span> moves <em>one</em> bucket counter</li>
+      <li><span class="op">avg</span> nudges a running mean in O(1)</li>
+      <li><span class="op">render</span> rewrites only the single bound cell</li>
+    </ul>
+    <p class="muted">
+      No diff pass. No list re-render. No selector re-run over 200,000 rows. The
+      cost of an update is the length of the path it travels — which is why the
+      race above holds at any rate, and why it scales to datasets that make
+      recompute-everything systems stall.
+    </p>
+  </section>
+
+  <!-- ===== §2 the operators ===== -->
+  <section class="operators" id="operators">
+    <div class="sec-head"><span class="sec-no">02</span><h2>The operator surface</h2></div>
+    <p class="lead-para">
+      One source, many derived views. Wrap a collection in <code>$()</code> and
+      chain operators; each returns a reactive view that updates incrementally
+      as the source changes. Every row below runs live off one shared
+      <code>$(trades)</code> feed of rate trades — pick any tenor, watch the
+      top-K reshuffle, see the groups recount as bid/ask/pnl tick.
+      <button data-stream-toggle type="button" class="stream-btn">⏸ pause</button>
+    </p>
+
+    <div class="catalogue">
+      <details class="cat-item" open>
+        <summary class="cat-row"><a class="cat-op" href="./operators/filter/BENCHMARK.md">filter</a><span class="cat-desc">rows matching a predicate</span><code class="cat-sig">trades.filter('tenor', '5Y')</code><span class="cat-x">1671×</span></summary>
+        <div class="cat-demo" data-demo-for="filter">
+          <div class="demo-chips" id="filter-chips"></div>
+          <div class="demo-panel" id="filter-result"></div>
+        </div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/between/BENCHMARK.md">between</a><span class="cat-desc">column in a range (sort-indexed)</span><code class="cat-sig">trades.between('pnl', [-500, 500])</code><span class="cat-x">547×</span></summary>
+        <div class="cat-demo" data-demo-for="between"><div class="demo-panel" id="between-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/compare/BENCHMARK.md">gt / lt / gte / lte</a><span class="cat-desc">single-threshold comparison</span><code class="cat-sig">trades.gt('pnl', 0)</code><span class="cat-x">351×</span></summary>
+        <div class="cat-demo" data-demo-for="compare"><div class="demo-panel" id="compare-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/sort/BENCHMARK.md">za / az / top / limit</a><span class="cat-desc">sort and / or limit (top-K)</span><code class="cat-sig">trades.za('pnl', 5)</code><span class="cat-x">420×</span></summary>
+        <div class="cat-demo" data-demo-for="sort"><div class="demo-panel" id="za-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/length/BENCHMARK.md">length</a><span class="cat-desc">row count, or counts per key</span><code class="cat-sig">trades.length(d =&gt; d.tenor)</code><span class="cat-x">447×</span></summary>
+        <div class="cat-demo" data-demo-for="length"><div class="demo-panel" id="length-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">sum / avg / max / min</a><span class="cat-desc">scalar aggregates</span><code class="cat-sig">trades.avg('pnl')</code><span class="cat-x">723×</span></summary>
+        <div class="cat-demo" data-demo-for="aggregate"><div class="demo-panel" id="aggregate-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/aggregate/BENCHMARK.md">some / every</a><span class="cat-desc">any / all rows matching</span><code class="cat-sig">trades.some(r =&gt; r.pnl &gt; 1000)</code><span class="cat-x">723×</span></summary>
+        <div class="cat-demo" data-demo-for="some"><div class="demo-panel" id="some-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/intersect/BENCHMARK.md">intersect</a><span class="cat-desc">rows in all source views</span><code class="cat-sig">fiveY.intersect(gainers)</code><span class="cat-x">441×</span></summary>
+        <div class="cat-demo" data-demo-for="intersect"><div class="demo-panel" id="intersect-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/union/BENCHMARK.md">union / except</a><span class="cat-desc">set algebra over views</span><code class="cat-sig">fiveY.union(gainers)</code><span class="cat-x">250×</span></summary>
+        <div class="cat-demo" data-demo-for="union"><div class="demo-panel" id="union-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/group/BENCHMARK.md">group</a><span class="cat-desc">nested under a computed key</span><code class="cat-sig">trades.group(d =&gt; d.tenor)</code><span class="cat-x">2310×</span></summary>
+        <div class="cat-demo" data-demo-for="group"><div class="demo-panel" id="group-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/distinct/BENCHMARK.md">distinct</a><span class="cat-desc">first-seen unique by projection</span><code class="cat-sig">trades.distinct(r =&gt; r.tenor)</code><span class="cat-x">1241×</span></summary>
+        <div class="cat-demo" data-demo-for="distinct"><div class="demo-panel" id="distinct-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/map/BENCHMARK.md">map</a><span class="cat-desc">per-row transform</span><code class="cat-sig">trades.map(r =&gt; ({ id, spread }))</code><span class="cat-x">1902×</span></summary>
+        <div class="cat-demo" data-demo-for="map"><div class="demo-panel" id="map-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/reduce/BENCHMARK.md">to / reduce</a><span class="cat-desc">whole-value transform / fold</span><code class="cat-sig">trades.reduce(add, remove, 0)</code><span class="cat-x">29556×</span></summary>
+        <div class="cat-demo" data-demo-for="reduce"><div class="demo-panel" id="reduce-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/tap/BENCHMARK.md">tap</a><span class="cat-desc">declarative side effects</span><code class="cat-sig">trades.tap(() =&gt; n++)</code><span class="cat-x">1875×</span></summary>
+        <div class="cat-demo" data-demo-for="tap"><div class="demo-panel" id="tap-result"></div></div>
+      </details>
+      <details class="cat-item">
+        <summary class="cat-row"><a class="cat-op" href="./operators/keys/BENCHMARK.md">keys / values / reverse</a><span class="cat-desc">projections over the shape</span><code class="cat-sig">trades.keys()</code><span class="cat-x">7621×</span></summary>
+        <div class="cat-demo" data-demo-for="keys"><div class="demo-panel" id="keys-result"></div></div>
+      </details>
+    </div>
+    <p class="cat-foot muted">×-figures are the peak speedup — the widest gap to a peer — across eight measured peer libraries; click any to see the full fastest→slowest range in its reproducible run (<code>npm run bench:ops</code> regenerates them). <code>some</code>/<code>every</code> reuse the scalar-aggregate path, so they carry its figure. <a href="./operators/BENCHMARK.md">Summary table →</a></p>
+  </section>
+
+  <!-- ===== §3 quickstart ===== -->
+  <section class="quickstart" id="quickstart">
+    <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
+    <button class="install" type="button" data-copy="npm install data" title="click to copy" aria-label="Copy install command: npm install data"><span class="dim" aria-hidden="true">$</span> npm install data</button>
+
+    <div class="entries">
+      <div class="entry"><code>data</code><span>lean core — <code>$</code>, <code>render</code>, <code>HTML</code>, <code>SVG</code></span></div>
+      <div class="entry"><code>data/full</code><span>core + every operator + JSX helpers</span></div>
+      <div class="entry"><code>data/render</code><span>just the DOM render layer</span></div>
+      <div class="entry"><code>data/devtools</code><span>opt-in reactive-graph inspector</span></div>
+    </div>
+
+    <div class="snips">
+      <div class="snip">
+        <h3>a collection</h3>
+<pre class="code">import { $ } from 'data/full'
+
+const trades = $(rows)
+const top = trades
+  .map(t =&gt; ({ ...t, spread: t.ask - t.bid }))
+  .filter(t =&gt; t.spread &gt; 0.10)
+  .za('spread', 10)
+
+trades[42].bid = 99.5   // O(1) + O(1) + O(log N)</pre>
+      </div>
+      <div class="snip">
+        <h3>bound to the DOM</h3>
+<pre class="code">import { $, render, HTML } from 'data'
+const { ul, li } = HTML
+
+const todos = $([{ task: 'foo' }, { task: 'bar' }])
+
+render(document.body,
+  ul(todos, (node, item) =&gt; node.text(item.task))
+)
+
+todos.insert({ task: 'baz' })   // a new &lt;li&gt; appears</pre>
+      </div>
+    </div>
+    <p class="muted" style="font-size:0.9rem">
+      JSX works too (<code>jsxImportSource: "data"</code>). <code>render()</code> does per-key surgical
+      updates — element identity and focus survive across changes. See it running in the
+      <a href="#gallery">gallery ↓</a>.
+    </p>
+    <div class="cta">
+      <a class="cta-link" href="./README.md">read the readme →</a>
+      <a class="cta-link" href="./operators/README.md">browse operators →</a>
+      <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+    </div>
+  </section>
+
+  <!-- ===== §4 devtools ===== -->
+  <section class="devtools-section" id="devtools">
+    <div class="sec-head"><span class="sec-no">04</span><h2>See your graph</h2></div>
+    <p class="lead-para">
+      Import <code>data/devtools</code> and a graph-first overlay auto-mounts: a
+      right-edge dock with a Tree/DAG view of the reactive graph and a slide-in
+      inspector (Inspect / Events / Profile). Hold <kbd>Alt</kbd> for inline
+      badges, click <code>◎</code> to pick any DOM element back to the view that
+      bound it. Lazy-loaded — the console API alone
+      (<code>$.inspect</code>, <code>$.trace</code>, <code>$.profile</code>)
+      doesn't pay the panel's bytes.
+    </p>
+    <div class="dt-actions">
+      <button id="devtools-mount" type="button" class="stream-btn">mount the inspector on this page ▸</button>
+      <span class="muted" id="devtools-status"></span>
+    </div>
+    <p class="muted" style="font-size:0.9rem;margin-top:0.75rem">
+      Or try it on a worked example:
+      <a href="./examples/todo-jsx/?devtools">todo-jsx ?devtools →</a> ·
+      <a href="./examples/crossfilter-jsx/?devtools">crossfilter ?devtools →</a>
+    </p>
+  </section>
+
+  <!-- ===== §5 gallery ===== -->
+  <section class="gallery-section" id="gallery">
+    <div class="sec-head"><span class="sec-no">05</span><h2>Built with it</h2></div>
+    <p class="lead-para">
+      Each is the same library under a different load — runnable from
+      <code>npm run serve</code>, source in <code>examples/</code>.
+    </p>
+    <div class="gallery">
+      <div class="gcard gcard-feature">
+        <span class="gcard-tag">essay · change &amp; derivation</span>
+        <h3><a href="./examples/flow/">Write the view, flow the change</a></h3>
+        <p>An eight-section essay on the duality at the core of the library: a table and its stream of changes are the same thing in two forms, so a view — a filter, a count, a grouping — stays live for the price of the <em>change</em>, not the table — <code>O(Δ)</code>, not <code>O(N)</code> — flowing only through the views that read it, down to a single minimal DOM instruction. The readability of recompute, the cost of hand-tuned deltas, and none of the bookkeeping.</p>
+        <span class="gcard-links"><a href="./examples/flow/">read →</a></span>
+      </div>
+      <div class="gcard">
+        <span class="gcard-tag">analytics · live</span>
+        <h3><a href="./examples/crossfilter/">Crossfilter dashboard</a></h3>
+        <p>Brushable charts over flight records: <code>between → intersect → length(group) → za → limit</code>, every brush incremental.</p>
+        <span class="gcard-links"><a href="./examples/crossfilter/">open →</a><a href="./examples/crossfilter-jsx/">jsx</a><a href="./examples/crossfilter-jsx/?devtools">?devtools</a></span>
+      </div>
+      <div class="gcard">
+        <span class="gcard-tag">messaging · jsx</span>
+        <h3><a href="./examples/chat/">Chat workspace</a></h3>
+        <p>A messaging app in JSX: the open channel is <code>filter('channel', c).az('ts')</code>, channel counts a per-channel <code>length</code> histogram, and reactions a <code>&lt;For&gt;</code> over a nested object that mutates in place. A bot streams messages and <strong>blast 200</strong> inserts a batch via <code>patch</code> — new rows append while existing rows keep DOM identity.</p>
+        <span class="gcard-links"><a href="./examples/chat/">open →</a><a href="./examples/chat/?devtools">?devtools</a></span>
+      </div>
+      <div class="gcard">
+        <span class="gcard-tag">basics · live</span>
+        <h3><a href="./examples/todo/">To-do</a></h3>
+        <p>The smallest end-to-end: mutate an array, derive <code>filter</code> + <code>length</code>, and watch <code>render</code> do per-key surgical DOM updates that keep focus.</p>
+        <span class="gcard-links"><a href="./examples/todo/">open →</a><a href="./examples/todo-jsx/">jsx</a><a href="./examples/todo-jsx/?devtools">?devtools</a></span>
+      </div>
+    </div>
+    <p class="cat-foot muted">Each lives under <code>examples/</code> — <code>npm run serve</code> and open any of them.</p>
+  </section>
+  </main>
+
+  <footer>
+    <a href="./llms.txt" title="condensed API map for LLMs">llms.txt</a>
+    <a href="./report/" title="subject × guarantee test coverage explorer">test report</a>
+    <span class="spacer"></span>
+    <a class="icon-link" href="https://github.com/pemrouz/data" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="icon-link" href="https://www.npmjs.com/package/data" aria-label="npm" title="npm"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><use href="#i-npm"/></svg></a>
+    <span class="lic">MIT</span>
+  </footer>
+
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "data":          "./dist/index.js",
+    "data/full":     "./dist/full.js",
+    "data/render":   "./dist/render/index.js",
+    "data/devtools": "./dist/devtools/index.js",
+    "mobx":          "https://esm.sh/mobx@6.15.3",
+    "solid-js":      "https://esm.sh/solid-js@1.9.12",
+    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.14.1",
+    "@vue/reactivity": "https://esm.sh/@vue/reactivity@3.5.34",
+    "crossfilter2":  "https://esm.sh/crossfilter2@1.5.4",
+    "rxjs":          "https://esm.sh/rxjs@7.8.2",
+    "rxjs/operators": "https://esm.sh/rxjs@7.8.2/operators",
+    "react":         "https://esm.sh/react@19.2.6",
+    "react-dom":     "https://esm.sh/react-dom@19.2.6",
+    "react-dom/client": "https://esm.sh/react-dom@19.2.6/client",
+    "svelte/store":  "https://esm.sh/svelte@5.55.5/store"
+} }
+</script>
+<script type="module" src="./assets/landing.js"></script>
+</body>
+</html>

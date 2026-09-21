@@ -1,0 +1,102 @@
+<section class="quickstart" id="start">
+  <div class="opt" data-section="start">
+
+    <!-- ── a · the old layout ─────────────────────────────────────────── -->
+    <div data-variant="a" data-label="the old layout" id="start-a">
+      <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
+
+      <button class="install" type="button" id="start-copy-a"
+        data-copy="import { $, batch, render, el, list } from './data/api/index.ts'"
+        title="click to copy"
+        aria-label="Copy the import line: import { $, batch, render, el, list } from './data/api/index.ts'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'./data/api/index.ts'</span><span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">source-served — no package, no dist, no build step. Node runs it with <code>--experimental-strip-types</code>; the browser gets the same files type-stripped.</p>
+
+      <div class="entries">
+        <div class="entry"><code>api/</code><span>the public surface — <code>$()</code>, the verbs, the operators, <code>batch</code>, <code>runtime</code>. The one entry you import.</span></div>
+        <div class="entry"><code>seam/</code><span>the outside-world boundary — <code>ingest</code>, <code>lane</code>, <code>wireSink</code>, <code>mount</code></span></div>
+        <div class="entry"><code>render/ + jsx/</code><span><code>el</code> / <code>list</code> / <code>text</code>, the <code>HTML</code> / <code>SVG</code> builders, classic + automatic JSX</span></div>
+        <div class="entry"><code>devtools/</code><span>the inspector panel + DOM overlay — mounts on demand, never auto</span></div>
+      </div>
+
+      <div class="snips">
+        <div class="snip">
+          <h3>a source and its views</h3>
+<pre class="code">import { $ } from './data/api/index.ts'
+
+const trades = $({
+  t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },
+  t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },
+  t3: { sym: 'NVDA', side: 'buy',  qty: 500, px: 118.4 },
+})
+const buys    = trades.filter(t =&gt; t.side === 'buy')
+const largest = buys.za('qty', 2)
+const volume  = buys.sum('qty')
+
+trades.t3.qty.update(380)   // → update t3 .qty 500 → 380</pre>
+        </div>
+        <div class="snip">
+          <h3>bound to the DOM</h3>
+<pre class="code">import { render, el, list, batch }
+  from './data/api/index.ts'
+
+const ol = document.querySelector('ol')
+
+render(ol, list(largest, t =&gt;
+  el('li', null, el('b', null, t.sym), t.qty)))
+
+batch(() =&gt; {
+  trades.t3.qty.update(380)
+  trades.t1.qty.update(260)
+})   // one commit, one paint</pre>
+        </div>
+      </div>
+      <p class="muted jsx-note">
+        JSX works too (<code>jsxImportSource: "data"</code> — classic <code>h</code> or the automatic runtime).
+        <code>render()</code> does per-key surgical updates — element identity and focus survive across changes.
+      </p>
+      <div class="cta">
+        <a class="cta-link" href="./README.md">read the readme →</a>
+        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+      </div>
+    </div>
+
+    <!-- ── b · twelve lines ───────────────────────────────────────────── -->
+    <div data-variant="b" data-label="twelve lines" id="start-b">
+      <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
+
+      <div class="twelve-head">
+        <span class="race-title">twelve lines · one import · no build step</span>
+        <button class="stream-btn" type="button" id="start-run-b" title="run the write again — the value alternates">↻ replay</button>
+      </div>
+
+      <!-- the twelve lines EXECUTE against the page's engine (start.js); every `// →` is read off the
+           engine / the DOM the moment its line runs, so the .out cells start empty and are attested as
+           they print. The .src cells are the program text — literal. -->
+      <div class="code twelve" id="start-twelve-b" data-hl="off" aria-label="twelve lines of data v4, with what each line produces">
+        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from './data/api/index.ts'</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const trades  = $({ t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>                    t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>                    t3: { sym: 'NVDA', side: 'buy',  qty: 500, px: 118.4 } })</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const buys    = trades.filter(t =&gt; t.side === 'buy')</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const largest = buys.za('qty', 2)</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>const volume  = buys.sum('qty')</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>trades.sink({ apply: b =&gt; console.log(b) })</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>render(ol, list(largest, t =&gt; el('li', null, el('b', null, t.sym), t.qty)))</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal id="start-write-b">batch(() =&gt; trades.t3.qty.update(380))</span><span class="out"></span></div>
+      </div>
+
+      <!-- the ol line 10 renders into — the engine's real DOM output, live -->
+      <div class="twelve-foot"><span class="twelve-foot-label">ol · live</span><ol class="twelve-ol" id="start-ol-b"></ol></div>
+
+      <div class="cta">
+        <a class="cta-link" href="./README.md">read the readme →</a>
+        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
+      </div>
+    </div>
+
+  </div>
+</section>

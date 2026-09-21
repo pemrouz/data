@@ -1,0 +1,264 @@
+/* sections/race.css — the centrepiece. Three variants over the v2 race grammar
+   (.race-head / .rcard / .ob-* / .rcard-wave / .rcard-foot / .race-multidim /
+   .race-caption all come from v2.css). Everything here is scoped under #race:
+   the brush panel (adapted from the old multidim.css .mdf-* rules), variant
+   b's two-column layout, and variant c's four plates. */
+
+/* ---------- the brush panel (a: one row; b: a 2×2 grid) ---------- */
+#race .rb-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) 118px 104px; gap: 0.75rem 0.85rem; align-items: center; padding: 0.85rem 0.9rem; background: var(--bg-2); }
+#race .rb-meta { min-width: 0; }
+#race .rb-name { font: 500 0.95rem var(--mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#race .rb-name.is-data { color: var(--accent); }
+#race .rb-ver { color: var(--faint); font-weight: 400; font-size: 0.72em; margin-left: 0.35em; }
+#race .rb-tag { font: 0.7rem var(--mono); color: var(--dim); margin-top: 0.3rem; line-height: 1.35; }
+#race .rb-charts { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 0.35rem; min-width: 0; }
+#race .rb-chart { flex: 0 0 auto; min-width: 0; }
+#race .rb-title { font: 500 0.62rem/1 var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 0 0.35rem 10px; display: flex; align-items: baseline; gap: 0.5em; }
+#race .rb-reset { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--accent); text-transform: lowercase; letter-spacing: 0; cursor: pointer; }
+#race .rb-reset[hidden] { display: none; }
+#race .rb-chart canvas { display: block; touch-action: none; user-select: none; cursor: crosshair; }
+#race .rb-top { font: 0.68rem var(--mono); font-variant-numeric: tabular-nums; min-width: 0; }
+#race .rb-top ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+#race .rb-top li { display: flex; justify-content: space-between; gap: 0.4rem; white-space: nowrap; line-height: 1.3; }
+#race .rb-od { color: var(--ink); }
+#race .rb-d { color: var(--accent); }
+#race .rb-d.early { color: var(--pos); }
+#race .rb-stats { font: 0.75rem var(--mono); font-variant-numeric: tabular-nums; }
+#race .rb-count { color: var(--dim); font-size: 0.7rem; margin-bottom: 0.45rem; text-align: right; white-space: nowrap; }
+#race .rb-count b { color: var(--accent); font-weight: 500; }
+#race .rb-count .rb-dim { color: var(--faint); }
+#race .rb-lat { display: flex; flex-direction: column; gap: 0.15rem; }
+#race .rb-lat-row { display: flex; justify-content: space-between; gap: 0.5rem; }
+#race .rb-lat-k { color: var(--faint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+#race .rb-lat-v { color: var(--dim); }
+#race .rb-lat-v b { color: var(--ink); font-weight: 500; }
+#race .rb-lat-u { color: var(--faint); margin-left: 0.15em; font-size: 0.66rem; }
+
+/* ---------- b · two columns ---------- */
+#race .race-two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: stretch; }
+#race .race-two-card { display: flex; flex-direction: column; min-width: 0; }
+#race .race-two-card .rcard-head { flex-wrap: wrap; row-gap: 0.15rem; }
+#race .race-two-card .rcard-tag { flex: 1 1 12rem; }
+#race .ob-body-slim { grid-template-columns: minmax(0, 1fr) 176px; grid-template-rows: 232px; gap: 0.6rem; padding: 0.9rem 1rem; }
+#race .ob-body-slim .ob-depth { height: 232px; }
+#race .ob-body-slim .ob-ladder-h, #race .ob-body-slim .ob-row { grid-template-columns: 52px 1fr 1fr; column-gap: 0.3rem; }
+#race .ob-body-slim .ob-mid { font-size: 0.76rem; }
+#race .ob-body-slim .ob-mid-spr { font-size: 0.62rem; margin-left: 0.45rem; }
+#race .rcard-wave-slim { padding: 0.75rem 1rem 0.9rem; margin-top: auto; }
+#race .rcard-wave-slim canvas { height: 64px; }
+#race .rb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem 0.9rem; padding: 0.9rem 1rem 0.5rem; flex: 1; align-content: start; }
+#race .rb-grid .rb-chart { min-width: 0; }
+#race .rb-readout { margin-top: auto; padding: 0.7rem 1rem 0.85rem; border-top: 1px solid var(--rule); font: 0.76rem var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+#race .rb-readout b { color: var(--ink); font-weight: 500; }
+#race .rb-readout .rb-readout-ms { color: var(--accent); }
+#race .rb-readout-hint { color: var(--faint); }
+#race .race-two-foot { margin-top: 1rem; border: 1px solid var(--rule); border-radius: 10px; }
+@media (max-width: 1100px) {
+  #race .race-two { grid-template-columns: 1fr; }
+  #race .ob-body-slim { grid-template-columns: minmax(0, 1fr) 250px; }
+}
+@media (max-width: 720px) {
+  #race .ob-body-slim { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  #race .ob-body-slim .ob-depth { height: 180px; }
+  #race .rb-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  #race .rb-row { grid-template-columns: 1fr; gap: 0.6rem; }
+  #race .rb-stats { display: flex; justify-content: space-between; align-items: center; }
+  #race .rb-count { text-align: left; margin-bottom: 0; }
+  #race .rb-lat { flex-direction: row; gap: 0.75rem; }
+}
+
+/* ---------- c · follow one write: four plates ---------- */
+#race .fw-seq b { color: var(--accent); font-weight: 500; font-variant-numeric: tabular-nums; min-width: 1.6em; display: inline-block; }
+#race .fw-dimctl { color: var(--faint); }
+#race .fw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+#race .fw-plate { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.8rem 1.1rem 0.95rem; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+#race .fw-head { display: flex; align-items: baseline; gap: 0.6rem; padding-bottom: 0.55rem; border-bottom: 1px solid var(--rule); }
+#race .fw-no { font: 500 0.72rem var(--mono); color: var(--accent); letter-spacing: 0.1em; }
+#race .fw-head h3 { margin: 0; font: 500 1rem var(--mono); color: var(--ink); letter-spacing: -0.01em; }
+#race .fw-cap { margin-left: auto; font: 0.68rem var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#race .fw-plate pre.code { margin: auto 0 0; font-size: 0.72rem; line-height: 1.55; padding: 0.65rem 0.85rem; }
+
+/* 1 · write */
+#race .fw-rows { width: 100%; border-collapse: collapse; font: 0.8rem var(--mono); font-variant-numeric: tabular-nums; user-select: none; }
+#race .fw-rows th { text-align: left; font: 500 0.58rem var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.1em; padding: 0.15rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--rule); }
+#race .fw-rows td { padding: 0.24rem 0.6rem 0.24rem 0; border-bottom: 1px solid var(--rule); color: var(--ink); white-space: nowrap; }
+#race .fw-rows tr:last-child td { border-bottom: 0; }
+#race .fw-rows td.k { color: var(--faint); }
+#race .fw-rows td.px { color: var(--dim); }
+#race .fw-rows tr.buy td.side { color: var(--pos); }
+#race .fw-rows tr.sell td.side { color: var(--neg); }
+#race .fw-rows th.num, #race .fw-rows td.num { text-align: right; }
+#race .fw-ctl { cursor: ew-resize; touch-action: none; }
+#race .fw-ctl span { display: inline-block; min-width: 3.6em; padding: 0.08rem 0.45rem; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); font-weight: 600; text-align: right; }
+#race .fw-ctl:focus-visible { outline: none; }
+#race .fw-ctl:focus-visible span { box-shadow: 0 0 0 2px rgba(255, 94, 58, 0.35); }
+#race .fw-ctl.hot span { background: var(--accent); color: var(--bg); }
+#race .fw-ctl span.flash { animation: cellflash 600ms ease-out; }
+#race .fw-hint { font: 0.72rem var(--mono); color: var(--dim); margin: 0; }
+#race .fw-hint code { color: var(--accent); font-size: 1em; }
+
+/* 2 · delta */
+#race .fw-big { font: 500 1.3rem var(--mono); color: var(--ink); letter-spacing: -0.01em; margin: 0.15rem 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#race .fw-big .op { color: var(--accent); }
+#race .fw-big .path { color: var(--dim); }
+#race .fw-big .arr { color: var(--faint); margin: 0 0.3em; }
+#race .fw-big .prev { color: var(--dim); }
+#race .fw-big.none { color: var(--dim); font-size: 1rem; }
+#race .fw-meta { font: 0.7rem var(--mono); color: var(--faint); margin: 0; }
+#race .fw-meta b { color: var(--dim); font-weight: 500; }
+#race .fw-json { margin: 0; font: 0.66rem/1.5 var(--mono); color: var(--faint); white-space: pre-wrap; word-break: break-all; background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 0.5rem 0.7rem; }
+
+/* 3 · flow */
+#race .fw-graph { display: block; width: 100%; height: auto; }
+#race .fw-graph .edge { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+#race .fw-graph .edge.lit { stroke: var(--accent); stroke-dasharray: 5 5; animation: fw-flow 0.6s linear both; }
+@keyframes fw-flow { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+#race .fw-graph .box { fill: var(--bg); stroke: var(--rule); stroke-width: 1; transition: stroke 0.25s, fill 0.25s; }
+#race .fw-graph .gn.lit .box { stroke: var(--accent); fill: rgba(255, 94, 58, 0.12); }
+#race .fw-graph .name { font: 500 12.5px var(--mono); fill: var(--dim); text-anchor: middle; }
+#race .fw-graph .gn.lit .name { fill: var(--ink); }
+#race .fw-graph .h { font: 9px var(--mono); fill: var(--faint); letter-spacing: 0.04em; }
+#race .fw-graph .emit { font: 10px var(--mono); fill: var(--accent); text-anchor: middle; }
+#race .fw-graph .sub { font: 9.5px var(--mono); fill: var(--faint); text-anchor: middle; }
+#race .fw-trace { font: 0.68rem/1.55 var(--mono); color: var(--faint); margin: 0; }
+#race .fw-trace i { font-style: normal; color: var(--dim); }
+#race .fw-trace b { color: var(--ink); font-weight: 500; }
+#race .fw-trace .dark { color: var(--rule); }
+
+/* 4 · sink */
+#race .fw-twin { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.1rem; }
+#race .fw-half { min-width: 0; }
+#race .fw-scap { font: 0.6rem var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.45rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#race .fw-scap code { color: var(--dim); text-transform: none; letter-spacing: 0; font-size: 0.66rem; }
+#race .fw-ranked { list-style: none; margin: 0; padding: 0; counter-reset: r; }
+#race .fw-ranked li { counter-increment: r; display: flex; align-items: baseline; gap: 0.6rem; padding: 0.3rem 0; border-bottom: 1px solid var(--rule); font: 0.92rem var(--mono); font-variant-numeric: tabular-nums; }
+#race .fw-ranked li::before { content: counter(r); color: var(--faint); font-size: 0.62rem; min-width: 1.2em; }
+#race .fw-ranked li b { color: var(--ink); font-weight: 500; min-width: 4.2em; }
+#race .fw-ranked li span { color: var(--dim); margin-left: auto; padding: 0 0.2rem; }
+#race .fw-ranked li span.flash { animation: cellflash 600ms ease-out; border-radius: 2px; }
+#race .fw-ops, #race .fw-rep { font: 0.64rem var(--mono); color: var(--faint); margin-top: 0.5rem; line-height: 1.5; }
+#race .fw-ops b { color: var(--dim); font-weight: 500; }
+#race .fw-rep b { color: var(--pos); font-weight: 500; }
+#race .fw-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; min-height: 2.2em; align-content: flex-start; }
+#race .fw-chips span { font: 0.68rem var(--mono); padding: 0.16rem 0.45rem; border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); background: var(--bg); white-space: nowrap; }
+#race .fw-chips em { font-style: normal; color: var(--ink); }
+#race .fw-chips .t-update { color: var(--accent); }
+#race .fw-chips .t-add { color: var(--pos); }
+#race .fw-chips .t-remove { color: var(--neg); }
+#race .fw-chips .t-move { color: var(--dim); }
+#race .fw-chips .t-seq { border-color: transparent; color: var(--faint); padding-left: 0; background: transparent; }
+@media (max-width: 900px) {
+  #race .fw-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  #race .fw-twin { grid-template-columns: 1fr; gap: 0.75rem 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #race .fw-graph .edge.lit { animation: none; stroke-dasharray: none; }
+}
+
+/* ---------- d · nine engines · two workloads (b's columns under a's carousel) ----------
+   The prettier order book: gradient depth with glowing step lines, a spread band, tick
+   flashes; a ladder with depth bars behind the numbers, brighter best rows, a spread
+   pill; a fills tape; a legend on the cpu wave. Everything canvas-side lives in race.js. */
+#race .rd-two { align-items: stretch; }
+#race .rd-card { display: flex; flex-direction: column; min-width: 0; }
+#race .rd-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "kick kick cpu" "name tag tag"; align-items: baseline; column-gap: 0.75rem; row-gap: 0.3rem; padding: 0.7rem 1rem 0.65rem; }
+#race .rd-kick { grid-area: kick; font: 500 0.58rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#race .rd-head .rcard-cpu { grid-area: cpu; justify-self: end; font-size: 0.92rem; }
+#race .rd-head .rcard-name { grid-area: name; font-size: 1rem; white-space: nowrap; }
+#race .rd-head .rcard-tag { grid-area: tag; flex: none; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the book: depth left, ladder right */
+#race .rd-ob { grid-template-columns: minmax(0, 1fr) 186px; grid-template-rows: 224px; gap: 0.65rem; padding: 0.8rem 1rem 0.6rem; }
+#race .rd-depth { height: 224px; border-radius: 6px; }
+#race .rd-ladder { font-size: 0.64rem; }
+#race .rd-ladder .ob-ladder-h { grid-template-columns: 50px 1fr 1fr; column-gap: 0.35rem; padding: 0 0.3rem 0.3rem; font-size: 0.55rem; }
+#race .rd-row { position: relative; display: grid; grid-template-columns: 50px 1fr 1fr; column-gap: 0.35rem; padding: 0 0.3rem; height: 14px; align-items: center; font-variant-numeric: tabular-nums; }
+#race .rd-row > span { position: relative; z-index: 1; }
+#race .rd-row .rd-bar { position: absolute; z-index: 0; top: 2px; bottom: 2px; left: 50px; right: 0; border-radius: 1px; transform-origin: right center; transform: scaleX(0); pointer-events: none; }
+#race .rd-row.ask .rd-bar { background: rgba(255, 120, 115, 0.13); }
+#race .rd-row.bid .rd-bar { background: rgba(103, 219, 161, 0.13); }
+#race .rd-row .ob-cell-price { color: var(--faint); }
+#race .rd-row.ask .ob-cell-price { color: var(--neg); opacity: 0.78; }
+#race .rd-row.bid .ob-cell-price { color: var(--pos); opacity: 0.78; }
+#race .rd-row .ob-cell-qty { color: var(--dim); text-align: right; }
+#race .rd-row .ob-cell-cum { color: var(--faint); text-align: right; }
+#race .rd-row.is-best .ob-cell-price { opacity: 1; font-weight: 600; }
+#race .rd-row.is-best .ob-cell-qty { color: var(--ink); font-weight: 600; }
+#race .rd-row.is-best .ob-cell-cum { color: var(--dim); }
+#race .rd-row.is-best.ask .rd-bar { background: rgba(255, 120, 115, 0.22); }
+#race .rd-row.is-best.bid .rd-bar { background: rgba(103, 219, 161, 0.22); }
+#race .rd-row.is-empty .ob-cell-qty { color: var(--rule); }
+#race .rd-row.is-empty .ob-cell-cum { color: var(--faint); opacity: 0.55; }
+#race .rd-spread { display: flex; justify-content: center; padding: 3px 0; }
+#race .rd-pill { display: inline-flex; align-items: baseline; gap: 0.5em; font: 600 0.66rem/1.25 var(--mono); color: var(--ink); background: var(--bg-3); border: 1px solid var(--rule); border-radius: 999px; padding: 2px 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#race .rd-pill i { font-style: normal; font-weight: 400; color: var(--faint); font-size: 0.6rem; }
+
+/* the fills tape */
+#race .rd-tape { display: flex; align-items: center; gap: 0.7rem; padding: 0.4rem 1rem; border-top: 1px solid var(--rule); font: 0.66rem var(--mono); font-variant-numeric: tabular-nums; overflow: hidden; }
+#race .rd-tape-k { flex: 0 0 auto; font-size: 0.56rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.1em; }
+#race .rd-tape-line { flex: 1; min-width: 0; display: flex; justify-content: flex-end; gap: 1rem; overflow: hidden; white-space: nowrap; -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%); mask-image: linear-gradient(90deg, transparent, #000 14%); }
+#race .rd-fill { flex: 0 0 auto; color: var(--faint); }
+#race .rd-fill b { font-weight: 500; color: var(--dim); }
+#race .rd-fill i { font-style: normal; }
+#race .rd-fill.up b, #race .rd-fill.up i { color: var(--pos); }
+#race .rd-fill.dn b, #race .rd-fill.dn i { color: var(--neg); }
+#race .rd-fill.in { animation: rd-fill-in 260ms ease-out; }
+@keyframes rd-fill-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
+/* the wave */
+#race .rd-wave { padding: 0.7rem 1rem 0.9rem; margin-top: auto; }
+#race .rd-wave canvas { height: 64px; }
+
+/* brushing */
+#race .rd-grid { padding: 0.8rem 1rem 0.35rem; gap: 0.25rem 0.9rem; }
+#race .rd-readout { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.35rem 1rem; padding: 0.65rem 1rem 0.8rem; border-top: 1px solid var(--rule); font: 0.76rem var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+#race .rd-readout b { color: var(--accent); font-weight: 500; }
+#race .rd-lat { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.62rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+#race .rd-lat b { color: var(--dim); font-weight: 500; letter-spacing: 0; }
+
+@media (max-width: 720px) {
+  #race .rd-ob { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  #race .rd-depth { height: 190px; }
+  /* phone width: the tag line gets its own row — a long engine name (crossfilter) beside the
+     figure otherwise squeezes it to a sliver of ellipses */
+  #race .rd-head { grid-template-areas: "kick kick kick" "name name cpu" "tag tag tag"; }
+  #race .rd-head .rcard-tag { white-space: normal; }
+}
+
+/* ---------- d · stage 1: the engine-side additions ----------
+   The build overlay narrates the lazy, chunked construction of the real source
+   (rows generated ≤ 8 ms per frame, then $(), the four views and the sink — one
+   engine step per frame) behind an attested elapsed-ms figure; the ladder's
+   zero-count rows print the view's 0 dimmed; the tape rests under reduced motion. */
+#race .rd-ob { position: relative; }
+#race .rd-build { position: absolute; z-index: 2; left: 1rem; right: 1rem; top: 0.8rem; height: 224px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem; background: rgba(12, 12, 13, 0.82); border-radius: 6px; font: 0.62rem var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+#race .rd-build[hidden] { display: none; }
+#race .rd-build-k { font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+#race .rd-build-stage { color: var(--ink); }
+#race .rd-build b { color: var(--accent); font-weight: 500; }
+#race .rd-build-bar { display: block; width: 160px; height: 3px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
+#race .rd-build-bar i { display: block; height: 100%; background: var(--accent); transform-origin: left center; transform: scaleX(0); }
+#race .rd-fill em { font-style: normal; color: var(--faint); opacity: 0.8; }
+#race .rd-kick b { font-weight: 500; color: var(--dim); letter-spacing: 0.06em; }
+@media (prefers-reduced-motion: reduce) {
+  #race .rd-fill.in { animation: none; }
+}
+
+/* ---------- d · stage 3: the flights build overlay ----------
+   The same narration as the book's, over the histogram grid: fetching (N of M MB) →
+   parsing → projecting (the worker) → building rows (chunked) → one engine step per
+   frame ($(flights), the four betweens, the leave-one-out intersects + histograms,
+   the four index warm-ups, the first brush) — each behind an attested figure. The
+   histograms underneath draw empty until the buckets' values arrive. */
+#race .rd-grid { position: relative; }
+#race .rd-fbuild { left: 1rem; right: 1rem; top: 0.8rem; bottom: 0.35rem; height: auto; }
+#race .rd-fbuild .rd-build-stage { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* under data the brushing card is .is-data (green figure); a session p50 over the 16 ms frame
+   budget still goes warn-red, as either card does under a peer (accent figure) */
+#race .rd-card.is-data .rcard-cpu.over { color: var(--warn, #ff4d3d); }
+/* the "data p50 · N×" line the brushing card shows under a peer (hidden under data) */
+#race .rd-vs[hidden] { display: none; }

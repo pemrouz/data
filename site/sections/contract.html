@@ -1,0 +1,200 @@
+<section class="contract" id="contract">
+  <div class="opt" data-section="contract">
+
+    <!-- ===== a · prose + list · run the suite ===== -->
+    <div data-variant="a" data-label="prose + list · run the suite">
+      <div class="sec-head"><span class="sec-no">05</span><h2>The contract</h2></div>
+      <p class="lead-para">
+        Everything runs under an executable timing contract — <code>SCHEDULE.md</code>,
+        <code>SCHEDULE_VERSION 4</code>: eleven numbered clauses, each pinned by a test, and
+        the same test file runs in the consumer's CI against data HEAD.
+      </p>
+
+      <ol class="clauses" id="clauses-a">
+        <li class="clause" data-clause="1"><span class="clause-no">01</span><span class="clause-body"><b class="clause-title">Apply phase</b> <span class="clause-gist">every write routes through the runtime's commit</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="2"><span class="clause-no">02</span><span class="clause-body"><b class="clause-title">Read-your-writes</b> <span class="clause-gist">source reads see post-write values inside the batch</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="3"><span class="clause-no">03</span><span class="clause-body"><b class="clause-title">Flush phase</b> <span class="clause-gist">consolidated batches settle height-ordered at batch close</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="4"><span class="clause-no">04</span><span class="clause-body"><b class="clause-title">Effects last, isolated</b> <span class="clause-gist">effect sinks run after settle; a throwing sink can't corrupt state (<code>AggregateError</code>)</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="5"><span class="clause-no">05</span><span class="clause-body"><b class="clause-title">Re-entrancy</b> <span class="clause-gist">a write inside an effect queues as the <em>next</em> commit</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="6"><span class="clause-no">06</span><span class="clause-body"><b class="clause-title">Origin tokens</b> <span class="clause-gist">every batch carries its origin; replicas suppress their own echo</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="7"><span class="clause-no">07</span><span class="clause-body"><b class="clause-title">Snapshot-then-deltas</b> <span class="clause-gist">a sink attached between commits gets <code>init(snapshot)</code> then only deltas (a mid-batch attach defers to the commit)</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="8"><span class="clause-no">08</span><span class="clause-body"><b class="clause-title">Emission legality</b> <span class="clause-gist">at most one row delta per key per batch; <code>add</code> on an existing key is illegal; consolidation rules</span></span><span class="clause-n">2 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="9"><span class="clause-no">09</span><span class="clause-body"><b class="clause-title">Coalescing</b> <span class="clause-gist">opt-in <code>coalesce('microtask' | 'frame')</code> — sugar, not semantics</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="10"><span class="clause-no">10</span><span class="clause-body"><b class="clause-title">The deep-path law</b> <span class="clause-gist">replication of nested writes: <code>pathCopy</code> / <code>pathDelete</code> (SCHEDULE_VERSION 2, fero W3)</span></span><span class="clause-n">4 tests</span><span class="clause-ok">✓</span></li>
+        <li class="clause" data-clause="11"><span class="clause-no">11</span><span class="clause-body"><b class="clause-title">The value-domain portability table</b> <span class="clause-gist">which JS values cross the wire intact (SCHEDULE_VERSION 3, W15)</span></span><span class="clause-n">1 test</span><span class="clause-ok">✓</span></li>
+      </ol>
+
+      <div class="dt-actions">
+        <button id="suite-run-a" type="button" class="stream-btn">run the suite in this tab ▸</button>
+        <span class="muted" id="suite-status-a"></span>
+        <a class="cta-link" href="./contract/SCHEDULE.md">read SCHEDULE.md →</a>
+      </div>
+
+      <div class="suite-log" id="suite-log-a" hidden aria-live="polite">
+        <div class="suite-log-head"><span class="suite-log-file">conformance/schedule.test.ts</span><span class="suite-log-cmd">node:test → browser shim · this tab</span></div>
+        <ol class="suite-lines" id="suite-lines-a"></ol>
+        <div class="suite-sum" id="suite-sum-a"></div>
+      </div>
+
+      <p class="muted contract-foot"><code>conform(node)</code> attaches a legality checker and a replay sink to any view: every commit is re-folded and the fold must equal the view.</p>
+    </div>
+
+    <!-- ===== b · law · proof table (THE PICK — wired to the real engine) ===== -->
+    <div data-variant="b" data-label="law · proof table">
+      <div class="sec-head"><span class="sec-no">05</span><h2>The contract</h2></div>
+      <p class="lead-para">
+        Everything runs under an executable timing contract — <code>SCHEDULE.md</code>,
+        <code>SCHEDULE_VERSION <b id="c-ver-b" data-attested="runtime">—</b></code>: eleven numbered clauses, each pinned by a test, and
+        the same test file runs in the consumer's CI against data HEAD.
+      </p>
+
+      <div class="law" id="law-b">
+        <div class="law-head"><span>law</span><span>proof · <span class="law-head-file">conformance/schedule.test.ts</span> · executed in this tab</span><span class="law-head-ok pending" id="law-head-ok-b" title="SCHEDULE_VERSION is exported at runtime and matches this suite">·</span></div>
+
+        <div class="law-row pending" data-clause="1">
+          <div class="law-l"><span class="clause-no" data-literal>01</span><span class="law-title">Apply phase</span><span class="law-gist">every write routes through the runtime's commit</span><span class="law-n" id="law-n-1-b"></span></div>
+<pre class="code law-proof" id="law-proof-1-b">const trades = $({ t3: { sym: 'AAPL', qty: 500 } }), got = []
+trades.sink({ apply: b =&gt; got.push(b) })
+trades.t3.qty.update(380)  // a bare write = a synchronous batch of one
+print(`seq ${got[0].seq}: ${show(got[0].rows[0])} — delivered before update() returned`)
+// →
+trades.t3.qty.update(380)  // Object.is-equal at the leaf
+print(`nothing emitted: still ${got.length} batch, seq still ${runtime().seq}`)
+// →</pre>
+          <span class="law-ok" id="law-ok-1-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="2">
+          <div class="law-l"><span class="clause-no" data-literal>02</span><span class="law-title">Read-your-writes</span><span class="law-gist">source reads see post-write values inside the batch</span><span class="law-n" id="law-n-2-b"></span></div>
+<pre class="code law-proof" id="law-proof-2-b">const rows = $([{ sym: 'AAPL', qty: 200 }, { sym: 'NVDA', qty: 90 }]); let fired = 0
+rows.sink({ apply: b =&gt; print(`at batch close: the sink fires once (seq ${b.seq}) · fired ${++fired}`) })
+batch(() =&gt; {
+  rows.insert({ sym: 'MSFT', qty: 40 })
+  print(`mid-batch: rowCount() → ${rows.rowCount()}, the read sees the write · sinks fired: ${fired}`)
+})
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-2-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="3">
+          <div class="law-l"><span class="clause-no" data-literal>03</span><span class="law-title">Flush phase</span><span class="law-gist">consolidated batches settle height-ordered at batch close</span><span class="law-n" id="law-n-3-b"></span></div>
+<pre class="code law-proof" id="law-proof-3-b">const rows = $([{ qty: 50 }, { qty: 120 }, { qty: 300 }])
+const big = rows.filter(r =&gt; r.qty &gt; 100), n = big.length()  // height 1, height 2
+const name = { [rows[node].id]: 'source', [big[node].id]: 'filter', [n[node].id]: 'length' }
+const hook = runtime().onCommit(c =&gt; print(`seq ${c.seq} settled ${c.nodes.map(x =&gt; name[x.id]).join(' → ')}, each once`))
+big.sink({ apply: () =&gt; print(`the sink fires after settle: n already reads ${n[value]}`) })
+rows.get(0).set('qty', 500); hook.dispose()  // 50 → 500 joins big; n 2 → 3
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-3-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="4">
+          <div class="law-l"><span class="clause-no" data-literal>04</span><span class="law-title">Effects last, isolated</span><span class="law-gist">effect sinks run after settle; a throwing sink can't corrupt state</span><span class="law-n" id="law-n-4-b"></span></div>
+<pre class="code law-proof" id="law-proof-4-b">const rows = $([{ qty: 1 }, { qty: 2 }]), was = rows.rowCount(); let sibling = 0
+rows.sink({ apply() { throw new Error('boom') } })
+rows.sink({ apply: () =&gt; sibling++ })
+try { rows.insert({ qty: 3 }) } catch (e) { print(`${e.constructor.name} after the drain: ${e.errors.length} sink failed (${e.errors[0].message})`) }
+print(`state intact: rowCount ${was} → ${rows.rowCount()}, the write committed · the sibling sink still fired ${sibling}×`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-4-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="5">
+          <div class="law-l"><span class="clause-no" data-literal>05</span><span class="law-title">Re-entrancy</span><span class="law-gist">a write inside an effect queues as the next commit</span><span class="law-n" id="law-n-5-b"></span></div>
+<pre class="code law-proof" id="law-proof-5-b">const a = $({ n: 1 }), b = $({ n: 0 }), log = []
+a.sink({ apply: c =&gt; { log.push(`seq ${c.seq}: a.n = ${a.n[value]}`); b.n.update(a.n[value] * 2) } })
+b.sink({ apply: c =&gt; log.push(`seq ${c.seq}: b.n = ${b.n[value]}`) })
+a.n.update(21)  // an effect that writes
+print(`${log.join(' · ')} — the effect's write became the NEXT commit`)
+// →</pre>
+          <span class="law-ok" id="law-ok-5-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="6">
+          <div class="law-l"><span class="clause-no" data-literal>06</span><span class="law-title">Origin tokens</span><span class="law-gist">every batch carries its origin; replicas suppress their own echo</span><span class="law-n" id="law-n-6-b"></span></div>
+<pre class="code law-proof" id="law-proof-6-b">const mine = Symbol('peer-A'), replica = $({}), calls = { mine: 0, other: 0 }
+replica.sink({ origin: mine, apply: () =&gt; calls.mine++ })  // declares what it must not hear
+replica.sink({ apply: b =&gt; { calls.other++; calls.echo = b.origin === mine } })
+ingest(replica, [{ t: 'add', k: 'a', v: { n: 1 } }], { origin: mine })
+print(`peer-A's own sink: ${calls.mine} applies, skipped · the other sink: ${calls.other} apply, batch.origin === mine: ${calls.echo}`)
+// →</pre>
+          <span class="law-ok" id="law-ok-6-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="7">
+          <div class="law-l"><span class="clause-no" data-literal>07</span><span class="law-title">Snapshot-then-deltas</span><span class="law-gist">a sink attached between commits gets init(snapshot) then only deltas</span><span class="law-n" id="law-n-7-b"></span></div>
+<pre class="code law-proof" id="law-proof-7-b">const rows = $([{ qty: 1 }, { qty: 2 }]), got = {}
+const sink = { init: s =&gt; (got.init = s.size), apply: b =&gt; (got.first ??= b.seq) }
+batch(() =&gt; { rows.insert({ qty: 3 }); rows.sink(sink); rows.insert({ qty: 4 }) })  // attached mid-batch
+print(`init saw ${got.init} rows — the settled batch (seq ${runtime().seq}), both inserts · applies so far: ${got.first ?? 'none'}`)
+rows.get(0).set('qty', 9)
+print(`apply first fired at seq ${got.first} — the NEXT commit`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-7-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="8">
+          <div class="law-l"><span class="clause-no" data-literal>08</span><span class="law-title">Emission legality</span><span class="law-gist">at most one row delta per key per batch; add on an existing key is illegal</span><span class="law-n" id="law-n-8-b"></span></div>
+<pre class="code law-proof" id="law-proof-8-b">const rows = $([{ qty: 1 }]), t = $({ t: { qty: 500 } }), got = []
+rows.sink({ apply: b =&gt; got.push(b) }); t.sink({ apply: b =&gt; got.push(b) })
+batch(() =&gt; { const k = rows.insert({ qty: 2 }); rows.get(k).remove() })  // add + remove, one batch
+print(`add + remove annihilated: ${got.length} batches delivered, no delta`)
+batch(() =&gt; { t.t.qty.update(1); t.t.qty.update(2); t.t.qty.update(3) })  // three writes, one key
+print(`${got.length} batch, ${got[0].rows.length} delta: ${show(got[0].rows[0])} — first prev, last value`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-8-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="9">
+          <div class="law-l"><span class="clause-no" data-literal>09</span><span class="law-title">Coalescing</span><span class="law-gist">opt-in coalesce('microtask' | 'frame') — sugar, not semantics</span><span class="law-n" id="law-n-9-b"></span></div>
+<pre class="code law-proof" id="law-proof-9-b">const q = () =&gt; [[{ n: 1 }], [{ n: 2 }]], commits = { sync: 0, co: 0 }  // two chunks that settle in one tick
+const feed = (c = q()) =&gt; ({ [Symbol.asyncIterator]: () =&gt; ({ next: () =&gt; Promise.resolve({ done: !c.length, value: c.shift() }) }) })
+const sync = fromAsync(runtime(), feed()), co = fromAsync(runtime(), feed(), { coalesce: 'microtask' })
+handleFor(sync.source).sink({ apply: () =&gt; commits.sync++ }); handleFor(co.source).sink({ apply: () =&gt; commits.co++ })
+while (sync.status() === 'pending' || co.status() === 'pending') await new Promise(r =&gt; setTimeout(r))
+print(`default: ${q().length} chunks → ${commits.sync} commits · coalesce('microtask'): ${commits.co} commit · same ${co.source.rowCount()} rows each`)
+// →</pre>
+          <span class="law-ok" id="law-ok-9-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="10">
+          <div class="law-l"><span class="clause-no" data-literal>10</span><span class="law-title">The deep-path law</span><span class="law-gist">replication of nested writes: pathCopy / pathDelete</span><span class="law-n" id="law-n-10-b"></span></div>
+<pre class="code law-proof" id="law-proof-10-b">const t = $({ t3: { meta: { tag: 'old', book: null } } }), got = []; t.sink({ apply: b =&gt; got.push(...b.rows) })
+t.t3.meta.tag.remove()  // nested remove: first-class (pathDelete)
+t.t9.meta.tag.remove()  // absent target: idempotent no-op
+t.t3.meta.book.depth.update(3)  // null intermediate: vivified (pathCopy)
+print(`${show(got[0])} · deleted: ${got[0].deleted} · row.meta = ${JSON.stringify(got[0].row.meta)}`)
+print(`${got.length} deltas for three writes — the absent-target remove emitted nothing · ${show(got[1])}, vivified from null`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-10-b">·</span>
+        </div>
+
+        <div class="law-row pending" data-clause="11">
+          <div class="law-l"><span class="clause-no" data-literal>11</span><span class="law-title">The value-domain portability table</span><span class="law-gist">which JS values cross the wire intact</span><span class="law-n" id="law-n-11-b"></span></div>
+<pre class="code law-proof" id="law-proof-11-b">const src = $({})
+ingest(src, [{ t: 'add', k: '\x00key', v: { px: NaN, at: undefined } }])
+const row = src.get('\x00key')[value]
+print(`${src.rowCount()} row · key ${JSON.stringify('\x00key')} live: ${row !== undefined} — a NUL byte is just a key`)
+print(`px is NaN: ${Number.isNaN(row.px)} · row owns 'at': ${'at' in row}, at === undefined: ${row.at === undefined} — both first-class`)
+// →
+// →</pre>
+          <span class="law-ok" id="law-ok-11-b">·</span>
+        </div>
+
+        <div class="law-foot">
+          <span class="law-foot-suite"><b>conformance/schedule.test.ts</b> · <span id="law-sum-b" aria-live="polite">loading the suite…</span> · runs in data's CI and fero's</span>
+          <span class="law-foot-actions"><button id="law-run-b" type="button" class="stream-btn">run the suite in this tab ▸</button><a class="cta-link" href="./contract/SCHEDULE.md">read SCHEDULE.md →</a></span>
+        </div>
+      </div>
+
+      <p class="muted contract-foot">Every proof above is a real program run in this tab against the page's engine — the code is literal, <code>print()</code> writes its <code>// →</code> line, <code>show(delta)</code> formats a row delta as <code>op key .path prev → next</code>. <code>conform(node)</code> attaches a legality checker and a replay sink to any view: every commit is re-folded and the fold must equal the view.</p>
+    </div>
+
+  </div>
+</section>

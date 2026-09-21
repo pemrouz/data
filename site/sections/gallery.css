@@ -1,0 +1,68 @@
+/* sections/gallery.css — Built with it. Everything scoped under #gallery;
+   the card / grid / tag / links grammar comes from v2.css (.gallery, .gcard,
+   .gcard-feature, .gcard-tag, .gcard-links, .cat-foot). */
+
+#gallery { padding: 3.25rem 0; border-top: 1px solid var(--rule); }
+#gallery .lead-para b { font-weight: 600; }
+#gallery .g-nb { white-space: nowrap; }
+
+/* ---------- a · the fero feature card: prose left, the coupling as a kv list right ---------- */
+#gallery .g-fero-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 24rem); gap: 0.75rem 2.25rem; align-items: start; }
+#gallery .g-fero-text { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+#gallery .g-fero-text p { flex: 0 0 auto; }
+#gallery .g-fero-text .gcard-links { margin-top: 0.1rem; }
+#gallery .g-fero-text .g-names { margin-top: 0.15rem; }
+#gallery .g-kv { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: 0.45rem 0.6rem; margin: 0; padding: 0.7rem 0.85rem 0.75rem; background: var(--bg); border: 1px solid var(--rule); border-radius: 5px; align-items: baseline; min-width: 0; }
+#gallery .g-kv dt { font: 500 0.6rem var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); }
+#gallery .g-kv dd { margin: 0; font: 0.74rem/1.5 var(--mono); color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+#gallery .g-kv dd code { font-size: 0.74rem; color: var(--ink); }
+#gallery .g-kv-note { color: var(--faint); }
+
+/* a · the seven names as chips */
+#gallery .g-names { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+#gallery .g-name { display: inline-block; font: 500 0.72rem/1 var(--mono); color: var(--ink); background: var(--bg-3); border: 1px solid var(--rule); border-radius: 3px; padding: 0.28rem 0.5rem; }
+#gallery .g-name b { color: var(--accent); font-weight: 500; }
+
+/* ---------- a · the "18 of 18" run panel ---------- */
+#gallery .g-proof p { flex: 0 0 auto; }
+#gallery .g-proof .gcard-links { margin-top: auto; }
+#gallery .g-run { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.15rem 0 0.1rem; padding: 0.65rem 0.75rem 0.6rem; background: var(--bg); border: 1px solid var(--rule); border-radius: 4px; }
+#gallery .g-cells { display: grid; grid-template-columns: repeat(18, minmax(0, 1fr)); gap: 3px; }
+#gallery .g-cell { height: 9px; border-radius: 1.5px; background: var(--bg-3); border: 1px solid var(--rule); transition: background 160ms ease, border-color 160ms ease; }
+#gallery .g-cell.run { background: var(--accent); border-color: var(--accent); }
+#gallery .g-cell.ok { background: var(--pos); border-color: var(--pos); }
+#gallery .g-runline { display: flex; align-items: baseline; gap: 0.6rem; font: 0.68rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; min-width: 0; }
+#gallery .g-runclause { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gallery .g-runcount { color: var(--ink); }
+#gallery .g-runcount.done { color: var(--pos); }
+#gallery .g-rerun { appearance: none; -webkit-appearance: none; background: transparent; border: 0; padding: 0; margin: 0; font: 500 0.66rem var(--mono); color: var(--faint); cursor: pointer; white-space: nowrap; }
+#gallery .g-rerun:hover { color: var(--accent); }
+
+/* ---------- b · fero only: one wide feature card — prose left, the coupling as a kv sidebar right ---------- */
+#gallery [data-variant="b"] .lead-para { max-width: 72ch; }
+#gallery .g-solo-b { margin: 1.25rem 0 0.9rem; }
+#gallery .g-fero-b { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 21rem); gap: 0.9rem 2.5rem; align-items: start; padding: 1.15rem 1.5rem 1.2rem; }
+#gallery .g-fero-b-text { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+#gallery .g-fero-b-text p { flex: 0 0 auto; margin-top: 0.1rem; }
+#gallery .g-fero-b-text .gcard-links { margin-top: 0.15rem; }
+#gallery .g-kv-b { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 0.5rem 0.6rem; margin: 0; padding: 0.75rem 0.9rem 0.8rem; background: var(--bg); border: 1px solid var(--rule); border-radius: 5px; align-items: baseline; min-width: 0; }
+#gallery .g-kv-b dt { font: 500 0.6rem var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); white-space: nowrap; }
+#gallery .g-kv-b dd { margin: 0; font: 0.74rem/1.5 var(--mono); color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+#gallery .g-kv-b dd code { font-size: 0.74rem; color: var(--ink); }
+#gallery .g-kv-b dd code b { font-weight: inherit; color: inherit; font-variant-numeric: tabular-nums; }
+#gallery .g-kv-b-note { display: block; font-size: 0.68rem; color: var(--faint); }
+#gallery [data-variant="b"] .cat-foot { margin-bottom: 0; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  #gallery .g-fero-body, #gallery .g-fero-b { grid-template-columns: 1fr; }
+  #gallery .g-fero-b { gap: 1rem; }
+  /* two-column grid: the last card fills its row rather than leaving a blank cell */
+  #gallery .gallery > .gcard:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  #gallery .g-kv, #gallery .g-kv-b { grid-template-columns: 1fr; gap: 0.15rem 0; }
+  #gallery .g-kv dt, #gallery .g-kv-b dt { margin-top: 0.4rem; }
+  #gallery .g-kv dt:first-child, #gallery .g-kv-b dt:first-child { margin-top: 0; }
+  #gallery .g-fero-b { padding: 1rem 1.1rem 1.1rem; }
+}

@@ -1,0 +1,175 @@
+/* sections/devtools.css — §04 See your graph. Everything scoped under #devtools.
+   The dock reuses the v2 palette (bg-2 / rule / accent) at the real panel's
+   12px mono; variant a pins it to the right edge, variant b draws it inline. */
+
+#devtools .lead-para b { color: var(--ink); font-weight: 600; }
+#devtools .dt-foot { font-size: 0.9rem; max-width: 64ch; margin: 1rem 0 0; }
+#devtools .dt-foot code { font-size: 0.85em; }
+#devtools .dt-actions .stream-btn:disabled { color: var(--faint); border-color: var(--rule); cursor: default; }
+#devtools .dt-actions .stream-btn:disabled:hover { color: var(--faint); border-color: var(--rule); }
+#devtools .dt-actions .muted { font: 0.78rem var(--mono); }
+#devtools .dt-actions .muted b { color: var(--pos); font-weight: 500; }
+
+/* ---------- variant b: two columns ≥ 1000px ---------- */
+#devtools .dt-cols { display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: start; }
+#devtools .dt-props { max-width: none; margin-top: 0.25rem; }
+#devtools .dt-props li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); column-gap: 1rem; align-items: baseline; }
+#devtools .dt-props .op { min-width: 0; }
+#devtools .dt-props .d { min-width: 0; }
+#devtools .dt-props code { font-size: 0.82em; }
+#devtools .dt-side { min-width: 0; }
+#devtools .dt-under { font: 0.76rem/1.5 var(--mono); margin: 0.65rem 0 0; }
+#devtools .dt-under code { font-size: 1em; }
+@media (min-width: 1000px) {
+  #devtools .dt-cols { grid-template-columns: minmax(0, 1fr) 420px; gap: 3rem; }
+  #devtools .dt-prose .lead-para { max-width: none; }
+}
+
+/* ---------- the dock (shared) ---------- */
+#devtools .dt-dock {
+  background: var(--bg-2); color: var(--ink);
+  border: 1px solid var(--rule);
+  font: 12px/1.45 var(--mono);
+  display: flex; flex-direction: column;
+  box-sizing: border-box; overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+#devtools .dt-dock-fixed {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 360px; max-width: 92vw;
+  border-width: 0 0 0 1px; border-radius: 0; z-index: 900;
+  transform: translateX(102%); transition: transform 240ms cubic-bezier(.2,.7,.2,1);
+  box-shadow: -18px 0 48px -24px rgba(0,0,0,.9);
+}
+#devtools .dt-dock-fixed[hidden] { display: none; }
+#devtools .dt-dock-fixed.is-open { transform: none; }
+#devtools .dt-dock-card { position: relative; height: 520px; border-radius: 8px; }
+@media (max-width: 999px) { #devtools .dt-dock-card { height: 480px; } }
+
+/* header */
+#devtools .dtd-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 12px; border-bottom: 1px solid var(--rule); background: var(--bg-3); flex-shrink: 0; }
+#devtools .dtd-brand { font-weight: 600; letter-spacing: .03em; color: var(--ink); margin-right: auto; }
+#devtools .dtd-brand b { color: var(--accent); margin-right: .35em; }
+#devtools .dtd-live { display: inline-flex; align-items: center; gap: 6px; color: var(--faint); font-size: 11px; }
+#devtools .dtd-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--pos); box-shadow: 0 0 6px var(--pos); }
+#devtools .dtd-live.is-paused i { background: var(--faint); box-shadow: none; }
+#devtools .dtd-head button, #devtools .dtd-tabs button, #devtools .dtd-ev-head button {
+  appearance: none; -webkit-appearance: none; background: transparent; color: var(--dim);
+  border: 1px solid transparent; border-radius: 4px; cursor: pointer; font: inherit; padding: 1px 7px; line-height: 1.5;
+}
+#devtools .dtd-head button:hover, #devtools .dtd-tabs button:hover, #devtools .dtd-ev-head button:hover { color: var(--ink); border-color: var(--rule); background: var(--bg-2); }
+#devtools .dtd-x { font-size: 14px; min-width: 26px; color: var(--dim); }
+
+/* tabs */
+#devtools .dtd-tabs { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+#devtools .dtd-seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+#devtools .dtd-seg button { border-radius: 0; border: 0; padding: 2px 12px; font-size: 11px; }
+#devtools .dtd-seg button + button { border-left: 1px solid var(--rule); }
+#devtools .dtd-seg button.on { color: var(--accent); background: var(--bg); }
+#devtools .dtd-meta { margin-left: auto; color: var(--faint); font-size: 11px; white-space: nowrap; }
+#devtools .dtd-meta b { color: var(--dim); font-weight: 500; }
+
+/* body: graph pane over events pane */
+#devtools .dtd-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#devtools .dtd-graph { flex: 0 0 auto; max-height: 58%; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+#devtools .dtd-graph[hidden], #devtools .dtd-tree[hidden], #devtools .dtd-dag[hidden] { display: none; }
+#devtools .dtd-events { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--rule); background: var(--bg); }
+#devtools .dtd-events.is-full { flex: 1 1 auto; border-top: 0; }
+#devtools .dtd-events[hidden] { display: none; }
+
+/* tree */
+#devtools .dtd-tree { padding: 6px 0 4px; }
+#devtools .dtd-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 4.2rem 1.5rem 4rem; column-gap: 8px; align-items: baseline;
+  padding: 3px 12px 3px 0; cursor: pointer; border-left: 2px solid transparent;
+}
+#devtools .dtd-row:hover { background: var(--bg-3); }
+#devtools .dtd-row.on { background: var(--bg-3); border-left-color: var(--accent); }
+#devtools .dtd-row .n { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; }
+#devtools .dtd-row .n i { color: var(--faint); font-style: normal; width: 10px; display: inline-block; text-align: center; }
+#devtools .dtd-row .n b { font-weight: 500; color: var(--ink); }
+#devtools .dtd-row .n s { text-decoration: none; color: var(--faint); font-size: 11px; }
+#devtools .dtd-row .n s em { font-style: normal; color: var(--dim); }
+#devtools .dtd-row.k-source .n s em { color: var(--accent); }
+#devtools .dtd-row.k-scalar .n s em { color: var(--peer); }
+#devtools .dtd-row .v { color: var(--dim); text-align: right; white-space: nowrap; }
+#devtools .dtd-row .h { color: var(--faint); font-size: 11px; text-align: right; }
+#devtools .dtd-row .ms { color: var(--faint); font-size: 11px; text-align: right; white-space: nowrap; }
+#devtools .dtd-row .ms.hot { color: var(--pos); }
+#devtools .dtd-tree .sinks { padding: 6px 12px 4px 14px; color: var(--faint); font-size: 11px; border-top: 1px dashed var(--rule); margin-top: 4px; }
+#devtools .dtd-tree .sinks em { font-style: normal; color: var(--dim); }
+#devtools .flash { animation: dtflash 700ms ease-out; border-radius: 2px; }
+@keyframes dtflash { 0% { background: var(--accent); color: var(--bg); } 100% { background: transparent; } }
+
+/* dag */
+#devtools .dtd-dag { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 10px 8px; }
+#devtools .dtd-dag .legend { font-size: 10px; color: var(--faint); letter-spacing: .04em; display: flex; gap: 12px; }
+#devtools .dtd-dag .legend i { display: inline-block; width: 8px; height: 8px; border: 1px solid var(--rule); border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+#devtools .dtd-dag .legend i.s { border-color: var(--accent); }
+#devtools .dtd-dag .legend i.c { border-color: var(--peer); }
+#devtools .dtd-dag svg { display: block; width: 100%; max-width: 336px; height: auto; overflow: visible; }
+#devtools .dtd-dag line { stroke: var(--dim); stroke-width: 1; opacity: .7; }
+#devtools .dtd-dag line.hot { stroke: var(--accent); opacity: 1; }
+#devtools .dtd-dag .gnode { cursor: pointer; }
+#devtools .dtd-dag .gnode rect { fill: var(--bg); stroke: var(--rule); stroke-width: 1; rx: 4; }
+#devtools .dtd-dag .gnode.k-source rect { stroke: var(--accent); }
+#devtools .dtd-dag .gnode.k-scalar rect { stroke: var(--peer); }
+#devtools .dtd-dag .gnode:hover rect { fill: var(--bg-3); }
+#devtools .dtd-dag .gnode.on rect { stroke: var(--accent); stroke-width: 2; fill: var(--bg-3); }
+#devtools .dtd-dag .gnode text { font: 11px var(--mono); fill: var(--ink); }
+#devtools .dtd-dag .gnode text.sub { font-size: 9.5px; fill: var(--dim); }
+#devtools .dtd-dag .gnode.hot rect { animation: dtring 700ms ease-out; }
+@keyframes dtring { 0% { fill: var(--accent); } 100% { fill: var(--bg); } }
+#devtools .dtd-dag .col { font: 9.5px var(--mono); fill: var(--faint); letter-spacing: .08em; }
+
+/* inspect strip (selection) */
+#devtools .dtd-insp { flex-shrink: 0; border-top: 1px solid var(--rule); padding: 6px 12px 7px; background: var(--bg-3); font-size: 11px; color: var(--dim); display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 1px; }
+#devtools .dtd-insp[hidden] { display: none; }
+#devtools .dtd-insp .k { color: var(--faint); text-transform: uppercase; letter-spacing: .06em; font-size: 9.5px; padding-top: 2px; }
+#devtools .dtd-insp .val { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#devtools .dtd-insp .val code { font-size: 1em; color: var(--accent); }
+
+/* events */
+#devtools .dtd-ev-head { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+#devtools .dtd-ev-head .cnt { text-transform: none; letter-spacing: 0; margin-left: auto; }
+#devtools .dtd-ev-head button { text-transform: none; letter-spacing: 0; font-size: 11px; padding: 0 6px; }
+#devtools .dtd-ev-list { flex: 1; min-height: 0; overflow: hidden; padding: 4px 0; }
+#devtools .dtd-ev { padding: 4px 12px 5px; border-bottom: 1px solid var(--rule); animation: dtrowin 220ms ease-out; }
+#devtools .dtd-ev:last-child { border-bottom: 0; }
+#devtools .dtd-ev .l1 { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+#devtools .dtd-ev .seq { color: var(--accent); font-weight: 500; flex-shrink: 0; }
+#devtools .dtd-ev .w { color: var(--ink); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#devtools .dtd-ev .w s { text-decoration: none; color: var(--dim); }
+#devtools .dtd-ev .w u { text-decoration: none; color: var(--faint); }
+#devtools .dtd-ev .ms { margin-left: auto; color: var(--faint); font-size: 11px; flex-shrink: 0; }
+#devtools .dtd-ev .l2 { display: flex; flex-wrap: wrap; align-items: baseline; row-gap: 0; color: var(--dim); font-size: 11px; line-height: 1.5; margin-top: 1px; }
+#devtools .dtd-ev .l2 .z { color: var(--faint); }
+#devtools .dtd-ev .l2 .a { color: var(--faint); margin: 0 5px; }
+#devtools .dtd-ev .l2 b, #devtools .dtd-ev .l2 .z { white-space: nowrap; }
+#devtools .dtd-ev .l2 b { color: var(--ink); font-weight: 500; }
+#devtools .dtd-ev.is-new .seq { animation: dtflash 700ms ease-out; }
+@keyframes dtrowin { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* footer ticker */
+#devtools .dtd-foot { flex-shrink: 0; display: flex; align-items: baseline; gap: 8px; padding: 5px 12px; border-top: 1px solid var(--rule); background: var(--bg-3); font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; }
+#devtools .dtd-foot b { color: var(--dim); font-weight: 500; }
+#devtools .dtd-foot .r { margin-left: auto; }
+
+@media (max-width: 640px) {
+  #devtools .dtd-row { grid-template-columns: minmax(0, 1fr) 4rem 4rem; }
+  #devtools .dtd-row .h { display: none; }
+  #devtools .dtd-meta { display: none; }
+}
+
+/* ---------- b · the "open the real panel" row under the card ---------- */
+#devtools .dt-actions-b { margin-top: 0.85rem; gap: 0.6rem 0.75rem; }
+#devtools .dt-actions-b .muted { max-width: 100%; }
+#devtools .dtd-row .v[data-attested] { min-width: 0; }
+
+/* presentation motion rests under reduced motion — the numbers never came from it */
+@media (prefers-reduced-motion: reduce) {
+  #devtools .flash, #devtools .dtd-ev, #devtools .dtd-ev.is-new .seq, #devtools .dtd-dag .gnode.hot rect { animation: none; }
+  #devtools .dt-dock-fixed { transition: none; }
+}
+
+/* inline code in the lead-para never breaks mid-token (`?nopanel` wrapped after the `?`) */
+#devtools .dt-prose .lead-para code { white-space: nowrap; }

@@ -1,0 +1,80 @@
+/* sections/lede.css — the lede's own rules. Everything scoped under #lede;
+   the kicker / headline / standfirst / lede-sub / cta / install / trust
+   grammar comes straight from v2.css. */
+
+/* the import-line button: the old .install, holding source instead of a shell
+   line. `$` is the mark (accent, via .install .dim) — no prompt gap. */
+#lede .install .dim { margin-right: 0; }
+#lede .install .path { color: var(--dim); }
+#lede .install { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+#lede .nb { white-space: nowrap; }
+
+/* ---------- b · the one-write figure ---------- */
+#lede .lede-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.25rem; align-items: start; }
+#lede .lede-text { min-width: 0; }
+#lede .lede-fig {
+  margin: 0; max-width: 34rem;
+  background: var(--bg-2); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden;
+  font: 0.78rem/1.5 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1100px) {
+  /* the figure sits beside the standfirst + sub only (they are near-equal in
+     height); the CTA row and the trust line run full-width beneath the grid */
+  #lede .lede-grid { grid-template-columns: minmax(0, 1fr) 380px; gap: 3.5rem; margin-top: 1.75rem; }
+  #lede .lede-grid .standfirst { margin-top: 0; }
+  #lede .lede-fig { max-width: none; margin-top: 0.25rem; }
+}
+
+#lede .fig-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: 0.6rem 1rem; background: var(--bg-3); border-bottom: 1px solid var(--rule);
+  font-size: 0.74rem; color: var(--dim);
+}
+#lede .fig-src { color: var(--ink); font-weight: 500; }
+#lede .fig-src b { color: var(--accent); font-weight: 600; }
+#lede .fig-head-r { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); white-space: nowrap; }
+
+#lede .fig-write, #lede .fig-delta { display: flex; align-items: baseline; gap: 0.85rem; padding: 0.7rem 1rem; }
+#lede .fig-write { border-bottom: 1px solid var(--rule); }
+#lede .fig-write code { font-size: 0.8rem; color: var(--ink); }
+#lede .fig-write .tok-num { display: inline-block; padding: 0 0.2em; margin: 0 -0.2em; border-radius: 2px; }
+#lede .fig-lab { flex: none; width: 2.9rem; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); }
+
+#lede .fig-table { width: 100%; border-collapse: collapse; }
+#lede .fig-table th, #lede .fig-table td { padding: 0.38rem 0.6rem; text-align: left; }
+#lede .fig-table th:first-child, #lede .fig-table td:first-child { padding-left: 1rem; }
+#lede .fig-table th:last-child, #lede .fig-table td:last-child { padding-right: 1rem; }
+#lede .fig-table th { padding-top: 0.6rem; padding-bottom: 0.3rem; font-weight: 500; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); }
+#lede .fig-table td { border-top: 1px solid var(--rule); }
+#lede .fig-table .num { text-align: right; }
+#lede .fig-table .key { color: var(--dim); }
+#lede .fig-table .buy { color: var(--pos); }
+#lede .fig-table .sell { color: var(--neg); }
+#lede .fig-table tr.hot .key { color: var(--ink); }
+#lede .fig-table .qty span { display: inline-block; padding: 0 0.3em; margin-right: -0.3em; border-radius: 2px; }
+
+#lede .fig-delta { border-top: 1px solid var(--rule); background: var(--bg); }
+#lede .d-line { white-space: nowrap; }
+#lede .d-verb { color: var(--accent); font-weight: 600; }
+#lede .d-key { color: var(--ink); }
+#lede .d-path { color: var(--dim); }
+#lede .d-prev { color: var(--faint); }
+#lede .d-arr { color: var(--dim); }
+#lede .d-next { color: var(--ink); display: inline-block; padding: 0 0.3em; margin: 0 -0.3em; border-radius: 2px; }
+#lede .fig-seq { margin-left: auto; font-size: 0.68rem; color: var(--faint); white-space: nowrap; }
+#lede .fig-seq b { color: var(--dim); font-weight: 500; }
+
+/* the flash idiom (cellflash keyframes live in v2.css) — applied to whichever
+   node the list sink actually patched (a MutationObserver on the tbody) */
+#lede .flash { animation: cellflash 600ms ease-out; border-radius: 2px; }
+#lede .fig-table td.flash { animation: cellflash 600ms ease-out; }
+
+/* the figure is rendered by the engine after first paint: hold the settled
+   height (head + write + 4 rows + delta) so nothing beneath it shifts */
+#lede .lede-fig { min-height: 17.38rem; } /* measured settled height: 278px at 1440 / 1280 / 390 */
+#lede .fig-head-r span { color: inherit; }
+
+@media (max-width: 460px) {
+  #lede .fig-head-r { display: none; }
+  #lede .fig-table th, #lede .fig-table td { padding-left: 0.45rem; padding-right: 0.45rem; }
+}

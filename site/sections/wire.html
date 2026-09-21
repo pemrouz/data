@@ -1,0 +1,62 @@
+<section class="wire" id="wire">
+  <div class="opt" data-section="wire">
+
+    <!-- ===== a · two runtimes, one delta (REAL: two engines in this tab, joined by wireSink → ingest) ===== -->
+    <div data-variant="a" data-label="two engines, one delta" id="wire-a">
+      <div class="sec-head"><span class="sec-no">06</span><h2>Across the wire</h2></div>
+      <p class="lead-para">
+        Every commit can leave the runtime as a <code>WireBatch</code> — JSON-safe, replayable in
+        application order — and enter another one through <code>ingest()</code> or the hot
+        <code>lane()</code>. The two runtimes below are joined by nothing but that wire; write on
+        either side and the other side receives exactly the change.
+      </p>
+
+      <div class="wire-card" id="wire-card-a">
+
+        <!-- here · runtime A (the page's default runtime) -->
+        <div class="wire-col wire-here">
+          <div class="wire-kicker"><span>here · runtime A</span><span class="tag">rows <b id="wire-rows-here-a"></b></span></div>
+          <div class="wire-tbl" id="wire-tbl-here-a" role="grid" aria-label="runtime A — here; click a row to write its qty">
+            <div class="wire-th" role="row"><span>key</span><span>sym</span><span>side</span><span class="th-qty">qty</span><span class="th-px">px</span></div>
+          </div>
+          <div class="wire-last" id="wire-last-here-a"><code>wireSink(here, cross, { origin: fromWire })</code></div>
+        </div>
+
+        <!-- the wire -->
+        <div class="wire-seam">
+          <div class="wire-kicker"><span>the wire</span><span class="tag">JSON-safe</span></div>
+          <div class="wire-track" id="wire-track-a" aria-hidden="true">
+            <span class="wire-line"></span>
+            <span class="wire-trail" id="wire-trail-a"></span>
+            <span class="wire-dot" id="wire-dot-a"></span>
+            <span class="wire-echo" id="wire-echo-a"></span>
+          </div>
+          <div class="wire-dir"><span id="wire-dir-a">A → B</span><span id="wire-via-a">wireSink → ingest</span></div>
+          <pre class="wire-batch" id="wire-batch-a" aria-label="the latest WireBatch"><span class="tok-com">// nothing on the wire yet</span></pre>
+          <div class="wire-count" id="wire-count-a">
+            <div>crossed <b id="wire-crossed-a"></b> · echoed back <b id="wire-echoed-a"></b></div>
+            <div class="wire-meas" id="wire-meas-a" hidden></div>
+          </div>
+        </div>
+
+        <!-- there · runtime B (a second Runtime, seeded only by the wire's opening snapshot) -->
+        <div class="wire-col wire-there">
+          <div class="wire-kicker"><span>there · runtime B</span><span class="tag">rows <b id="wire-rows-there-a"></b></span></div>
+          <div class="wire-tbl" id="wire-tbl-there-a" role="grid" aria-label="runtime B — there, the replica; click a row to write its qty">
+            <div class="wire-th" role="row"><span>key</span><span>sym</span><span>side</span><span class="th-qty">qty</span><span class="th-px">px</span></div>
+            <div class="wire-empty" id="wire-empty-there-a">empty — seeded by the wire's opening snapshot</div>
+          </div>
+          <div class="wire-last" id="wire-last-there-a"><code>wireSink(there, cross, { origin: fromWire, initial: false })</code></div>
+        </div>
+
+      </div>
+
+      <div class="wire-status" id="wire-status-a">fold(wire) ≡ there · <span class="pending">waiting for the wire …</span></div>
+      <p class="muted wire-foot">origin tokens: each side ignores batches that carry its own origin — <span data-literal>clause 6</span>.</p>
+    </div>
+
+    <!-- ===== off · hidden (?wire=off removes the section) ===== -->
+    <div data-variant="off" data-label="hidden"></div>
+
+  </div>
+</section>

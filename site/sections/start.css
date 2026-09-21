@@ -1,0 +1,55 @@
+/* sections/start.css — §03 From zero (id="start"). Reuses v2.css's .quickstart grammar
+   (.install / .entries / .snips / .cta); everything new is scoped under #start. */
+
+/* ── a · the old layout ─────────────────────────────────────────────────── */
+#start .install { margin-bottom: 0.7rem; max-width: 100%; white-space: normal; word-break: break-word; line-height: 1.5; }
+#start .install .kw { color: var(--dim); }
+#start .install b { color: var(--accent); font-weight: 500; }
+#start .install .path { color: var(--ink); }
+#start .install .hint { margin-left: 1em; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); user-select: none; vertical-align: 0.1em; }
+#start .install:hover .hint { color: var(--accent); }
+#start .src-note { margin: 0 0 1.75rem; font: 0.78rem/1.6 var(--mono); color: var(--faint); max-width: 78ch; }
+#start .src-note code { font-size: 1em; color: var(--dim); white-space: nowrap; }
+#start .entry > span code { font-size: 0.86em; }
+#start .jsx-note { font-size: 0.9rem; max-width: 80ch; margin: 0; }
+
+/* ── b · twelve lines ───────────────────────────────────────────────────── */
+#start .twelve-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--rule); }
+#start .twelve-head .stream-btn { margin-left: auto; }
+
+/* the panel: pre.code's clothes on a grid, so the output column lines up */
+#start .twelve {
+  display: grid; grid-template-columns: max-content 1fr max-content; column-gap: 1.35rem; align-items: start;
+  background: var(--bg-2); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 1.05rem 1.25rem 1.1rem; margin: 1.1rem 0 1.25rem;
+  font: 0.82rem/1.65 var(--mono); color: var(--ink); overflow-x: auto;
+  counter-reset: line;
+}
+#start .twelve .row { display: contents; }
+#start .twelve .n { counter-increment: line; font-size: 0.68rem; line-height: calc(0.82rem * 1.65); color: var(--faint); text-align: right; user-select: none; }
+#start .twelve .n::before { content: counter(line, decimal-leading-zero); }
+#start .twelve .src { white-space: pre; min-height: 1.65em; }
+#start .twelve .out { justify-self: end; white-space: pre; font-style: italic; color: var(--dim); padding: 0 0.3rem; margin-right: -0.3rem; opacity: 0; transition: opacity 260ms ease; border-radius: 2px; }
+#start .twelve .out::before { content: '// → '; color: var(--faint); }   /* the arrow is chrome; the cell's text is the engine's */
+#start .twelve .out.on { opacity: 1; }
+#start .twelve .out.flash { animation: cellflash 600ms ease-out; }
+
+/* the ol line 10 renders into — the engine's live DOM output, shown small under the panel */
+#start .twelve-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1.1rem; margin: -0.5rem 0 0; font: 0.78rem/1.6 var(--mono); color: var(--dim); }
+#start .twelve-foot-label { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+#start .twelve-ol { display: flex; flex-wrap: wrap; gap: 0.2rem 1.5rem; margin: 0; padding: 0; list-style: decimal-leading-zero inside; min-height: 1.6em; }
+#start .twelve-ol li { color: var(--dim); }
+#start .twelve-ol li::marker { color: var(--faint); font-size: 0.68rem; }
+#start .twelve-ol li b { color: var(--ink); font-weight: 500; margin: 0 0.45em 0 0.15em; }
+
+/* the seven names */
+#start .seven { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem 0.7rem; margin: 0 0 1.5rem; font: 0.8rem/1.6 var(--mono); color: var(--dim); }
+#start .seven b { color: var(--ink); font-weight: 500; }
+#start .seven .demo-chips { display: inline-flex; flex-wrap: wrap; margin: 0; gap: 0.3rem; }
+#start .seven .chip { cursor: default; color: var(--ink); }
+#start .seven .chip:hover { color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 720px) {
+  #start .twelve { column-gap: 0.9rem; padding: 0.85rem 0.9rem; }
+  #start .twelve .out { padding-left: 0.6rem; }
+}

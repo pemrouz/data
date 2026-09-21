@@ -1,0 +1,104 @@
+<section class="lede" id="lede">
+  <div class="opt" data-section="lede">
+
+    <!-- a · the old claim, refilled for v4 -->
+    <div data-variant="a" data-label="the old claim">
+      <p class="kicker">the original sin of reactive UI</p>
+      <h1 class="headline">Only do the work that <em>changed</em>.</h1>
+      <p class="standfirst">
+        Almost every reactive system re-runs the whole computation when a single
+        value changes. <b>data</b> is a reactive data engine that moves only the
+        change: <code>$()</code> wraps a value, operators derive incrementally-maintained
+        views, sinks deliver consolidated deltas, render binds to the DOM. Work
+        scales with the change, not the dataset.
+      </p>
+      <p class="lede-sub">
+        Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+        fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+        analytics, grids, live feeds.
+      </p>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-a" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+    <!-- b · the claim with a live figure — REAL: the figure is $(trades) on the page's one
+         runtime (sections/lede.js): rows rendered by the keyed list sink, the delta line printed
+         from trades.sink({ apply }), seq from the batch, rows from rowCount(); the trust line's
+         figures come from gen/manifest.json (build) and contract.SCHEDULE_VERSION (runtime). -->
+    <div data-variant="b" data-label="the claim with a live figure">
+      <p class="kicker">one write, one path</p>
+      <h1 class="headline">Only the change <em>moves</em>.</h1>
+      <div class="lede-grid">
+        <div class="lede-text">
+          <p class="standfirst">
+            Almost every reactive system re-runs the whole computation when a single
+            value changes. <b>data</b> is a reactive data engine that moves only the
+            change: <code>$()</code> wraps a value, operators derive incrementally-maintained
+            views, sinks deliver consolidated deltas, render binds to the DOM. Work
+            scales with the change, not the dataset.
+          </p>
+          <p class="lede-sub">
+            Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+            fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+            analytics, grids, live feeds.
+          </p>
+        </div>
+
+        <figure class="lede-fig" id="lede-fig-b" aria-label="one deep-path write on a live source, the cell the list sink re-renders, and the single delta the sink delivers">
+          <div class="fig-head">
+            <span class="fig-src"><b>$</b>(trades)</span>
+            <span class="fig-head-r">object-born · keyed · <span id="lede-rowcount-b" data-attested="runtime"></span> rows</span>
+          </div>
+          <div class="fig-write">
+            <span class="fig-lab">write</span>
+            <code>trades<span class="tok-pun">.</span>t3<span class="tok-pun">.</span>qty<span class="tok-pun">.</span>update<span class="tok-pun">(</span><span class="tok-num" id="lede-write-val-b"></span><span class="tok-pun">)</span></code>
+          </div>
+          <table class="fig-table" aria-label="trades">
+            <thead><tr><th>key</th><th>sym</th><th>side</th><th class="num">qty</th><th class="num">px</th></tr></thead>
+            <tbody id="lede-rows-b"></tbody>
+          </table>
+          <div class="fig-delta">
+            <span class="fig-lab">delta</span>
+            <span class="d-line" id="lede-delta-b"><span class="d-verb" id="lede-op-b" data-attested="runtime"></span> <span class="d-key" id="lede-key-b" data-attested="runtime"></span> <span class="d-path" id="lede-path-b" data-attested="runtime"></span> <span class="d-prev" id="lede-prev-b" data-attested="runtime"></span> <span class="d-arr">→</span> <span class="d-next" id="lede-next-b" data-attested="runtime"></span></span>
+            <span class="fig-seq">seq <b id="lede-seq-b" data-attested="runtime"></b></span>
+          </div>
+        </figure>
+      </div>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-b" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b id="lede-deps-b" data-attested="build">—</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION <span id="lede-ver-b" data-attested="runtime">—</span> <span class="sep">·</span> <b id="lede-tests-b" data-attested="build">—</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+    <!-- c · the duality claim -->
+    <div data-variant="c" data-label="the duality claim">
+      <p class="kicker">change &amp; derivation</p>
+      <h1 class="headline">A table and its <span class="nb">change-stream</span> are <em>one thing</em>.</h1>
+      <p class="standfirst">
+        A write is a delta — three row verbs, <code>add</code> · <code>update</code> ·
+        <code>remove</code>, in one batch envelope — and every operator consumes and
+        emits exactly that. So a filter, a count, a grouping stays live for the price
+        of the change, not the table. <b>data</b> keeps the table and its stream as
+        one thing: wrap a value in <code>$()</code>, chain operators, bind to the DOM.
+      </p>
+      <p class="lede-sub">
+        Like <b>crossfilter</b>'s incremental aggregation meets <b>Solid</b>-style
+        fine-grained DOM — for UIs over large, fast-changing data: dashboards,
+        analytics, grids, live feeds.
+      </p>
+      <div class="cta">
+        <button class="install" type="button" id="lede-import-c" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <a class="cta-link" href="#start">quickstart ↓</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
+      </div>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+    </div>
+
+  </div>
+</section>

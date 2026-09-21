@@ -1,0 +1,128 @@
+/* sections/argument.css — §01 The argument. Variant a is pure v2.css grammar
+   (sec-head / lead-para / pre.code / prop-list / muted). Everything below is
+   variant b's strip: four cards joined by arrows, one orange thread (the path)
+   running through them, and a one-shot left-to-right "run it" sweep — since
+   2026-09-14 a PRESENTATION of the real commit (argument.js): the figures land
+   before the sweep starts; the sweep only lights cards and flashes cells.
+   Apparatus type sits on the grammar's floor (0.7rem kickers, 0.72rem lines). */
+
+/* ---- the strip ---- */
+#argument .arg-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.45rem;
+  margin: 1.25rem 0 0;
+}
+#argument .arg-card {
+  display: flex; flex-direction: column; gap: 0.55rem;
+  min-width: 0;
+  overflow: hidden;                       /* nothing ever bleeds through the border */
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0.8rem 0.8rem 0.75rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+#argument .arg-k {
+  font: 500 0.7rem var(--mono);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--faint);
+  transition: color 160ms ease;
+}
+#argument .arg-code {
+  display: block;
+  font: 0.72rem/1.55 var(--mono);
+  color: var(--ink);
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+}
+#argument .arg-path { color: var(--accent); }
+#argument .arg-sub {
+  margin-top: auto;
+  padding-top: 0.35rem;
+  font: 0.72rem var(--mono);
+  color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* the per-node delta line is the engine's (CommitInfo) — it may wrap, never clip */
+#argument .arg-sub-wrap { white-space: normal; line-height: 1.45; }
+
+/* arrows between cards — glyph lives in ::before so it can flip to ↓ when stacked */
+#argument .arg-arrow {
+  align-self: center; justify-self: center;
+  font: 500 1.1rem/1 var(--mono);
+  color: var(--faint);
+  transition: color 160ms ease;
+}
+#argument .arg-arrow::before { content: '→'; }
+
+/* views: one row per derived view; the two that moved carry the accent */
+#argument .arg-chips { display: flex; flex-direction: column; gap: 0.32rem; }
+#argument .arg-chip {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+  padding: 0.26rem 0.5rem;
+  border: 1px solid var(--rule); border-radius: 3px;
+  font: 500 0.74rem var(--mono);
+  min-width: 0;
+  transition: border-color 160ms ease;
+}
+#argument .arg-chip b { font-weight: 500; color: var(--dim); }
+#argument .arg-chip i {
+  font-style: normal; font-weight: 400; font-size: 0.72rem;
+  color: var(--faint); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border-radius: 2px; padding: 0 0.15rem; margin-right: -0.15rem;
+}
+#argument .arg-chip.is-hot { border-color: rgba(255, 94, 58, 0.45); }
+#argument .arg-chip.is-hot b { color: var(--accent); }
+#argument .arg-chip.is-hot i { color: var(--ink); }
+
+/* dom: the binding, the one bound cell, the write count */
+#argument .arg-dom { display: flex; flex-direction: column; gap: 0.55rem; }
+#argument .arg-cell {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg); border: 1px solid var(--rule); border-radius: 3px;
+  font: 0.74rem var(--mono);
+}
+#argument .arg-cell-k { color: var(--faint); white-space: nowrap; }
+#argument .arg-cell-v {
+  color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
+  border-radius: 2px; padding: 0 0.2rem; margin-right: -0.2rem;
+}
+/* secondary panels (the source and row the write lands on, the batch the delta
+   rides in, the binding) — may wrap, never overflow */
+#argument .arg-cell-v.dimv { color: var(--dim); font-weight: 400; font-size: 0.72rem; white-space: normal; text-align: right; }
+#argument .arg-cell-v.dimv b { font-weight: 500; color: var(--ink); border-radius: 2px; padding: 0 0.15rem; margin-right: -0.15rem; }
+#argument .arg-dom-stat { font: 0.72rem/1.5 var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#argument .arg-dom-stat b { font-weight: 500; color: var(--dim); }
+#argument .arg-dom-stat b.hot { color: var(--accent); }
+
+/* run row */
+#argument .arg-run { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0.9rem 0 1.5rem; }
+#argument .arg-run .stream-btn { margin-left: 0; font-size: 0.76rem; padding: 0.38rem 0.75rem; }
+#argument .arg-run .stream-btn:disabled { color: var(--faint); border-color: var(--rule); cursor: default; }
+#argument .arg-status { font: 0.72rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+#argument .arg-status b { font-weight: 500; color: var(--dim); }
+
+/* ---- the sweep (JS toggles these) ---- */
+#argument .arg-card.wait { opacity: 0.42; }
+#argument .arg-arrow.wait { color: var(--rule); }
+#argument .arg-card.lit {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255, 94, 58, 0.25), 0 0 22px -8px rgba(255, 94, 58, 0.7);
+}
+#argument .arg-card.lit .arg-k { color: var(--accent); }
+#argument .arg-card.done { border-color: rgba(154, 154, 147, 0.35); }
+#argument .arg-arrow.lit { color: var(--accent); }
+#argument .flash { animation: cellflash 600ms ease-out; }
+
+/* ---- stacked below the full wrap (1140px): four abreast needs ~225px a card,
+   which only the full 1044px column gives ---- */
+@media (max-width: 1140px) {
+  #argument .arg-strip { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
+  #argument .arg-arrow::before { content: '↓'; }
+  #argument .arg-sub { white-space: normal; }
+}

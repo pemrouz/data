@@ -1,0 +1,99 @@
+<section class="essay" id="argument">
+  <div class="opt" data-section="argument">
+
+    <!-- a · the old form verbatim: head → lead → claim → one write → four rows → close -->
+    <div data-variant="a" data-label="the old form · one write, four rows">
+      <div class="sec-head"><span class="sec-no">01</span><h2>The argument</h2></div>
+      <p class="lead-para">
+        A change is small. You set one field on one row. Yet most reactive stacks
+        respond by re-running everything downstream — re-filtering the whole list,
+        re-summing every number, diffing an entire tree — and then trusting a
+        memoiser to paper over the waste.
+      </p>
+      <p>
+        <b>data</b> takes the change literally. A write carries its exact path,
+        and each operator in the chain does work scoped to that path alone:
+      </p>
+      <pre class="code" data-hl="off">trades.t3.qty.update<span class="tok-pun">(</span><span class="tok-num">380</span><span class="tok-pun">)</span>   <span class="tok-com">// one delta · path ['qty'] · prev 500</span></pre>
+      <ul class="prop-list">
+        <li><span class="op">filter</span> re-tests the predicate for <em>one</em> row</li>
+        <li><span class="op">za</span> moves <em>one</em> rank</li>
+        <li><span class="op">sum</span> nudges a running total in O(1)</li>
+        <li><span class="op">render</span> rewrites only the single bound cell</li>
+      </ul>
+      <p class="muted">
+        No diff pass. No list re-render. No selector re-run over 231,083 rows. The
+        cost of an update is the length of the path it travels — which is why the
+        race above holds at any rate, and why it scales to datasets that make
+        recompute-everything systems stall.
+      </p>
+    </div>
+
+    <!-- b · the same claim, then the path itself as a strip: write → delta → views → dom.
+         REAL (2026-09-14): trades = $({ t1…t5 }), buys = filter, largest = za('qty', 2),
+         volume = sum('qty'); the DOM cell is render(host, text(trades.t3.qty)); every
+         figure is attested from the engine's sinks / CommitInfo / a MutationObserver. -->
+    <div data-variant="b" data-label="the path as a strip · run it">
+      <div class="sec-head"><span class="sec-no">01</span><h2>The argument</h2></div>
+      <p class="lead-para">
+        A change is small. You set one field on one row. Yet most reactive stacks
+        respond by re-running everything downstream — re-filtering the whole list,
+        re-summing every number, diffing an entire tree — and then trusting a
+        memoiser to paper over the waste.
+      </p>
+      <p>
+        <b>data</b> takes the change literally. A write carries its exact path,
+        and each operator in the chain does work scoped to that path alone:
+      </p>
+
+      <div class="arg-strip" id="arg-strip-b">
+        <div class="arg-card" data-step="0">
+          <span class="arg-k">write</span>
+          <code class="arg-code" id="arg-call-b">trades<span class="arg-path">.t3.qty</span>.update<span class="tok-pun">(</span><span class="tok-num" id="arg-call-v-b"></span><span class="tok-pun">)</span></code>
+          <span class="arg-cell"><span class="arg-cell-k">source</span><span class="arg-cell-v dimv">trades · <b id="arg-rows-b"></b> rows</span></span>
+          <span class="arg-cell"><span class="arg-cell-k" data-literal>row t3</span><span class="arg-cell-v dimv"><span id="arg-row-sym-b"></span> · qty <b id="arg-row-b"></b></span></span>
+          <span class="arg-sub">one call · one deep path</span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="1">
+          <span class="arg-k">delta</span>
+          <code class="arg-code" id="arg-delta-b"></code>
+          <span class="arg-cell"><span class="arg-cell-k">batch</span><span class="arg-cell-v dimv">seq <b id="arg-seq-b"></b> · rows <b id="arg-nrows-b"></b></span></span>
+          <span class="arg-sub">one row verb · carries prev</span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="2">
+          <span class="arg-k">views</span>
+          <div class="arg-chips">
+            <span class="arg-chip is-same"><b>buys</b><i id="arg-buys-b"></i></span>
+            <span class="arg-chip is-hot"><b>largest</b><i id="arg-largest-b"></i></span>
+            <span class="arg-chip is-hot"><b>volume</b><i id="arg-volume-b"></i></span>
+          </div>
+          <span class="arg-sub arg-sub-wrap" id="arg-nodes-b"></span>
+        </div>
+        <span class="arg-arrow" aria-hidden="true"></span>
+        <div class="arg-card" data-step="3">
+          <span class="arg-k">dom</span>
+          <div class="arg-dom">
+            <span class="arg-cell"><span class="arg-cell-k">bound</span><span class="arg-cell-v dimv">qty → text node</span></span>
+            <span class="arg-cell"><span class="arg-cell-k" data-literal>t3 · qty</span><span class="arg-cell-v" id="arg-cell-b" data-attested="runtime"></span></span>
+            <span class="arg-dom-stat"><b class="hot" id="arg-mo-text-b"></b> text · <b id="arg-mo-add-b"></b> added · <b id="arg-mo-rem-b"></b> removed</span>
+          </div>
+          <span class="arg-sub">render · the one bound cell</span>
+        </div>
+      </div>
+      <div class="arg-run">
+        <button type="button" class="stream-btn" id="arg-run-b">run it ▸</button>
+        <span class="arg-status" id="arg-status-b">seq <b id="arg-st-seq-b"></b> · origin <span id="arg-st-origin-b"></span> · <b id="arg-st-nodes-b"></b> nodes settled · write → dom in <b id="arg-st-ms-b"></b> ms · this machine · <b id="arg-st-text-b"></b> text node</span>
+      </div>
+
+      <p class="muted">
+        No diff pass. No list re-render. No selector re-run over the whole table. The
+        cost of an update is the length of the path it travels — which is why the
+        race above holds at any rate, and why it scales to datasets that make
+        recompute-everything systems stall.
+      </p>
+    </div>
+
+  </div>
+</section>
