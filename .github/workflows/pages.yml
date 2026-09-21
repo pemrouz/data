@@ -1,0 +1,58 @@
+name: Deploy the site to GitHub Pages
+
+# The landing page (site/) runs the REAL engine in the browser. site/strip.mjs type-strips the
+# api cone + the conformance suite file-for-file into site/lib with Node's stripTypeScriptTypes
+# (zero dependencies — no npm install here) and extracts the law into site/gen; site/build.mjs
+# assembles site/index.html from page.html + sections/*.html. lib/, gen/ and index.html are
+# gitignored, so the deployed page is always THIS commit's engine. The dev-only material
+# (shots/, ref/, tools/, the notes, the two build scripts) stays out of the artifact.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source = "GitHub Actions"; the
+# github-pages environment's deployment-branch policy allows main (v4 is the working branch —
+# it merges into main by fast-forward, and only main deploys).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# a newer deploy supersedes a queued one, but never cancels a run mid-publish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the engine (site/lib, site/gen) and the page (site/index.html)
+        run: |
+          node site/strip.mjs
+          node site/build.mjs
+      - name: Stage the deployable site (without the dev-only material)
+        run: |
+          mkdir -p _site
+          rsync -a --exclude 'shots' --exclude 'ref' --exclude 'tools' --exclude '*.md' --exclude 'strip.mjs' --exclude 'build.mjs' site/ _site/
+          du -sh _site && ls _site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
