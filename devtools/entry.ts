@@ -1,7 +1,7 @@
-// devtools/entry.ts — the data/v4/devtools BUNDLE entry (tsup emits this
-// as dist/v3/devtools.js; every import leaving v3/devtools/ is rewritten to
-// the sibling main bundle, so $ / runtime here ARE the consumer's instances —
-// the single-module-instance discipline).
+// devtools/entry.ts — the data/devtools ENTRY (dist/devtools/entry.js: the
+// sources type-stripped file-for-file by build.mjs, so $ / runtime here ARE the
+// consumer's instances — one module per source file, no bundle to duplicate a
+// kernel into: the single-module-instance discipline holds structurally).
 //
 // Importing this entry does three things (the v2 data/devtools discipline):
 //   1. re-exports the consumption layer (inspect/graph/trace/profile/

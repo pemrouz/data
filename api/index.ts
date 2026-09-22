@@ -38,17 +38,17 @@ export { h, Fragment, For, ErrorBoundary } from '../jsx/index.ts'
 // The component-lifecycle hook: registers a cleanup on the AMBIENT scope
 // (a component invocation, a render mount) — see kernel/scope.ts.
 export { onCleanup } from '../kernel/scope.ts'
-// The automatic-runtime verbs live on the MAIN entry too: dist/v3/jsx-runtime.js
-// is a thin re-export of this bundle (see tsup.config.ts), so these names must
-// exist here for that entry to forward — and classic/automatic interop shares
-// one module instance either way.
+// The automatic-runtime verbs live on the MAIN entry too: api/jsx-runtime.ts
+// (the data/jsx-runtime entry) re-exports them from the same jsx/runtime.ts
+// module, so classic/automatic interop shares one module instance — and dist
+// mirrors the tree file-for-file (build.mjs), so that holds on npm as well.
 export { jsx, jsxs, jsxDEV } from '../jsx/runtime.ts'
 export { ingest, fromAsync, exportContract, InMemoryBacking, lane, HOT, wireSink, mount } from '../seam/index.ts'
-// Devtools-support re-exports: dist/v3/devtools.js is emitted with every
-// cross-boundary import rewritten to './index.js' (the jsx-runtime
-// single-module-instance discipline — a duplicate kernel would break
-// instanceof across bundles), so everything the devtools layer touches BY
-// VALUE must be reachable from this entry. Not part of the consumer surface.
+// Devtools-support re-exports: the devtools layer and its consumers need these
+// BY VALUE (instanceof DataNode, the Runtime class), reachable from the main
+// entry so nobody imports kernel paths of their own — one module instance,
+// whatever path reaches it (dist is one module per source file, no bundle to
+// duplicate a kernel into). Not part of the documented consumer surface.
 export { DataNode } from '../kernel/node.ts'
 export { Runtime } from '../kernel/runtime.ts'
 export { materialize } from '../compat/v2-records.ts'
