@@ -83,3 +83,22 @@ Run: `npm test` / `npm run typecheck` / `npm run perf`.
   `../../data/api/index.ts`, contract ride
   `../data/conformance/schedule.test.ts`. fero battery green post-move
   (299/299 + 18/18 + perf 36/36).
+- 2026-09-21..22 — THE LANDING PAGE + NPM READINESS. The page (`site/`: the
+  real engine type-stripped into `lib/`, every printed digit attested, the 18
+  SCHEDULE proofs run in-tab — audit 0 problems) went live at
+  https://pemrouz.github.io/data/ on 2026-09-21: `main` fast-forwarded to v4
+  (192 commits), `.github/workflows/pages.yml` builds it on push; INTERIM
+  while the repo's Actions are locked, `site/lib` + `site/gen` +
+  `site/index.html` are tracked and a root `index.html` redirects into
+  `site/`. 2026-09-22, `data@4.0.0` made publishable: Node refuses to
+  type-strip under node_modules, so `build.mjs` emits `dist/` — the sources
+  type-stripped FILE-FOR-FILE from the exports' entries (gates: `node --check`
+  per module, no `.ts`/`node:` specifier survives, 0 dependencies, a
+  fresh-process consumer smoke); `exports` → dist + the CURATED types
+  (`types/public.d.ts` for `.`, `types/jsx-runtime.d.ts` for `./jsx-runtime`
+  + `./jsx-dev-runtime`, `types/devtools.d.ts` for `./devtools`, all gated by
+  tsconfig.public.json); `files` whitelist (dist, the three type files,
+  SCHEDULE.md, README, LICENSE); `prepublishOnly` = build + test + typecheck;
+  `npm run pack:check`. In-repo consumers stay source-served (fero's
+  `../../data/api/index.ts`, the suite, perf, the site's strip). README /
+  CLAUDE.md / the site's install copy now say `npm i data` + `from 'data'`.

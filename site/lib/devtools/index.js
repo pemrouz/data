@@ -14,7 +14,7 @@
 //
 // highlight()/fromDOM() live in ./dom.ts (they need a DOM and the render
 // layer's element↔node registry); the overlay panel lives in ./panel/ and the
-// data/v4/devtools bundle entry (attach + auto-mount) in ./entry.ts.
+// data/devtools entry (attach + auto-mount) in ./entry.ts.
 
 import { Runtime } from '../kernel/runtime.js'
                                                                      

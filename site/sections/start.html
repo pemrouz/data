@@ -5,11 +5,15 @@
     <div data-variant="a" data-label="the old layout" id="start-a">
       <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
 
-      <button class="install" type="button" id="start-copy-a"
-        data-copy="import { $, batch, render, el, list } from './data/api/index.ts'"
+      <button class="install" type="button" id="start-install-a"
+        data-copy="npm i data"
         title="click to copy"
-        aria-label="Copy the import line: import { $, batch, render, el, list } from './data/api/index.ts'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'./data/api/index.ts'</span><span class="hint" aria-hidden="true">copy</span></button>
-      <p class="src-note">source-served — no package, no dist, no build step. Node runs it with <code>--experimental-strip-types</code>; the browser gets the same files type-stripped.</p>
+        aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data<span class="hint" aria-hidden="true">copy</span></button>
+      <button class="install" type="button" id="start-copy-a"
+        data-copy="import { $, batch, render, el, list } from 'data'"
+        title="click to copy"
+        aria-label="Copy the import line: import { $, batch, render, el, list } from 'data'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'data'</span><span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">one package, nothing bundled — <code>dist/</code> is the source type-stripped file-for-file, one module per file. In the repo it stays source-served: Node runs the <code>.ts</code> with <code>--experimental-strip-types</code>; this page runs the same files, type-stripped the same way.</p>
 
       <div class="entries">
         <div class="entry"><code>api/</code><span>the public surface — <code>$()</code>, the verbs, the operators, <code>batch</code>, <code>runtime</code>. The one entry you import.</span></div>
@@ -21,7 +25,7 @@
       <div class="snips">
         <div class="snip">
           <h3>a source and its views</h3>
-<pre class="code">import { $ } from './data/api/index.ts'
+<pre class="code">import { $ } from 'data'
 
 const trades = $({
   t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },
@@ -36,8 +40,7 @@ trades.t3.qty.update(380)   // → update t3 .qty 500 → 380</pre>
         </div>
         <div class="snip">
           <h3>bound to the DOM</h3>
-<pre class="code">import { render, el, list, batch }
-  from './data/api/index.ts'
+<pre class="code">import { render, el, list, batch } from 'data'
 
 const ol = document.querySelector('ol')
 
@@ -55,8 +58,8 @@ batch(() =&gt; {
         <code>render()</code> does per-key surgical updates — element identity and focus survive across changes.
       </p>
       <div class="cta">
-        <a class="cta-link" href="./README.md">read the readme →</a>
-        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data#readme">read the readme →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data/blob/main/contract/SCHEDULE.md">SCHEDULE.md →</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
       </div>
     </div>
@@ -65,16 +68,20 @@ batch(() =&gt; {
     <div data-variant="b" data-label="twelve lines" id="start-b">
       <div class="sec-head"><span class="sec-no">03</span><h2>From zero</h2></div>
 
+      <button class="install" type="button" id="start-install-b" data-copy="npm i data" title="click to copy" aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data<span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">one package, nothing bundled — <code>dist/</code> is the source type-stripped file-for-file, one module per file. In the repo it stays source-served: Node runs the <code>.ts</code> with <code>--experimental-strip-types</code>; this page runs the same files, type-stripped the same way.</p>
+
       <div class="twelve-head">
-        <span class="race-title">twelve lines · one import · no build step</span>
+        <span class="race-title">twelve lines · one import · one package</span>
         <button class="stream-btn" type="button" id="start-run-b" title="run the write again — the value alternates">↻ replay</button>
       </div>
 
       <!-- the twelve lines EXECUTE against the page's engine (start.js); every `// →` is read off the
            engine / the DOM the moment its line runs, so the .out cells start empty and are attested as
-           they print. The .src cells are the program text — literal. -->
+           they print. The .src cells are the program text — literal (line 01's 'data' is the npm name; the
+           page's importmap gives the same name to ./lib/api/index.js, which is what start.js runs). -->
       <div class="code twelve" id="start-twelve-b" data-hl="off" aria-label="twelve lines of data v4, with what each line produces">
-        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from './data/api/index.ts'</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from 'data'</span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal>const trades  = $({ t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },</span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal>                    t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },</span><span class="out"></span></div>
@@ -92,8 +99,8 @@ batch(() =&gt; {
       <div class="twelve-foot"><span class="twelve-foot-label">ol · live</span><ol class="twelve-ol" id="start-ol-b"></ol></div>
 
       <div class="cta">
-        <a class="cta-link" href="./README.md">read the readme →</a>
-        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data#readme">read the readme →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data/blob/main/contract/SCHEDULE.md">SCHEDULE.md →</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
       </div>
     </div>

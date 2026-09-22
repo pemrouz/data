@@ -79,3 +79,13 @@ still carry literals; they are hidden and unwired by design).
   rest; tiers as listed above.
 - `tools/sec.mjs` at 1440 / 1280 / 390 (`shots/real-lede-b*.png`), each read: layout unchanged from
   the approved UI apart from "330 tests" (exact count) replacing "330+ tests".
+
+## Install copy (2026-09-22 — `data@4.0.0` on npm)
+The cta's copy button now copies `import { $, batch, render } from 'data'` (the npm name; it was the
+pre-publish relative path `./data/api/index.ts`), with a `$ npm i data` copy button before it — the
+old page's install button, back (`lede.js` wires every `[data-copy]`, so it needed no code). The
+trust line's "source-served, no build" became "type-stripped, not bundled" — true of the package
+(`dist/` is the sources type-stripped file-for-file by `build.mjs`; the page's own `lib/` is the same
+strip) and of the page. Tiers unchanged: the two buttons are literal prose (no digits);
+dependencies / `SCHEDULE_VERSION` / tests stay build / runtime / build. The hidden variants a and c
+carry the same edit so every variant says the same thing. Verified: audit 0 problems / 18 proofs.

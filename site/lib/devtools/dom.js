@@ -8,10 +8,10 @@
 // view (a view rendered twice concatenates; a disposed mount drops out with
 // its liveLists entry).
 //
-// Import boundary (build-critical): dist/v3/devtools.js externalizes every
-// import that leaves v3/devtools/ to the main bundle, so the registry and
-// DataNode are reached through the api entry — never kernel/render/compat
-// paths directly.
+// Module identity: dist mirrors the tree file-for-file (build.mjs), so the
+// registry and DataNode reached from here are the consumer's own instances
+// whatever path imports them — there is no bundle boundary to externalize
+// across; the api entry is used for the documented surface, nothing more.
 
 import { resolveNode } from './index.js'
 import { domLinks, liveLists,               } from '../api/index.js'

@@ -92,11 +92,12 @@
         analytics, grids, live feeds.
       </p>
       <div class="cta">
-        <button class="install" type="button" id="lede-import-a" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <button class="install" type="button" id="lede-install-a" data-copy="npm i data" title="click to copy" aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data</button>
+        <button class="install" type="button" id="lede-import-a" data-copy="import { $, batch, render } from 'data'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from 'data'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'data'</span></button>
         <a class="cta-link" href="#start">quickstart ↓</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
       </div>
-      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> type-stripped, not bundled <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
     </div>
 
     <!-- b · the claim with a live figure — REAL: the figure is $(trades) on the page's one
@@ -143,11 +144,12 @@
         </figure>
       </div>
       <div class="cta">
-        <button class="install" type="button" id="lede-import-b" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <button class="install" type="button" id="lede-install-b" data-copy="npm i data" title="click to copy" aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data</button>
+        <button class="install" type="button" id="lede-import-b" data-copy="import { $, batch, render } from 'data'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from 'data'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'data'</span></button>
         <a class="cta-link" href="#start">quickstart ↓</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
       </div>
-      <p class="trust"><b id="lede-deps-b" data-attested="build">—</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION <span id="lede-ver-b" data-attested="runtime">—</span> <span class="sep">·</span> <b id="lede-tests-b" data-attested="build">—</b> tests <span class="sep">·</span> MIT</p>
+      <p class="trust"><b id="lede-deps-b" data-attested="build">—</b> dependencies <span class="sep">·</span> type-stripped, not bundled <span class="sep">·</span> SCHEDULE_VERSION <span id="lede-ver-b" data-attested="runtime">—</span> <span class="sep">·</span> <b id="lede-tests-b" data-attested="build">—</b> tests <span class="sep">·</span> MIT</p>
     </div>
 
     <!-- c · the duality claim -->
@@ -167,11 +169,12 @@
         analytics, grids, live feeds.
       </p>
       <div class="cta">
-        <button class="install" type="button" id="lede-import-c" data-copy="import { $, batch, render } from './data/api/index.ts'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from './data/api/index.ts'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'./data/api/index.ts'</span></button>
+        <button class="install" type="button" id="lede-install-c" data-copy="npm i data" title="click to copy" aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data</button>
+        <button class="install" type="button" id="lede-import-c" data-copy="import { $, batch, render } from 'data'" title="click to copy" aria-label="Copy the import line: import { $, batch, render } from 'data'">import { <span class="dim" aria-hidden="true">$</span>, batch, render } from <span class="path">'data'</span></button>
         <a class="cta-link" href="#start">quickstart ↓</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">github →</a>
       </div>
-      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> source-served, no build <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
+      <p class="trust"><b>0</b> dependencies <span class="sep">·</span> type-stripped, not bundled <span class="sep">·</span> SCHEDULE_VERSION 4 <span class="sep">·</span> <b>330+</b> tests <span class="sep">·</span> MIT</p>
     </div>
 
   </div>
@@ -858,11 +861,15 @@ wireSink(largest, wb => ingest(replica, wb.records))</pre>
     <div data-variant="a" data-label="the old layout" id="start-a">
       <div class="sec-head"><span class="sec-no" data-literal>03</span><h2>From zero</h2></div>
 
-      <button class="install" type="button" id="start-copy-a"
-        data-copy="import { $, batch, render, el, list } from './data/api/index.ts'"
+      <button class="install" type="button" id="start-install-a"
+        data-copy="npm i data"
         title="click to copy"
-        aria-label="Copy the import line: import { $, batch, render, el, list } from './data/api/index.ts'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'./data/api/index.ts'</span><span class="hint" aria-hidden="true">copy</span></button>
-      <p class="src-note">source-served — no package, no dist, no build step. Node runs it with <code>--experimental-strip-types</code>; the browser gets the same files type-stripped.</p>
+        aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data<span class="hint" aria-hidden="true">copy</span></button>
+      <button class="install" type="button" id="start-copy-a"
+        data-copy="import { $, batch, render, el, list } from 'data'"
+        title="click to copy"
+        aria-label="Copy the import line: import { $, batch, render, el, list } from 'data'"><span class="kw">import</span> { <b>$</b>, batch, render, el, list } <span class="kw">from</span> <span class="path">'data'</span><span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">one package, nothing bundled — <code>dist/</code> is the source type-stripped file-for-file, one module per file. In the repo it stays source-served: Node runs the <code>.ts</code> with <code>--experimental-strip-types</code>; this page runs the same files, type-stripped the same way.</p>
 
       <div class="entries">
         <div class="entry"><code>api/</code><span>the public surface — <code>$()</code>, the verbs, the operators, <code>batch</code>, <code>runtime</code>. The one entry you import.</span></div>
@@ -874,7 +881,7 @@ wireSink(largest, wb => ingest(replica, wb.records))</pre>
       <div class="snips">
         <div class="snip">
           <h3>a source and its views</h3>
-<pre class="code">import { $ } from './data/api/index.ts'
+<pre class="code">import { $ } from 'data'
 
 const trades = $({
   t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },
@@ -889,8 +896,7 @@ trades.t3.qty.update(380)   // → update t3 .qty 500 → 380</pre>
         </div>
         <div class="snip">
           <h3>bound to the DOM</h3>
-<pre class="code">import { render, el, list, batch }
-  from './data/api/index.ts'
+<pre class="code">import { render, el, list, batch } from 'data'
 
 const ol = document.querySelector('ol')
 
@@ -908,8 +914,8 @@ batch(() =&gt; {
         <code>render()</code> does per-key surgical updates — element identity and focus survive across changes.
       </p>
       <div class="cta">
-        <a class="cta-link" href="./README.md">read the readme →</a>
-        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data#readme">read the readme →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data/blob/main/contract/SCHEDULE.md">SCHEDULE.md →</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
       </div>
     </div>
@@ -918,16 +924,20 @@ batch(() =&gt; {
     <div data-variant="b" data-label="twelve lines" id="start-b">
       <div class="sec-head"><span class="sec-no" data-literal>03</span><h2>From zero</h2></div>
 
+      <button class="install" type="button" id="start-install-b" data-copy="npm i data" title="click to copy" aria-label="Copy the install command: npm i data"><span class="dim" aria-hidden="true">$</span> npm i data<span class="hint" aria-hidden="true">copy</span></button>
+      <p class="src-note">one package, nothing bundled — <code>dist/</code> is the source type-stripped file-for-file, one module per file. In the repo it stays source-served: Node runs the <code>.ts</code> with <code>--experimental-strip-types</code>; this page runs the same files, type-stripped the same way.</p>
+
       <div class="twelve-head">
-        <span class="race-title">twelve lines · one import · no build step</span>
+        <span class="race-title">twelve lines · one import · one package</span>
         <button class="stream-btn" type="button" id="start-run-b" title="run the write again — the value alternates">↻ replay</button>
       </div>
 
       <!-- the twelve lines EXECUTE against the page's engine (start.js); every `// →` is read off the
            engine / the DOM the moment its line runs, so the .out cells start empty and are attested as
-           they print. The .src cells are the program text — literal. -->
+           they print. The .src cells are the program text — literal (line 01's 'data' is the npm name; the
+           page's importmap gives the same name to ./lib/api/index.js, which is what start.js runs). -->
       <div class="code twelve" id="start-twelve-b" data-hl="off" aria-label="twelve lines of data v4, with what each line produces">
-        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from './data/api/index.ts'</span><span class="out"></span></div>
+        <div class="row"><span class="n"></span><span class="src" data-literal>import { $, batch, render, el, list } from 'data'</span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal></span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal>const trades  = $({ t1: { sym: 'AAPL', side: 'buy',  qty: 200, px: 187.5 },</span><span class="out"></span></div>
         <div class="row"><span class="n"></span><span class="src" data-literal>                    t2: { sym: 'MSFT', side: 'sell', qty: 120, px: 412.1 },</span><span class="out"></span></div>
@@ -945,8 +955,8 @@ batch(() =&gt; {
       <div class="twelve-foot"><span class="twelve-foot-label">ol · live</span><ol class="twelve-ol" id="start-ol-b"></ol></div>
 
       <div class="cta">
-        <a class="cta-link" href="./README.md">read the readme →</a>
-        <a class="cta-link" href="./contract/SCHEDULE.md">SCHEDULE.md →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data#readme">read the readme →</a>
+        <a class="cta-link" href="https://github.com/pemrouz/data/blob/main/contract/SCHEDULE.md">SCHEDULE.md →</a>
         <a class="cta-link" href="https://github.com/pemrouz/data">star on github →</a>
       </div>
     </div>
@@ -1405,8 +1415,7 @@ print(`px is NaN: ${Number.isNaN(row.px)} · row owns 'at': ${'at' in row}, at =
   </main>
 
   <footer>
-    <a href="./llms.txt" title="condensed API map for LLMs">llms.txt</a>
-    <a href="./contract/SCHEDULE.md" title="the timing contract">SCHEDULE.md</a>
+    <a href="https://github.com/pemrouz/data/blob/main/contract/SCHEDULE.md" title="the timing contract">SCHEDULE.md</a>
     <span class="engine-line"><span id="engine">engine · loading</span> · this page runs <code>api/index.ts</code>, type-stripped, unbundled · <b id="mods" data-attested="measured">—</b> modules · <b id="kb" data-attested="measured">—</b> KB · SCHEDULE_VERSION <b id="ver" data-attested="runtime">—</b></span>
     <span class="spacer"></span>
     <a class="icon-link" href="https://github.com/pemrouz/data" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg></a>

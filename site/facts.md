@@ -2,16 +2,19 @@
 
 This is a UI prototype: numbers, tick streams, "live" results and peer engines MAY be
 smoke and mirrors (canned, animated, plausible). But every NAME below is real and must be
-used as written. Do not print v2-era facts (`npm install data`, "29 kB gzip", `data/full`,
-`dist/`, `trades[42].bid = 99.5` assignment-style writes, ×-figures from a bench).
+used as written. Do not print v2-era facts ("29 kB gzip", `data/full`, `trades[42].bid = 99.5`
+assignment-style writes, ×-figures from a bench). Since 2026-09-22 `npm i data` and `dist/`
+ARE true — see the engine paragraph.
 
 ## The engine, in one breath
 A reactive data engine. `$(value)` wraps an object or array into a live source; chainable
 operators derive incrementally-maintained views; subscriptions deliver consolidated
 per-commit deltas; a render layer binds views to the DOM. Work is proportional to the
-change, not the data. It is SOURCE-SERVED: no npm package, no dist, no build step — you
-import `api/index.ts` directly (Node runs it with `--experimental-strip-types`; the site
-would ship the same files type-stripped). Zero dependencies. MIT. One consumer today: fero.
+change, not the data. In the repo it is SOURCE-SERVED — you import `api/index.ts` directly
+and Node runs it with `--experimental-strip-types`; on npm (`data@4.0.0`, since 2026-09-22)
+it ships `dist/` = the same sources type-stripped file-for-file by `build.mjs`, nothing
+bundled, plus the curated types; the site runs the same files type-stripped. Zero
+dependencies. MIT. In-repo consumer: fero.
 
 ## Writes (the v4 API — NOT proxy assignment)
 ```

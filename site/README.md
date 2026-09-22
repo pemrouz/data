@@ -5,12 +5,15 @@ cone and the conformance suite are type-stripped file-for-file into `lib/` by `s
 (Node's `stripTypeScriptTypes`, zero dependencies), and every figure the page prints is
 measured or read from the runtime in the visitor's own tab. The rule is `REAL.md`: every
 printed digit carries `data-attested="runtime|measured|build"`, nothing is canned, peers load
-only when selected — and `tools/audit.mjs` fails the page otherwise.
+only when selected — and `tools/audit.mjs` fails the page otherwise. The importmap names the
+engine `data` — the npm package's name (`npm i data`; `build.mjs` at the repo root ships the same
+strip as `dist/`), so the page's `import … from 'data'` lines are the lines a consumer writes.
 
 Build & serve, from the repo root:
 
-    node site/strip.mjs                     # lib/ + gen/ (gitignored) — re-run after any engine change
-    node site/build.mjs                     # index.html ← page.html + sections/*.html (gitignored)
+    node site/strip.mjs                     # lib/ + gen/ — re-run after any engine change
+    node site/build.mjs                     # index.html ← page.html + sections/*.html
+    # lib/, gen/ and index.html are build output — gitignored by design, TRACKED during the interim below
     node site/tools/serve.mjs site 4176     # → http://localhost:4176/
     node site/tools/audit.mjs http://localhost:4176/ --proofs 18   # the honesty gate: must be 0 problems
 

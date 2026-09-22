@@ -213,6 +213,12 @@ function applyWire(src                 , r            )       {
       // key addresses the row; redelivery after a drift stays correct).
       src.move(r.k, r.to)
       return
+    default:
+      // Any other verb is a malformed record: throw, so the ingest loop's
+      // per-record isolation REJECTS it (counted, delivered to onReject or the
+      // AggregateError). Silently returning here counted a typo'd verb as
+      // applied — a replica desync with no signal (2026-09-22).
+      throw new Error(`data: wire record verb ${JSON.stringify((r       ).t)} is not one of add | update | remove | move`)
   }
 }
 
