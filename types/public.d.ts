@@ -1,15 +1,26 @@
 // types/public.d.ts — the SHIPPED type declarations for the MAIN entry.
 //
-// package.json `exports["."].types` (and `"./v3"`) point HERE: this is what a
-// consumer's editor/tsc resolves for `import { $ } from 'data'` (dist/index.js,
-// built from v3/api/index.ts — tsup emits no dts for it). SELF-CONTAINED on
-// purpose: this file ships to npm, so it may not import ANY other file in the
-// repo — the contract types (contract/delta.ts, contract/index.ts), the typed
-// surface (types/surface.ts), and the JSX facades (types/jsx-surface.ts,
-// jsx/intrinsics.ts) are INLINED below, hand-maintained in LOCKSTEP with those
-// gate files until registry-generated types land (STATUS.md known-gaps item 3).
-// Gate: `npx tsc -p v3/types/tsconfig.public.json` compiles check.public.ts
-// (positives + @ts-expect-error negatives) against this file, noCheck:false.
+// package.json `exports["."].types` points HERE: this is what a consumer's
+// editor/tsc resolves for `import { $ } from 'data'` (dist/api/index.js — the
+// type-stripped source; build.mjs emits no d.ts). SELF-CONTAINED on purpose:
+// this file ships to npm, so it may not import ANY other file in the repo —
+// the contract types (contract/delta.ts, contract/index.ts), the typed
+// surface (types/surface.ts), the JSX facades (types/jsx-surface.ts) and the
+// per-tag JSX surface (jsx/intrinsics.ts) are INLINED below, hand-maintained
+// in LOCKSTEP with those gate files until registry-generated types land
+// (STATUS.md known-gaps item 3). The two shipped SUBPATH twins —
+// jsx-runtime.d.ts ('data/jsx-runtime' + 'data/jsx-dev-runtime') and
+// devtools.d.ts ('data/devtools') — import THIS file by the relative
+// specifier './public.js' and declare nothing this file could: every type
+// they need (Element, IntrinsicElements, DataNode, Runtime, CommitInfo, …)
+// lives here, once.
+// Gate: `npx tsc -p types/tsconfig.public.json` compiles check.public.ts /
+// check.public.tsx / check.public.classic.tsx / check.public.devtools.ts
+// (positives + @ts-expect-error negatives, resolved through the REAL bare
+// specifiers via paths; .classic.tsx switches itself to the classic
+// transform with the @jsxRuntime/@jsx pragmas) plus check.public.lockstep.ts
+// (the inlined per-tag surface ≡ jsx/intrinsics.ts) against these three
+// files, noCheck:false, skipLibCheck:false.
 //
 // Two deliberate divergences from surface.ts — both are places where
 // surface.ts LAGS THE RUNTIME, and shipped types follow the runtime:
@@ -502,6 +513,542 @@ export declare const SVG: BuilderNamespace
 // Children normalization (shared by builders + JSX; exported by the entry).
 export declare function normChildren(children: readonly unknown[]): VNodeLike[]
 
+// ── the per-tag JSX attribute surface (inlined from jsx/intrinsics.ts) ───────
+// The ONE shipped definition of the intrinsic-element types: jsx-runtime.d.ts
+// (what a consumer's `jsxImportSource: "data"` resolves) aliases these through
+// its exported JSX namespace, and the classic factory's merged `h.JSX`
+// namespace (below, next to h) aliases the same four, so BOTH transforms gate
+// against exactly this surface. A VERBATIM mirror of jsx/intrinsics.ts (the internal gates'
+// single source of truth) with ONE rename — its attribute widening
+// `Reactive<T>` is `Attr<T>` here, because `Reactive<T>` above is the
+// value-slot type (`T | View<T>`). check.public.lockstep.ts pins every
+// interface below to its jsx/intrinsics.ts twin by mutual assignability under
+// Required<> (so a dropped/added/retyped attribute or tag fails the gate);
+// edit intrinsics.ts first, then mirror the edit here.
+//
+// Typed to what the renderer ACTUALLY accepts (render/index.ts prop
+// dispatch), not to React's vocabulary: on* FUNCTION props →
+// addEventListener; handle / bind() prop values → per-binding attr
+// subscriptions; static values through normAttr (null/undefined/false REMOVE
+// the attribute, true → '' presence, everything else stringifies); 'checked'
+// / 'value' write the DOM PROPERTY when the element carries it. Attributes
+// are LITERAL: no className / style objects / class maps / htmlFor / ref.
+
+// Every attribute value widens with Attr<T>: a static value, a live view
+// (handle / scalar / child handle / DataNode — anything with snapshot()), or
+// a bind(view, fn) record.
+export type Attr<T> = T | ViewLike | BindLike
+
+// The renderer forwards on{Anything} → addEventListener, so handlers are
+// loosely typed; E defaults to any because this module can't name DOM types
+// (zero imports, no lib assumption).
+export type EventHandler<E = any> = (event: E) => void
+
+// ── shared attribute surface ─────────────────────────────────────────────────
+
+export interface DOMAttributes {
+  // Accepted for JSX-idiom compatibility and IGNORED by any reconciler
+  // (there is none to inform: row identity comes from the DATA layer's
+  // RowKey, never from markup) — a static key just passes through the
+  // renderer like any other attribute.
+  key?: string | number
+
+  // The literal global attributes the v3 renderer writes as-is.
+  class?: Attr<string>
+  id?: Attr<string>
+  for?: Attr<string>
+  title?: Attr<string>
+  style?: Attr<string> // a plain attr STRING — v3 has no style objects
+  hidden?: Attr<boolean> // normAttr: true → present-empty, false → removed
+  tabindex?: Attr<number | string>
+
+  children?: ChildLike
+
+  // Event handlers — enumerated only for AUTOCOMPLETE. The renderer forwards
+  // any on* function prop to addEventListener(name lowercased), so the open
+  // index signature below catches every event not listed here.
+  onClick?: EventHandler
+  onDblClick?: EventHandler
+  onChange?: EventHandler
+  onInput?: EventHandler
+  onBlur?: EventHandler
+  onFocus?: EventHandler
+  onKeyDown?: EventHandler
+  onKeyUp?: EventHandler
+  onKeyPress?: EventHandler
+  onMouseDown?: EventHandler
+  onMouseUp?: EventHandler
+  onMouseMove?: EventHandler
+  onMouseEnter?: EventHandler
+  onMouseLeave?: EventHandler
+  onMouseOver?: EventHandler
+  onMouseOut?: EventHandler
+  onPointerDown?: EventHandler
+  onPointerUp?: EventHandler
+  onPointerMove?: EventHandler
+  onPointerEnter?: EventHandler
+  onPointerLeave?: EventHandler
+  onPointerCancel?: EventHandler
+  onPointerOver?: EventHandler
+  onPointerOut?: EventHandler
+  onSubmit?: EventHandler
+  onScroll?: EventHandler
+  onWheel?: EventHandler
+  onContextMenu?: EventHandler
+  onDrag?: EventHandler
+  onDragEnd?: EventHandler
+  onDragEnter?: EventHandler
+  onDragLeave?: EventHandler
+  onDragOver?: EventHandler
+  onDragStart?: EventHandler
+  onDrop?: EventHandler
+  onTouchStart?: EventHandler
+  onTouchMove?: EventHandler
+  onTouchEnd?: EventHandler
+  onTouchCancel?: EventHandler
+  onLoad?: EventHandler
+  onError?: EventHandler
+
+  // Open catch-all: the renderer forwards ANY attribute (data-*, aria-*,
+  // future/unknown attrs, uncommon events), so unknown names must still
+  // type-check. Known names declared above stay strictly checked — declared
+  // members take precedence over the index signature.
+  [attr: string]: any
+}
+
+// aria-* would pass through the index signature anyway; declared here for
+// autocomplete + value narrowing on the common ones (ported from v2).
+export interface AriaAttributes {
+  'aria-label'?: Attr<string>
+  'aria-labelledby'?: Attr<string>
+  'aria-describedby'?: Attr<string>
+  'aria-hidden'?: Attr<boolean | 'true' | 'false'>
+  'aria-live'?: Attr<'off' | 'polite' | 'assertive'>
+  'aria-checked'?: Attr<boolean | 'true' | 'false' | 'mixed'>
+  'aria-disabled'?: Attr<boolean | 'true' | 'false'>
+  'aria-expanded'?: Attr<boolean | 'true' | 'false'>
+  'aria-selected'?: Attr<boolean | 'true' | 'false'>
+  'aria-pressed'?: Attr<boolean | 'true' | 'false' | 'mixed'>
+  'aria-current'?: Attr<boolean | 'page' | 'step' | 'location' | 'date' | 'time'>
+  'aria-controls'?: Attr<string>
+  'aria-haspopup'?: Attr<boolean | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'>
+  role?: Attr<string>
+}
+
+// ── per-tag attribute interfaces (the v2 tag list, values adapted to v3) ─────
+
+export interface HTMLAttributes extends DOMAttributes, AriaAttributes {
+  accesskey?: Attr<string>
+  autofocus?: Attr<boolean>
+  contenteditable?: Attr<boolean | 'true' | 'false' | 'inherit'>
+  contextmenu?: Attr<string>
+  dir?: Attr<'ltr' | 'rtl' | 'auto'>
+  draggable?: Attr<boolean | 'true' | 'false'>
+  lang?: Attr<string>
+  slot?: Attr<string>
+  spellcheck?: Attr<boolean | 'true' | 'false'>
+  translate?: Attr<'yes' | 'no'>
+}
+
+export interface AnchorHTMLAttributes extends HTMLAttributes {
+  href?: Attr<string>
+  target?: Attr<'_self' | '_blank' | '_parent' | '_top' | string>
+  rel?: Attr<string>
+  download?: Attr<string | boolean>
+  hreflang?: Attr<string>
+  type?: Attr<string>
+  referrerpolicy?: Attr<string>
+}
+
+export interface ButtonHTMLAttributes extends HTMLAttributes {
+  type?: Attr<'button' | 'submit' | 'reset'>
+  disabled?: Attr<boolean>
+  form?: Attr<string>
+  formaction?: Attr<string>
+  formmethod?: Attr<string>
+  formnovalidate?: Attr<boolean>
+  formtarget?: Attr<string>
+  name?: Attr<string>
+  value?: Attr<string | number>
+}
+
+export interface InputHTMLAttributes extends HTMLAttributes {
+  type?: Attr<
+    | 'button' | 'checkbox' | 'color' | 'date' | 'datetime-local' | 'email'
+    | 'file' | 'hidden' | 'image' | 'month' | 'number' | 'password' | 'radio'
+    | 'range' | 'reset' | 'search' | 'submit' | 'tel' | 'text' | 'time'
+    | 'url' | 'week'
+  >
+  accept?: Attr<string>
+  alt?: Attr<string>
+  autocomplete?: Attr<string>
+  capture?: Attr<boolean | 'user' | 'environment'>
+  // Live form prop: written to the PROPERTY when the element carries it, so
+  // a reactive binding keeps working after user interaction.
+  checked?: Attr<boolean>
+  disabled?: Attr<boolean>
+  form?: Attr<string>
+  list?: Attr<string>
+  max?: Attr<number | string>
+  maxlength?: Attr<number>
+  min?: Attr<number | string>
+  minlength?: Attr<number>
+  multiple?: Attr<boolean>
+  name?: Attr<string>
+  pattern?: Attr<string>
+  placeholder?: Attr<string>
+  readonly?: Attr<boolean>
+  required?: Attr<boolean>
+  size?: Attr<number>
+  src?: Attr<string>
+  step?: Attr<number | string>
+  // Live form prop, like checked.
+  value?: Attr<string | number>
+}
+
+export interface TextareaHTMLAttributes extends HTMLAttributes {
+  autocomplete?: Attr<string>
+  cols?: Attr<number>
+  dirname?: Attr<string>
+  disabled?: Attr<boolean>
+  form?: Attr<string>
+  maxlength?: Attr<number>
+  minlength?: Attr<number>
+  name?: Attr<string>
+  placeholder?: Attr<string>
+  readonly?: Attr<boolean>
+  required?: Attr<boolean>
+  rows?: Attr<number>
+  value?: Attr<string> // live form prop
+  wrap?: Attr<'soft' | 'hard'>
+}
+
+export interface SelectHTMLAttributes extends HTMLAttributes {
+  autocomplete?: Attr<string>
+  disabled?: Attr<boolean>
+  form?: Attr<string>
+  multiple?: Attr<boolean>
+  name?: Attr<string>
+  required?: Attr<boolean>
+  size?: Attr<number>
+  value?: Attr<string | number> // live form prop
+}
+
+export interface OptionHTMLAttributes extends HTMLAttributes {
+  disabled?: Attr<boolean>
+  label?: Attr<string>
+  selected?: Attr<boolean>
+  value?: Attr<string | number>
+}
+
+export interface FormHTMLAttributes extends HTMLAttributes {
+  action?: Attr<string>
+  method?: Attr<'get' | 'post' | 'dialog'>
+  enctype?: Attr<string>
+  'accept-charset'?: Attr<string> // literal attr (v2 had the camel alias)
+  autocomplete?: Attr<string>
+  name?: Attr<string>
+  novalidate?: Attr<boolean>
+  target?: Attr<string>
+}
+
+export interface ImgHTMLAttributes extends HTMLAttributes {
+  alt?: Attr<string>
+  crossorigin?: Attr<'anonymous' | 'use-credentials' | ''>
+  decoding?: Attr<'async' | 'auto' | 'sync'>
+  height?: Attr<number | string>
+  loading?: Attr<'eager' | 'lazy'>
+  referrerpolicy?: Attr<string>
+  sizes?: Attr<string>
+  src?: Attr<string>
+  srcset?: Attr<string>
+  usemap?: Attr<string>
+  width?: Attr<number | string>
+}
+
+export interface LabelHTMLAttributes extends HTMLAttributes {
+  for?: Attr<string> // the literal attribute — v3 has no htmlFor alias
+  form?: Attr<string>
+}
+
+export interface MetaHTMLAttributes extends HTMLAttributes {
+  charset?: Attr<string>
+  content?: Attr<string>
+  'http-equiv'?: Attr<string> // literal attr (v2 had the camel alias)
+  name?: Attr<string>
+}
+
+export interface ScriptHTMLAttributes extends HTMLAttributes {
+  async?: Attr<boolean>
+  crossorigin?: Attr<string>
+  defer?: Attr<boolean>
+  integrity?: Attr<string>
+  nomodule?: Attr<boolean>
+  nonce?: Attr<string>
+  referrerpolicy?: Attr<string>
+  src?: Attr<string>
+  type?: Attr<string>
+}
+
+export interface IframeHTMLAttributes extends HTMLAttributes {
+  allow?: Attr<string>
+  allowfullscreen?: Attr<boolean>
+  height?: Attr<number | string>
+  loading?: Attr<'eager' | 'lazy'>
+  name?: Attr<string>
+  referrerpolicy?: Attr<string>
+  sandbox?: Attr<string>
+  src?: Attr<string>
+  srcdoc?: Attr<string>
+  width?: Attr<number | string>
+}
+
+export interface VideoHTMLAttributes extends HTMLAttributes {
+  autoplay?: Attr<boolean>
+  controls?: Attr<boolean>
+  crossorigin?: Attr<string>
+  height?: Attr<number | string>
+  loop?: Attr<boolean>
+  muted?: Attr<boolean>
+  playsinline?: Attr<boolean>
+  poster?: Attr<string>
+  preload?: Attr<'none' | 'metadata' | 'auto'>
+  src?: Attr<string>
+  width?: Attr<number | string>
+}
+
+export interface AudioHTMLAttributes extends HTMLAttributes {
+  autoplay?: Attr<boolean>
+  controls?: Attr<boolean>
+  crossorigin?: Attr<string>
+  loop?: Attr<boolean>
+  muted?: Attr<boolean>
+  preload?: Attr<'none' | 'metadata' | 'auto'>
+  src?: Attr<string>
+}
+
+export interface CanvasHTMLAttributes extends HTMLAttributes {
+  height?: Attr<number | string>
+  width?: Attr<number | string>
+}
+
+export interface SVGAttributes extends DOMAttributes, AriaAttributes {
+  // Subset of the SVG presentation/geometry attribute surface (the set the
+  // crossfilter charts exercise); the index signature catches the rest. The
+  // renderer namespaces via the <svg> TAG (children inherit createElementNS),
+  // so these are ordinary el records — no per-attr namespace handling.
+  x?: Attr<number | string>
+  y?: Attr<number | string>
+  x1?: Attr<number | string>
+  y1?: Attr<number | string>
+  x2?: Attr<number | string>
+  y2?: Attr<number | string>
+  cx?: Attr<number | string>
+  cy?: Attr<number | string>
+  r?: Attr<number | string>
+  rx?: Attr<number | string>
+  ry?: Attr<number | string>
+  width?: Attr<number | string>
+  height?: Attr<number | string>
+  d?: Attr<string>
+  points?: Attr<string>
+  fill?: Attr<string>
+  stroke?: Attr<string>
+  'stroke-width'?: Attr<number | string>
+  'stroke-linecap'?: Attr<'butt' | 'round' | 'square'>
+  'stroke-linejoin'?: Attr<'miter' | 'round' | 'bevel'>
+  'stroke-dasharray'?: Attr<string>
+  'stroke-dashoffset'?: Attr<number | string>
+  opacity?: Attr<number | string>
+  'fill-opacity'?: Attr<number | string>
+  'stroke-opacity'?: Attr<number | string>
+  transform?: Attr<string>
+  'clip-path'?: Attr<string>
+  'text-anchor'?: Attr<'start' | 'middle' | 'end'>
+  dy?: Attr<number | string>
+  dx?: Attr<number | string>
+  viewBox?: Attr<string>
+  preserveAspectRatio?: Attr<string>
+  xmlns?: Attr<string>
+  href?: Attr<string>
+  'xlink:href'?: Attr<string>
+  offset?: Attr<number | string>
+  'stop-color'?: Attr<string>
+  'stop-opacity'?: Attr<string>
+}
+
+// ── the JSX namespace surface (aliased by both transforms) ───────────────────
+
+export interface ElementChildrenAttribute { children: {} }
+export interface IntrinsicAttributes { key?: string | number }
+
+export interface IntrinsicElements {
+  // Document structure
+  html: HTMLAttributes
+  head: HTMLAttributes
+  body: HTMLAttributes
+  title: HTMLAttributes
+
+  // Sections
+  section: HTMLAttributes
+  header: HTMLAttributes
+  footer: HTMLAttributes
+  main: HTMLAttributes
+  nav: HTMLAttributes
+  article: HTMLAttributes
+  aside: HTMLAttributes
+  h1: HTMLAttributes
+  h2: HTMLAttributes
+  h3: HTMLAttributes
+  h4: HTMLAttributes
+  h5: HTMLAttributes
+  h6: HTMLAttributes
+  hgroup: HTMLAttributes
+  address: HTMLAttributes
+
+  // Text content
+  div: HTMLAttributes
+  p: HTMLAttributes
+  hr: HTMLAttributes
+  pre: HTMLAttributes
+  blockquote: HTMLAttributes
+  ol: HTMLAttributes
+  ul: HTMLAttributes
+  li: HTMLAttributes
+  dl: HTMLAttributes
+  dt: HTMLAttributes
+  dd: HTMLAttributes
+  figure: HTMLAttributes
+  figcaption: HTMLAttributes
+
+  // Inline text
+  a: AnchorHTMLAttributes
+  em: HTMLAttributes
+  strong: HTMLAttributes
+  small: HTMLAttributes
+  s: HTMLAttributes
+  cite: HTMLAttributes
+  q: HTMLAttributes
+  dfn: HTMLAttributes
+  abbr: HTMLAttributes
+  time: HTMLAttributes
+  code: HTMLAttributes
+  var: HTMLAttributes
+  samp: HTMLAttributes
+  kbd: HTMLAttributes
+  sub: HTMLAttributes
+  sup: HTMLAttributes
+  i: HTMLAttributes
+  b: HTMLAttributes
+  u: HTMLAttributes
+  mark: HTMLAttributes
+  ruby: HTMLAttributes
+  rt: HTMLAttributes
+  rp: HTMLAttributes
+  bdi: HTMLAttributes
+  bdo: HTMLAttributes
+  span: HTMLAttributes
+  br: HTMLAttributes
+  wbr: HTMLAttributes
+
+  // Embedded content
+  img: ImgHTMLAttributes
+  iframe: IframeHTMLAttributes
+  embed: HTMLAttributes
+  object: HTMLAttributes
+  param: HTMLAttributes
+  video: VideoHTMLAttributes
+  audio: AudioHTMLAttributes
+  source: HTMLAttributes
+  track: HTMLAttributes
+  map: HTMLAttributes
+  area: HTMLAttributes
+  picture: HTMLAttributes
+  canvas: CanvasHTMLAttributes
+
+  // Tabular data
+  table: HTMLAttributes
+  caption: HTMLAttributes
+  colgroup: HTMLAttributes
+  col: HTMLAttributes
+  tbody: HTMLAttributes
+  thead: HTMLAttributes
+  tfoot: HTMLAttributes
+  tr: HTMLAttributes
+  td: HTMLAttributes
+  th: HTMLAttributes
+
+  // Forms
+  form: FormHTMLAttributes
+  label: LabelHTMLAttributes
+  input: InputHTMLAttributes
+  button: ButtonHTMLAttributes
+  select: SelectHTMLAttributes
+  datalist: HTMLAttributes
+  optgroup: HTMLAttributes
+  option: OptionHTMLAttributes
+  textarea: TextareaHTMLAttributes
+  output: HTMLAttributes
+  progress: HTMLAttributes
+  meter: HTMLAttributes
+  fieldset: HTMLAttributes
+  legend: HTMLAttributes
+
+  // Interactive
+  details: HTMLAttributes
+  summary: HTMLAttributes
+  dialog: HTMLAttributes
+  menu: HTMLAttributes
+
+  // Scripting / metadata
+  script: ScriptHTMLAttributes
+  noscript: HTMLAttributes
+  template: HTMLAttributes
+  slot: HTMLAttributes
+  style: HTMLAttributes
+  link: HTMLAttributes
+  meta: MetaHTMLAttributes
+  base: HTMLAttributes
+
+  // SVG (namespaced by the renderer via the enclosing <svg> tag)
+  svg: SVGAttributes
+  g: SVGAttributes
+  path: SVGAttributes
+  rect: SVGAttributes
+  circle: SVGAttributes
+  ellipse: SVGAttributes
+  line: SVGAttributes
+  polyline: SVGAttributes
+  polygon: SVGAttributes
+  text: SVGAttributes
+  tspan: SVGAttributes
+  textPath: SVGAttributes
+  defs: SVGAttributes
+  clipPath: SVGAttributes
+  mask: SVGAttributes
+  pattern: SVGAttributes
+  image: SVGAttributes
+  use: SVGAttributes
+  symbol: SVGAttributes
+  marker: SVGAttributes
+  linearGradient: SVGAttributes
+  radialGradient: SVGAttributes
+  stop: SVGAttributes
+  foreignObject: SVGAttributes
+  filter: SVGAttributes
+  feGaussianBlur: SVGAttributes
+  feOffset: SVGAttributes
+  feMerge: SVGAttributes
+  feMergeNode: SVGAttributes
+  feColorMatrix: SVGAttributes
+  feFlood: SVGAttributes
+  feComposite: SVGAttributes
+  desc: SVGAttributes
+
+  // Forward-compat — unknown / custom-element tags still type-check.
+  [tag: string]: any
+}
+
 // ── JSX (classic h/Fragment + automatic runtime verbs) ───────────────────────
 
 // A function component: called as tag({ ...props, children }).
@@ -517,6 +1064,30 @@ export declare function h(
   ...children: ChildLike[]
 ): Element
 export declare function h<P>(tag: Component<P>, props: P | null, ...children: unknown[]): Element
+
+// h.JSX — the CLASSIC transform's type lookup. Under jsx "react" + jsxFactory
+// "h" (or the per-file `/** @jsxRuntime classic */ /** @jsx h */` pragmas)
+// tsc reads the per-tag surface from the factory's OWN `JSX` namespace before
+// falling back to a global one. public.d.ts declares no global JSX (a
+// consumer's React types stay untouched), so without this merged namespace a
+// classic consumer got TS7026 ("no interface JSX.IntrinsicElements") on every
+// tag under strict — the 4.0.0 pre-publish audit's finding. The four members
+// alias the SAME surface jsx-runtime.d.ts's JSX namespace aliases, so the two
+// transforms cannot drift. (Module-private aliases, because a namespace
+// member cannot name the outer declaration it shadows.) Gate:
+// check.public.classic.tsx.
+type ClassicElement = Element
+type ClassicIntrinsicElements = IntrinsicElements
+type ClassicElementChildrenAttribute = ElementChildrenAttribute
+type ClassicIntrinsicAttributes = IntrinsicAttributes
+export declare namespace h {
+  namespace JSX {
+    type Element = ClassicElement
+    type IntrinsicElements = ClassicIntrinsicElements
+    type ElementChildrenAttribute = ClassicElementChildrenAttribute
+    type IntrinsicAttributes = ClassicIntrinsicAttributes
+  }
+}
 
 // Fragment — returns its children array; flattens into any parent.
 export declare function Fragment(props: { children?: unknown }): Element
@@ -534,7 +1105,10 @@ export declare function ErrorBoundary(props: {
   children?: unknown
 }): Element
 
-// The automatic-runtime verbs (data/jsx-runtime re-exports this module's).
+// The automatic-runtime verbs. jsx-runtime.d.ts (the 'data/jsx-runtime' +
+// 'data/jsx-dev-runtime' types) RE-EXPORTS these four — same declarations as
+// api/jsx-runtime.ts re-exports the runtime's, so the injected Fragment and
+// `import { Fragment } from 'data'` are one symbol.
 export declare function jsx(
   tag: string | Component,
   props: Record<string, unknown> | null | undefined,
@@ -691,11 +1265,45 @@ export declare class DataNode<T = unknown> {
   private __v3DataNodeBrand: T
 }
 
-// The commit scheduler. runtime() returns the default instance.
+// The commit scheduler. runtime() returns the default instance. Beyond
+// batch(): the observability trio kernel/runtime.ts exposes and the devtools
+// layer (and the landing page's live sections) read — seq (the last settled
+// commit's number: +1 per commit, the cascade id CommitInfo.seq carries),
+// graph() (the live registry projection, GraphNodeInfo[]), onCommit(hook)
+// (one CommitInfo per settled commit, per-node ms measured only while a hook
+// is subscribed; dispose() the handle to stop — devtools.d.ts's trace() wraps
+// exactly this). The write protocol (register / written / queueWrite / …) is
+// kernel-internal and stays out. seq is read-only from outside: the kernel
+// advances it.
 export declare class Runtime {
   constructor()
+  readonly seq: number
   batch<R>(fn: () => R): R
+  graph(): GraphNodeInfo[]
+  onCommit(hook: (c: CommitInfo) => void): { dispose(): void }
   private __v3RuntimeBrand: unknown
+}
+
+// The kernel's two native observability records — what the devtools layer
+// ('data/devtools', typed by devtools.d.ts) derives everything from. Mirrors
+// kernel/runtime.ts verbatim.
+//
+// One settled commit as Runtime.onCommit() reports it: seq IS the cascade
+// id, origin the batch's OriginToken, nodes the per-node settle stats in
+// settle (topological) order — measured only while a hook is subscribed.
+export interface CommitInfo {
+  readonly seq: number
+  readonly origin: OriginToken
+  readonly nodes: readonly { id: number; deltas: number; ms: number }[]
+}
+
+// One node of Runtime.graph()'s live registry projection.
+export interface GraphNodeInfo {
+  readonly id: number
+  readonly kind: 'source' | 'operator' | 'scalar'
+  readonly op: string
+  readonly parents: readonly number[]
+  readonly height: number
 }
 
 // A $ handle over a raw node (tests / the devtools layer).

@@ -1,12 +1,25 @@
 {
-  // The SHIPPED-types gate: `npx tsc -p v3/types/tsconfig.public.json`
-  // compiles check.public.ts (positives + @ts-expect-error negatives) against
-  // public.d.ts — resolved through the REAL bare specifier 'data' via the
-  // paths map, exactly as an npm consumer's tsc resolves the exports["."]
-  // .types target. Modeled on the sibling tsconfig.json (the surface.ts gate);
-  // differences: the paths map, and skipLibCheck is OFF so public.d.ts itself
-  // is fully checked (it IS the artifact under test — a .d.ts would otherwise
-  // be skipped), with "types": [] keeping stray @types out of the program.
+  // The SHIPPED-types gate: `npx tsc -p types/tsconfig.public.json` compiles
+  // the consumer-view fixtures against the THREE d.ts files package.json
+  // ships — public.d.ts (exports["."]), jsx-runtime.d.ts ("./jsx-runtime" +
+  // "./jsx-dev-runtime") and devtools.d.ts ("./devtools") — resolved through
+  // the REAL bare specifiers via the paths map, exactly as an npm consumer's
+  // tsc resolves the exports' .types targets:
+  //   check.public.ts          — the "." surface (positives + negatives)
+  //   check.public.tsx         — the automatic JSX transform (jsx "react-jsx",
+  //                              jsxImportSource "data" → data/jsx-runtime);
+  //                              the jsx options only touch .tsx files
+  //   check.public.classic.tsx — the CLASSIC transform (jsx "react" +
+  //                              jsxFactory "h" via the @jsxRuntime/@jsx
+  //                              pragmas → public.d.ts's merged h.JSX)
+  //   check.public.devtools.ts — 'data/devtools' + the typed $ attach
+  //   check.public.lockstep.ts — public.d.ts's inlined per-tag surface ≡
+  //                              jsx/intrinsics.ts (the internal gates' truth)
+  // Modeled on the sibling tsconfig.json (the surface.ts gate); differences:
+  // the paths map, the jsx pair, and skipLibCheck OFF so the d.ts files
+  // themselves are fully checked (they ARE the artifacts under test — a .d.ts
+  // would otherwise be skipped), with "types": [] keeping stray @types out of
+  // the program (no DOM lib either: the shipped types name no DOM type).
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
@@ -19,9 +32,23 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": false,
     "types": [],
+    "jsx": "react-jsx",
+    "jsxImportSource": "data",
     "paths": {
-      "data": ["./public.d.ts"]
+      "data": ["./public.d.ts"],
+      "data/jsx-runtime": ["./jsx-runtime.d.ts"],
+      "data/jsx-dev-runtime": ["./jsx-runtime.d.ts"],
+      "data/devtools": ["./devtools.d.ts"]
     }
   },
-  "include": ["check.public.ts"]
+  "include": [
+    "check.public.ts",
+    "check.public.tsx",
+    "check.public.classic.tsx",
+    "check.public.devtools.ts",
+    "check.public.lockstep.ts",
+    "public.d.ts",
+    "jsx-runtime.d.ts",
+    "devtools.d.ts"
+  ]
 }
