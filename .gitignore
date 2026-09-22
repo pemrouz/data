@@ -10,3 +10,7 @@
 # /site/gen/
 # /site/index.html
 /site/shots/
+
+# the npm build (node build.mjs → dist/; prepublishOnly runs it) and packed tarballs
+/dist/
+/*.tgz

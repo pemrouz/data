@@ -5,30 +5,75 @@
   "type": "module",
   "license": "MIT",
   "author": "pemrouz",
+  "homepage": "https://pemrouz.github.io/data/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pemrouz/data.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pemrouz/data/issues"
+  },
+  "keywords": [
+    "reactive",
+    "data",
+    "incremental",
+    "delta",
+    "crossfilter",
+    "brushing",
+    "signals",
+    "render",
+    "jsx",
+    "devtools"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "types": "./types/public.d.ts",
   "exports": {
     ".": {
       "types": "./types/public.d.ts",
-      "import": "./api/index.ts"
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
     },
     "./jsx-runtime": {
-      "import": "./api/jsx-runtime.ts"
+      "types": "./types/jsx-runtime.d.ts",
+      "import": "./dist/api/jsx-runtime.js",
+      "default": "./dist/api/jsx-runtime.js"
     },
     "./jsx-dev-runtime": {
-      "import": "./api/jsx-runtime.ts"
+      "types": "./types/jsx-runtime.d.ts",
+      "import": "./dist/api/jsx-runtime.js",
+      "default": "./dist/api/jsx-runtime.js"
     },
     "./devtools": {
-      "import": "./devtools/entry.ts"
-    }
+      "types": "./types/devtools.d.ts",
+      "import": "./dist/devtools/entry.js",
+      "default": "./dist/devtools/entry.js"
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": [
-    "./ops/*.ts"
+    "./dist/ops/*.js",
+    "./dist/devtools/entry.js"
+  ],
+  "files": [
+    "dist",
+    "types/public.d.ts",
+    "types/jsx-runtime.d.ts",
+    "types/devtools.d.ts",
+    "contract/SCHEDULE.md",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
+    "build": "node build.mjs",
     "test": "node --experimental-strip-types --no-warnings --test api/*.test.ts kernel/*.test.ts ops/*.test.ts seam/*.test.ts conformance/*.test.ts render/*.test.ts jsx/*.test.ts devtools/*.test.ts",
     "typecheck": "tsc -p types && tsc -p types/tsconfig.jsx.json && tsc -p types/tsconfig.auto.json && tsc -p types/tsconfig.public.json",
     "perf": "node --experimental-strip-types --no-warnings perf/m1-gate.ts && node --experimental-strip-types --no-warnings --expose-gc perf/m2-gate.ts && node --experimental-strip-types --no-warnings perf/m3-replication.ts && node --experimental-strip-types --no-warnings --expose-gc perf/m4-budgets.ts",
     "bench:commit": "node --experimental-strip-types --no-warnings perf/commit.bench.ts",
-    "test:all": "npm test && npm run typecheck && npm run perf"
+    "test:all": "npm test && npm run typecheck && npm run perf",
+    "pack:check": "npm run build && npm pack --dry-run",
+    "prepublishOnly": "npm run build && npm test && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
